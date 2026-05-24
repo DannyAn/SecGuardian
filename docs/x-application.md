@@ -1,9 +1,9 @@
 # SecGuardian — Application for hardcore software engineer @ X
 
-**Candidate**: JonyAn (bjellick@163.com)
+**Candidate**: JonyAn (netnewstar@gmail.com)
 **Project**: SecGuardian — AI-Native Security Guardian
-**Repository**: https://gitee.com/jonyan/secguardian
 **Submitted to**: code@x.com
+**Code**: Attached as `secguardian-portfolio.zip` (see below)
 
 ---
 
@@ -145,13 +145,19 @@ I built this because I believe the next generation of developer tools won't be "
 
 ## How To Review This Application
 
-1. Clone the repository: `git clone git@gitee.com:jonyan/secguardian.git`
-2. Review the git log: `git log --oneline` (22 clean commits, no noise)
-3. Read `skills/secaudit-taint-analysis/SKILL.md` to understand the reasoning depth
-4. Run `bash tools/check.sh` to verify project integrity
-5. Run `bash scripts/build.sh cc` to see the build pipeline work
-6. Read `docs/competitive-analysis.md` for market context
-7. Run `bash scripts/secguardian.sh list skills` to see the full capability inventory
+> **Note**: The full repository is currently private. I've attached a curated subset
+> as `secguardian-portfolio.zip` containing the complete build system, all documentation,
+> and a representative sample of the knowledge base. See `README-SAMPLE.md` inside the
+> archive for a full inventory of what's included vs. sampled.
+
+1. **Unzip the attachment**: `unzip secguardian-portfolio.zip && cd secguardian-portfolio`
+2. **Read `README-SAMPLE.md`** — orientation to what's included
+3. **Run `bash tools/check.sh`** — verify project integrity (7 validation checks)
+4. **Run `bash scripts/build.sh cc`** — watch the build pipeline assemble and deploy
+5. **Run `bash scripts/secguardian.sh list skills`** — see the full capability inventory
+6. **Read `skills/secaudit-taint-analysis/SKILL.md`** — understand the reasoning depth of the flagship analysis engine
+7. **Read `docs/competitive-analysis.md`** — market context and product thinking
+8. **Review the git history**: The archive retains the original 22 commits (`git log --oneline`)
 
 ---
 
@@ -167,4 +173,4 @@ I don't need a "senior" title. I just want to work on hard problems with enginee
 
 ---
 
-— JonyAn (bjellick@163.com)
+— JonyAn (netnewstar@gmail.com)
