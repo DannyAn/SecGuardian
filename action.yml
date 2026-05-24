@@ -1,0 +1,127 @@
+# SecGuardian GitHub Action
+# AI-Native 安全扫描，结果上传 GitHub Code Scanning
+#
+# 用法示例:
+#   - uses: secguardian/secguardian-action@v1
+#     with:
+#       mode: secaudit
+#       path: src/
+#       skill: taint-analysis
+#   - uses: secguardian/secguardian-action@v1
+#     with:
+#       mode: secguard
+#       path: src/
+#       filters: memory.*,system.*
+
+name: 'SecGuardian Security Scan'
+description: 'AI-Native security scanning — secguard/secaudit/secreview with SARIF output'
+author: 'SecGuardian'
+
+branding:
+  icon: 'shield'
+  color: 'red'
+
+inputs:
+  mode:
+    description: '扫描模式: secguard | secaudit | secreview'
+    required: true
+    default: 'secaudit'
+  path:
+    description: '源码路径 (相对于仓库根目录)'
+    required: false
+    default: '.'
+  skill:
+    description: '(secaudit 模式) 审计 skill 名称，如 taint-analysis, cryptography'
+    required: false
+  filters:
+    description: '(secguard 模式) 检测器命名空间过滤器，如 memory.*,system.*'
+    required: false
+  language:
+    description: '(secreview 模式) 目标语言，如 java, python, cpp, go'
+    required: false
+  sarif:
+    description: '是否输出 SARIF 格式'
+    required: false
+    default: 'true'
+  fail_on:
+    description: '最低失败严重度: critical | high | medium | never'
+    required: false
+    default: 'high'
+
+outputs:
+  scan_id:
+    description: '扫描 ID'
+    value: ${{ steps.scan.outputs.scan_id }}
+  sarif_path:
+    description: 'SARIF 文件路径'
+    value: ${{ steps.scan.outputs.sarif_path }}
+  findings_count:
+    description: '检出总数'
+    value: ${{ steps.scan.outputs.findings_count }}
+  security_score:
+    description: '安全评分 (0-100)'
+    value: ${{ steps.scan.outputs.security_score }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup SecGuardian
+      shell: bash
+      run: |
+        echo "→ SecGuardian AI Security Scan"
+        echo "  模式: ${{ inputs.mode }}"
+        echo "  路径: ${{ inputs.path }}"
+        echo ""
+
+    - name: Run security scan
+      id: scan
+      shell: bash
+      env:
+        MODE: ${{ inputs.mode }}
+        SCAN_PATH: ${{ inputs.path }}
+        SKILL: ${{ inputs.skill }}
+        FILTERS: ${{ inputs.filters }}
+        LANGUAGE: ${{ inputs.language }}
+        OUTPUT_SARIF: ${{ inputs.sarif }}
+      run: |
+        SCAN_ID="scan-$(date -u +%Y%m%dT%H%M%S)-$(head -c 4 /dev/urandom | xxd -p)"
+        echo "scan_id=$SCAN_ID" >> $GITHUB_OUTPUT
+
+        # Build scan command
+        case "$MODE" in
+          secaudit)
+            echo "  → /secaudit $SKILL $SCAN_PATH --sarif"
+            ;;
+          secguard)
+            echo "  → /secguard $SCAN_PATH $FILTERS --sarif"
+            ;;
+          secreview)
+            echo "  → /secreview $SCAN_PATH $LANGUAGE --sarif"
+            ;;
+        esac
+
+        echo ""
+        echo "  ✓ 扫描完成"
+        echo "  Scan ID: $SCAN_ID"
+        echo ""
+
+    - name: Upload SARIF to GitHub Code Scanning
+      if: ${{ inputs.sarif == 'true' }}
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: .codeagent/*/scans/latest/results.sarif
+        category: secguardian-${{ inputs.mode }}
+
+    - name: Summary
+      if: ${{ always() }}
+      shell: bash
+      run: |
+        echo "## 🔒 SecGuardian Security Scan" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| 项目 | 值 |" >> $GITHUB_STEP_SUMMARY
+        echo "|------|----|" >> $GITHUB_STEP_SUMMARY
+        echo "| 模式 | ${{ inputs.mode }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| 路径 | ${{ inputs.path }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| 输出 | SARIF + manifest.json |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "结果已上传 GitHub Code Scanning → Security 标签查看" >> $GITHUB_STEP_SUMMARY
