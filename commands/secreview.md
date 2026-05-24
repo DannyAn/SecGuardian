@@ -1,0 +1,74 @@
+# /secreview - 通用安全规范检视
+
+检视危险函数使用、安全函数规范、代码反模式和最佳实践合规。
+
+## 使用方式
+
+```
+/secreview <path> [language]
+
+/secreview ./src                 # 自动检测语言
+/secreview ./src java            # Java 安全规范检视
+/secreview ./src python          # Python 安全规范检视
+/secreview ./src cpp             # C/C++ 安全规范检视
+/secreview ./src go              # Go 安全规范检视
+/secreview ./src java --sarif    # 输出 SARIF 格式 (CI/CD)
+```
+
+## 输出
+
+检视结果写入 `.codeagent/secreview-secguardian/scans/<scan-id>/`：
+
+```
+.codeagent/secreview-secguardian/scans/2026-05-23T14-30-00-c4d5/
+├── manifest.json            # 检视摘要 + 发现索引
+└── findings/
+    ├── H-001.json            # High 发现
+    ├── M-001.json            # Medium 发现
+    └── ...
+```
+
+### 输出协议
+
+遵循 [Scan Output Protocol 1.0](../../knowledge/protocols/scan-output.md)。
+
+**执行完毕后必须输出检视摘要：**
+
+```
+## secreview 检视完成
+
+Scan ID: 2026-05-23T14-30-00-c4d5
+Path: ./src
+Language: Java (auto-detected)
+
+### 结果
+- 扫描文件: 45
+- 检视项: 32 checked
+- 检出: 5 (Critical: 0, High: 2, Medium: 3)
+
+### 发现
+| ID | Severity | Category | File |
+|----|----------|----------|------|
+| H-001 | High | 异常吞掉 | src/service/UserService.java:89 |
+| H-002 | High | 字段注入 | src/controller/AdminController.java:23 |
+| M-001 | Medium | 日志含敏感信息 | src/handler/AuthHandler.java:156 |
+| M-002 | Medium | ThreadLocal 未清理 | src/filter/RequestFilter.java:42 |
+| M-003 | Medium | @Transactional 自调用 | src/service/OrderService.java:203 |
+
+输出目录: .codeagent/secreview-secguardian/scans/2026-05-23T14-30-00-c4d5/
+```
+
+## 与 /secguard 的区别
+
+| 维度 | secguard | secreview |
+|------|----------|-----------|
+| 粒度 | 具体 API 调用级 + detector 过滤 | 函数/模块级语义 + 语言 |
+| 关注点 | 是否存在可利用漏洞 | 是否符合安全编码规范 |
+| 输出 | CWE + CVSS | 反模式 + 最佳实践违规 |
+| 严重度 | Critical → Info | High → Info |
+
+## 派发规则
+
+1. 语言检测（文件扩展名分布）
+2. 加载 `skills/secreview-{language}/SKILL.md`
+3. 按协议 1.0 写入输出目录
