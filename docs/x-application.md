@@ -1,6 +1,7 @@
 # SecGuardian — Application for hardcore software engineer @ X
 
-**Candidate**: JonyAn (netnewstar@gmail.com)
+**Candidate**: An Gang / JonyAn
+**Email**: netnewstar@gmail.com
 **Project**: SecGuardian — AI-Native Security Guardian
 **Submitted to**: code@x.com
 **Code**: Attached as `secguardian-portfolio.zip` (see below)
@@ -173,4 +174,4 @@ I don't need a "senior" title. I just want to work on hard problems with enginee
 
 ---
 
-— JonyAn (netnewstar@gmail.com)
+— An Gang (JonyAn) / netnewstar@gmail.com
