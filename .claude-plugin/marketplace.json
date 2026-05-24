@@ -1,0 +1,14 @@
+{
+  "name": "secguardian",
+  "description": "SecGuardian — AI-Native Security Guardian: secguard, secaudit, secreview commands",
+  "owner": {
+    "name": "SecGuardian"
+  },
+  "plugins": [
+    {
+      "name": "secguardian",
+      "description": "Security scan/audit/review commands",
+      "version": "0.1.0"
+    }
+  ]
+}

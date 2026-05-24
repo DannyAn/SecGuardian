@@ -1,0 +1,8 @@
+{
+  "name": "secguardian",
+  "description": "SecGuardian — AI-Native Security Guardian commands",
+  "version": "0.1.0",
+  "author": {
+    "name": "SecGuardian"
+  }
+}
