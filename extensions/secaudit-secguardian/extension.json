@@ -1,0 +1,31 @@
+{
+  "name": "secaudit-secguardian",
+  "version": "0.1.0",
+  "description": "安全专项审计 - 针对安全专项问题提供深度分析技能",
+  "author": "SecGuardian",
+  "command": "secaudit",
+  "protocol": "1.0",
+  "platforms": {
+    "claude-code": { "entry": "commands/secaudit.md" },
+    "opencode": { "entry": "commands/secaudit.md" },
+    "gemini-cli": { "entry": "commands/secaudit.md" }
+  },
+  "skills": [
+    "attack-surface-analysis", "data-flow-analysis", "state-machine-analysis",
+    "taint-analysis", "trust-boundary-analysis", "auth-and-session",
+    "authorization", "cryptography", "data-protection", "dependency-security",
+    "http-security-headers", "infra-hardening", "input-validation",
+    "logging-and-monitoring", "output-encoding", "secrets-management",
+    "secure-transport"
+  ],
+  "knowledge": {
+    "protocols": ["scan-output", "sarif-output"],
+    "concepts": ["sql-injection", "command-injection", "xss", "path-traversal", "ssrf", "deserialization", "weak-cryptography", "hardcoded-secrets", "toctou", "buffer-overflow"],
+    "languages": ["java", "python", "cpp", "go"]
+  },
+  "output": {
+    "base_dir": ".codeagent",
+    "scans_dir": "scans",
+    "protocol": "scan-output/1.1"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "name": "secguard-secguardian",
+  "version": "0.1.0",
+  "description": "安全加固项排查 - 对特定编程语言的特定安全问题给出扫描检测技能",
+  "author": "SecGuardian",
+  "command": "secguard",
+  "protocol": "1.0",
+  "platforms": {
+    "claude-code": {
+      "entry": "commands/secguard.md"
+    },
+    "opencode": {
+      "entry": "commands/secguard.md"
+    },
+    "gemini-cli": {
+      "entry": "commands/secguard.md"
+    }
+  },
+  "skills": ["java", "python", "cpp", "go"],
+  "knowledge": {
+    "protocols": ["scan-output", "sarif-output"],
+    "concepts": ["sql-injection", "command-injection", "xss", "path-traversal", "ssrf", "deserialization", "weak-cryptography", "hardcoded-secrets", "toctou", "buffer-overflow"],
+    "languages": ["java", "python", "cpp", "go"],
+    "detectors": [
+      "null-dereference", "double-free", "use-after-free", "buffer-overflow",
+      "format-string", "integer-overflow", "heap-buffer-overflow", "uninitialized-memory",
+      "memory-leak", "mismatched-free", "off-by-one", "bad-cast", "race-condition",
+      "deadlock", "data-race", "thread-unsafe-signal", "command-injection",
+      "path-traversal", "toctou", "insecure-temp-file", "symlink-attack",
+      "privilege-escalation", "hardcoded-secrets", "weak-random",
+      "weak-crypto-algorithm", "insufficient-key-length",
+      "java-sql-injection", "java-deserialization",
+      "python-code-injection",
+      "go-sql-injection"
+    ]
+  },
+  "output": {
+    "base_dir": ".codeagent",
+    "scans_dir": "scans",
+    "protocol": "scan-output/1.1"
+  }
+}
