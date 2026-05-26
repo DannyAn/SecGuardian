@@ -1,5 +1,5 @@
 ---
-detector: java-deserialization
+detector: deserialization
 severity: critical
 cwe: CWE-502
 language: [java]

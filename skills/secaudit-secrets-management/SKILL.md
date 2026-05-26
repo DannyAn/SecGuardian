@@ -2,6 +2,7 @@
 name: secaudit-secrets-management
 description: 审计密钥、凭证、Token等敏感信息的管理方式，检测硬编码、泄露、不当存储和缺失轮换等安全风险
 category: domain
+topic: system
 ---
 
 # 密钥管理安全审计

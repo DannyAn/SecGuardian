@@ -2,6 +2,7 @@
 name: secaudit-auth-and-session
 description: 审计认证机制和会话管理的安全性，检测凭证泄露、会话固定、认证绕过等常见漏洞
 category: domain
+topic: web
 ---
 
 # 认证与会话管理安全审计

@@ -2,6 +2,7 @@
 name: secaudit-input-validation
 description: 审计用户输入的验证和净化逻辑，检测各类注入漏洞和不充分的输入校验，覆盖 OWASP Top 10 注入类风险
 category: domain
+topic: web
 ---
 
 # 输入验证安全审计

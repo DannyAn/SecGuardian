@@ -2,6 +2,7 @@
 name: secaudit-dependency-security
 description: 审计项目第三方依赖的安全性，检测已知漏洞、供应链攻击风险、许可证合规和过时依赖问题
 category: domain
+topic: system
 ---
 
 # 依赖安全审计

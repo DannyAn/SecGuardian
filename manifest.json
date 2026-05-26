@@ -37,7 +37,7 @@
     },
     "secguard-secguardian": {
       "command": "secguard",
-      "description": "AI 引导的代码漏洞发现 — 45 个检测器覆盖 9 类安全问题 (内存/并发/系统/加密/Web/通用/Java/Python/Go)",
+      "description": "AI 引导的代码漏洞发现 — 45 个检测器覆盖 5 类安全 topic (memory/concurrency/system/crypto/web)",
       "platforms": ["claude-code", "opencode", "gemini-cli", "github-actions"],
       "skills": {
         "cpp":    { "language": "cpp",    "category": "language-specific", "status": "active", "detectors": 45 },
@@ -74,13 +74,9 @@
       "namespaces": {
         "memory":      13,
         "concurrency": 4,
-        "system":      6,
+        "system":      7,
         "crypto":      4,
-        "web":         11,
-        "general":     3,
-        "java":        2,
-        "python":      1,
-        "go":          1
+        "web":         17
       }
     },
     "coverage": {

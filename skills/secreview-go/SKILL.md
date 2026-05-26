@@ -3,6 +3,7 @@ name: secreview-go
 description: 对 Go 代码进行通用安全规范检视，关注标准库安全和并发模式规范
 category: language-specific
 language: go
+topic: [web, concurrency, crypto, system]
 ---
 
 

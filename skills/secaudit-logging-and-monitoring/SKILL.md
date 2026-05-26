@@ -2,6 +2,7 @@
 name: secaudit-logging-and-monitoring
 description: 审计安全日志的完整性、可追溯性、防篡改和监控覆盖度，检测日志注入、敏感信息泄露和安全事件遗漏
 category: domain
+topic: system
 ---
 
 # 日志与监控安全审计

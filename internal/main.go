@@ -35,38 +35,39 @@ type DetectorInfo struct {
 }
 
 var detectorRegistry = []DetectorInfo{
-	// Memory (13)
+	// Memory — 13
 	{ID: "memory.null-dereference", CWE: "CWE-476", Severity: "High", Language: "c,cpp", Category: "memory"},
 	{ID: "memory.double-free", CWE: "CWE-415", Severity: "Critical", Language: "c,cpp", Category: "memory"},
 	{ID: "memory.use-after-free", CWE: "CWE-416", Severity: "Critical", Language: "c,cpp", Category: "memory"},
-	{ID: "memory.buffer-overflow", CWE: "CWE-120", Severity: "Critical", Language: "c,cpp", Category: "bounds"},
-	{ID: "memory.heap-buffer-overflow", CWE: "CWE-122", Severity: "Critical", Language: "c,cpp", Category: "bounds"},
+	{ID: "memory.buffer-overflow", CWE: "CWE-120", Severity: "Critical", Language: "c,cpp", Category: "memory"},
+	{ID: "memory.heap-buffer-overflow", CWE: "CWE-122", Severity: "Critical", Language: "c,cpp", Category: "memory"},
 	{ID: "memory.format-string", CWE: "CWE-134", Severity: "Critical", Language: "c,cpp", Category: "memory"},
-	{ID: "memory.integer-overflow", CWE: "CWE-190", Severity: "High", Language: "c,cpp", Category: "bounds"},
+	{ID: "memory.integer-overflow", CWE: "CWE-190", Severity: "High", Language: "c,cpp", Category: "memory"},
 	{ID: "memory.uninitialized-memory", CWE: "CWE-457", Severity: "Medium", Language: "c,cpp", Category: "memory"},
 	{ID: "memory.memory-leak", CWE: "CWE-401", Severity: "Medium", Language: "c,cpp", Category: "memory"},
 	{ID: "memory.mismatched-free", CWE: "CWE-762", Severity: "High", Language: "c,cpp", Category: "memory"},
-	{ID: "memory.off-by-one", CWE: "CWE-193", Severity: "High", Language: "c,cpp", Category: "bounds"},
+	{ID: "memory.off-by-one", CWE: "CWE-193", Severity: "High", Language: "c,cpp", Category: "memory"},
 	{ID: "memory.bad-cast", CWE: "CWE-704", Severity: "Medium", Language: "c,cpp", Category: "memory"},
 	{ID: "memory.oob-read", CWE: "CWE-125", Severity: "High", Language: "c,cpp", Category: "memory"},
-	// Concurrency (4)
+	// Concurrency — 4
 	{ID: "concurrency.race-condition", CWE: "CWE-362", Severity: "High", Language: "c,cpp", Category: "concurrency"},
 	{ID: "concurrency.deadlock", CWE: "CWE-833", Severity: "Medium", Language: "c,cpp", Category: "concurrency"},
 	{ID: "concurrency.data-race", CWE: "CWE-366", Severity: "High", Language: "c,cpp", Category: "concurrency"},
 	{ID: "concurrency.thread-unsafe-signal", CWE: "CWE-479", Severity: "Medium", Language: "c,cpp", Category: "concurrency"},
-	// System (6)
+	// System — 7
 	{ID: "system.command-injection", CWE: "CWE-77", Severity: "Critical", Language: "c,cpp", Category: "system"},
 	{ID: "system.path-traversal", CWE: "CWE-22", Severity: "High", Language: "c,cpp", Category: "system"},
 	{ID: "system.toctou", CWE: "CWE-367", Severity: "High", Language: "c,cpp", Category: "system"},
 	{ID: "system.insecure-temp-file", CWE: "CWE-377", Severity: "Medium", Language: "c,cpp", Category: "system"},
 	{ID: "system.symlink-attack", CWE: "CWE-61", Severity: "Medium", Language: "c,cpp", Category: "system"},
 	{ID: "system.privilege-escalation", CWE: "CWE-269", Severity: "High", Language: "c,cpp", Category: "system"},
-	// Crypto (4)
+	{ID: "system.insecure-permissions", CWE: "CWE-276", Severity: "Medium", Language: "c,cpp,java,python,go", Category: "system"},
+	// Crypto — 4
 	{ID: "crypto.hardcoded-secrets", CWE: "CWE-798", Severity: "High", Language: "c,cpp", Category: "crypto"},
 	{ID: "crypto.weak-random", CWE: "CWE-338", Severity: "High", Language: "c,cpp", Category: "crypto"},
 	{ID: "crypto.weak-crypto-algorithm", CWE: "CWE-327", Severity: "High", Language: "c,cpp", Category: "crypto"},
 	{ID: "crypto.insufficient-key-length", CWE: "CWE-326", Severity: "Medium", Language: "c,cpp", Category: "crypto"},
-	// Web (11)
+	// Web — 17
 	{ID: "web.xss", CWE: "CWE-79", Severity: "Critical", Language: "java,python,go", Category: "web"},
 	{ID: "web.ssrf", CWE: "CWE-918", Severity: "High", Language: "java,python,go", Category: "web"},
 	{ID: "web.csrf", CWE: "CWE-352", Severity: "High", Language: "java,python,go", Category: "web"},
@@ -78,15 +79,11 @@ var detectorRegistry = []DetectorInfo{
 	{ID: "web.missing-authentication", CWE: "CWE-306", Severity: "Critical", Language: "java,python,go", Category: "web"},
 	{ID: "web.missing-authorization", CWE: "CWE-862", Severity: "High", Language: "java,python,go", Category: "web"},
 	{ID: "web.unrestricted-upload", CWE: "CWE-434", Severity: "Critical", Language: "java,python,go", Category: "web"},
-	// General (3)
-	{ID: "general.input-validation", CWE: "CWE-20", Severity: "High", Language: "c,cpp,java,python,go", Category: "general"},
-	{ID: "general.insecure-permissions", CWE: "CWE-276", Severity: "Medium", Language: "c,cpp,java,python,go", Category: "general"},
-	{ID: "general.resource-exhaustion", CWE: "CWE-400", Severity: "Medium", Language: "c,cpp,java,python,go", Category: "general"},
-	// Language-specific (4)
-	{ID: "java.sql-injection", CWE: "CWE-89", Severity: "Critical", Language: "java", Category: "language"},
-	{ID: "java.deserialization", CWE: "CWE-502", Severity: "Critical", Language: "java", Category: "language"},
-	{ID: "python.code-injection", CWE: "CWE-94", Severity: "Critical", Language: "python", Category: "language"},
-	{ID: "go.sql-injection", CWE: "CWE-89", Severity: "Critical", Language: "go", Category: "language"},
+	{ID: "web.sql-injection", CWE: "CWE-89", Severity: "Critical", Language: "java,go", Category: "web"},
+	{ID: "web.deserialization", CWE: "CWE-502", Severity: "Critical", Language: "java", Category: "web"},
+	{ID: "web.code-injection", CWE: "CWE-94", Severity: "Critical", Language: "python", Category: "web"},
+	{ID: "web.input-validation", CWE: "CWE-20", Severity: "High", Language: "c,cpp,java,python,go", Category: "web"},
+	{ID: "web.resource-exhaustion", CWE: "CWE-400", Severity: "Medium", Language: "c,cpp,java,python,go", Category: "web"},
 }
 
 func main() {
@@ -115,7 +112,7 @@ func listDetectors() {
 	fmt.Printf("%-30s %-10s %-10s %s\n", "DETECTOR", "CWE", "SEVERITY", "LANG")
 	fmt.Println(strings.Repeat("─", 70))
 
-	categories := []string{"memory", "concurrency", "system", "crypto", "web", "general", "language"}
+	categories := []string{"memory", "concurrency", "system", "crypto", "web"}
 	for _, cat := range categories {
 		hasHeader := false
 		for _, d := range detectorRegistry {

@@ -3,7 +3,7 @@ detector: input-validation
 severity: high
 cwe: CWE-20
 language: [c, cpp, java, python, go]
-tags: [validation, injection, general]
+tags: [web, validation, injection]
 ---
 
 # 输入验证不足 (Improper Input Validation)

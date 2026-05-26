@@ -3,6 +3,7 @@ name: secreview-cpp
 description: 对 C/C++ 代码进行通用安全规范检视，关注内存安全和未定义行为规范
 category: language-specific
 language: cpp
+topic: [memory, concurrency, system, crypto]
 ---
 
 

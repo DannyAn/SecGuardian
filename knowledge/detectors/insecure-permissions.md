@@ -3,7 +3,7 @@ detector: insecure-permissions
 severity: medium
 cwe: CWE-276
 language: [c, cpp, java, python, go]
-tags: [filesystem, permissions, configuration]
+tags: [system, filesystem, permissions]
 ---
 
 # 不安全的默认权限 (Incorrect Default Permissions)

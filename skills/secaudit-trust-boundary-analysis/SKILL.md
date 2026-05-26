@@ -2,6 +2,7 @@
 name: secaudit-trust-boundary-analysis
 description: 识别系统架构中的信任边界，检查跨边界交互的安全控制，发现因信任假设错误导致的安全漏洞
 category: analysis
+topic: system
 ---
 
 # 信任边界分析 (Trust Boundary Analysis)

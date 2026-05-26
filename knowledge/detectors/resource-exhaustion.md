@@ -3,7 +3,7 @@ detector: resource-exhaustion
 severity: medium
 cwe: CWE-400
 language: [c, cpp, java, python, go]
-tags: [dos, resource, memory, performance]
+tags: [web, dos, resource, memory]
 ---
 
 # 不受控制的资源消耗 (Uncontrolled Resource Consumption)

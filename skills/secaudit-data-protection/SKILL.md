@@ -2,6 +2,7 @@
 name: secaudit-data-protection
 description: 审计敏感数据的存储、传输、处理和销毁全生命周期的安全保护措施，检测数据泄露和隐私合规风险
 category: domain
+topic: system
 ---
 
 # 数据保护安全审计

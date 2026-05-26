@@ -2,6 +2,7 @@
 name: secaudit-http-security-headers
 description: 审计 HTTP 响应安全头配置，检测缺失、错误配置或相互冲突的安全头，确保浏览器安全策略正确实施
 category: domain
+topic: web
 ---
 
 # HTTP 安全头审计

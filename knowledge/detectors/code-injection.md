@@ -1,5 +1,5 @@
 ---
-detector: python-code-injection
+detector: code-injection
 severity: critical
 cwe: CWE-94
 language: [python]

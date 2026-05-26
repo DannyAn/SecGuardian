@@ -2,6 +2,7 @@
 name: secaudit-cryptography
 description: 审计密码学实现的安全性，检测弱算法、错误使用模式、密钥管理缺陷和随机数安全问题
 category: domain
+topic: crypto
 ---
 
 # 密码学安全审计

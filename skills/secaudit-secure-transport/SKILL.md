@@ -2,6 +2,7 @@
 name: secaudit-secure-transport
 description: 审计网络通信的TLS/SSL配置和传输层安全，检测证书问题、降级攻击风险、协议配置缺陷和不安全的加密套件
 category: domain
+topic: system
 ---
 
 # 安全传输审计

@@ -2,6 +2,7 @@
 name: secaudit-data-flow-analysis
 description: 追踪数据在系统中的完整传播路径，识别从输入点到输出点的所有数据流，发现隐式的数据依赖和潜在的数据泄露通道
 category: analysis
+topic: memory
 ---
 
 # 数据流分析 (Data Flow Analysis)

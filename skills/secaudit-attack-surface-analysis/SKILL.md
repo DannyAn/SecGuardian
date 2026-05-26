@@ -2,6 +2,7 @@
 name: secaudit-attack-surface-analysis
 description: 系统性地分析代码库的攻击面，识别所有暴露的入口点、接口和数据通道，评估每个暴露面的风险等级
 category: analysis
+topic: web
 ---
 
 # 攻击面分析 (Attack Surface Analysis)

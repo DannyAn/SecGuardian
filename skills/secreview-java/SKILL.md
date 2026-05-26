@@ -3,6 +3,7 @@ name: secreview-java
 description: 对 Java 代码进行通用安全规范检视，关注危险函数使用和安全编码规范
 category: language-specific
 language: java
+topic: [web, crypto, system]
 ---
 
 

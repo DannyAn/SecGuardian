@@ -2,6 +2,7 @@
 name: secaudit-infra-hardening
 description: 审计容器、Kubernetes、云资源和CI/CD管道的基础设施安全配置，检测配置缺陷和加固缺失
 category: domain
+topic: system
 ---
 
 # 基础设施加固审计

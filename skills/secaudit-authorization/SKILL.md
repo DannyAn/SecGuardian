@@ -2,6 +2,7 @@
 name: secaudit-authorization
 description: 审计权限模型的实现安全性，检测水平越权、垂直越权、IDOR、权限缺失和权限提升路径
 category: domain
+topic: web
 ---
 
 # 授权与访问控制安全审计

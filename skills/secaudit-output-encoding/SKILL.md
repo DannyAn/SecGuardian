@@ -2,6 +2,7 @@
 name: secaudit-output-encoding
 description: 审计输出数据的上下文感知编码处理，检测因编码缺失或不匹配导致的 XSS、注入和跨上下文攻击
 category: domain
+topic: web
 ---
 
 # 输出编码安全审计

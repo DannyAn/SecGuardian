@@ -2,6 +2,7 @@
 name: secaudit-state-machine-analysis
 description: 分析系统状态转换逻辑的安全性，检测非法的状态跃迁路径，发现认证绕过、权限提升和业务逻辑漏洞
 category: analysis
+topic: concurrency
 ---
 
 # 状态机分析 (State Machine Analysis)

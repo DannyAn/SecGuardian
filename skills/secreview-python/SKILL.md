@@ -3,6 +3,7 @@ name: secreview-python
 description: 对 Python 代码进行通用安全规范检视，关注危险函数使用和安全编码规范
 category: language-specific
 language: python
+topic: [web, crypto, system]
 ---
 
 

@@ -2,6 +2,7 @@
 name: secaudit-taint-analysis
 description: 通过污点传播追踪检测不可信数据是否未经净化到达危险操作点，发现注入类和安全敏感操作漏洞
 category: analysis
+topic: memory
 ---
 
 # 污点分析 (Taint Analysis)
