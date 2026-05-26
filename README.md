@@ -2,7 +2,13 @@
 
 **AI 深度安全审计 + 代码漏洞发现 + 安全规范审查。年省 $50K+ 安全顾问费用。**
 
-SecGuardian 是为 **Claude Code**、**OpenCode**、**Gemini CLI**、**GitHub Actions** 提供的企业级白盒安全 AI 解决方案。
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue)](https://github.com/secguardian/secguardian)
+[![Version](https://img.shields.io/badge/version-0.3.0-blue)](https://github.com/secguardian/secguardian/blob/develop/CHANGELOG.md)
+[![Go](https://img.shields.io/badge/Go-1.22%2B-00ADD8)](https://go.dev)
+[![Detectors](https://img.shields.io/badge/detectors-45-brightgreen)](https://github.com/secguardian/secguardian/blob/develop/skills/secguard-cpp/references/detector-index.md)
+[![CWE Top 25](https://img.shields.io/badge/CWE_Top_25-100%25-brightgreen)](https://github.com/secguardian/secguardian/blob/develop/skills/secguard-cpp/references/detector-index.md)
+
+SecGuardian 是为 **Claude Code**、**OpenCode**、**Gemini CLI**、**GitHub Actions** 提供的企业级白盒安全 AI 解决方案。支持 **Windows / macOS / Linux** 全平台 CLI。
 
 ---
 
@@ -23,6 +29,52 @@ SecGuardian 是为 **Claude Code**、**OpenCode**、**Gemini CLI**、**GitHub Ac
 > **与传统 SAST 的本质区别**：传统工具做模式匹配，SecAudit 做深度推理。它理解代码的上下文、业务逻辑和数据流，能发现传统工具遗漏的隐蔽漏洞。
 
 ---
+
+## 安装
+
+### 全平台 CLI（推荐）
+
+SecGuardian 提供独立的 Go 二进制文件，无需依赖任何 AI CLI 平台即可运行：
+
+**macOS / Linux:**
+```bash
+cd internal && go build -o secguardian .
+./secguardian help
+```
+
+**Windows (PowerShell):**
+```powershell
+cd internal; go build -o secguardian.exe .
+.\secguardian.exe help
+```
+
+或使用构建脚本：
+
+```bash
+# macOS/Linux
+bash scripts/build.sh cc
+
+# Windows
+powershell -File scripts/build.ps1
+```
+
+### 运行
+
+```bash
+# 列出 45 个检测器
+secguardian detectors
+
+# 按分类筛选
+secguardian scan --path ./src --filters memory.*
+secguardian scan --path ./src --filters "memory.*,web.sql-injection"
+
+# 查看审计技能
+secguardian audit --skill list
+secguardian audit --skill cryptography --path ./src
+
+# 代码审查
+secguardian review --path ./src --lang python
+```
 
 ## 运行环境
 

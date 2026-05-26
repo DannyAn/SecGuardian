@@ -5,6 +5,27 @@ All notable changes to SecGuardian will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-05-27
+
+### Added
+
+- **Cross-platform support (Windows / macOS / Linux):**
+  - `scripts/build.ps1`: PowerShell build script for Windows
+  - `scripts/secguardian.ps1`: Windows CLI entry point delegating to Go binary
+  - `.github/workflows/ci.yml`: CI pipeline with OS matrix (ubuntu/macos/windows)
+  - `examples/cpp-vuln-demo/src/windows.c`: Windows-specific vulnerability examples
+  - README: platform badges, cross-platform install instructions
+- **Go CLI enhancements:**
+  - `secguardian scan` — matches detectors to namespace filters
+  - `secguardian audit` — lists 17 audit skills with topic labels
+  - `secguardian review` — per-language review invocation
+  - `secguardian help` — unified help with platform info
+
+### Changed
+
+- Go CLI is now the primary cross-platform entry point; bash scripts are
+  complementary for extension deployment on macOS/Linux
+
 ## [0.3.0] - 2026-05-27
 
 ### Restructured

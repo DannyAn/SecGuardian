@@ -1,0 +1,91 @@
+name: SecGuardian CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build Go binary
+        working-directory: internal
+        run: go build -o secguardian${{ matrix.os == 'windows' && '.exe' || '' }} .
+
+      - name: Verify binary
+        working-directory: internal
+        run: ./secguardian${{ matrix.os == 'windows' && '.exe' || '' }} version
+
+      - name: List detectors
+        working-directory: internal
+        run: ./secguardian${{ matrix.os == 'windows' && '.exe' || '' }} detectors
+
+      - name: Verify scan filter
+        working-directory: internal
+        run: ./secguardian${{ matrix.os == 'windows' && '.exe' || '' }} scan --path ../examples/cpp-vuln-demo/src --filters memory.*
+
+      - name: Verify audit
+        working-directory: internal
+        run: ./secguardian${{ matrix.os == 'windows' && '.exe' || '' }} audit --skill list
+
+  knowledge:
+    name: Knowledge File Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Count knowledge files
+        run: |
+          echo "Knowledge files: $(ls knowledge/detectors/*.md | wc -l)"
+          echo "Concepts: $(ls knowledge/concepts/*.md | wc -l)"
+          echo "Languages: $(ls knowledge/languages/*.md | wc -l)"
+          echo "Protocols: $(ls knowledge/protocols/*.md | wc -l)"
+
+      - name: Verify frontmatter completeness
+        run: |
+          missing=0
+          for f in knowledge/detectors/*.md; do
+            if ! grep -q "detector:" "$f" || ! grep -q "cwe:" "$f" || ! grep -q "severity:" "$f"; then
+              echo "Missing frontmatter in: $f"
+              missing=$((missing + 1))
+            fi
+          done
+          echo "Files with complete frontmatter: $(($(ls knowledge/detectors/*.md | wc -l) - missing))"
+          if [ $missing -gt 0 ]; then exit 1; fi
+
+  examples:
+    name: Example Coverage Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Count VULNERABILITY markers
+        run: |
+          total=$(grep -r "VULNERABILITY" examples/*/src/ | grep -c "CWE-"  || echo 0)
+          echo "Total VULNERABILITY markers: $total"
+          echo "CWE 类型: $(grep -roh 'CWE-[0-9]*' examples/*/src/ | sort -u | wc -l)"
+
+      - name: Verify all detectors have example coverage
+        run: |
+          echo "Checking example coverage..."
+          for f in knowledge/detectors/*.md; do
+            cwe=$(grep "cwe:" "$f" | head -1 | sed 's/.*CWE-//;s/ .*//')
+            if ! grep -rq "CWE-$cwe" examples/*/src/; then
+              echo "MISSING example for: $(basename $f .md) (CWE-$cwe)"
+            fi
+          done
+          echo "If any missing lines above, examples need updating."

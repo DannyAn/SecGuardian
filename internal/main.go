@@ -87,23 +87,197 @@ var detectorRegistry = []DetectorInfo{
 }
 
 func main() {
-	// Subcommand routing
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "detectors", "list":
 			listDetectors()
 			return
+		case "scan":
+			runScan(os.Args[2:])
+			return
+		case "audit":
+			runAudit(os.Args[2:])
+			return
+		case "review":
+			runReview(os.Args[2:])
+			return
 		case "index":
 			runIndex(os.Args[2:])
 			return
-		case "version":
+		case "version", "--version", "-v":
 			fmt.Printf("secguardian %s\n", version)
+			return
+		case "help", "--help", "-h":
+			printHelp()
 			return
 		}
 	}
 
-	// Default: backward-compatible index mode with --path
-	runIndex(os.Args[1:])
+	// Default: show help
+	printHelp()
+}
+
+func printHelp() {
+	fmt.Printf("SecGuardian CLI v%s — Cross-Platform Security Analysis\n", version)
+	fmt.Println()
+	fmt.Println("Usage:")
+	fmt.Println("  secguardian scan   --path <dir> [--filters <ns>]  # Code vulnerability scan")
+	fmt.Println("  secguardian audit  --skill <name> --path <dir>    # Deep AI security audit")
+	fmt.Println("  secguardian review --path <dir> --lang <lang>     # Coding standard review")
+	fmt.Println("  secguardian index  --path <dir>                   # Build semantic index")
+	fmt.Println("  secguardian detectors                             # List all 45 detectors")
+	fmt.Println("  secguardian version                               # Print version")
+	fmt.Println()
+	fmt.Println("Filters:")
+	fmt.Println("  memory, concurrency, system, crypto, web")
+	fmt.Println()
+	fmt.Println("Platforms:")
+	fmt.Println("  Windows  ⬡   macOS  🍎   Linux  🐧")
+	fmt.Println("  Build: GOOS=<os> GOARCH=<arch> go build ./internal/")
+}
+
+func runScan(args []string) {
+	fs := flag.NewFlagSet("scan", flag.ExitOnError)
+	pathFlag := fs.String("path", "./src", "Source directory to scan")
+	filtersFlag := fs.String("filters", "*", "Detector filters (e.g. memory.*, web.sql-injection)")
+	sarifFlag := fs.Bool("sarif", false, "Output SARIF format")
+	fs.Parse(args)
+
+	fmt.Printf("SecGuardian v%s — Code Vulnerability Scan\n", version)
+	fmt.Printf("Path: %s\n", *pathFlag)
+	fmt.Printf("Filters: %s\n", *filtersFlag)
+	if *sarifFlag {
+		fmt.Printf("SARIF: enabled\n")
+	}
+	fmt.Println()
+
+	// Match detectors against filters
+	var matched []DetectorInfo
+	for _, d := range detectorRegistry {
+		if matchFilter(d.ID, *filtersFlag) {
+			matched = append(matched, d)
+		}
+	}
+
+	if len(matched) == 0 {
+		fmt.Println("No detectors matched. Try: secguardian detectors")
+		return
+	}
+
+	fmt.Printf("Matched detectors: %d\n", len(matched))
+	for _, d := range matched {
+		sevColor := ""
+		switch d.Severity {
+		case "Critical": sevColor = "[CRIT]"
+		case "High": sevColor = "[HIGH]"
+		case "Medium": sevColor = "[MED]"
+		default: sevColor = "[LOW]"
+		}
+		fmt.Printf("  %s %-28s %s (%s)\n", sevColor, d.ID, d.CWE, d.Language)
+	}
+
+	fmt.Println()
+	fmt.Println("Run this scan with the AI agent:")
+	fmt.Printf("  /secguard %s %s\n", *pathFlag, *filtersFlag)
+}
+
+func runAudit(args []string) {
+	fs := flag.NewFlagSet("audit", flag.ExitOnError)
+	skillFlag := fs.String("skill", "", "Audit skill name (e.g. taint-analysis, cryptography)")
+	pathFlag := fs.String("path", "./src", "Source directory to audit")
+	sarifFlag := fs.Bool("sarif", false, "Output SARIF format")
+	fs.Parse(args)
+
+	fmt.Printf("SecGuardian v%s — AI Deep Security Audit\n", version)
+	fmt.Printf("Path: %s\n", *pathFlag)
+	if *sarifFlag {
+		fmt.Printf("SARIF: enabled\n")
+	}
+
+	// Secaudit skills reference
+	skills := []struct{ name, topic, desc string }{
+		// Analysis skills (5)
+		{"attack-surface-analysis", "web", "Identify all exposed entry points"},
+		{"data-flow-analysis", "memory", "Trace sensitive data flows end-to-end"},
+		{"state-machine-analysis", "concurrency", "Detect illegal state transitions"},
+		{"taint-analysis", "memory", "Source→Sink propagation chain tracking"},
+		{"trust-boundary-analysis", "system", "Cross-boundary security control audit"},
+		// Domain skills (12)
+		{"auth-and-session", "web", "Authentication + session security (OWASP ASVS)"},
+		{"authorization", "web", "Access control / IDOR / privilege escalation"},
+		{"cryptography", "crypto", "Algorithms, key management, RNG audit"},
+		{"input-validation", "web", "OWASP Top 10 injection defense"},
+		{"data-protection", "system", "Sensitive data lifecycle protection"},
+		{"secrets-management", "system", "Credential storage / rotation / leak detection"},
+		{"secure-transport", "system", "TLS / certificate / protocol config audit"},
+		{"http-security-headers", "web", "CSP / HSTS / X-Frame audit"},
+		{"output-encoding", "web", "XSS / injection cross-context prevention"},
+		{"logging-and-monitoring", "system", "Security event traceability"},
+		{"dependency-security", "system", "Known vulns / supply chain risk audit"},
+		{"infra-hardening", "system", "Container / Kubernetes / cloud hardening"},
+	}
+
+	if *skillFlag == "" || *skillFlag == "list" {
+		fmt.Printf("\nAvailable audit skills (%d):\n", len(skills))
+		for _, s := range skills {
+			fmt.Printf("  %-30s [%s] %s\n", s.name, s.topic, s.desc)
+		}
+		fmt.Println("\nUsage: secguardian audit --skill <name> --path <dir>")
+		return
+	}
+
+	fmt.Printf("Skill: %s\n", *skillFlag)
+	fmt.Println()
+	fmt.Println("Run this audit with the AI agent:")
+	fmt.Printf("  /secaudit %s %s\n", *skillFlag, *pathFlag)
+}
+
+func runReview(args []string) {
+	fs := flag.NewFlagSet("review", flag.ExitOnError)
+	pathFlag := fs.String("path", "./src", "Source directory to review")
+	langFlag := fs.String("lang", "auto", "Language: cpp, java, python, go, auto")
+	sarifFlag := fs.Bool("sarif", false, "Output SARIF format")
+	fs.Parse(args)
+
+	fmt.Printf("SecGuardian v%s — Coding Standard Review\n", version)
+	fmt.Printf("Path: %s\n", *pathFlag)
+	fmt.Printf("Language: %s\n", *langFlag)
+	if *sarifFlag {
+		fmt.Printf("SARIF: enabled\n")
+	}
+	fmt.Println()
+	fmt.Println("Run this review with the AI agent:")
+	fmt.Printf("  /secreview %s %s\n", *pathFlag, *langFlag)
+}
+
+func matchFilter(id, filter string) bool {
+	if filter == "*" || filter == "" {
+		return true
+	}
+	for _, f := range strings.Split(filter, ",") {
+		f = strings.TrimSpace(f)
+		if f == "" {
+			continue
+		}
+		if id == f {
+			return true
+		}
+		// Glob match: memory.* matches memory.null-dereference
+		if strings.HasSuffix(f, ".*") {
+			prefix := strings.TrimSuffix(f, ".*")
+			if strings.HasPrefix(id, prefix+".") || id == prefix {
+				return true
+			}
+		}
+		// Fuzzy match: "sql" matches "web.sql-injection"
+		if !strings.Contains(f, ".") && !strings.Contains(f, "*") {
+			parts := strings.Split(id, ".")
+			if len(parts) > 1 && strings.Contains(parts[1], f) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func listDetectors() {
