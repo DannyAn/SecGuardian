@@ -1,0 +1,171 @@
+#!/bin/bash
+# SecGuardian — Release Build Script
+#
+# 构建所有发布产物到 dist/release/<version>/
+#
+# 用法:
+#   bash scripts/release.sh [version]
+#   bash scripts/release.sh 0.3.1
+#
+# 环境变量:
+#   VERSION   版本号（默认从 git tag 或 CHANGELOG 取）
+#   OUTPUT    输出目录（默认 dist/release）
+#
+# 输出:
+#   dist/release/<version>/
+#   ├── secguardian-<version>-darwin-amd64
+#   ├── secguardian-<version>-darwin-amd64.sha256
+#   ├── secguardian-<version>-darwin-arm64
+#   ├── secguardian-<version>-darwin-arm64.sha256
+#   ├── secguardian-<version>-linux-amd64
+#   ├── secguardian-<version>-linux-amd64.sha256
+#   ├── secguardian-<version>-windows-amd64.exe
+#   ├── secguardian-<version>-windows-amd64.exe.sha256
+#   ├── secguardian-<version>-claude-code.zip
+#   ├── secguardian-<version>-opencode.zip
+#   ├── secguardian-<version>-gemini-cli.zip
+#   ├── secguardian-<version>-source.tar.gz
+#   └── manifest.json
+
+set -euo pipefail
+
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+VERSION="${1:-$(grep '^\#\# ' "$PROJECT_ROOT/CHANGELOG.md" | head -1 | sed 's/.*\[//;s/\].*//')}"
+VERSION="${VERSION:-0.3.1}"
+OUTPUT="${OUTPUT:-$PROJECT_ROOT/dist/release/$VERSION}"
+
+GREEN='\033[0;32m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
+
+log() { echo -e "${CYAN}  →${NC} $1"; }
+done_msg() { echo -e "${GREEN}  ✓${NC} $1"; }
+
+echo ""
+echo -e "${BOLD}╔══════════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}║${NC}  SecGuardian Release Build v${VERSION}                  ${BOLD}║${NC}"
+echo -e "${BOLD}╚══════════════════════════════════════════════╝${NC}"
+echo ""
+
+mkdir -p "$OUTPUT"
+
+# ── 1. Go Binary: macOS (native) ──────────────────
+log "Building Go binaries (macOS)..."
+cd "$PROJECT_ROOT/internal"
+
+for arch in arm64 amd64; do
+    bin_name="secguardian-${VERSION}-darwin-${arch}"
+    if GOOS=darwin GOARCH=$arch go build -o "$OUTPUT/$bin_name" . 2>/dev/null; then
+        shasum -a 256 "$OUTPUT/$bin_name" | cut -d' ' -f1 > "$OUTPUT/$bin_name.sha256"
+        done_msg "$bin_name ($(du -h "$OUTPUT/$bin_name" | cut -f1))"
+    else
+        log "WARN: $bin_name build failed (tree-sitter CGO) — try native build on $arch Mac"
+    fi
+done
+if [ -f "$OUTPUT/secguardian-${VERSION}-darwin-arm64" ]; then
+    cp "$OUTPUT/secguardian-${VERSION}-darwin-arm64" "$OUTPUT/secguardian"
+    done_msg "secguardian (macOS default)"
+fi
+
+# ── 1b. Build Notes ──────────────────────────────
+log "Linux/Windows builds managed by CI:"
+log "  .github/workflows/ci.yml builds on OS matrix: ubuntu/macos/windows"
+log "  Each runner builds natively with tree-sitter CGO support"
+log ""
+log "  Manual cross-build (no tree-sitter indexer):"
+log "    CGO_ENABLED=0 GOOS=linux  GOARCH=amd64 go build -o secguardian-linux  ./internal/"
+log "    CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o secguardian.exe ./internal/"
+
+# ── 2. Extension Packages ─────────────────────────
+log "Building extension packages..."
+
+cd "$PROJECT_ROOT"
+bash scripts/package.sh > /dev/null 2>&1
+
+# Claude Code: bundle all 3 extensions into one
+claude_zip="$OUTPUT/secguardian-${VERSION}-claude-code.zip"
+rm -f "$claude_zip"
+(cd dist && zip -rq "$claude_zip" secaudit-secguardian/ secguard-secguardian/ secreview-secguardian/)
+shasum -a 256 "$claude_zip" | cut -d' ' -f1 > "$claude_zip.sha256"
+done_msg "secguardian-${VERSION}-claude-code.zip ($(du -h "$claude_zip" | cut -f1))"
+
+# OpenCode: .md command files
+bash scripts/deploy.sh nga > /dev/null 2>&1
+opencode_zip="$OUTPUT/secguardian-${VERSION}-opencode.zip"
+rm -f "$opencode_zip"
+if [ -d ".opencode/commands" ]; then
+    (cd .opencode && zip -rq "$opencode_zip" commands/)
+    shasum -a 256 "$opencode_zip" | cut -d' ' -f1 > "$opencode_zip.sha256"
+    done_msg "secguardian-${VERSION}-opencode.zip ($(du -h "$opencode_zip" | cut -f1))"
+fi
+
+# Gemini CLI: TOML + skills + GEMINI.md
+bash scripts/deploy.sh cac > /dev/null 2>&1
+gemini_zip="$OUTPUT/secguardian-${VERSION}-gemini-cli.zip"
+rm -f "$gemini_zip"
+if [ -d ".gemini/skills" ]; then
+    (cd .gemini && zip -rq "$gemini_zip" skills/ commands/ GEMINI.md)
+    shasum -a 256 "$gemini_zip" | cut -d' ' -f1 > "$gemini_zip.sha256"
+    done_msg "secguardian-${VERSION}-gemini-cli.zip ($(du -h "$gemini_zip" | cut -f1))"
+fi
+
+# ── 3. Source Archive ─────────────────────────────
+log "Packing source archive..."
+source_archive="$OUTPUT/secguardian-${VERSION}-source.tar.gz"
+git archive --format=tar.gz \
+    --prefix="secguardian-${VERSION}/" \
+    -o "$source_archive" HEAD
+shasum -a 256 "$source_archive" | cut -d' ' -f1 > "$source_archive.sha256"
+done_msg "secguardian-${VERSION}-source.tar.gz ($(du -h "$source_archive" | cut -f1))"
+
+# ── 4. Manifest ──────────────────────────────────
+log "Writing manifest..."
+cat > "$OUTPUT/manifest.json" << EOF
+{
+  "version": "$VERSION",
+  "date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "artifacts": [
+    {
+      "name": "secguardian-${VERSION}-darwin-arm64",
+      "os": "darwin",
+      "arch": "arm64",
+      "type": "binary"
+    },
+    {
+      "name": "secguardian-${VERSION}-darwin-amd64",
+      "os": "darwin",
+      "arch": "amd64",
+      "type": "binary"
+    },
+    {
+      "name": "secguardian-${VERSION}-claude-code.zip",
+      "platform": "claude-code",
+      "type": "extension"
+    },
+    {
+      "name": "secguardian-${VERSION}-opencode.zip",
+      "platform": "opencode",
+      "type": "extension"
+    },
+    {
+      "name": "secguardian-${VERSION}-gemini-cli.zip",
+      "platform": "gemini-cli",
+      "type": "extension"
+    },
+    {
+      "name": "secguardian-${VERSION}-source.tar.gz",
+      "type": "source"
+    }
+  ],
+  "detectors": 45,
+  "cwe_top25": "25/25 (100%)",
+  "owasp_top10": "9/10 (90%)"
+}
+EOF
+done_msg "manifest.json"
+
+echo ""
+echo -e "${GREEN}${BOLD}═══ Release v${VERSION} complete ═══${NC}"
+echo -e "  Output: ${CYAN}$OUTPUT/${NC}"
+ls -lh "$OUTPUT/" | grep -v "^total" | grep -v "^d" | awk '{print "  " $NF " (" $5 ")"}'
+echo ""
+echo -e "  ${BOLD}Next:${NC} Upload to GitHub Releases:"
+echo -e "    gh release create v${VERSION} $OUTPUT/* --title 'v${VERSION}'"

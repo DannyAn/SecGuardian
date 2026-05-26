@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Release pipeline:** `scripts/release.sh` builds all artifacts with
+  standardized naming: `secguardian-<version>-<os>-<arch>`
 - **Cross-platform support (Windows / macOS / Linux):**
   - `scripts/build.ps1`: PowerShell build script for Windows
   - `scripts/secguardian.ps1`: Windows CLI entry point delegating to Go binary

@@ -23,7 +23,7 @@ import (
 	"github.com/secguardian/internal/parser"
 )
 
-const version = "0.2.0"
+const version = "0.3.1"
 
 // Detector definition for the CLI's built-in registry
 type DetectorInfo struct {
