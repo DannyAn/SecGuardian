@@ -139,6 +139,15 @@ version: "1.0"
     "diff_line": "+42",
     "is_new_code": true
   },
+  "confidence": {
+    "level": "high",
+    "score": 90,
+    "evidence": ["path_verified", "symbol_verified", "chain_complete", "actionable_remediation"]
+  },
+  "reflection": {
+    "validators_passed": ["path", "symbol"],
+    "deduplicated_from": []
+  },
   "analysis": {
     "description": "用户输入 user_input 通过 strcpy 直接拷贝到 64 字节的栈缓冲区 buf 中，未做长度检查。如果 user_input 超过 64 字节，将覆盖栈上的返回地址和其他局部变量。",
     "impact": "攻击者可构造超长输入，覆盖函数返回地址实现任意代码执行 (RCE)。",
