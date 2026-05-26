@@ -40,7 +40,7 @@
       "description": "AI 引导的代码漏洞发现 — 26 个检测器覆盖 4 类安全问题",
       "platforms": ["claude-code", "opencode", "gemini-cli", "github-actions"],
       "skills": {
-        "cpp":    { "language": "cpp",    "category": "language-specific", "status": "active", "detectors": 30 },
+        "cpp":    { "language": "cpp",    "category": "language-specific", "status": "active", "detectors": 32 },
         "java":   { "language": "java",   "category": "language-specific", "status": "active" },
         "python": { "language": "python", "category": "language-specific", "status": "active" },
         "go":     { "language": "go",     "category": "language-specific", "status": "active" }
@@ -69,8 +69,8 @@
     "languages": ["cpp", "java", "python", "go"],
     "detectors": {
       "note": "Full detector registry in skills/secguard-cpp/references/detector-index.md",
-      "count": 30,
-      "active_count": 30,
+      "count": 32,
+      "active_count": 32,
       "namespaces": {
         "memory":      12,
         "concurrency": 4,

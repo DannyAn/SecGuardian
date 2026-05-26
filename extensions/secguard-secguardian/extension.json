@@ -31,7 +31,8 @@
       "weak-crypto-algorithm", "insufficient-key-length",
       "java-sql-injection", "java-deserialization",
       "python-code-injection",
-      "go-sql-injection"
+      "go-sql-injection",
+      "xss", "ssrf"
     ]
   },
   "output": {
