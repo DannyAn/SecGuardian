@@ -24,7 +24,7 @@ SecGuardian — 部署脚本
 平台:
   all      三平台全部部署 (默认)
   cc       Claude Code    → .claude/extensions/
-  nga      OpenCode       → .opocode/ (extension.json + skills + commands)
+  nga      OpenCode       → .opencode/commands/ (.md files = custom commands)
   cac      Gemini CLI     → .gemini/skills/ + .gemini/commands/
 
 选项:
@@ -130,43 +130,28 @@ deploy_claude() {
 
 # ── OpenCode ────────────────────────────────────
 deploy_opencode() {
-    log_step "OpenCode → .opocode/ (extension.json + skills + commands)"
+    log_step "OpenCode → .opencode/commands/ (OpenCode 加载 .md 文件为自定义命令)"
 
-    local ext_dir="$PROJECT_ROOT/.opocode"
-    local skills_dir="$ext_dir/skills"
-    local cmd_dir="$ext_dir/commands"
-    rm -rf "$ext_dir"
-    mkdir -p "$skills_dir" "$cmd_dir"
+    local cmd_dir="$PROJECT_ROOT/.opencode/commands"
+    rm -rf "$cmd_dir"
+    mkdir -p "$cmd_dir"
 
-    # OpenCode extension registration manifest
-    if [ -f "$PROJECT_ROOT/commands/opencode/extension.json" ]; then
-        cp "$PROJECT_ROOT/commands/opencode/extension.json" "$ext_dir/extension.json"
-        log_info "extension.json (OpenCode register)"
-    fi
-
-    local skill_n=0
-    for d in "$DIST"/*/; do
-        [ -d "$d/skills" ] && for sd in "$d/skills"/*/; do
-            cp -r "$sd" "$skills_dir/$(basename "$sd")"; skill_n=$((skill_n + 1))
-        done
-        [ -d "$d/knowledge" ] && cp -r "$d/knowledge" "$skills_dir/.knowledge-$(basename "$d")"
-    done
-
+    # OpenCode 自定义命令 = .md 文件
+    # 文件名（不含 .md）即为命令名
     for d in "$DIST"/*/; do
         [ -d "$d/commands" ] && cp "$d/commands"/*.md "$cmd_dir/" 2>/dev/null || true
     done
 
     local cmd_n=$(ls "$cmd_dir"/*.md 2>/dev/null | wc -l | tr -d ' ')
-    log_done "$skill_n skills + $cmd_n commands (.md)"
+    log_done "$cmd_n commands (.md)"
 
     deploy_binary "$PROJECT_ROOT/scripts" 2>/dev/null || true
 
     echo ""
     log_info "OpenCode 使用方式（重启后生效）:"
-    echo "    skill secguard-cpp"
-    echo "    skill secaudit-taint-analysis"
-    echo "    skill secreview-java"
-    echo "    /secguard ./src cpp"
+    echo "    /secaudit (command from .md file)"
+    echo "    /secguard (command from .md file)"
+    echo "    /secreview (command from .md file)"
 }
 
 # ── Gemini CLI ───────────────────────────────────
@@ -255,10 +240,10 @@ do_zip() {
         log_done "cc-${name}.zip"
     done
 
-    # OpenCode: extension.json + skills + commands 打成 zip
-    if [ -d "$PROJECT_ROOT/.opocode" ]; then
+    # OpenCode: commands 打成 zip
+    if [ -d "$PROJECT_ROOT/.opencode/commands" ]; then
         local nga_zip="$archive_dir/nga-secguardian.zip"
-        (cd "$PROJECT_ROOT/.opocode" && zip -rq "$nga_zip" extension.json skills/ commands/)
+        (cd "$PROJECT_ROOT/.opencode" && zip -rq "$nga_zip" commands/)
         log_done "nga-secguardian.zip"
     fi
 

@@ -31,7 +31,7 @@ Thumbs.db
 ._*
 
 # Build output (deploy targets)
-.opocode/
+.opencode/
 
 # Build artifacts (Go binaries)
 internal/secguardian
