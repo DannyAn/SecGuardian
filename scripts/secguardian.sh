@@ -270,19 +270,75 @@ run_scan() {
     local output_dir="$PROJECT_ROOT/.codeagent/secguard-secguardian/scans/$scan_id"
     mkdir -p "$output_dir/findings"
 
-    # 组装 prompt
+    # 运行索引器（如果存在可执行文件）
+    local index_bin="$PROJECT_ROOT/internal/secguardian-index"
+    local index_json="$output_dir/index.json"
+    if [ -x "$index_bin" ]; then
+        echo -e "  ${CYAN}→${NC} Running code indexer..."
+        if $index_bin --path "$path" --output "$index_json" 2>/dev/null; then
+            echo -e "  ${GREEN}✓${NC} Code index generated: $index_json"
+        else
+            echo -e "  ${YELLOW}⚠${NC} Indexer failed, continuing without index"
+        fi
+    fi
+
+    # 组装分层 prompts (System + Skill + Context)
+    local system_file="$output_dir/system_prompt.md"
+    local skill_file="$output_dir/skill_prompt.md"
+    local context_file="$output_dir/context_prompt.md"
     local prompt_file="$output_dir/.system_prompt.md"
+
+    # Layer 1: System (immutable rules — cached by LLM provider)
+    if [ -f "$PROJECT_ROOT/knowledge/prompt-templates/system.md" ]; then
+        cp "$PROJECT_ROOT/knowledge/prompt-templates/system.md" "$system_file"
+    else
+        echo "# SecGuardian System Prompt (fallback)" > "$system_file"
+        cat "$PROJECT_ROOT/knowledge/protocols/scan-output.md" >> "$system_file"
+    fi
+
+    # Layer 2: Skill-specific instructions
     {
-        echo "# Security Scan Context"
-        echo "Target: $path | Filters: $filters | Mode: full"
+        echo "# Security Scan: $PATH_ARG"
+        echo "Target: $PATH_ARG | Filters: $FILTERS | Mode: full"
         echo ""
-        cat "$PROJECT_ROOT/knowledge/protocols/scan-output.md"
+        if [ -f "$PROJECT_ROOT/knowledge/prompt-templates/skill-secguard.md" ]; then
+            cat "$PROJECT_ROOT/knowledge/prompt-templates/skill-secguard.md"
+        else
+            echo "Execute all matched detectors in severity order."
+            echo "Output results to findings/ and manifest.json."
+        fi
         echo ""
         echo "Reference: skills/secguard-cpp/references/detector-index.md"
         cat "$PROJECT_ROOT/skills/secguard-cpp/references/detector-index.md"
-    } > "$prompt_file"
+    } > "$skill_file"
+
+    # Layer 3: Context (per-execution, changes every scan)
+    {
+        echo "## Scan Scope"
+        echo "- Path: $PATH_ARG"
+        echo "- Filters: $FILTERS"
+        echo "- Mode: full"
+        echo ""
+
+        if [ -f "$index_json" ]; then
+            echo "## Code Index (pre-computed by tree-sitter)"
+            echo '```json'
+            head -c 5000 "$index_json" 2>/dev/null || true
+            echo '```'
+            echo ""
+            echo "### Usage"
+            echo "- Use symbol index for function/variable boundaries"
+            echo "- Use call graph for caller/callee relationships"
+            echo "- Use alloc/free map for memory management patterns"
+            echo ""
+        fi
+    } > "$context_file"
+
+    # Assemble final monolithic prompt (for backward compatibility)
+    cat "$system_file" "$skill_file" "$context_file" > "$prompt_file"
 
     echo -e "  ${GREEN}✓${NC} 扫描上下文已就绪: $output_dir/"
+    echo -e "  ${GREEN}✓${NC} 三层 prompts: system($(wc -c < "$system_file")) + skill($(wc -c < "$skill_file")) + context($(wc -c < "$context_file")) bytes"
     echo ""
 }
 
