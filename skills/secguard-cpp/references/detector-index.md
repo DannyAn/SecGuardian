@@ -23,20 +23,20 @@ SecGuard C++ 26 个检测器完整清单。每个检测器对应 `knowledge/dete
 
 #### memory 子命名空间 (内存安全)
 
-| # | 命名空间路径 | CWE | 严重度 | 状态 |
-|---|------------|-----|--------|------|
-| 1 | `memory.null-dereference` | CWE-476 | High | active |
-| 2 | `memory.double-free` | CWE-415 | Critical | active |
-| 3 | `memory.use-after-free` | CWE-416 | Critical | active |
-| 4 | `memory.buffer-overflow` | CWE-120 | Critical | active |
-| 5 | `memory.heap-buffer-overflow` | CWE-122 | Critical | planned |
-| 6 | `memory.format-string` | CWE-134 | Critical | active |
-| 7 | `memory.integer-overflow` | CWE-190 | High | active |
-| 8 | `memory.uninitialized-memory` | CWE-457 | Medium | planned |
-| 9 | `memory.memory-leak` | CWE-401 | Medium | planned |
-| 10 | `memory.mismatched-free` | CWE-762 | High | planned |
-| 11 | `memory.off-by-one` | CWE-193 | High | planned |
-| 12 | `memory.bad-cast` | CWE-704 | Medium | planned |
+| # | 命名空间路径 | CWE | 严重度 | 分析组 | 状态 |
+|---|------------|-----|--------|--------|------|
+| 1 | `memory.null-dereference` | CWE-476 | High | memory | active |
+| 2 | `memory.double-free` | CWE-415 | Critical | memory | active |
+| 3 | `memory.use-after-free` | CWE-416 | Critical | memory | active |
+| 4 | `memory.buffer-overflow` | CWE-120 | Critical | bounds | active |
+| 5 | `memory.heap-buffer-overflow` | CWE-122 | Critical | bounds | planned |
+| 6 | `memory.format-string` | CWE-134 | Critical | memory | active |
+| 7 | `memory.integer-overflow` | CWE-190 | High | bounds | active |
+| 8 | `memory.uninitialized-memory` | CWE-457 | Medium | memory | planned |
+| 9 | `memory.memory-leak` | CWE-401 | Medium | memory | planned |
+| 10 | `memory.mismatched-free` | CWE-762 | High | memory | planned |
+| 11 | `memory.off-by-one` | CWE-193 | High | bounds | planned |
+| 12 | `memory.bad-cast` | CWE-704 | Medium | memory | planned |
 
 ### concurrency — 并发安全 (4 个)
 
