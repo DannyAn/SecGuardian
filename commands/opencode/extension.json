@@ -1,0 +1,66 @@
+{
+  "name": "secguardian",
+  "version": "0.2.0",
+  "description": "AI 深度安全审计 + 代码漏洞发现 + 安全规范审查 — 45 检测器覆盖 CWE Top 25 100%",
+  "author": "SecGuardian",
+  "homepage": "https://github.com/secguardian/secguardian",
+  "license": "Proprietary",
+  "commands": {
+    "secaudit": {
+      "description": "★ 旗舰：AI 深度安全审计 — 17 项纵深安全分析",
+      "path": "commands/secaudit.md",
+      "usage": "/secaudit <skill> [path]"
+    },
+    "secguard": {
+      "description": "AI 引导的代码漏洞发现 — 45 检测器",
+      "path": "commands/secguard.md",
+      "usage": "/secguard <path> [mode] [filters]"
+    },
+    "secreview": {
+      "description": "安全编码规范审查 — 反模式识别 + 最佳实践",
+      "path": "commands/secreview.md",
+      "usage": "/secreview <path> [language]"
+    }
+  },
+  "skills": {
+    "secguard-cpp": { "description": "C/C++ 安全漏洞扫描 (26+ C/C++ detectors)", "languages": ["c", "cpp"] },
+    "secguard-java": { "description": "Java 安全漏洞扫描", "languages": ["java"] },
+    "secguard-python": { "description": "Python 安全漏洞扫描", "languages": ["python"] },
+    "secguard-go": { "description": "Go 安全漏洞扫描", "languages": ["go"] },
+    "secreview-cpp": { "description": "C/C++ 安全编码规范审查", "languages": ["c", "cpp"] },
+    "secreview-java": { "description": "Java 安全编码规范审查", "languages": ["java"] },
+    "secreview-python": { "description": "Python 安全编码规范审查", "languages": ["python"] },
+    "secreview-go": { "description": "Go 安全编码规范审查", "languages": ["go"] },
+    "secaudit-taint-analysis": { "description": "污点分析 — Source→Sink 传播链追踪" },
+    "secaudit-attack-surface-analysis": { "description": "攻击面分析 — 识别所有暴露入口点" },
+    "secaudit-data-flow-analysis": { "description": "数据流分析 — 追踪敏感数据完整流向" },
+    "secaudit-state-machine-analysis": { "description": "状态机分析 — 检测非法状态跃迁" },
+    "secaudit-trust-boundary-analysis": { "description": "信任边界分析 — 跨边界安全控制审计" },
+    "secaudit-auth-and-session": { "description": "认证与会话管理 — OWASP ASVS 标准" },
+    "secaudit-authorization": { "description": "授权与访问控制 — 越权/IDOR 检测" },
+    "secaudit-cryptography": { "description": "密码学安全 — 算法/密钥/随机数审计" },
+    "secaudit-input-validation": { "description": "输入验证 — OWASP Top 10 注入防御审计" },
+    "secaudit-data-protection": { "description": "数据保护 — 敏感数据全生命周期审计" },
+    "secaudit-secrets-management": { "description": "密钥管理 — 凭证存储/轮换/泄露检测" },
+    "secaudit-secure-transport": { "description": "安全传输 — TLS/证书/协议配置审计" },
+    "secaudit-http-security-headers": { "description": "HTTP 安全头 — CSP/HSTS/X-Frame 审计" },
+    "secaudit-output-encoding": { "description": "输出编码 — XSS/注入跨上下文防护" },
+    "secaudit-logging-and-monitoring": { "description": "日志与监控 — 安全事件可追溯性审计" },
+    "secaudit-dependency-security": { "description": "依赖安全 — 已知漏洞/供应链风险审计" },
+    "secaudit-infra-hardening": { "description": "基础设施加固 — 容器/K8s/云资源审计" }
+  },
+  "capabilities": {
+    "detectors": 45,
+    "audit_skills": 17,
+    "cwe_top25_coverage": "25/25 (100%)",
+    "owasp_top10_coverage": "9/10 (90%)",
+    "supported_languages": ["c", "cpp", "java", "python", "go"],
+    "detector_categories": ["memory", "concurrency", "system", "crypto", "web", "general", "language-specific"],
+    "ci_cd_integrations": ["GitHub Actions", "GitLab CI", "Azure DevOps"],
+    "output_formats": ["SARIF 2.1", "Scan Output Protocol 1.1", "JSON"]
+  },
+  "deploy": {
+    "binary": "scripts/secguardian",
+    "indexer": "scripts/secguardian-index"
+  }
+}

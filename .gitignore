@@ -30,6 +30,9 @@ Thumbs.db
 # macOS resource forks
 ._*
 
+# Build output (deploy targets)
+.opocode/
+
 # Build artifacts (Go binaries)
 internal/secguardian
 internal/secguardian-cli

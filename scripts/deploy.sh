@@ -24,7 +24,7 @@ SecGuardian — 部署脚本
 平台:
   all      三平台全部部署 (默认)
   cc       Claude Code    → .claude/extensions/
-  nga      OpenCode       → .opencode/skills/ + .opencode/command/
+  nga      OpenCode       → .opocode/ (extension.json + skills + commands)
   cac      Gemini CLI     → .gemini/skills/ + .gemini/commands/
 
 选项:
@@ -130,12 +130,19 @@ deploy_claude() {
 
 # ── OpenCode ────────────────────────────────────
 deploy_opencode() {
-    log_step "OpenCode → .opencode/skills/ + .opencode/command/"
+    log_step "OpenCode → .opocode/ (extension.json + skills + commands)"
 
-    local skills_dir="$PROJECT_ROOT/.opencode/skills"
-    local cmd_dir="$PROJECT_ROOT/.opencode/command"
-    rm -rf "$skills_dir" "$cmd_dir"
+    local ext_dir="$PROJECT_ROOT/.opocode"
+    local skills_dir="$ext_dir/skills"
+    local cmd_dir="$ext_dir/commands"
+    rm -rf "$ext_dir"
     mkdir -p "$skills_dir" "$cmd_dir"
+
+    # OpenCode extension registration manifest
+    if [ -f "$PROJECT_ROOT/commands/opencode/extension.json" ]; then
+        cp "$PROJECT_ROOT/commands/opencode/extension.json" "$ext_dir/extension.json"
+        log_info "extension.json (OpenCode register)"
+    fi
 
     local skill_n=0
     for d in "$DIST"/*/; do
@@ -248,10 +255,10 @@ do_zip() {
         log_done "cc-${name}.zip"
     done
 
-    # OpenCode: skills + commands 打成一个 zip
-    if [ -d "$PROJECT_ROOT/.opencode/skills" ]; then
+    # OpenCode: extension.json + skills + commands 打成 zip
+    if [ -d "$PROJECT_ROOT/.opocode" ]; then
         local nga_zip="$archive_dir/nga-secguardian.zip"
-        (cd "$PROJECT_ROOT/.opencode" && zip -rq "$nga_zip" skills/ command/)
+        (cd "$PROJECT_ROOT/.opocode" && zip -rq "$nga_zip" extension.json skills/ commands/)
         log_done "nga-secguardian.zip"
     fi
 
