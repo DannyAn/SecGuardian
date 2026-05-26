@@ -75,7 +75,11 @@
         "memory":      12,
         "concurrency": 4,
         "system":      6,
-        "crypto":      4
+        "crypto":      4,
+        "web":         2,
+        "java":        2,
+        "python":      1,
+        "go":          1
       }
     }
   },

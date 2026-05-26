@@ -108,6 +108,13 @@ SecGuardian 为 Java、Python、Go 提供语言专属的 Web 安全检测器，�
 |---|------------|-----|--------|------|
 | 30 | `go.sql-injection` | CWE-89 | Critical | active |
 
+### web — Web 安全 (2 个, 跨语言)
+
+| # | 命名空间路径 | CWE | 严重度 | 状态 |
+|---|------------|-----|--------|------|
+| 31 | `web.xss` | CWE-79 | Critical | active |
+| 32 | `web.ssrf` | CWE-918 | High | active |
+
 ## 添加新检测器
 
 1. 在 `knowledge/detectors/<name>.md` 创建检测器文件

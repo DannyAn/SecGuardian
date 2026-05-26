@@ -52,7 +52,7 @@ DIST="$PROJECT_ROOT/dist"
 echo "==> Packaging SecGuardian extensions..."
 
 # ── Pre-build: Compile Go indexer binary ──────────
-local index_bin="$PROJECT_ROOT/internal/secguardian-index"
+index_bin="$PROJECT_ROOT/internal/secguardian-index"
 if [ -f "$PROJECT_ROOT/internal/go.mod" ] && command -v go &>/dev/null; then
     echo "  → Building secguardian-index (tree-sitter semantic engine)..."
     (cd "$PROJECT_ROOT/internal" && go build -o secguardian-index .) 2>/dev/null && \
