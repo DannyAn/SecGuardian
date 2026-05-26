@@ -63,6 +63,21 @@ ensure_dist() {
     fi
 }
 
+# ── Shared binary deployment ────────────────────
+deploy_binary() {
+    local target_dir="$1"
+    mkdir -p "$target_dir"
+    for d in "$DIST"/*/; do
+        if [ -x "$d/scripts/secguardian-index" ]; then
+            cp "$d/scripts/secguardian-index" "$target_dir/secguardian-index"
+            chmod +x "$target_dir/secguardian-index"
+            log_info "indexer binary deployed to $target_dir/"
+            return 0
+        fi
+    done
+    return 1
+}
+
 # ── Claude Code ────────────────────────────────
 deploy_claude() {
     log_step "Claude Code → .claude/extensions/"
@@ -77,6 +92,8 @@ deploy_claude() {
         local c=$(ls "$d/commands/" 2>/dev/null | wc -l | tr -d ' ')
         log_done "$name — $c commands, $s skills"
     done
+
+    deploy_binary "$PROJECT_ROOT/scripts" 2>/dev/null || true
 
     echo ""
     log_info "Claude Code 命令（重启后生效）:"
@@ -108,6 +125,8 @@ deploy_opencode() {
 
     local cmd_n=$(ls "$cmd_dir"/*.md 2>/dev/null | wc -l | tr -d ' ')
     log_done "$skill_n skills + $cmd_n commands (.md)"
+
+    deploy_binary "$PROJECT_ROOT/scripts" 2>/dev/null || true
 
     echo ""
     log_info "OpenCode 使用方式（重启后生效）:"
@@ -166,6 +185,8 @@ deploy_gemini() {
 MD
 
     log_done "$skill_n skills + $cmd_n commands (.toml) + GEMINI.md"
+
+    deploy_binary "$PROJECT_ROOT/scripts" 2>/dev/null || true
 
     echo ""
     log_info "Gemini CLI 使用方式:"

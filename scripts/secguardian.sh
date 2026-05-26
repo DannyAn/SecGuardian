@@ -270,16 +270,36 @@ run_scan() {
     local output_dir="$PROJECT_ROOT/.codeagent/secguard-secguardian/scans/$scan_id"
     mkdir -p "$output_dir/findings"
 
-    # 运行索引器（如果存在可执行文件）
-    local index_bin="$PROJECT_ROOT/internal/secguardian-index"
+    # 运行索引器（搜索多个可能的 binary 路径）
     local index_json="$output_dir/index.json"
-    if [ -x "$index_bin" ]; then
-        echo -e "  ${CYAN}→${NC} Running code indexer..."
+
+    # Priority: 1) internal/  2) scripts/  3) PATH  4) GOPATH/bin
+    # Deployed extensions may ship a prebuilt binary alongside skills/
+    local index_bin=""
+    local search_paths=(
+        "$PROJECT_ROOT/internal/secguardian-index"
+        "$PROJECT_ROOT/scripts/secguardian-index"
+        "$(command -v secguardian-index 2>/dev/null || true)"
+        "$HOME/go/bin/secguardian-index"
+    )
+
+    for candidate in "${search_paths[@]}"; do
+        if [ -n "$candidate" ] && [ -x "$candidate" ] && [ -f "$candidate" ]; then
+            index_bin="$candidate"
+            break
+        fi
+    done
+
+    if [ -n "$index_bin" ]; then
+        echo -e "  ${CYAN}→${NC} Running code indexer ($index_bin)..."
         if $index_bin --path "$path" --output "$index_json" 2>/dev/null; then
             echo -e "  ${GREEN}✓${NC} Code index generated: $index_json"
         else
-            echo -e "  ${YELLOW}⚠${NC} Indexer failed, continuing without index"
+            echo -e "  ${YELLOW}⚠${NC} Indexer failed, continuing without pre-computed context"
         fi
+    else
+        echo -e "  ${YELLOW}⚠${NC} secguardian-index binary not found — scan will work but without pre-computed code context"
+        echo -e "  ${YELLOW}   Build it: cd internal && go build -o secguardian-index .${NC}"
     fi
 
     # 组装分层 prompts (System + Skill + Context)

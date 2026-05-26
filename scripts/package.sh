@@ -51,6 +51,17 @@ DIST="$PROJECT_ROOT/dist"
 
 echo "==> Packaging SecGuardian extensions..."
 
+# ── Pre-build: Compile Go indexer binary ──────────
+local index_bin="$PROJECT_ROOT/internal/secguardian-index"
+if [ -f "$PROJECT_ROOT/internal/go.mod" ] && command -v go &>/dev/null; then
+    echo "  → Building secguardian-index (tree-sitter semantic engine)..."
+    (cd "$PROJECT_ROOT/internal" && go build -o secguardian-index .) 2>/dev/null && \
+        echo "    binary: $index_bin" || \
+        echo "    [WARN] go build failed — scans will work without pre-computed index"
+else
+    echo "    [SKIP] Go not available — indexer binary not built"
+fi
+
 for ext_dir in "$EXTENSIONS_DIR"/*/; do
     ext=$(basename "$ext_dir")
     ext_json="$ext_dir/extension.json"
@@ -149,6 +160,15 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
         done
     fi
     echo "    protocols: $protocol_count"
+
+    # Copy Go indexer binary into extension package (if available)
+    if [ -x "$index_bin" ]; then
+        mkdir -p "$dist_dir/scripts"
+        cp "$index_bin" "$dist_dir/scripts/secguardian-index"
+        echo "    binary: secguardian-index included"
+    else
+        echo "    binary: not available (scans work without it)"
+    fi
 
     echo "    packaged: $dist_dir"
 done
