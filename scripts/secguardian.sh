@@ -357,8 +357,29 @@ run_scan() {
     # Assemble final monolithic prompt (for backward compatibility)
     cat "$system_file" "$skill_file" "$context_file" > "$prompt_file"
 
+    # Generate CI gating status (initial skeleton, filled by AI after scan)
+    local status_file="$output_dir/status.json"
+    local base_dir="$PROJECT_ROOT/.codeagent/secguard-secguardian/scans"
+    cat > "$status_file" << STATUSJSON
+{
+  "scan_id": "$scan_id",
+  "passed": false,
+  "score": 100,
+  "max_score": 100,
+  "findings": {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0, "total": 0},
+  "confidence": {"high": 0, "medium": 0, "low": 0},
+  "threshold": {"critical_max": 0, "high_max": 5, "breached": false, "breached_at": ""},
+  "exit_code": 0,
+  "note": "Skeleton — overwrite with actual findings after AI scan"
+}
+STATUSJSON
+
+    # Create latest symlink for daily-build/CI consumption
+    ln -sfn "$(basename "$output_dir")" "$base_dir/latest" 2>/dev/null || true
+
     echo -e "  ${GREEN}✓${NC} 扫描上下文已就绪: $output_dir/"
     echo -e "  ${GREEN}✓${NC} 三层 prompts: system($(wc -c < "$system_file")) + skill($(wc -c < "$skill_file")) + context($(wc -c < "$context_file")) bytes"
+    echo -e "  ${GREEN}✓${NC} CI status: $status_file + $base_dir/latest → $(basename "$output_dir")"
     echo ""
 }
 

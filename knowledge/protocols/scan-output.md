@@ -11,10 +11,13 @@ version: "1.0"
 
 ```
 .codeagent/<extension-name>/scans/<scan-id>/
-├── manifest.json            # 扫描元数据 + 结果摘要
-└── findings/                # 检出问题详情
-    ├── <severity>-<NNN>.json
-    └── ...
+├── manifest.json            # 扫描元数据 + 结果摘要（人读 + 机读）
+├── results.sarif            # SARIF 2.1.0（CI/CD 集成标准格式）
+├── status.json              # CI 门禁判定（机读，exit-code 级简洁）
+├── delta.json               # 增量对比（与上一次扫描的变化）
+├── findings/
+│   └── <severity>-<NNN>.json  # 每个检出的详细信息
+└── latest → <scan-id>/      # 符号链接，指向最新扫描（版本级日构建用）
 ```
 
 - `<extension-name>`: 如 `secguard-secguardian`、`secaudit-secguardian`、`secreview-secguardian`
@@ -194,6 +197,111 @@ version: "1.0"
 | `M-` | medium | 降低系统安全强度 |
 | `L-` | low | 最佳实践违反，暂无直接利用路径 |
 | `I-` | info | 信息性发现，无直接安全影响 |
+
+## status.json — CI Gating Output
+
+### 完整 Schema
+
+```json
+{
+  "scan_id": "2026-05-23T14-30-00-a1b2c3d4",
+  "passed": true,
+  "score": 85,
+  "max_score": 100,
+  "findings": {
+    "critical": 1,
+    "high": 2,
+    "medium": 0,
+    "low": 0,
+    "info": 0,
+    "total": 3
+  },
+  "confidence": {
+    "high": 1,
+    "medium": 1,
+    "low": 1
+  },
+  "threshold": {
+    "critical_max": 0,
+    "high_max": 5,
+    "breached": true,
+    "breached_at": "critical"
+  },
+  "exit_code": 1
+}
+```
+
+### 字段说明
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `passed` | bool | 是否通过门禁（无 breached 项） |
+| `score` | int | 安全评分 0-100 |
+| `threshold` | object | 门禁阈值配置 vs 实际结果 |
+| `exit_code` | int | 0=通过, 1=阻断, 2=异常 |
+
+### CI 脚本集成示例
+
+```bash
+# .github/workflows/security.yml 中的 gating 步骤
+SCAN_DIR=".codeagent/secguard-secguardian/scans/latest"
+if [ -f "$SCAN_DIR/status.json" ]; then
+    EXIT=$(jq -r '.exit_code' "$SCAN_DIR/status.json")
+    if [ "$EXIT" != "0" ]; then
+        echo "Security gate FAILED — $(jq -r '.findings.total' "$SCAN_DIR/status.json") findings"
+        exit 1
+    fi
+fi
+```
+
+---
+
+## delta.json — Incremental Comparison
+
+### 完整 Schema
+
+```json
+{
+  "scan_id": "2026-05-23T14-30-00-a1b2c3d4",
+  "previous_scan_id": "2026-05-22T10-00-00-d4e5f6g7",
+  "score_delta": -15,
+  "findings": {
+    "new": [
+      {"id": "C-001", "severity": "critical", "file": "src/parser.c", "line": 42}
+    ],
+    "fixed": [
+      {"id": "H-003", "file": "src/network.c", "line": 305}
+    ],
+    "unchanged": 1,
+    "worsened": 0,
+    "improved": 1
+  },
+  "summary": "+1 critical, -1 high (net: worsened)"
+}
+```
+
+### 字段说明
+
+| 字段 | 说明 |
+|------|------|
+| `findings.new` | 本次新出现（上次不存在） |
+| `findings.fixed` | 本次已修复（上次存在但本次不存在） |
+| `findings.unchanged` | 持续存在 |
+| `score_delta` | 评分变化（正=改善，负=恶化） |
+
+---
+
+## latest 符号链接
+
+日构建 / 版本级扫描使用：
+
+```
+.codeagent/<extension-name>/scans/latest → <最新 scan-id>/
+```
+
+CI 脚本始终读取 `latest/status.json`，无需关心具体 scan-id。
+
+---
 
 ## 跨命令兼容性
 
