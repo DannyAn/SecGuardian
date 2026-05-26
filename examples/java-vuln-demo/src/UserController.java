@@ -1,78 +1,72 @@
 /**
- * UserController.java — User data access (demonstrates SQL injection + IDOR + XXE)
+ * UserController.java — Web security vulnerability examples (Java)
  *
  * VULNERABILITIES:
- *   - CWE-89:  SQL injection via Statement.execute (line 46)
- *   - CWE-639: IDOR — no ownership check on user ID (line 62)
- *   - CWE-611: XXE via unconfigured DocumentBuilder (line 78)
+ *   - CWE-639: IDOR — no ownership check on user data (line 18)
+ *   - CWE-611: XXE — insecure XML parsing (line 31)
+ *   - CWE-89:  SQL injection — string concatenation (line 47)
+ *   - CWE-502: Deserialization — unsafe ObjectInputStream (line 59)
  */
 
-package com.example.demo.controller;
-
-import java.io.StringReader;
-import java.sql.*;
-import java.util.ArrayList;
-import java.util.List;
+import org.springframework.web.bind.annotation.*;
 import javax.xml.parsers.*;
 import org.w3c.dom.*;
-import org.springframework.web.bind.annotation.*;
+import java.io.*;
+import java.sql.*;
 
 @RestController
-@RequestMapping("/api/users")
 public class UserController {
 
-    private Connection getConnection() throws SQLException {
-        return DriverManager.getConnection(
-            "jdbc:mysql://localhost:3306/mydb", "root", "password123");
+    // CWE-639: IDOR
+    @GetMapping("/api/user/{userId}/profile")
+    // VULNERABILITY [CWE-639]: IDOR — no ownership check
+    public String getUserProfile(@PathVariable int userId) {
+        // BAD: no check that requesting user owns this profile
+        return "{ \"userId\": " + userId + ", \"ssn\": \"123-45-6789\" }";
     }
 
-    @GetMapping("/search")
-    public List<String> searchUsers(@RequestParam String keyword) {
-        List<String> results = new ArrayList<>();
+    // CWE-611: XXE
+    @PostMapping("/api/xml")
+    // VULNERABILITY [CWE-611]: XXE — XML parser with external entities enabled
+    public String parseXml(@RequestBody String xmlData) {
         try {
-            Connection conn = getConnection();
-            // VULNERABILITY [CWE-89]: SQL injection via string concatenation
-            // Attacker: /api/users/search?keyword='; DROP TABLE users; --
-            String sql = "SELECT username FROM users WHERE username LIKE '%"
-                       + keyword + "%'";
-            Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery(sql);
-
-            while (rs.next()) {
-                results.add(rs.getString("username"));
-            }
-            conn.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return results;
-    }
-
-    @GetMapping("/{userId}/profile")
-    public String getUserProfile(@PathVariable Long userId) {
-        // VULNERABILITY [CWE-639]: IDOR — no ownership verification
-        // Any authenticated user can view any other user's profile
-        // Attacker: iterate userId from 1 to N to scrape all user data
-        return "Profile data for user: " + userId;
-    }
-
-    @PostMapping("/import")
-    public String importUserXml(@RequestBody String xmlData) {
-        try {
-            // VULNERABILITY [CWE-611]: XXE — DocumentBuilder not secured
-            // Default configuration allows external entities
+            // BAD: DocumentBuilderFactory allows external entities by default
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            // No XXE-prevention settings (featues disabled)
             DocumentBuilder builder = factory.newDocumentBuilder();
-            Document doc = builder.parse(
-                new org.xml.sax.InputSource(new StringReader(xmlData)));
-
-            NodeList nodes = doc.getElementsByTagName("username");
-            if (nodes.getLength() > 0) {
-                return "Imported user: " + nodes.item(0).getTextContent();
-            }
+            Document doc = builder.parse(new ByteArrayInputStream(xmlData.getBytes()));
+            return "Parsed XML successfully";
         } catch (Exception e) {
-            return "Import failed: " + e.getMessage();
+            return "Error: " + e.getMessage();
         }
-        return "No user found in XML";
+    }
+
+    // CWE-89: SQL Injection
+    @GetMapping("/api/user/search")
+    // VULNERABILITY [CWE-89]: SQL injection — string concatenation
+    public String searchUser(@RequestParam("username") String username) {
+        try {
+            Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/db", "root", "password");
+            // BAD: string concatenation — no prepared statement
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT * FROM users WHERE username = '" + username + "'");
+            return rs.next() ? rs.getString(1) : "Not found";
+        } catch (Exception e) {
+            return "Error: " + e.getMessage();
+        }
+    }
+
+    // CWE-502: Unsafe Deserialization
+    @PostMapping("/api/deserialize")
+    // VULNERABILITY [CWE-502]: Unsafe deserialization
+    public String deserialize(@RequestBody byte[] data) {
+        try {
+            // BAD: no validation before deserialization — RCE risk
+            ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(data));
+            Object obj = ois.readObject();
+            return "Deserialized: " + obj.getClass().getName();
+        } catch (Exception e) {
+            return "Error: " + e.getMessage();
+        }
     }
 }

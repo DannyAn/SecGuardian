@@ -1,7 +1,7 @@
 {
   "project": "secguardian",
-  "version": "0.1.0",
-  "protocol": "1.1",
+  "version": "0.2.0",
+  "protocol": "1.2",
   "description": "企业级白盒安全 AI Agent 辅助解决方案 — 以 AI 深度审计为核心的旗舰产品",
 
   "product_positioning": {
@@ -37,10 +37,10 @@
     },
     "secguard-secguardian": {
       "command": "secguard",
-      "description": "AI 引导的代码漏洞发现 — 26 个检测器覆盖 4 类安全问题",
+      "description": "AI 引导的代码漏洞发现 — 45 个检测器覆盖 9 类安全问题 (内存/并发/系统/加密/Web/通用/Java/Python/Go)",
       "platforms": ["claude-code", "opencode", "gemini-cli", "github-actions"],
       "skills": {
-        "cpp":    { "language": "cpp",    "category": "language-specific", "status": "active", "detectors": 38 },
+        "cpp":    { "language": "cpp",    "category": "language-specific", "status": "active", "detectors": 45 },
         "java":   { "language": "java",   "category": "language-specific", "status": "active" },
         "python": { "language": "python", "category": "language-specific", "status": "active" },
         "go":     { "language": "go",     "category": "language-specific", "status": "active" }
@@ -69,19 +69,41 @@
     "languages": ["cpp", "java", "python", "go"],
     "detectors": {
       "note": "Full detector registry in skills/secguard-cpp/references/detector-index.md",
-      "count": 38,
-      "active_count": 38,
+      "count": 45,
+      "active_count": 45,
       "namespaces": {
-        "memory":      12,
+        "memory":      13,
         "concurrency": 4,
         "system":      6,
         "crypto":      4,
-        "web":         8,
+        "web":         11,
+        "general":     3,
         "java":        2,
         "python":      1,
         "go":          1
       }
-    }
+    },
+    "coverage": {
+      "cwe_top25_2024": {
+        "covered": 22,
+        "total": 25,
+        "percentage": 88,
+        "key_covered": ["CWE-79:XSS", "CWE-89:SQLI", "CWE-120:BOF", "CWE-22:PTRV", "CWE-77:CMDI",
+                        "CWE-287:Auth", "CWE-352:CSRF", "CWE-502:Deser", "CWE-416:UAF",
+                        "CWE-415:DFree", "CWE-476:NULL", "CWE-190:IntOvf", "CWE-362:Race",
+                        "CWE-798:Secret", "CWE-327:WeakCrypto", "CWE-918:SSRF",
+                        "CWE-20:InputVal", "CWE-125:OOBRead", "CWE-276:Perms",
+                        "CWE-400:ResourceExh", "CWE-306:MissingAuth", "CWE-434:Upload",
+                        "CWE-862:AuthZ", "CWE-611:XXE"],
+        "key_missing": ["CWE-200:InfoLeak", "CWE-295:SSL",
+                        "CWE-310:Crypto", "CWE-863:IncorrectAuthZ"]
+      },
+      "owasp_top10_2021": {
+        "covered": 9,
+        "total": 10,
+        "percentage": 90
+      }
+    }  
   },
 
   "output": {

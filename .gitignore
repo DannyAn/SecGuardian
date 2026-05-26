@@ -30,5 +30,12 @@ Thumbs.db
 # macOS resource forks
 ._*
 
+# Build artifacts (Go binaries)
+internal/secguardian
+internal/secguardian-cli
+internal/secguardian-index
+scripts/secguardian
+scripts/secguardian-index
+
 # CI/CD local config
 tools/.claude/

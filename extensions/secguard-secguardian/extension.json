@@ -33,7 +33,9 @@
       "python-code-injection",
       "go-sql-injection",
       "xss", "ssrf",
-      "csrf", "auth-bypass", "idor", "xxe", "jwt-misuse", "open-redirect"
+      "csrf", "auth-bypass", "idor", "xxe", "jwt-misuse", "open-redirect",
+      "oob-read", "input-validation", "insecure-permissions", "resource-exhaustion",
+      "missing-authentication", "missing-authorization", "unrestricted-upload"
     ]
   },
   "output": {
