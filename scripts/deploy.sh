@@ -208,6 +208,16 @@ deploy_gemini() {
 ## 扫描输出
 
 所有扫描结果写入 `.codeagent/<extension>/scans/<scan-id>/`。
+
+## 辅助工具
+
+本项目提供了一个预编译的代码索引器，可通过 Bash 调用：
+
+- `secguardian-index --path <dir>` — 构建代码符号索引
+- `secguardian-index --version` — 查看版本
+- `secguardian-index --health` — 自检可用性
+
+索引器位置: `scripts/secguardian-index`
 MD
 
     log_done "$skill_n skills + $cmd_n commands (.toml) + GEMINI.md"

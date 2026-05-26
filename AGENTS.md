@@ -30,6 +30,19 @@
 所有命令遵循 Scan Output Protocol 1.1（见 knowledge/protocols/scan-output.md）：
 `.codeagent/<extension>/scans/<scan-id>/manifest.json + findings/`。使用 `--sarif` 参数同时生成 SARIF 格式结果。
 
+## 代码索引器
+
+本项目包含一个 tree-sitter 驱动的代码索引器，可通过 Bash 调用：
+
+```
+secguardian-index --path <dir> --output .codeagent/index.json
+secguardian-index --version   # 查看版本
+secguardian-index --health    # 自检
+```
+
+Binary 位置（按优先级搜索）：`internal/` → `scripts/` → `$PATH` → `$GOPATH/bin`。
+扫描前自动运行，生成结构化符号索引注入 AI prompt。
+
 ## 技能与知识
 
-skills/ 目录下包含 25 个 SKILL.md，knowledge/ 目录下包含 10 个概念文件、4 个语言画像、30 个检测器、2 个输出协议。用户执行 /secguard 等命令时，需要先读取对应 skill 的 SKILL.md。
+skills/ 目录下包含 25 个 SKILL.md，knowledge/ 目录下包含 10 个概念文件、4 个语言画像、32 个检测器、2 个输出协议。用户执行 /secguard 等命令时，需要先读取对应 skill 的 SKILL.md。
