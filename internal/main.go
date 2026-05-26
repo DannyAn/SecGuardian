@@ -23,11 +23,36 @@ import (
 	"github.com/secguardian/internal/parser"
 )
 
+const version = "0.2.0" // Bump on release
+
 func main() {
 	pathFlag := flag.String("path", ".", "Source directory to index")
 	langFlag := flag.String("lang", "auto", "Language: c, cpp, python, java, go, auto")
 	outputFlag := flag.String("output", ".codeagent/index.json", "Output file path")
+	versionFlag := flag.Bool("version", false, "Print version and exit")
+	healthFlag := flag.Bool("health", false, "Smoke test: can we parse a known file?")
 	flag.Parse()
+
+	if *versionFlag {
+		fmt.Printf("secguardian-index %s\n", version)
+		os.Exit(0)
+	}
+
+	if *healthFlag {
+		// Quick smoke test: parse a known C file
+		files, _ := collectFiles(*pathFlag, *langFlag)
+		if len(files) == 0 {
+			fmt.Println("HEALTH:WARN no source files found (but binary is executable)")
+			os.Exit(0)
+		}
+		_, err := parser.ParseFile(files[0], detectLanguage(files[0], *langFlag))
+		if err != nil {
+			fmt.Printf("HEALTH:FAIL parser error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("HEALTH:OK (%d source files available)\n", len(files))
+		os.Exit(0)
+	}
 
 	// Collect source files
 	files, err := collectFiles(*pathFlag, *langFlag)

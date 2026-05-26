@@ -63,16 +63,42 @@ ensure_dist() {
     fi
 }
 
-# ── Shared binary deployment ────────────────────
+# ── Shared binary deployment (idempotent) ────────
 deploy_binary() {
     local target_dir="$1"
     mkdir -p "$target_dir"
+    local target="$target_dir/secguardian-index"
+
+    # Idempotency check: if existing binary reports same version, skip
+    if [ -x "$target" ]; then
+        local existing_ver=$("$target" --version 2>/dev/null || echo "unknown")
+        for d in "$DIST"/*/; do
+            if [ -x "$d/scripts/secguardian-index" ]; then
+                local new_ver=$("$d/scripts/secguardian-index" --version 2>/dev/null || echo "unknown")
+                if [ "$existing_ver" = "$new_ver" ] && [ -n "$existing_ver" ] && [ "$existing_ver" != "unknown" ]; then
+                    log_info "indexer binary already up-to-date ($existing_ver) at $target_dir/"
+                    return 0
+                fi
+            fi
+        done
+    fi
+
+    # Atomic replacement: write to .tmp first, then mv
     for d in "$DIST"/*/; do
         if [ -x "$d/scripts/secguardian-index" ]; then
-            cp "$d/scripts/secguardian-index" "$target_dir/secguardian-index"
-            chmod +x "$target_dir/secguardian-index"
-            log_info "indexer binary deployed to $target_dir/"
-            return 0
+            cp "$d/scripts/secguardian-index" "${target}.tmp"
+            chmod +x "${target}.tmp"
+            # Verify the new binary works before replacing
+            if "${target}.tmp" --version >/dev/null 2>&1; then
+                mv "${target}.tmp" "$target"
+                local ver=$("$target" --version 2>/dev/null || echo "unknown")
+                log_info "indexer binary deployed ($ver) to $target_dir/"
+                return 0
+            else
+                rm -f "${target}.tmp"
+                log_info "indexer binary verification failed — keeping existing version"
+                return 1
+            fi
         fi
     done
     return 1
