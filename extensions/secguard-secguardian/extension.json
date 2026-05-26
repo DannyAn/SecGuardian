@@ -32,7 +32,8 @@
       "java-sql-injection", "java-deserialization",
       "python-code-injection",
       "go-sql-injection",
-      "xss", "ssrf"
+      "xss", "ssrf",
+      "csrf", "auth-bypass", "idor", "xxe", "jwt-misuse", "open-redirect"
     ]
   },
   "output": {

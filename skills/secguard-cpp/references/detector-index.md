@@ -114,6 +114,12 @@ SecGuardian 为 Java、Python、Go 提供语言专属的 Web 安全检测器，�
 |---|------------|-----|--------|------|
 | 31 | `web.xss` | CWE-79 | Critical | active |
 | 32 | `web.ssrf` | CWE-918 | High | active |
+| 33 | `web.csrf` | CWE-352 | High | active |
+| 34 | `web.auth-bypass` | CWE-287 | Critical | active |
+| 35 | `web.idor` | CWE-639 | High | active |
+| 36 | `web.xxe` | CWE-611 | Critical | active |
+| 37 | `web.jwt-misuse` | CWE-347 | High | active |
+| 38 | `web.open-redirect` | CWE-601 | Medium | active |
 
 ## 添加新检测器
 
