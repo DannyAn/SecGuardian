@@ -62,6 +62,7 @@ FILTERS="*"
 LANG=""
 OUTPUT_SARIF=false
 OUTPUT_FILE=""
+OUTPUT_DIR=""  # User-overridable base output dir (default: .codeagent)
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -71,9 +72,13 @@ while [[ $# -gt 0 ]]; do
         --lang) LANG="$2"; shift 2 ;;
         --sarif) OUTPUT_SARIF=true; shift ;;
         --output) OUTPUT_FILE="$2"; shift 2 ;;
+        --output-dir) OUTPUT_DIR="$2"; shift 2 ;;
         *) shift ;;
     esac
 done
+
+# Base output directory (default: .codeagent — unified for all AI agents)
+CODEAGENT_BASE="${OUTPUT_DIR:-${PROJECT_ROOT}/.codeagent}"
 
 # ── 工具函数 ──────────────────────────────────
 GREEN='\033[0;32m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
@@ -158,7 +163,7 @@ run_audit() {
     fi
 
     # 创建输出目录
-    local output_dir="$PROJECT_ROOT/.codeagent/secaudit-secguardian/scans/$scan_id"
+    local output_dir="$CODEAGENT_BASE/secaudit-secguardian/scans/$scan_id"
     mkdir -p "$output_dir/findings"
 
     # ── 组装 System Prompt ────────────────────
@@ -267,7 +272,7 @@ run_scan() {
     echo -e "  Scan ID: ${CYAN}$scan_id${NC}"
     echo ""
 
-    local output_dir="$PROJECT_ROOT/.codeagent/secguard-secguardian/scans/$scan_id"
+    local output_dir="$CODEAGENT_BASE/secguard-secguardian/scans/$scan_id"
     mkdir -p "$output_dir/findings"
 
     # 运行索引器（搜索多个可能的 binary 路径）
@@ -359,7 +364,7 @@ run_scan() {
 
     # Generate CI gating status (initial skeleton, filled by AI after scan)
     local status_file="$output_dir/status.json"
-    local base_dir="$PROJECT_ROOT/.codeagent/secguard-secguardian/scans"
+    local base_dir="$CODEAGENT_BASE/secguard-secguardian/scans"
     cat > "$status_file" << STATUSJSON
 {
   "scan_id": "$scan_id",
@@ -397,7 +402,7 @@ run_review() {
     echo -e "  Scan ID:  ${CYAN}$scan_id${NC}"
     echo ""
 
-    local output_dir="$PROJECT_ROOT/.codeagent/secreview-secguardian/scans/$scan_id"
+    local output_dir="$CODEAGENT_BASE/secreview-secguardian/scans/$scan_id"
     mkdir -p "$output_dir/findings"
 
     echo -e "  ${GREEN}✓${NC} 审查上下文已就绪: $output_dir/"

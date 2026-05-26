@@ -28,7 +28,21 @@
 ## 输出格式
 
 所有命令遵循 Scan Output Protocol 1.1（见 knowledge/protocols/scan-output.md）：
-`.codeagent/<extension>/scans/<scan-id>/manifest.json + findings/`。使用 `--sarif` 参数同时生成 SARIF 格式结果。
+
+```
+.codeagent/<extension>/scans/<scan-id>/
+├── manifest.json       # 扫描摘要
+├── results.sarif       # SARIF 2.1.0 (使用 --sarif)
+├── status.json         # CI 门禁判定
+├── delta.json          # 增量对比
+└── findings/           # 检出详情
+```
+
+> `.codeagent` 是为 AI Agent 统一设计的输出目录名（Claude Code / OpenCode / Gemini CLI）。
+> 如需自定义路径，使用 `--output-dir` 参数：
+> ```bash
+> bash scripts/secguardian.sh scan --path ./src --output-dir ./my-security-output
+> ```
 
 ## 代码索引器
 
