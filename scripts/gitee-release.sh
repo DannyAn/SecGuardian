@@ -26,9 +26,25 @@ fi
 
 # ── 环境变量 ──────────────────────────────────
 TOKEN="${GITEE_TOKEN:-}"
+OS=$(uname -s)
+
+# 从 macOS Keychain 读取
+if [ -z "$TOKEN" ] && [ "$OS" = "Darwin" ]; then
+    TOKEN=$(security find-generic-password -a "$(whoami)" -s "secguardian-gitee-token" -w 2>/dev/null || echo "")
+fi
+
+# 从 Linux 密钥环读取（如果安装了 secret-tool）
+if [ -z "$TOKEN" ] && command -v secret-tool &>/dev/null; then
+    TOKEN=$(secret-tool lookup service secguardian-gitee 2>/dev/null || echo "")
+fi
+
 if [ -z "$TOKEN" ]; then
-    echo "❌ 请设置 GITEE_TOKEN 环境变量"
-    echo "   生成: https://gitee.com/profile/personal_access_tokens"
+    echo "❌ 未找到 Gitee Token"
+    echo "   设置方式（三选一）:"
+    echo "     1. 环境变量:   export GITEE_TOKEN=xxx"
+    echo "     2. macOS:      security add-generic-password -a \"\$USER\" -s secguardian-gitee-token -w xxx"
+    echo "     3. Linux:      secret-tool store --label='Gitee' service secguardian-gitee xxx"
+    echo "    Token 生成: https://gitee.com/profile/personal_access_tokens"
     exit 1
 fi
 
