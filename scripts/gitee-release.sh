@@ -114,7 +114,7 @@ fi
 
 log "Pushing tag to Gitee..."
 GITEE_SSH="git@gitee.com:${OWNER}/${REPO}.git"
-GITEE_HTTPS="https://$TOKEN@gitee.com/${OWNER}/${REPO}.git"
+GITEE_HTTPS="https://oauth2:${TOKEN}@gitee.com/${OWNER}/${REPO}.git"
 
 REMOTE_EXISTS=$(git -C "$PROJECT_ROOT" remote -v 2>/dev/null | grep gitee | head -1 || echo "")
 if [ -z "$REMOTE_EXISTS" ]; then
