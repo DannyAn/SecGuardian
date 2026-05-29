@@ -90,26 +90,7 @@ SecGuard 45 个检测器完整清单，按 **5 个统一 topic** 组织。每个
 | 41 | `web.deserialization` | CWE-502 | Critical | java | active |
 | 42 | `web.code-injection` | CWE-94 | Critical | python | active |
 | 43 | `web.input-validation` | CWE-20 | High | c, cpp, java, python, go | active |
-| 44 | `web.resource-exhaustion` | CWE-400 | Medium | c, cpp, java, python, go | active |
-| 45 | `web.open-redirect` (dup) | — | — | — | — |
-
-Wait, I duplicated open-redirect at #45. Let me fix that. Actually #36 is the last one. Let me recount.
-
-36 open-redirect
-37 missing-authentication
-38 missing-authorization
-39 unrestricted-upload
-40 sql-injection
-41 deserialization
-42 code-injection
-43 input-validation
-44 resource-exhaustion
-
-That's 44 + the memory (13) + concurrency (4) + system (7) + crypto (4) = 28 + 17 = 45. Yes!
-
-Wait: 13 + 4 + 7 + 4 + 17 = 45. Let me verify: 13+4=17, +7=24, +4=28, +17=45. Yes!
-
-Let me fix the duplicate open-redirect in the output.<｜end▁of▁thinking｜>
+| 44 | `web.resource-exhaustion` | CWE-400 | Medium | c, cpp, java, python, go | active |<｜end▁of▁thinking｜>
 
 <｜｜DSML｜｜tool_calls>
 <｜｜DSML｜｜invoke name="write_file">

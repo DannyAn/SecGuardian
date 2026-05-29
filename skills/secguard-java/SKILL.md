@@ -12,9 +12,12 @@ language: java
 
 ## 执行流程
 
-1. 加载 `knowledge/languages/java.md` 获取 Java 危险 API 清单
-2. 加载各 `knowledge/concepts/*.md` 获取安全概念和检测逻辑
-3. 扫描目标代码，按以下优先级匹配:
+> **前置条件**: Command 层面已完成 `secguardian-index` 索引器调用，`index.json` 已生成在扫描输出目录下。包含 `symbols.functions`（函数→文件:行号）、`call_graph.edges`（调用关系）、`files`（文件清单）。**请在后续步骤中利用这些结构化数据定位检测目标，而非逐个读取文件。**
+
+1. 读取 Command 生成的 `index.json`，获取扫描范围内的完整文件清单、符号表和调用图
+2. 加载 `knowledge/languages/java.md` 获取 Java 危险 API 清单
+3. 加载各 `knowledge/concepts/*.md` 获取安全概念和检测逻辑
+4. 基于 index.json 的符号表定位检测目标，按以下优先级匹配:
 
 ### 检查优先级
 

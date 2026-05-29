@@ -14,7 +14,15 @@
 #   ├── knowledge/concepts/
 #   ├── knowledge/languages/
 #   ├── knowledge/detectors/
-#   └── knowledge/protocols/
+#   ├── knowledge/protocols/
+#   └── scripts/
+#       ├── secguardian-index      (shell wrapper)
+#       ├── secguardian-index.ps1  (powershell wrapper)
+#       └── bin/
+#           ├── secguardian-index-darwin-arm64
+#           ├── secguardian-index-darwin-amd64
+#           ├── secguardian-index-linux-amd64
+#           └── secguardian-index-windows-amd64.exe
 
 set -euo pipefail
 
@@ -36,8 +44,9 @@ SecGuardian — Extension 打包脚本
   2. 从 skills/ 目录复制 SKILL.md + references/
   3. 从 knowledge/ 目录复制对应的安全知识文件
   4. 从 commands/ 目录复制 slash command 定义
-  5. 生成 .claude-plugin/plugin.json
-  6. 输出到 dist/<extension-name>/
+  5. 跨平台编译 secguardian-index 二进制，放入 scripts/bin/
+  6. 复制跨平台 wrapper 脚本 scripts/secguardian-index*
+  7. 输出到 dist/<extension-name>/
 
 示例:
   bash scripts/package.sh           # 构建
@@ -52,14 +61,36 @@ DIST="$PROJECT_ROOT/dist"
 echo "==> Packaging SecGuardian extensions..."
 
 # ── Pre-build: Compile Go indexer binary ──────────
-index_bin="$PROJECT_ROOT/internal/secguardian-index"
+BUILD_BIN_DIR="$PROJECT_ROOT/scripts/bin"
+mkdir -p "$BUILD_BIN_DIR"
+
 if [ -f "$PROJECT_ROOT/internal/go.mod" ] && command -v go &>/dev/null; then
-    echo "  → Building secguardian-index (tree-sitter semantic engine)..."
-    (cd "$PROJECT_ROOT/internal" && go build -o secguardian-index .) 2>/dev/null && \
-        echo "    binary: $index_bin" || \
-        echo "    [WARN] go build failed — scans will work without pre-computed index"
+    echo "  → Cross-compiling secguardian-index binaries..."
+    (cd "$PROJECT_ROOT/internal" && \
+        GOOS=darwin GOARCH=arm64 go build -o "$BUILD_BIN_DIR/secguardian-index-darwin-arm64" . 2>/dev/null && \
+        echo "    [OK] darwin-arm64" || echo "    [WARN] darwin-arm64 build failed") &
+    (cd "$PROJECT_ROOT/internal" && \
+        GOOS=darwin GOARCH=amd64 go build -o "$BUILD_BIN_DIR/secguardian-index-darwin-amd64" . 2>/dev/null && \
+        echo "    [OK] darwin-amd64" || echo "    [WARN] darwin-amd64 build failed") &
+    (cd "$PROJECT_ROOT/internal" && \
+        GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o "$BUILD_BIN_DIR/secguardian-index-linux-amd64" . 2>/dev/null && \
+        echo "    [OK] linux-amd64 (CGO_ENABLED=0)" || echo "    [WARN] linux-amd64 build failed") &
+    (cd "$PROJECT_ROOT/internal" && \
+        GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o "$BUILD_BIN_DIR/secguardian-index-windows-amd64.exe" . 2>/dev/null && \
+        echo "    [OK] windows-amd64 (CGO_ENABLED=0)" || echo "    [WARN] windows-amd64 build failed") &
+    wait
+    echo "  → Cross-compilation done. Binaries in: $BUILD_BIN_DIR/"
+    ls -lh "$BUILD_BIN_DIR/" 2>/dev/null | grep -v "^total" | awk '{print "    " $NF " (" $5 ")"}' || true
 else
-    echo "    [SKIP] Go not available — indexer binary not built"
+    echo "    [SKIP] Go not available — indexer binaries not built"
+fi
+
+# Also build native binary for local dev use in scripts/
+if [ -f "$PROJECT_ROOT/internal/go.mod" ] && command -v go &>/dev/null; then
+    echo "  → Building native binary for local dev..."
+    (cd "$PROJECT_ROOT/internal" && go build -o "$PROJECT_ROOT/scripts/secguardian" . 2>/dev/null && \
+        echo "    binary: $PROJECT_ROOT/scripts/secguardian") || \
+        echo "    [WARN] native build failed"
 fi
 
 for ext_dir in "$EXTENSIONS_DIR"/*/; do
@@ -76,7 +107,8 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
     rm -rf "$dist_dir"
     mkdir -p "$dist_dir/commands" "$dist_dir/skills" \
              "$dist_dir/knowledge/concepts" "$dist_dir/knowledge/languages" \
-             "$dist_dir/knowledge/detectors" "$dist_dir/knowledge/protocols"
+             "$dist_dir/knowledge/detectors" "$dist_dir/knowledge/protocols" \
+             "$dist_dir/scripts/bin"
 
     # Copy extension manifest
     cp "$ext_json" "$dist_dir/extension.json"
@@ -161,14 +193,29 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
     fi
     echo "    protocols: $protocol_count"
 
-    # Copy Go indexer binary into extension package (if available)
-    if [ -x "$index_bin" ]; then
-        mkdir -p "$dist_dir/scripts"
-        cp "$index_bin" "$dist_dir/scripts/secguardian-index"
-        echo "    binary: secguardian-index included"
+    # Copy cross-platform wrapper scripts into the package
+    if [ -f "$PROJECT_ROOT/scripts/secguardian-index" ]; then
+        cp "$PROJECT_ROOT/scripts/secguardian-index" "$dist_dir/scripts/secguardian-index"
+        chmod +x "$dist_dir/scripts/secguardian-index"
+        echo "    wrapper: secguardian-index (shell)"
     else
-        echo "    binary: not available (scans work without it)"
+        echo "    [WARN] scripts/secguardian-index wrapper not found"
     fi
+    if [ -f "$PROJECT_ROOT/scripts/secguardian-index.ps1" ]; then
+        cp "$PROJECT_ROOT/scripts/secguardian-index.ps1" "$dist_dir/scripts/secguardian-index.ps1"
+        echo "    wrapper: secguardian-index.ps1 (powershell)"
+    fi
+
+    # Copy cross-platform precompiled binaries
+    bin_count=0
+    for bin_file in "$BUILD_BIN_DIR"/secguardian-index-*; do
+        if [ -f "$bin_file" ]; then
+            cp "$bin_file" "$dist_dir/scripts/bin/"
+            chmod +x "$dist_dir/scripts/bin/$(basename "$bin_file")" 2>/dev/null || true
+            bin_count=$((bin_count + 1))
+        fi
+    done
+    echo "    binaries: $bin_count platform(s) in scripts/bin/"
 
     echo "    packaged: $dist_dir"
 done

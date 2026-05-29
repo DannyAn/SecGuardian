@@ -87,22 +87,22 @@ rm -f "$claude_zip"
 shasum -a 256 "$claude_zip" | cut -d' ' -f1 > "$claude_zip.sha256"
 done_msg "secguardian-${VERSION}-claude-code.zip ($(du -h "$claude_zip" | cut -f1))"
 
-# OpenCode: .md command files
+# OpenCode: commands + skills + knowledge + scripts
 bash scripts/deploy.sh nga > /dev/null 2>&1
 opencode_zip="$OUTPUT/secguardian-${VERSION}-opencode.zip"
 rm -f "$opencode_zip"
 if [ -d ".opencode/commands" ]; then
-    (cd .opencode && zip -rq "$opencode_zip" commands/)
+    (cd .opencode && zip -rq "$opencode_zip" commands/ skills/ knowledge/ scripts/)
     shasum -a 256 "$opencode_zip" | cut -d' ' -f1 > "$opencode_zip.sha256"
     done_msg "secguardian-${VERSION}-opencode.zip ($(du -h "$opencode_zip" | cut -f1))"
 fi
 
-# Gemini CLI: TOML + skills + GEMINI.md
+# Gemini CLI: commands + skills + knowledge + scripts + GEMINI.md
 bash scripts/deploy.sh cac > /dev/null 2>&1
 gemini_zip="$OUTPUT/secguardian-${VERSION}-gemini-cli.zip"
 rm -f "$gemini_zip"
 if [ -d ".gemini/skills" ]; then
-    (cd .gemini && zip -rq "$gemini_zip" skills/ commands/ GEMINI.md)
+    (cd .gemini && zip -rq "$gemini_zip" commands/ skills/ knowledge/ scripts/ GEMINI.md)
     shasum -a 256 "$gemini_zip" | cut -d' ' -f1 > "$gemini_zip.sha256"
     done_msg "secguardian-${VERSION}-gemini-cli.zip ($(du -h "$gemini_zip" | cut -f1))"
 fi
@@ -138,17 +138,22 @@ cat > "$OUTPUT/manifest.json" << EOF
     {
       "name": "secguardian-${VERSION}-claude-code.zip",
       "platform": "claude-code",
-      "type": "extension"
+      "type": "extension",
+      "contents": ["commands", "skills", "knowledge", "scripts"]
     },
     {
       "name": "secguardian-${VERSION}-opencode.zip",
       "platform": "opencode",
-      "type": "extension"
+      "type": "extension",
+      "contents": ["commands", "skills", "knowledge", "scripts"],
+      "install": ".opencode/"
     },
     {
       "name": "secguardian-${VERSION}-gemini-cli.zip",
       "platform": "gemini-cli",
-      "type": "extension"
+      "type": "extension",
+      "contents": ["commands", "skills", "knowledge", "scripts", "GEMINI.md"],
+      "install": ".gemini/"
     },
     {
       "name": "secguardian-${VERSION}-source.tar.gz",

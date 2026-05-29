@@ -11,6 +11,8 @@ topic: [web, crypto, system]
 
 对 Python 代码进行通用安全规范检视，关注危险函数使用、安全函数规范和代码安全最佳实践。
 
+
+> **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`（含 `symbols.functions`、`call_graph.edges`、`files`）。检视时优先利用符号表定位目标，而非逐个文件遍历。
 ## 检视范围
 
 ### 语义层面

@@ -5,6 +5,48 @@ All notable changes to SecGuardian will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-05-30
+
+### Added
+
+- **Mandatory indexer invocation:** All three commands (`/secguard`, `/secaudit`,
+  `/secreview`) now require `secguardian-index` execution before scanning. A
+  pre-flight checklist validates the indexer binary, runs `--health`, and
+  verifies `index.json` integrity. Scanning must abort if indexer is unavailable.
+- **Unified deployment layout:** All three platforms (Claude Code, OpenCode,
+  Gemini CLI) now share the same directory structure: `commands/`, `skills/`,
+  `knowledge/`, `scripts/`. Relative path references (`../knowledge/`) resolve
+  consistently across all platforms.
+- **Cross-platform installer:** `scripts/install.sh` (macOS/Linux) and
+  `scripts/install.ps1` (Windows) automate release zip extraction into target
+  project directories with backup and health-check support.
+- **Help support:** `scripts/build.sh -h` and `scripts/dev-deploy.sh -h` now
+  display usage documentation.
+
+### Changed
+
+- **Command-Skill alignment:** Commands now own the indexer invocation and
+  pre-flight checklist. Skills reference `index.json` as a pre-condition
+  (symbols, call graph, alloc/free pairs) rather than scanning filesystem
+  directly.
+- **Gemini CLI deployment** uses unified top-level `knowledge/` and `scripts/`
+  directories instead of nested `.knowledge-<ext>/` under `skills/`.
+- **Release zips** for OpenCode and Gemini CLI now bundle complete content:
+  `commands/` + `skills/` + `knowledge/` + `scripts/`.
+- **Skill files** (all 25) now reference `index.json` context as their
+  structural input, with `secguard-*` skills explicitly naming
+  `symbols.functions`, `call_graph.edges`, and `alloc_free.pairs`.
+
+### Fixed
+
+- Go binary name detection now matches platform-specific variants
+  (`secguardian-index-darwin-arm64`, etc.)
+- Removed duplicate `web.open-redirect` entry and stream-of-consciousness
+  notes from `detector-index.md`
+- Cleaned up stale Go build artifacts from `internal/` directory
+- Version synchronized across all sources: manifest.json, 3× extension.json,
+  internal/main.go → 0.4.0
+
 ## [0.3.1] - 2026-05-27
 
 ### Added

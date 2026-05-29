@@ -39,7 +39,7 @@ SecAudit 是 SecGuardian 的旗舰产品——AI 深度安全审计。它替代�
 
 ### 输出协议
 
-遵循 [Scan Output Protocol 1.0](../../knowledge/protocols/scan-output.md)。
+遵循 [Scan Output Protocol 1.0](../knowledge/protocols/scan-output.md)。
 
 **执行完毕后必须输出审计摘要：**
 
@@ -91,8 +91,88 @@ Skill: secaudit-taint-analysis
 | secrets-management | 密钥/凭证管理方式审计 |
 | secure-transport | TLS 配置和传输层安全审计 |
 
-## 派发规则
+## 派发规则与执行步骤
 
-1. 精确匹配 → `skills/secaudit-{skill-name}/SKILL.md`
-2. analysis/domain → 列出对应分类的 skills
-3. 按协议 1.0 写入输出目录
+你（AI Agent）在接收到 `/secaudit` 命令后，必须按以下步骤执行来构建索引并进行安全审计。
+
+### 前置检查（Pre-flight Checklist）
+
+在执行任何审计步骤之前，必须逐项确认以下所有条件。**任一项未通过，审计不得开始，向用户报告具体错误。**
+
+- [ ] 定位索引器 wrapper：检查 `.opencode/scripts/secguardian-index`、`.gemini/scripts/secguardian-index`、`.claude/extensions/*/scripts/secguardian-index`，或 `scripts/secguardian-index`（至少一个存在且可执行）
+- [ ] 执行 `{indexer} --health` 通过（输出必须包含 `HEALTH:OK` 或 `HEALTH:WARN`，不接受 `HEALTH:FAIL`）
+- [ ] 目标路径 `<path>` 存在且包含至少一个源码文件
+
+> 若未通过，报告具体哪一项失败并终止。不要降级为手工逐文件审计。
+
+---
+
+### Step 1: 建立输出目录
+
+- 生成 `scan_id`（格式: `sec-YYYYMMDD-HHMMSS-xxxx`，其中 `xxxx` 为随机4位字符）。
+- 创建输出目录: `.codeagent/secaudit-secguardian/scans/<scan_id>/findings/`。
+- 记录审计开始时间戳，用于 Step 4 计算 `duration_ms`。
+
+### Step 2: 构建语义索引（必须执行，不可跳过）
+
+> ⚠️ 这是审计的**核心前置步骤**。索引器提供符号表、调用图、数据流路径，是后续深度审计的结构化上下文。**不执行此步骤将导致审计质量严重下降。**
+
+**2a. 执行索引器（阻塞等待完成）：**
+
+```bash
+# 定位 wrapper（按优先级尝试）
+INDEXER=""
+for candidate in \
+    .opencode/scripts/secguardian-index \
+    .gemini/scripts/secguardian-index \
+    .claude/extensions/secaudit-secguardian/scripts/secguardian-index \
+    .claude/extensions/secguard-secguardian/scripts/secguardian-index \
+    .claude/extensions/secreview-secguardian/scripts/secguardian-index \
+    scripts/secguardian-index \
+    internal/secguardian-index; do
+    if [ -x "$candidate" ] && [ -f "$candidate" ]; then
+        INDEXER="$candidate"
+        break
+    fi
+done
+
+if [ -z "$INDEXER" ]; then
+    echo "FATAL: secguardian-index not found" && exit 1
+fi
+
+$INDEXER --path <path> --output .codeagent/secaudit-secguardian/scans/<scan_id>/index.json
+```
+
+**2b. 验证索引完整性（必须通过）：**
+
+```bash
+python3 -c "
+import json, sys
+d = json.load(open('.codeagent/secaudit-secguardian/scans/<scan_id>/index.json'))
+assert len(d.get('files',[])) > 0, 'FATAL: index contains no files'
+assert 'symbols' in d, 'FATAL: index missing symbols'
+print(f'Index OK: {len(d[\"files\"])} files, {len(d.get(\"symbols\",{}).get(\"functions\",[]))} functions, {len(d.get(\"call_graph\",{}).get(\"edges\",[]))} call edges')
+"
+```
+
+若验证失败（返回非 0），**立即终止审计**并向用户报告索引生成出错。
+
+**2c. 将 index.json 加载为上下文：**
+
+读取生成的 `index.json`，理解以下结构化信息并在后续所有审计步骤中使用：
+- `symbols.functions` — 函数名→文件:行号映射（定位审计目标）
+- `call_graph.edges` — caller→callee 关系（追踪污点传播和数据流路径）
+- `alloc_free.pairs` — 资源分配/释放配对（生命周期分析）
+- `files` — 源码文件清单（确定审计范围）
+
+### Step 3: 路由并应用 Audit Skill
+
+- 如果用户未指定 skill-name，或输入为 `analysis` / `domain` / `list`，列出对应的 skills 列表。
+- 如果指定了具体的 skill-name，精确加载 `../skills/secaudit-{skill-name}/SKILL.md`。
+- 根据 `index.json` 提供的符号表和调用图、`SKILL.md` 的审计规范以及 `../knowledge/concepts/` 中相关的安全概念进行深度推理审计。
+
+### Step 4: 保存检出并输出摘要
+
+- 按照 [Scan Output Protocol 1.0](../knowledge/protocols/scan-output.md) 写入 `findings/<id>.json` 和 `manifest.json`。
+- `manifest.json` 中的 `duration_ms` 必须使用 **实际 wall-clock 耗时**（结束时间戳 − 开始时间戳），不得编造。
+- 向用户展示审计发现和审计摘要。

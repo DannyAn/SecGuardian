@@ -30,7 +30,7 @@
 
 ### 输出协议
 
-遵循 [Scan Output Protocol 1.0](../../knowledge/protocols/scan-output.md)。
+遵循 [Scan Output Protocol 1.0](../knowledge/protocols/scan-output.md)。
 
 **执行完毕后必须输出检视摘要：**
 
@@ -61,14 +61,95 @@ Language: Java (auto-detected)
 ## 与 /secguard 的区别
 
 | 维度 | secguard | secreview |
-|------|----------|-----------|
+|------|----------|-----------| 
 | 粒度 | 具体 API 调用级 + detector 过滤 | 函数/模块级语义 + 语言 |
 | 关注点 | 是否存在可利用漏洞 | 是否符合安全编码规范 |
 | 输出 | CWE + CVSS | 反模式 + 最佳实践违规 |
 | 严重度 | Critical → Info | High → Info |
 
-## 派发规则
+## 派发规则与执行步骤
 
-1. 语言检测（文件扩展名分布）
-2. 加载 `skills/secreview-{language}/SKILL.md`
-3. 按协议 1.0 写入输出目录
+你（AI Agent）在接收到 `/secreview` 命令后，必须按以下步骤执行来构建索引并进行安全编码规范检视。
+
+### 前置检查（Pre-flight Checklist）
+
+在执行任何检视步骤之前，必须逐项确认以下所有条件。**任一项未通过，检视不得开始，向用户报告具体错误。**
+
+- [ ] 定位索引器 wrapper：检查 `.opencode/scripts/secguardian-index`、`.gemini/scripts/secguardian-index`、`.claude/extensions/*/scripts/secguardian-index`，或 `scripts/secguardian-index`（至少一个存在且可执行）
+- [ ] 执行 `{indexer} --health` 通过（输出必须包含 `HEALTH:OK` 或 `HEALTH:WARN`，不接受 `HEALTH:FAIL`）
+- [ ] 目标路径 `<path>` 存在且包含至少一个源码文件
+
+> 若未通过，报告具体哪一项失败并终止。不要降级为手工逐文件检视。
+
+---
+
+### Step 1: 建立输出目录
+
+- 生成 `scan_id`（格式: `rv-YYYYMMDD-HHMMSS-xxxx`，其中 `xxxx` 为随机4位字符）。
+- 创建输出目录: `.codeagent/secreview-secguardian/scans/<scan_id>/findings/`。
+- 记录检视开始时间戳，用于 Step 4 计算 `duration_ms`。
+
+### Step 2: 构建语义索引（必须执行，不可跳过）
+
+> ⚠️ 这是检视的**核心前置步骤**。索引器提供符号表、调用图，是后续规范检视的结构化上下文。**不执行此步骤将导致检视质量严重下降。**
+
+**2a. 执行索引器（阻塞等待完成）：**
+
+```bash
+# 定位 wrapper（按优先级尝试）
+INDEXER=""
+for candidate in \
+    .opencode/scripts/secguardian-index \
+    .gemini/scripts/secguardian-index \
+    .claude/extensions/secreview-secguardian/scripts/secguardian-index \
+    .claude/extensions/secguard-secguardian/scripts/secguardian-index \
+    .claude/extensions/secaudit-secguardian/scripts/secguardian-index \
+    scripts/secguardian-index \
+    internal/secguardian-index; do
+    if [ -x "$candidate" ] && [ -f "$candidate" ]; then
+        INDEXER="$candidate"
+        break
+    fi
+done
+
+if [ -z "$INDEXER" ]; then
+    echo "FATAL: secguardian-index not found" && exit 1
+fi
+
+$INDEXER --path <path> --output .codeagent/secreview-secguardian/scans/<scan_id>/index.json
+```
+
+**2b. 验证索引完整性（必须通过）：**
+
+```bash
+python3 -c "
+import json, sys
+d = json.load(open('.codeagent/secreview-secguardian/scans/<scan_id>/index.json'))
+assert len(d.get('files',[])) > 0, 'FATAL: index contains no files'
+assert 'symbols' in d, 'FATAL: index missing symbols'
+print(f'Index OK: {len(d[\"files\"])} files, {len(d.get(\"symbols\",{}).get(\"functions\",[]))} functions, {len(d.get(\"call_graph\",{}).get(\"edges\",[]))} call edges')
+"
+```
+
+若验证失败（返回非 0），**立即终止检视**并向用户报告索引生成出错。
+
+**2c. 将 index.json 加载为上下文：**
+
+读取生成的 `index.json`，理解以下结构化信息并在后续所有检视步骤中使用：
+- `symbols.functions` — 函数名→文件:行号映射（定位检视目标）
+- `call_graph.edges` — caller→callee 关系（识别函数调用链中的反模式）
+- `files` — 源码文件清单（确定检视范围）
+
+### Step 3: 语言检测与 Skill 路由
+
+- 通过 `index.json` 中的文件扩展名分布自动检测目标语言。
+- 加载对应语言的 skill：`../skills/secreview-{language}/SKILL.md`。
+- 参考 `../knowledge/languages/{language}.md` 中的危险 API 列表和框架安全说明。
+- **利用 index.json 中的符号表定位检视目标**，而非逐文件遍历。
+
+### Step 4: 保存检出并输出摘要
+
+- 按照 [Scan Output Protocol 1.0](../knowledge/protocols/scan-output.md) 写入 `findings/<id>.json` 和 `manifest.json`。
+- `manifest.json` 中的 `duration_ms` 必须使用 **实际 wall-clock 耗时**（结束时间戳 − 开始时间戳），不得编造。
+- 向用户展示检视发现和检视摘要。
+

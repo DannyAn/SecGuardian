@@ -42,3 +42,4 @@ scripts/secguardian-index
 
 # CI/CD local config
 tools/.claude/
+session-*.md

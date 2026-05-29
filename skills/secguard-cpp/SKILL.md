@@ -31,14 +31,23 @@ language: cpp
   mkdir -p <output_dir>/findings/
 ```
 
-### Step 2: 确定扫描范围
+### Step 2: 使用索引器上下文
 
-**全量模式**: 扫描 path 下所有 C/C++ 源文件 (.c .cpp .cc .cxx .h .hpp .hh)
+> 索引器已在 Command 层面执行完毕，`index.json` 已生成在当前扫描的 `<output_dir>/` 下。
+>
+> 你需要读取 `../<output_dir>/index.json`（Command 中 Step 2c 的路径）获取以下结构化上下文，并在后续所有检测步骤中使用：
+>
+> - `files` — 完整的源码文件清单（确定扫描对象）
+> - `symbols.functions` — 函数名→文件:行号映射（精确定位检测目标，无需遍历文件）
+> - `call_graph.edges` — caller→callee 关系（追踪数据流和影响范围）
+> - `alloc_free.pairs` — malloc/free 配对（内存管理分析）
+
+**全量模式**: 基于 index.json 中的 `files` 和 `symbols` 确定扫描对象，**不要重新遍历文件系统。**
 
 **增量模式**:
 1. `git -C <path> diff <ref> --name-only` → 变更文件列表
 2. `git -C <path> diff <ref>` → 解析 @@ 行号范围
-3. 仅分析 `+` (新增/修改) 行
+3. 对照 index.json 中的 symbol 位置，仅分析变更行所在的函数。
 
 ### Step 3: 解析 Filters + 加载检测器
 
@@ -52,7 +61,7 @@ language: cpp
 Critical detectors → High detectors → Medium detectors
 ```
 
-每个 detector 读取 `knowledge/detectors/<name>.md`，应用 Step 2 的扫描范围。
+每个 detector 读取 `knowledge/detectors/<name>.md`，利用 Step 2 加载的 index.json 符号表定位检测目标，而非遍历文件。
 
 ### Step 5: 生成 Findings
 

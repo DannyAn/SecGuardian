@@ -23,7 +23,7 @@ import (
 	"github.com/secguardian/internal/parser"
 )
 
-const version = "0.3.1"
+const version = "0.4.0"
 
 // Detector definition for the CLI's built-in registry
 type DetectorInfo struct {
@@ -87,6 +87,24 @@ var detectorRegistry = []DetectorInfo{
 }
 
 func main() {
+	binaryName := filepath.Base(os.Args[0])
+	binaryName = strings.TrimSuffix(binaryName, ".exe")
+
+	if binaryName == "secguardian-index" || strings.HasPrefix(binaryName, "secguardian-index-") {
+		if len(os.Args) > 1 {
+			switch os.Args[1] {
+			case "help", "--help", "-h":
+				printHelp()
+				return
+			case "version", "--version", "-v":
+				fmt.Printf("secguardian-index %s\n", version)
+				return
+			}
+		}
+		runIndex(os.Args[1:])
+		return
+	}
+
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "detectors", "list":

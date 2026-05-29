@@ -25,7 +25,7 @@ SecGuardian — 部署脚本
   all      三平台全部部署 (默认)
   cc       Claude Code    → .claude/extensions/
   nga      OpenCode       → .opencode/commands/ (.md files = custom commands)
-  cac      Gemini CLI     → .gemini/skills/ + .gemini/commands/
+  cac      Gemini CLI     → .gemini/ (commands/ + skills/ + knowledge/ + scripts/)
 
 选项:
   --zip    部署后生成发布压缩包 → dist/archives/
@@ -130,22 +130,56 @@ deploy_claude() {
 
 # ── OpenCode ────────────────────────────────────
 deploy_opencode() {
-    log_step "OpenCode → .opencode/commands/ (OpenCode 加载 .md 文件为自定义命令)"
+    log_step "OpenCode → .opencode/ (完整布局: commands/ + skills/ + knowledge/ + scripts/)"
 
-    local cmd_dir="$PROJECT_ROOT/.opencode/commands"
-    rm -rf "$cmd_dir"
-    mkdir -p "$cmd_dir"
+    local opencode_dir="$PROJECT_ROOT/.opencode"
+    local cmd_dir="$opencode_dir/commands"
+    local skills_dir="$opencode_dir/skills"
+    local knowledge_dir="$opencode_dir/knowledge"
+    local scripts_dir="$opencode_dir/scripts"
 
-    # OpenCode 自定义命令 = .md 文件
-    # 文件名（不含 .md）即为命令名
+    # Clean and recreate target dirs
+    rm -rf "$cmd_dir" "$skills_dir" "$knowledge_dir" "$scripts_dir"
+    mkdir -p "$cmd_dir" "$skills_dir" "$scripts_dir/bin" \
+             "$knowledge_dir/concepts" "$knowledge_dir/languages" \
+             "$knowledge_dir/detectors" "$knowledge_dir/protocols"
+
+    local cmd_n=0 skill_n=0
     for d in "$DIST"/*/; do
-        [ -d "$d/commands" ] && cp "$d/commands"/*.md "$cmd_dir/" 2>/dev/null || true
+        # Commands: .md files are OpenCode slash commands
+        if [ -d "$d/commands" ]; then
+            for f in "$d/commands"/*.md; do
+                [ -f "$f" ] && cp "$f" "$cmd_dir/" && cmd_n=$((cmd_n + 1))
+            done
+        fi
+        # Skills: all skill directories
+        if [ -d "$d/skills" ]; then
+            for sd in "$d/skills"/*/; do
+                [ -d "$sd" ] && cp -r "$sd" "$skills_dir/$(basename "$sd")" && skill_n=$((skill_n + 1))
+            done
+        fi
+        # Knowledge: merge across all extensions
+        for cat in concepts languages detectors protocols; do
+            if [ -d "$d/knowledge/$cat" ]; then
+                find "$d/knowledge/$cat" -name '*.md' -exec cp {} "$knowledge_dir/$cat/" \;
+            fi
+        done
     done
+    log_done "$cmd_n commands (.md), $skill_n skills"
 
-    local cmd_n=$(ls "$cmd_dir"/*.md 2>/dev/null | wc -l | tr -d ' ')
-    log_done "$cmd_n commands (.md)"
-
-    deploy_binary "$PROJECT_ROOT/scripts" 2>/dev/null || true
+    # Copy wrapper scripts and binaries
+    for wrapper in secguardian-index secguardian-index.ps1; do
+        if [ -f "$PROJECT_ROOT/scripts/$wrapper" ]; then
+            cp "$PROJECT_ROOT/scripts/$wrapper" "$scripts_dir/$wrapper"
+            chmod +x "$scripts_dir/$wrapper" 2>/dev/null || true
+        fi
+    done
+    local bin_src="$PROJECT_ROOT/scripts/bin"
+    if [ -d "$bin_src" ]; then
+        cp -r "$bin_src/"* "$scripts_dir/bin/" 2>/dev/null || true
+        chmod +x "$scripts_dir/bin/"* 2>/dev/null || true
+        log_done "cross-platform binaries in .opencode/scripts/bin/"
+    fi
 
     echo ""
     log_info "OpenCode 使用方式（重启后生效）:"
@@ -156,19 +190,34 @@ deploy_opencode() {
 
 # ── Gemini CLI ───────────────────────────────────
 deploy_gemini() {
-    log_step "Gemini CLI → .gemini/skills/ + .gemini/commands/"
+    log_step "Gemini CLI → .gemini/ (commands/ + skills/ + knowledge/ + scripts/)"
 
-    local skills_dir="$PROJECT_ROOT/.gemini/skills"
-    local cmd_dir="$PROJECT_ROOT/.gemini/commands"
-    rm -rf "$skills_dir" "$cmd_dir"
-    mkdir -p "$skills_dir" "$cmd_dir"
+    local gemini_dir="$PROJECT_ROOT/.gemini"
+    local skills_dir="$gemini_dir/skills"
+    local cmd_dir="$gemini_dir/commands"
+    local knowledge_dir="$gemini_dir/knowledge"
+    local scripts_dir="$gemini_dir/scripts"
+
+    # Clean and recreate target dirs
+    rm -rf "$skills_dir" "$cmd_dir" "$knowledge_dir" "$scripts_dir"
+    mkdir -p "$skills_dir" "$cmd_dir" "$scripts_dir/bin" \
+             "$knowledge_dir/concepts" "$knowledge_dir/languages" \
+             "$knowledge_dir/detectors" "$knowledge_dir/protocols"
 
     local skill_n=0
     for d in "$DIST"/*/; do
-        [ -d "$d/skills" ] && for sd in "$d/skills"/*/; do
-            cp -r "$sd" "$skills_dir/$(basename "$sd")"; skill_n=$((skill_n + 1))
+        # Skills: all skill directories
+        if [ -d "$d/skills" ]; then
+            for sd in "$d/skills"/*/; do
+                [ -d "$sd" ] && cp -r "$sd" "$skills_dir/$(basename "$sd")" && skill_n=$((skill_n + 1))
+            done
+        fi
+        # Knowledge: merge across all extensions at top level
+        for cat in concepts languages detectors protocols; do
+            if [ -d "$d/knowledge/$cat" ]; then
+                find "$d/knowledge/$cat" -name '*.md' -exec cp {} "$knowledge_dir/$cat/" \;
+            fi
         done
-        [ -d "$d/knowledge" ] && cp -r "$d/knowledge" "$skills_dir/.knowledge-$(basename "$d")"
     done
 
     # 自动从 .md 命令生成 TOML，再拷贝
@@ -183,8 +232,21 @@ deploy_gemini() {
         done
     fi
 
+    # Copy wrapper scripts and cross-platform binaries
+    for wrapper in secguardian-index secguardian-index.ps1; do
+        if [ -f "$PROJECT_ROOT/scripts/$wrapper" ]; then
+            cp "$PROJECT_ROOT/scripts/$wrapper" "$scripts_dir/$wrapper"
+            chmod +x "$scripts_dir/$wrapper" 2>/dev/null || true
+        fi
+    done
+    local bin_src="$PROJECT_ROOT/scripts/bin"
+    if [ -d "$bin_src" ]; then
+        cp -r "$bin_src/"* "$scripts_dir/bin/" 2>/dev/null || true
+        chmod +x "$scripts_dir/bin/"* 2>/dev/null || true
+    fi
+
     # 生成 Gemini 上下文文件
-    cat > "$PROJECT_ROOT/.gemini/GEMINI.md" << 'MD'
+    cat > "$gemini_dir/GEMINI.md" << 'MD'
 # SecGuardian - 安全守卫
 
 本项目配置了 SecGuardian 安全扫描能力。
@@ -203,18 +265,21 @@ deploy_gemini() {
 
 ## 辅助工具
 
-本项目提供了一个预编译的代码索引器，可通过 Bash 调用：
+本项目提供了预编译的代码索引器：
 
-- `secguardian-index --path <dir>` — 构建代码符号索引
-- `secguardian-index --version` — 查看版本
-- `secguardian-index --health` — 自检可用性
+| 平台 | 脚本 |
+|------|------|
+| macOS / Linux | `scripts/secguardian-index --path <dir> --output <file>` |
+| Windows | `scripts/secguardian-index.ps1 --path <dir> --output <file>` |
 
-索引器位置: `scripts/secguardian-index`
+索引器命令：
+- `--path <dir>` — 指定源码目录
+- `--output <file>` — 指定索引输出文件（JSON）
+- `--version` — 查看版本
+- `--health` — 自检可用性
 MD
 
-    log_done "$skill_n skills + $cmd_n commands (.toml) + GEMINI.md"
-
-    deploy_binary "$PROJECT_ROOT/scripts" 2>/dev/null || true
+    log_done "$skill_n skills + $cmd_n commands (.toml) + knowledge/ + scripts/ + GEMINI.md"
 
     echo ""
     log_info "Gemini CLI 使用方式:"
@@ -235,22 +300,25 @@ do_zip() {
     for d in "$DIST"/*/; do
         local name=$(basename "$d")
         [ "$name" = "archives" ] && continue
+        [ "$name" = "release" ] && continue
         local zipfile="$archive_dir/cc-${name}.zip"
         (cd "$DIST" && zip -rq "$zipfile" "$name")
         log_done "cc-${name}.zip"
     done
 
-    # OpenCode: commands 打成 zip
+    # OpenCode: 完整布局 (commands/ + skills/ + knowledge/ + scripts/)
     if [ -d "$PROJECT_ROOT/.opencode/commands" ]; then
         local nga_zip="$archive_dir/nga-secguardian.zip"
-        (cd "$PROJECT_ROOT/.opencode" && zip -rq "$nga_zip" commands/)
+        (cd "$PROJECT_ROOT/.opencode" && zip -rq "$nga_zip" commands/ skills/ knowledge/ scripts/ 2>/dev/null || \
+         zip -rq "$nga_zip" commands/)
         log_done "nga-secguardian.zip"
     fi
 
-    # Gemini CLI: skills + commands 打成一个 zip
+    # Gemini CLI: 完整布局 (skills/ + knowledge/ + commands/ + scripts/ + GEMINI.md)
     if [ -d "$PROJECT_ROOT/.gemini/skills" ]; then
         local cac_zip="$archive_dir/cac-secguardian.zip"
-        (cd "$PROJECT_ROOT/.gemini" && zip -rq "$cac_zip" skills/ commands/ GEMINI.md)
+        (cd "$PROJECT_ROOT/.gemini" && zip -rq "$cac_zip" skills/ knowledge/ commands/ scripts/ GEMINI.md 2>/dev/null || \
+         zip -rq "$cac_zip" skills/ commands/ GEMINI.md)
         log_done "cac-secguardian.zip"
     fi
 
