@@ -130,6 +130,23 @@ void  operator delete(void* ptr);
 3. **配对验证**：验证 `xxx_malloc` 只由 `xxx_free` 释放，而非混用 `free()` 或其他变体（mismatched-free 检测器扩展）
 4. **统计追踪**：对自定义分配器的返回值检查和生命周期分析与标准函数相同
 
+### SQL / 数据库注入
+
+C/C++ 在嵌入式（SQLite）、桌面应用和数据库驱动开发中都有 SQL 注入风险。
+
+| 模式 | 风险 | 安全做法 |
+|------|------|---------|
+| `sqlite3_mprintf(sql, user)` `%s` | SQL 注入 — 无转义 | `sqlite3_prepare_v2` + `sqlite3_bind_text` |
+| `sqlite3_mprintf(sql, user)` `%q` | ⚠️ 仅转义单引号，非参数化 | 同上 — `%q` 不能替代 prepare+bind |
+| `snprintf(buf, n, sql, user)` + `sqlite3_exec()` | SQL 注入 — 手工拼接 | prepare + bind |
+| `mysql_query(conn, buf)` + 拼接 | SQL 注入 | `mysql_stmt_bind_param()` |
+| `PQexec(conn, sql)` + 拼接 | SQL 注入 | `PQexecParams()` |
+| `SQLExecDirect(stmt, sql, ...)` + 拼接 | SQL 注入 | `SQLBindParameter()` + `SQLPrepare()` |
+| `sqlite3_exec(db, sql, ...)` 静态 SQL | 安全 | SQL 文字不含变量 |
+| `EXISTS` / 子查询中拼接 | SQL 注入 — 同样危险 | prepare + bind 同样适用于子查询 |
+| FTS5 `MATCH` 拼接用户输入 | FTS 语法注入 — 可遍历数据 | bind 参数或严格白名单 |
+| LIKE/GLOB 未转义 `%` `_` | 通配符注入 — 性能攻击/信息泄露 | 转义 `%` → `\%`, `_` → `\_` |
+
 ### 文件操作
 | 模式 | 风险 |
 |------|------|

@@ -2,15 +2,15 @@
 detector: sql-injection
 severity: critical
 cwe: CWE-89
-language: [java, go]
-tags: [web, injection, database]
+language: [c, cpp, java, go]
+tags: [web, injection, database, embedded]
 ---
 
-# SQL 注入检测 (Java / Go)
+# SQL 注入检测 (C/C++ / Java / Go)
 
 ## 检测概要
 
-检查 Java 和 Go 代码中是否将不可信数据拼接到 SQL 查询字符串中。
+检查代码中是否将不可信数据拼接到 SQL 查询字符串中。覆盖 Web 后端 (Java/Go) 和嵌入式/桌面应用 (C/C++ SQLite)。
 
 ## 检测逻辑
 
@@ -45,7 +45,116 @@ ps.setString(1, username);
 User findUser(String username);
 ```
 
-### Step 2: Go — 搜索危险模式
+### Step 2: C/C++ — SQLite / ODBC / MySQL C API 注入
+
+嵌入式开发中，C/C++ 常通过 SQLite 做本地持久化存储（IoT 设备、车载系统、桌面应用）。SQLite 和 MySQL/PostgreSQL C API 一样，如果用户输入未经参数化直接拼进 SQL，就会产生注入。
+
+#### SQLite C API 危险模式
+
+**模式 1：`sqlite3_mprintf` 格式化拼接（高危）**
+
+```c
+// BAD: sqlite3_mprintf 将用户输入直接格式化到 SQL 中
+const char *user_name = get_user_input();
+char *sql = sqlite3_mprintf(
+    "SELECT * FROM users WHERE name = '%q'", user_name  // %q 只转义单引号，不防注入
+);
+sqlite3_exec(db, sql, NULL, NULL, NULL);
+sqlite3_free(sql);
+
+// BAD: 用 %s 完全不转义
+char *sql = sqlite3_mprintf(
+    "SELECT * FROM users WHERE name = '%s'", user_name  // '%s' 完全不安全！
+);
+```
+
+**关键点**：`sqlite3_mprintf` 的 `%q` 会转义单引号（`'` → `''`），这是一种**有限的防护**，但不能替代参数化查询。攻击者绕过 `%q` 的已知方法包括：
+- 如果后续有其他字符串拼接，转义可能被绕过
+- `%s` 格式完全不转义
+- `%w` 格式（SQLite 3.44+）相对安全，但仅限表名/列名白名单场景
+
+**模式 2：`snprintf` / `sprintf` 手工拼接 + `sqlite3_exec`（极高危）**
+
+```c
+// BAD: 手工拼接 SQL
+char sql[512];
+snprintf(sql, sizeof(sql),
+    "SELECT * FROM users WHERE name = '%s' AND password = '%s'",
+    user_name, user_password);
+sqlite3_exec(db, sql, callback, NULL, NULL);
+
+// 攻击输入: user_name = "admin' --"
+// 结果 SQL: SELECT * FROM users WHERE name = 'admin' --' AND password = 'xxx'
+// → 绕过密码验证
+```
+
+**模式 3：`sqlite3_prepare_v2` 但仍手动拼接 SQL（高危）**
+
+```c
+// BAD: prepare 的 SQL 本身是拼接出来的
+char sql[256];
+snprintf(sql, sizeof(sql),
+    "SELECT * FROM users WHERE name = '%s'", user_name);
+sqlite3_stmt *stmt;
+sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);  // SQL 已被污染
+sqlite3_step(stmt);
+```
+
+#### SQLite C API 安全模式
+
+```c
+// GOOD: sqlite3_prepare_v2 + sqlite3_bind_* (参数化查询)
+const char *sql = "SELECT * FROM users WHERE name = ?1 AND age > ?2";
+sqlite3_stmt *stmt;
+sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+sqlite3_bind_text(stmt, 1, user_name, -1, SQLITE_STATIC);  // 参数绑定
+sqlite3_bind_int(stmt, 2, min_age);
+sqlite3_step(stmt);
+sqlite3_finalize(stmt);
+```
+
+**为什么安全**：`sqlite3_bind_*` 将值作为数据传递，而非 SQL 文本的一部分。值的类型和边界由 SQLite 内部处理，完全不受注入影响。
+
+```c
+// GOOD: sqlite3_bind_* 同样适用于 INSERT/UPDATE/DELETE
+const char *sql = "INSERT INTO logs (msg, level) VALUES (?1, ?2)";
+sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+sqlite3_bind_text(stmt, 1, user_msg, -1, SQLITE_STATIC);
+sqlite3_bind_int(stmt, 2, LOG_WARNING);
+sqlite3_step(stmt);
+sqlite3_finalize(stmt);
+```
+
+#### 其他 C/C++ 数据库 API
+
+| 数据库 | 危险 API | 安全 API |
+|--------|---------|---------|
+| MySQL C API | `mysql_query(conn, buf)` + 拼接 | `mysql_stmt_bind_param()` + prepared stmt |
+| PostgreSQL libpq | `PQexec(conn, sql)` + 拼接 | `PQexecParams()` 参数化 |
+| ODBC | `SQLExecDirect(stmt, sql, ...)` + 拼接 | `SQLBindParameter()` + `SQLPrepare()` |
+| Oracle OCI | `OCIStmtExecute()` + 拼接 | `OCIBindByName()` 参数绑定 |
+
+**检测原则**：对于任何 C/C++ 数据库 API，如果 SQL 字符串的构造路径经过 `snprintf`/`sprintf`/`strcat`/`strcpy` 等且参数来自外部输入，则报告 SQL 注入。
+
+#### SQLite FTS5 全文搜索注入
+
+SQLite FTS5 扩展用于全文搜索，其 MATCH 语法有特殊的注入风险：
+
+```c
+// BAD: FTS5 MATCH 拼接用户输入
+char sql[512];
+snprintf(sql, sizeof(sql),
+    "SELECT * FROM docs WHERE docs MATCH '%s'", user_search);
+sqlite3_exec(db, sql, ...);
+
+// 攻击输入: user_search = "\"*\" OR 1=1"
+// 或更危险的: user_search = "a\" OR content MATCH '\"password\"' --"
+// → 可通过 MATCH 语法遍历、读取敏感列
+```
+
+**安全做法**：FTS5 的 MATCH 参数也必须通过 `sqlite3_bind_text` 绑定，或对输入做严格的白名单校验。
+
+### Step 3: Go — 搜索危险模式
 
 ```go
 // BAD: database/sql + fmt.Sprintf 拼接
@@ -68,7 +177,22 @@ rows, err := db.Query("SELECT * FROM users WHERE name = $1", username)
 db.Where("name = ?", username).Find(&users)
 ```
 
-### Step 3: 检查 ORDER BY / 动态列 (Java + Go)
+### Step 4: 检查 ORDER BY / 动态列 (C/C++ / Java / Go)
+
+**C/C++ 中的 ORDER BY 注入：**
+
+```c
+// BAD: ORDER BY 字段来自用户输入
+char sql[256];
+snprintf(sql, sizeof(sql),
+    "SELECT * FROM users ORDER BY %s", user_sort_field);
+sqlite3_exec(db, sql, ...);
+
+// 攻击: user_sort_field = "(CASE WHEN password LIKE 'a%' THEN name ELSE id END)"
+// → 可通过排序结果推断密码内容（盲注）
+```
+
+> ORDER BY / GROUP BY / LIMIT 等 SQL 子句通常**无法用参数化绑定**（绑定只支持值，不支持标识符），必须用**白名单校验**。
 
 ```java
 // Java BAD: ORDER BY 字段来自用户输入
@@ -98,19 +222,36 @@ db.Order(orderBy).Find(&users)
 
 | 场景 | 原因 |
 |------|------|
+| `sqlite3_prepare_v2` + `sqlite3_bind_*` (C) | 参数化查询，安全 |
+| `PQexecParams()` / `mysql_stmt_bind_param()` (C) | 参数化，安全 |
 | PreparedStatement + setString (Java) | 参数化，安全 |
 | `db.Query(query, args...)` 占位符 (Go) | 参数化安全 |
 | MyBatis #{} / GORM Where("name = ?") | 参数化，安全 |
-| 静态 SQL 字符串无外部输入 | 无注入路径 |
+| `sqlite3_mprintf("%q", val)` — 仅转义单引号 | ⚠️ 不视为安全，仍需报告（非参数化） |
+| 静态 SQL 字面量字符串无外部输入 | 无注入路径 |
 | ORDER BY 有白名单校验 | 已验证 |
+| 表名/列名来自内部枚举，非用户输入 | 无注入路径 |
 
 ## 检测模式汇总
 
 ```
+# C/C++ SQLite: snprintf/sprintf + sqlite3_exec
+(snprintf|sprintf|strcat|strcpy).*SELECT|INSERT|DELETE|UPDATE
+→ sqlite3_exec|sqlite3_prepare_v2 (同一调用链)
+→ 排除 sqlite3_bind_text|sqlite3_bind_int|sqlite3_bind_* 在同一作用域
+
+# C/C++ SQLite: sqlite3_mprintf 直接拼接
+sqlite3_mprintf.*SELECT|INSERT|DELETE|UPDATE
+→ 检查是否使用 %s (完全不安全) 或 %q (仅转义，仍报告)
+
+# C/C++ 其他 C API
+PQexec|mysql_query|SQLExecDirect
+→ SQL 字符串来自拼接|外部输入
+
 # Java: Statement + 拼接
 createStatement|executeQuery
 → SQL 字符串中含 + 或 String.format
-→ MyBatis ${  (非 #{})
+→ MyBatis \${  (非 #{})
 
 # Go: fmt.Sprintf 拼接到 SQL
 fmt\.Sprintf.*SELECT|INSERT|DELETE|UPDATE
@@ -119,7 +260,11 @@ fmt\.Sprintf.*SELECT|INSERT|DELETE|UPDATE
 # Go: GORM Raw/Exec 拼接
 db\.Raw\(fmt\.Sprintf|db\.Exec\(fmt\.Sprintf
 
-# 动态 ORDER BY/Group 无白名单
-db\.Order\(|ORDER BY\s+\+
+# 动态 ORDER BY/Group 无白名单 (所有语言)
+ORDER BY|GROUP BY|LIMIT\s+\+
 → 参数来自外部 → 无白名单校验
+
+# FTS5 MATCH 注入 (C/C++)
+MATCH\s+'.*\+|snprintf.*MATCH
+→ 用户输入拼接到 MATCH 表达式中
 ```
