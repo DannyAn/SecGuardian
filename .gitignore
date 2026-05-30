@@ -38,7 +38,7 @@ internal/secguardian
 internal/secguardian-cli
 internal/secguardian-index
 scripts/secguardian
-scripts/secguardian-index
+scripts/bin/
 
 # CI/CD local config
 tools/.claude/
