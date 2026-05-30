@@ -7,6 +7,7 @@
 # 用法:
 #   bash install.sh --user [options]              # 用户级（推荐）
 #   bash install.sh <target-project> [options]    # 项目级
+#   bash install.sh --uninstall [--user]          # 卸载
 #
 # 选项:
 #   --user              安装到用户家目录（推荐，跨项目共用）
@@ -16,6 +17,7 @@
 #   --gemini            仅安装 Gemini CLI
 #   --release-dir <dir> 指定发布包所在目录 (默认: 当前目录)
 #   --version <ver>     指定版本号 (默认: 自动检测)
+#   --uninstall        卸载已安装的 secguardian 文件
 #   --dry-run           仅显示将要执行的操作，不实际安装
 #   --no-backup         不备份已有安装
 #
@@ -28,6 +30,8 @@
 #   bash install.sh ~/my-project --all           # 安装全部平台到项目
 #   bash install.sh ~/my-project --opencode      # 仅 OpenCode 到项目
 #   bash install.sh ~/my-project --dry-run       # 预览操作
+#   bash install.sh --uninstall                     # 卸载项目级
+#   bash install.sh --user --uninstall              # 卸载用户级
 
 set -euo pipefail
 
@@ -49,6 +53,7 @@ show_help() {
 
 # ── 参数解析 ──────────────────────────────────
 USER_MODE=false
+UNINSTALL_MODE=false
 TARGET=""
 PLATFORM="all"
 RELEASE_DIR="."
@@ -60,6 +65,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         -h|--help|help) show_help ;;
         --user)         USER_MODE=true; shift ;;
+        --uninstall)    UNINSTALL_MODE=true; shift ;;
         --all)          PLATFORM="all"; shift ;;
         --claude)       PLATFORM="claude"; shift ;;
         --opencode)     PLATFORM="opencode"; shift ;;
@@ -86,6 +92,11 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ── 确定安装目标路径 ──────────────────────────
+if $UNINSTALL_MODE && [ -z "$TARGET" ] && ! $USER_MODE; then
+    log_error "请指定 --user（卸载用户级）或 <project-path>（卸载项目级）"
+    exit 1
+fi
+
 if $USER_MODE; then
     TARGET="$HOME"
     INSTALL_MODE="用户级"
@@ -202,8 +213,13 @@ install_claude() {
         return 0
     fi
 
-    $NO_BACKUP || backup_dir "$ext_dir"
-    rm -rf "$ext_dir"
+    # Back up our own extensions, then remove old versions
+    for our_name in secguard-secguardian secaudit-secguardian secreview-secguardian; do
+        if [ -d "$ext_dir/$our_name" ]; then
+            $NO_BACKUP || mv "$ext_dir/$our_name" "$ext_dir/${our_name}.backup.$(date +%Y%m%d-%H%M%S)"
+        fi
+        rm -rf "$ext_dir/$our_name"
+    done
     mkdir -p "$ext_dir"
 
     unzip -qo "$zip_file" -d "$ext_dir/"
@@ -354,7 +370,51 @@ print_summary() {
     echo ""
 }
 
+# ── 卸载 ──────────────────────────────────────
+do_uninstall() {
+    echo ""
+    echo -e "${BOLD}╔══════════════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}║${NC}  SecGuardian — 卸载 (${INSTALL_MODE})                ${BOLD}║${NC}"
+    echo -e "${BOLD}╚══════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "  路径: ${CYAN}$TARGET${NC}"
+    echo ""
+
+    # Claude Code
+    local ext_dir="$TARGET/.claude/extensions"
+    for name in secguard-secguardian secaudit-secguardian secreview-secguardian; do
+        if [ -d "$ext_dir/$name" ]; then
+            rm -rf "$ext_dir/$name"
+            log_done "已移除: $ext_dir/$name"
+        fi
+    done
+
+    # OpenCode
+    for sub in commands skills knowledge scripts; do
+        if [ -d "$TARGET/.opencode/$sub" ]; then
+            rm -rf "$TARGET/.opencode/$sub"
+            log_done "已移除: $TARGET/.opencode/$sub"
+        fi
+    done
+
+    # Gemini CLI
+    for sub in commands skills knowledge scripts GEMINI.md; do
+        if [ -e "$TARGET/.gemini/$sub" ]; then
+            rm -rf "$TARGET/.gemini/$sub"
+            log_done "已移除: $TARGET/.gemini/$sub"
+        fi
+    done
+
+    echo ""
+    log_done "卸载完成"
+}
+
 # ── 主流程 ─────────────────────────────────────
+if $UNINSTALL_MODE; then
+    do_uninstall
+    exit 0
+fi
+
 FAILURES=0
 
 case "$PLATFORM" in

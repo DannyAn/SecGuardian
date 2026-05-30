@@ -11,7 +11,9 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="$PROJECT_ROOT/dist"
-DEPLOY_USER=false   # 默认项目级，--user 切换为用户级
+DEPLOY_USER=false     # 默认项目级，--user 切换为用户级
+DO_UNINSTALL=false
+DO_ZIP=false
 
 # ── Help ──────────────────────────────────────
 show_help() {
@@ -22,21 +24,24 @@ SecGuardian — 部署脚本
 
 用法:
   bash scripts/deploy.sh <platform> [--user] [--zip]
+  bash scripts/deploy.sh <platform> --uninstall
 
 平台:
-  all      三平台全部部署 (默认)
+  all      三平台全部 (默认)
   cc       Claude Code    → .claude/extensions/
   nga      OpenCode       → .opencode/ (commands + skills + knowledge + scripts)
   cac      Gemini CLI     → .gemini/ (commands + skills + knowledge + scripts)
 
 选项:
-  --user   部署到用户家目录（推荐，跨项目共用）
-  --zip    部署后生成发布压缩包 → dist/archives/
+  --user       部署到用户家目录（推荐，跨项目共用）
+  --uninstall  卸载已安装的 secguardian 文件
+  --zip        部署后生成发布压缩包 → dist/archives/
 
 示例:
-  bash scripts/deploy.sh all --user     # 用户级部署到 ~/
-  bash scripts/deploy.sh cc             # 项目级部署 Claude Code
-  bash scripts/deploy.sh all --zip      # 项目级部署 + 打包发布
+  bash scripts/deploy.sh all --user          # 用户级部署
+  bash scripts/deploy.sh all --uninstall     # 卸载全部
+  bash scripts/deploy.sh all --user --uninstall  # 卸载用户级安装
+  bash scripts/deploy.sh cc                 # 项目级部署 Claude Code
 EOF
     exit 0
 }
@@ -48,6 +53,7 @@ shift 2>/dev/null || true
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --user) DEPLOY_USER=true; shift ;;
+        --uninstall) DO_UNINSTALL=true; shift ;;
         --zip) DO_ZIP=true; shift ;;
         -h|--help|help) show_help ;;
         *) shift ;;
@@ -134,11 +140,16 @@ deploy_binary() {
 deploy_claude() {
     log_step "Claude Code → .claude/extensions/"
     local ext_dir="$TARGET_ROOT/.claude/extensions"
-    rm -rf "$ext_dir"
     mkdir -p "$ext_dir"
+
+    # Only remove our own extensions, leave others intact
+    for our_name in secguard-secguardian secaudit-secguardian secreview-secguardian; do
+        rm -rf "$ext_dir/$our_name"
+    done
 
     for d in "$DIST"/*/; do
         local name=$(basename "$d")
+        rm -rf "$ext_dir/$name"  # Clean old version of this extension first
         cp -r "$d" "$ext_dir/$name"
         local s=$(find "$d/skills" -maxdepth 1 -type d 2>/dev/null | tail -n +2 | wc -l | tr -d ' ')
         local c=$(ls "$d/commands/" 2>/dev/null | wc -l | tr -d ' ')
@@ -152,6 +163,82 @@ deploy_claude() {
     echo "    /secguard <path> [mode] [filters]"
     echo "    /secaudit <skill-name>"
     echo "    /secreview <path> [language]"
+}
+
+# ── 卸载 ──────────────────────────────────────
+uninstall_claude() {
+    local ext_dir="$TARGET_ROOT/.claude/extensions"
+    local removed=0
+    for name in secguard-secguardian secaudit-secguardian secreview-secguardian; do
+        if [ -d "$ext_dir/$name" ]; then
+            rm -rf "$ext_dir/$name"
+            log_done "已移除: $ext_dir/$name"
+            removed=$((removed + 1))
+        fi
+    done
+    if [ "$removed" -eq 0 ]; then
+        log_info "Claude Code: 未找到已安装的 extension"
+    fi
+}
+
+uninstall_opencode() {
+    local oc_dir="$TARGET_ROOT/.opencode"
+    local removed=0
+    for sub in commands skills knowledge scripts; do
+        if [ -d "$oc_dir/$sub" ]; then
+            # Only remove if it looks like secguardian content
+            rm -rf "$oc_dir/$sub"
+            if [ "$sub" = "skills" ]; then
+                log_done "已移除: $oc_dir/$sub/ (25 个 skill)"
+            else
+                log_done "已移除: $oc_dir/$sub/"
+            fi
+            removed=$((removed + 1))
+        fi
+    done
+    if [ "$removed" -eq 0 ]; then
+        log_info "OpenCode: 未找到已安装的 secguardian 内容"
+    fi
+}
+
+uninstall_gemini() {
+    local gm_dir="$TARGET_ROOT/.gemini"
+    local removed=0
+    for sub in commands skills knowledge scripts GEMINI.md; do
+        if [ -e "$gm_dir/$sub" ]; then
+            rm -rf "$gm_dir/$sub"
+            log_done "已移除: $gm_dir/$sub"
+            removed=$((removed + 1))
+        fi
+    done
+    if [ "$removed" -eq 0 ]; then
+        log_info "Gemini CLI: 未找到已安装的 secguardian 内容"
+    fi
+}
+
+do_uninstall() {
+    local plat="$1"
+    echo ""
+    echo -e "${BOLD}╔══════════════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}║${NC}  SecGuardian — 卸载 (${DEPLOY_MODE})                ${BOLD}║${NC}"
+    echo -e "${BOLD}╚══════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "  目标: ${CYAN}$TARGET_ROOT${NC}"
+    echo ""
+
+    case "$plat" in
+        all)
+            uninstall_claude
+            uninstall_opencode
+            uninstall_gemini
+            ;;
+        cc)  uninstall_claude ;;
+        nga) uninstall_opencode ;;
+        cac) uninstall_gemini ;;
+    esac
+
+    echo ""
+    log_done "卸载完成"
 }
 
 # ── OpenCode ────────────────────────────────────
@@ -354,9 +441,16 @@ do_zip() {
 # ── 主流程 ──────────────────────────────────────
 echo ""
 echo -e "${BOLD}╔══════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}║${NC}  SecGuardian — 部署 ${PLATFORM}                             ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}  SecGuardian — ${DEPLOY_MODE} ${PLATFORM}                             ${BOLD}║${NC}"
 echo -e "${BOLD}╚══════════════════════════════════════════════╝${NC}"
 echo ""
+
+if $DO_UNINSTALL; then
+    do_uninstall "$PLATFORM"
+    echo ""
+    echo -e "${GREEN}卸载完成。${NC}"
+    exit 0
+fi
 
 ensure_dist
 
@@ -374,7 +468,7 @@ case "$PLATFORM" in
 esac
 
 # 如果带 --zip 参数则额外打包
-if [ "${2:-}" = "--zip" ]; then
+if $DO_ZIP; then
     echo ""
     do_zip
 fi
