@@ -85,13 +85,9 @@ else
     echo "    [SKIP] Go not available — indexer binaries not built"
 fi
 
-# Also build native binary for local dev use in scripts/
-if [ -f "$PROJECT_ROOT/internal/go.mod" ] && command -v go &>/dev/null; then
-    echo "  → Building native binary for local dev..."
-    (cd "$PROJECT_ROOT/internal" && go build -o "$PROJECT_ROOT/scripts/secguardian" . 2>/dev/null && \
-        echo "    binary: $PROJECT_ROOT/scripts/secguardian") || \
-        echo "    [WARN] native build failed"
-fi
+# Note: No standalone "secguardian" binary in V1.
+# The indexer (secguardian-index) is the only binary needed.
+# A future standalone CLI with integrated LLM calls will use the "secguardian" name.
 
 for ext_dir in "$EXTENSIONS_DIR"/*/; do
     ext=$(basename "$ext_dir")

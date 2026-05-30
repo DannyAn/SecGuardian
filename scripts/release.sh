@@ -13,14 +13,14 @@
 #
 # 输出:
 #   dist/release/<version>/
-#   ├── secguardian-<version>-darwin-amd64
-#   ├── secguardian-<version>-darwin-amd64.sha256
-#   ├── secguardian-<version>-darwin-arm64
-#   ├── secguardian-<version>-darwin-arm64.sha256
-#   ├── secguardian-<version>-linux-amd64
-#   ├── secguardian-<version>-linux-amd64.sha256
-#   ├── secguardian-<version>-windows-amd64.exe
-#   ├── secguardian-<version>-windows-amd64.exe.sha256
+#   ├── secguardian-index-<version>-darwin-arm64
+#   ├── secguardian-index-<version>-darwin-arm64.sha256
+#   ├── secguardian-index-<version>-darwin-amd64
+#   ├── secguardian-index-<version>-darwin-amd64.sha256
+#   ├── secguardian-index-<version>-linux-amd64
+#   ├── secguardian-index-<version>-linux-amd64.sha256
+#   ├── secguardian-index-<version>-windows-amd64.exe
+#   ├── secguardian-index-<version>-windows-amd64.exe.sha256
 #   ├── secguardian-<version>-claude-code.zip
 #   ├── secguardian-<version>-opencode.zip
 #   ├── secguardian-<version>-gemini-cli.zip
@@ -48,11 +48,11 @@ echo ""
 mkdir -p "$OUTPUT"
 
 # ── 1. Go Binary: macOS (native) ──────────────────
-log "Building Go binaries (macOS)..."
+log "Building indexer binaries (macOS)..."
 cd "$PROJECT_ROOT/internal"
 
 for arch in arm64 amd64; do
-    bin_name="secguardian-${VERSION}-darwin-${arch}"
+    bin_name="secguardian-index-${VERSION}-darwin-${arch}"
     if GOOS=darwin GOARCH=$arch go build -o "$OUTPUT/$bin_name" . 2>/dev/null; then
         shasum -a 256 "$OUTPUT/$bin_name" | cut -d' ' -f1 > "$OUTPUT/$bin_name.sha256"
         done_msg "$bin_name ($(du -h "$OUTPUT/$bin_name" | cut -f1))"
@@ -60,10 +60,6 @@ for arch in arm64 amd64; do
         log "WARN: $bin_name build failed (tree-sitter CGO) — try native build on $arch Mac"
     fi
 done
-if [ -f "$OUTPUT/secguardian-${VERSION}-darwin-arm64" ]; then
-    cp "$OUTPUT/secguardian-${VERSION}-darwin-arm64" "$OUTPUT/secguardian"
-    done_msg "secguardian (macOS default)"
-fi
 
 # ── 1b. Build Notes ──────────────────────────────
 log "Linux/Windows builds managed by CI:"
@@ -124,16 +120,18 @@ cat > "$OUTPUT/manifest.json" << EOF
   "date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "artifacts": [
     {
-      "name": "secguardian-${VERSION}-darwin-arm64",
+      "name": "secguardian-index-${VERSION}-darwin-arm64",
       "os": "darwin",
       "arch": "arm64",
-      "type": "binary"
+      "type": "indexer",
+      "description": "Code indexer binary (tree-sitter), called by AI Agent commands"
     },
     {
-      "name": "secguardian-${VERSION}-darwin-amd64",
+      "name": "secguardian-index-${VERSION}-darwin-amd64",
       "os": "darwin",
       "arch": "amd64",
-      "type": "binary"
+      "type": "indexer",
+      "description": "Code indexer binary (tree-sitter), called by AI Agent commands"
     },
     {
       "name": "secguardian-${VERSION}-claude-code.zip",
