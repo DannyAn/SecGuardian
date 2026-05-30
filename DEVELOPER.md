@@ -142,23 +142,25 @@ Active detectors（全部针对 C/C++ 内存安全）：
 ### 使用 build.sh 的精细控制
 
 ```bash
+# 一键构建 + 全平台部署（开发首选）
+bash scripts/dev-deploy.sh
+
 # 仅构建，不部署
 bash scripts/package.sh
 
-# 构建 + 仅部署到 Claude Code
-bash scripts/build.sh cc
+# 构建 + 部署到指定平台
+bash scripts/deploy.sh cc     # 仅 Claude Code
+bash scripts/deploy.sh nga    # 仅 OpenCode
+bash scripts/deploy.sh cac    # 仅 Gemini CLI
 
-# 构建 + 仅部署到 OpenCode
-bash scripts/build.sh nga
+# 用户级部署（推荐，跨项目共用）
+bash scripts/deploy.sh all --user
 
-# 构建 + 仅部署到 Gemini CLI
-bash scripts/build.sh cac
+# 卸载
+bash scripts/deploy.sh all --uninstall
 
-# 构建 + 全平台部署 + 创建 zip 发布包
-bash scripts/build.sh all --zip
-
-# 创建发布包（不部署）
-bash scripts/build.sh --zip
+# 构建发布产物
+bash scripts/release.sh 0.4.0
 ```
 
 ### 文件修改影响范围
@@ -357,22 +359,14 @@ bash scripts/deploy-gemini.sh
 
 ## 发布流程
 
-### 创建发布包
-
-```bash
-# 构建 + 全平台部署 + 生成 zip
-bash scripts/build.sh all --zip
-
-# 产物在 dist/archives/
-ls dist/archives/
-# secguard-secguardian-0.1.0.zip
-# secaudit-secguardian-0.1.0.zip
-# secreview-secguardian-0.1.0.zip
-```
-
 ### 版本更新
 
-需要同步修改以下位置的版本号：
+```bash
+# 一键同步版本号到所有文件
+bash scripts/sync-version.sh 0.5.0
+```
+
+同步范围：
 
 | 文件 | 字段 |
 |------|------|
@@ -380,26 +374,171 @@ ls dist/archives/
 | `extensions/secguard-secguardian/extension.json` | `version` |
 | `extensions/secaudit-secguardian/extension.json` | `version` |
 | `extensions/secreview-secguardian/extension.json` | `version` |
+| `internal/main.go` | `const version`（需手动更新） |
 
 ### 发布检查清单
 
-- [ ] 所有 3 个 extension.json 版本号一致
-- [ ] manifest.json 版本号一致
+- [ ] 所有版本号一致（运行 `bash scripts/ci-check.sh` 验证）
 - [ ] 用 examples/ 验证 3 个命令均能正常输出
+- [ ] 运行 `bash scripts/dev-deploy.sh` 确认构建和部署无报错
 - [ ] 检查 `.codeagent/` 下的输出符合 Scan Output Protocol 1.0
-- [ ] 运行 `bash scripts/build.sh all --zip` 确认无报错
-- [ ] 检查 `dist/archives/*.zip` 内容完整
-- [ ] 更新 README.md 中的版本号（如有引用）
 
-### 发布到内部仓库
+### 构建发布产物并发布到 Gitee
 
 ```bash
-# 构建并打包
-bash scripts/build.sh all --zip
+# 1. 构建所有发布产物到 dist/release/<version>/
+bash scripts/release.sh 0.4.0
 
-# dist/archives/ 下的 zip 即为可分发产物
-# 将其上传到内部发布平台或 Git Releases
+# 2. 发布到 Gitee Release（自动创建 tag + 上传产物）
+export GITEE_TOKEN="your-token"
+bash scripts/gitee-release.sh 0.4.0
 ```
+
+产物说明见 `scripts/gitee-release.sh` 中的 Release Body，也可在 [Gitee Release 页面](https://gitee.com/jonyan/secguardian/releases) 查看。
+
+---
+
+## CI/CD
+
+SecGuardian 配置了 GitHub Actions 和 Gitee Go 双平台 CI，均在 push/PR 到 develop 或 main 分支时自动触发。
+
+### 本地 CI 检查（push 前推荐运行）
+
+```bash
+bash scripts/ci-check.sh           # 完整检查（含 Go 编译 + 索引器冒烟测试）
+bash scripts/ci-check.sh quick     # 快速检查（仅 JSON 格式 + 版本号 + 目录完整性）
+```
+
+检查内容：项目结构统计 → Extension JSON 格式 → 版本号一致性 → Skill 目录完整性 → Go 编译 + 冒烟测试。
+
+### GitHub Actions
+
+配置文件：`.github/workflows/ci.yml`
+
+- **Build**: Go 编译 + 版本验证 + detector 列表 + scan/audit 调用验证（ubuntu/macos/windows 矩阵）
+- **Knowledge File Check**: detector 知识库文件 frontmatter 完整性验证
+- **Example Coverage Check**: examples/ 目录的 CWE 标记覆盖率检查
+
+状态入口：GitHub 仓库 → Actions 标签。
+
+### Gitee Go（需手动开通一次）
+
+配置文件：`.gitee-ci.yml`
+
+**开通步骤：**
+
+1. 打开仓库主页：https://gitee.com/jonyan/secguardian
+2. 顶部导航点击「**服务**」→「**Gitee Go**」
+3. 点击「**新建流水线**」，选择「**代码源配置**」
+4. 流水线自动读取 `.gitee-ci.yml`，确认配置无误后保存
+5. 之后每次 push 到 develop/main 自动运行
+
+流水线阶段：
+
+| 阶段 | 检查项 |
+|------|--------|
+| 完整性检查 | 项目结构统计、Extension JSON 格式、版本号一致性 |
+| 编译与验证 | Go 编译、`--health` 自检、detector 列表、scan/audit 调用、索引器端到端测试 |
+
+> 如果开通后流水线不触发，检查：Gitee Go 是否有剩余构建时长（设置 → 计费中心查看），以及 `.gitee-ci.yml` 的分支匹配规则是否正确。
+
+---
+
+## IDE 级前置检测
+
+在日常开发中，推荐在代码提交前自动运行检查，避免推送后 CI 才报错。支持两种方式：Git Hook 和 IDE 插件。
+
+### 方式一：Git Pre-push Hook（推荐）
+
+在 `.git/hooks/` 下创建 `pre-push` 钩子，每次 `git push` 前自动运行：
+
+```bash
+cat > .git/hooks/pre-push << 'EOF'
+#!/bin/bash
+# SecGuardian pre-push hook
+# 每次 push 前自动运行快速 CI 检查
+
+echo ""
+echo "### SecGuardian CI Check (pre-push) ###"
+
+PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+
+# 快速模式：验证 JSON 格式 + 版本号 + Skill 目录
+bash "$PROJECT_ROOT/scripts/ci-check.sh" quick
+EXIT=$?
+
+if [ $EXIT -ne 0 ]; then
+    echo ""
+    echo "❌ CI 检查未通过，push 已阻止。"
+    echo "   修复后重试，或跳过检查: git push --no-verify"
+    exit 1
+fi
+
+echo "✓ 检查通过，继续 push..."
+exit 0
+EOF
+
+chmod +x .git/hooks/pre-push
+```
+
+**注意**：Git hooks 存储在 `.git/` 下，不会被版本控制。团队成员需要各自执行上述命令安装 Hook。
+
+**覆盖推送**：紧急情况下可用 `git push --no-verify` 跳过 Hook。
+
+### 方式二：VS Code / JetBrains 任务集成
+
+在 IDE 中配置保存或提交时自动运行检查。以 VS Code 为例，在 `.vscode/tasks.json` 中配置：
+
+```json
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "SecGuardian CI Check",
+      "type": "shell",
+      "command": "bash",
+      "args": ["scripts/ci-check.sh", "quick"],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
+```
+
+配置后可通过 `Cmd+Shift+P` → `Tasks: Run Test Task` 一键运行，或绑定到保存时触发。
+
+### 方式三：项目级推荐配置
+
+将以下配置添加到 `.vscode/settings.json`（用户级，不会被提交），保存文件时自动格式化：
+
+```json
+{
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "[markdown]": {
+    "files.trimTrailingWhitespace": false
+  },
+  "[json]": {
+    "editor.formatOnSave": true
+  }
+}
+```
+
+### 检查级别速查
+
+| 场景 | 命令 | 耗时 |
+|------|------|------|
+| 提交前（最小化） | `bash scripts/ci-check.sh quick` | < 1s |
+| Push 前（推荐） | `bash scripts/ci-check.sh quick` | < 1s |
+| CI 平台 | `.gitee-ci.yml` / `.github/workflows/ci.yml` | ~60s |
+| 发布前（最严格） | `bash scripts/ci-check.sh && bash tools/check.sh` | ~10s |
 
 ---
 
