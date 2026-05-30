@@ -16,12 +16,22 @@ tags: [memory, heap, crash, exploitation]
 
 ### Step 1: 搜索释放操作
 
-搜索所有内存释放点：
+搜索所有内存释放点，包括标准函数和自定义分配器：
 ```c
+// 标准 C 库
 free(ptr);
-delete ptr;          // C++ 单对象
-delete[] ptr;        // C++ 数组
+
+// C++ 
+delete ptr;
+delete[] ptr;
+
+// 自定义分配器（大厂常见模式，参考 knowledge/languages/cpp.md）
+xxx_free(ptr);           // 如 my_free, pool_free, Z_FREE, obj_release
+xxx_destroy(ptr);        // 如 object_destroy
+FREE_xxx(ptr);           // 宏包装的释放
 ```
+
+**自定义分配器识别规则**：在目标代码中搜索匹配 `*_free`、`*_destroy`、`*_release`、`FREE_*` 模式的函数名，这些应被视作 `free()` 的语义等价物。
 
 ### Step 2: 控制流分析
 
@@ -89,22 +99,24 @@ free(ptr);                    // 安全——free(NULL) 是 no-op
 | `delete` 空指针 (C++) | `delete nullptr` 安全 |
 | `std::unique_ptr`/`std::shared_ptr` | RAII 自动管理生命周期 |
 | 同一指针传给不同释放函数但分配不同地址 | 如 `realloc` 后地址变化 |
+| `xxx_free(ptr)` 后 `ptr = NULL` | 自定义释放函数也遵循 free-null 惯例 |
+| 自定义内存池的 `pool_free_all()` | 批量释放整个池，非 double-free |
 
 ## 检测模式汇总
 
 ```
 # 同一函数内两次 free/delete（排除中间有赋值）
-free|delete
+free|delete|xxx_free|xxx_destroy
 → (中间无 ptr = NULL|ptr = nullptr)
-→ free|delete (同一变量)
+→ free|delete|xxx_free|xxx_destroy (同一变量)
 
 # 指针别名后释放
 p2 = p1
-→ free(p1)
-→ free(p2)
+→ free|xxx_free(p1)
+→ free|xxx_free(p2)
 
 # free 无后续 NULL 赋值
-free(ptr)
+free|xxx_free(ptr)
 → (无 ptr = NULL)
-→ 函数内后续代码仍使用 ptr 或再次 free(ptr)
+→ 函数内后续代码仍使用 ptr 或再次 free|xxx_free(ptr)
 ```

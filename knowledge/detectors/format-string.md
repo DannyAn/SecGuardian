@@ -21,7 +21,13 @@ tags: [printf, exploitation, information-disclosure]
 printf        fprintf        sprintf        snprintf
 dprintf       vprintf        vfprintf       vsprintf
 syslog        setproctitle   err            warn
+
+# C11 Annex K 安全版本 — 格式参数仍可能是变量，需同样检查
+printf_s       fprintf_s       sprintf_s       snprintf_s
 ```
+
+注意：`_s` 后缀的函数虽然防止了缓冲区溢出，但**不防止格式字符串攻击**。
+`printf_s(user_input)` 和 `printf(user_input)` 一样危险 — `user_input` 中含 `%n` 仍可写入任意地址。
 
 ### Step 2: 检查格式参数
 
@@ -81,7 +87,10 @@ std::cout << user_input;           // 安全——流式操作
 |------|------|
 | 格式字符串是编译期常量 | 如 `#define FMT "Value: %d\n"` |
 | `snprintf(buf, n, "%s", src)` — 格式字面量 | 源数据作为参数而非格式 |
+| `printf_s("%s", user)` — 格式是字面量 | `_s` 版本格式参数仍可能是常量 |
 | C++ 流输出 (`std::cout`) | 不经过 printf 格式化机制 |
+
+> **特别提醒**：`sprintf_s`、`printf_s` 等 C11 Annex K 函数**只防止溢出，不防格式字符串攻击**。如果格式参数是变量（非字面量），仍须报告。
 | `puts(user_input)` / `fputs(user_input, f)` | 不解析格式说明符 |
 | 格式化调用在测试代码中 | 测试环境下用户输入可控性不考虑 |
 

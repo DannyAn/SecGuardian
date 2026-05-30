@@ -16,7 +16,22 @@ tags: [memory, heap, exploitation, dangling-pointer]
 
 ### Step 1: 搜索释放点后的指针使用
 
-定位每个 `free(ptr)` / `delete ptr` / `delete[] ptr` 调用，然后追踪该函数作用域内 ptr 的后续使用。
+定位每个释放调用，然后追踪该函数作用域内指针的后续使用：
+
+```c
+// 标准释放
+free(ptr);
+delete ptr;
+delete[] ptr;
+
+// 自定义释放（大厂常见模式，参考 knowledge/languages/cpp.md）
+xxx_free(ptr);           // 如 my_free, pool_free
+xxx_destroy(ptr);        // 如 object_destroy
+xxx_release(ptr);        // 如 ZoneRelease
+FREE_xxx(ptr);           // 宏释放
+```
+
+**自定义分配器识别**：目标代码中 `*_free`、`*_destroy`、`*_release`、`FREE_*` 的函数都应视作释放操作，后续使用同样为 UAF。
 
 ### Step 2: 使用模式分类
 

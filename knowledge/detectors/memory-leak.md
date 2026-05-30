@@ -16,15 +16,27 @@ tags: [memory, heap, resource-management]
 
 ### Step 1: 搜索分配点
 
-识别所有堆分配：
+识别所有堆分配，包括标准函数和自定义分配器：
+
 ```c
+// 标准 C 库
 ptr = malloc(size);
 ptr = calloc(n, size);
 ptr = realloc(ptr, new_size);
+
 // C++
 ptr = new T;
 ptr = new T[n];
+
+// 自定义分配器（大厂常见，参考 knowledge/languages/cpp.md）
+ptr = xxx_malloc(size);       // 如 my_malloc, pool_alloc
+ptr = xxx_alloc(size);        // 如 zone_alloc
+ptr = xxx_new(...);           // 如 object_new
+ptr = xxx_create(...);        // 如 resource_create
+ptr = ALLOC_xxx(s);           // 宏分配
 ```
+
+**自定义分配器释放配对**：`xxx_malloc` ↔ `xxx_free`、`xxx_alloc` ↔ `xxx_free`/`xxx_dealloc`、`xxx_new`/`xxx_create` ↔ `xxx_delete`/`xxx_destroy`。
 
 ### Step 2: 追踪释放路径
 
@@ -76,24 +88,25 @@ for (int i = 0; i < n; i++) {
 |------|------|
 | `std::unique_ptr`/`std::shared_ptr` | RAII 自动管理 |
 | 全局生命周期指针 | 程序终止时 OS 回收 |
-| 自定义内存池 | 池在别处释放 |
+| 自定义内存池（arena/zone） | 批量 `pool_free_all()` 或结束时整体回收 |
 | `atexit` 注册的清理 | 程序退出时回收 |
 | `alloca` 栈分配 | 函数返回时自动回收 |
+| `xxx_free(p)` 作为自定义释放 | 与 `xxx_malloc` 配对的自定义释放函数 |
 
 ## 检测模式汇总
 
 ```
-# 分配后错误路径未释放
-malloc|calloc|new
-→ if.*return.*-1|goto cleanup (goto 后未 free)
-→ (同路径无 free)
+# 分配后错误路径未释放（含自定义分配器）
+malloc|calloc|new|xxx_malloc|xxx_alloc|xxx_new|ALLOC_*
+→ if.*return.*-1|goto cleanup (goto 后未 free|xxx_free)
+→ (同路径无 free|xxx_free)
 
-# 指针覆盖
-ptr = malloc(N)
-→ ptr = malloc(M)        # 旧指针覆盖前未释放
+# 指针覆盖（含自定义分配器）
+ptr = malloc|xxx_malloc|xxx_alloc(N)
+→ ptr = malloc|xxx_malloc|xxx_alloc(M)   # 旧指针覆盖前未释放
 
-# 循环中分配
+# 循环中分配（含自定义分配器）
 for|while
-→ malloc|calloc|new
-→ (循环体内无 free|delete)
+→ malloc|calloc|new|xxx_malloc|xxx_alloc
+→ (循环体内无 free|delete|xxx_free)
 ```

@@ -72,11 +72,35 @@ if (written >= sizeof(buf)) { /* truncated, handle error */ }
 |------|------|
 | `strncpy(dst, src, sizeof(dst))` | 边界正确 |
 | `snprintf(buf, sizeof(buf), ...)` | 边界正确 |
+| `strcpy_s(dst, sizeof(dst), src)` | C11 Annex K 安全函数，运行时约束强制 |
+| `strncpy_s(dst, sizeof(dst), src, n)` | C11 Annex K |
+| `sprintf_s(buf, sizeof(buf), fmt, ...)` | C11 Annex K |
+| `memcpy_s(dst, sizeof(dst), src, n)` | C11 Annex K |
+| `strcat_s(dst, sizeof(dst), src)` | C11 Annex K |
+| `scanf_s("%s", buf, sizeof(buf))` | C11 Annex K — `%s`/`%c`/`%[` 必须跟大小参数 |
+| `gets_s(buf, sizeof(buf))` | C11 Annex K — 安全替代 gets |
 | 静态分配 + 编译期已知大小 | 编译器可能优化掉风险 |
 | C++ `std::string::copy()` | 超过 n 时抛出 `out_of_range` |
 | C++ `std::vector::at()` | 越界时抛出异常 |
 
+### `_s` 函数检测原则
+
+1. 如果代码使用了 `xxx_s(dst, dsize, ...)` 且 `dsize` = `sizeof(dst)` → **Safe，不报告**
+2. 如果 `dsize` 来自 `_TRUNCATE` 宏 → 检查是否验证了截断返回值，未验证则报告
+3. 混用 `_s` 和原始函数（部分处用了 `strcpy_s`，部分处仍用 `strcpy`）→ 仍报告原始函数处
+
 ## 检测模式汇总
+
+```
+# 无边界字符串函数
+strcpy|strcat|sprintf|gets|scanf.*%s
+→ 排除 _s 版本 (strcpy_s|strcat_s|sprintf_s|gets_s|scanf_s)
+→ 检查是否有前面的长度验证
+
+# memcpy 大小由外部输入
+memcpy|memmove|bcopy
+→ 排除 _s 版本 (memcpy_s|memmove_s)
+→ 第三个参数来自用户输入|外部数据|网络数据
 
 ```
 # 无边界字符串函数

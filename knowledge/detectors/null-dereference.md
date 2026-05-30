@@ -17,9 +17,24 @@ tags: [memory, pointer, crash]
 ### Step 1: 搜索内存分配函数调用
 
 在代码中搜索以下分配函数，检查返回值是否被验证：
+
+**标准函数：**
 - `malloc(size)` / `calloc(n, size)` / `realloc(ptr, size)`
 - C++: `new` / `new[]` (nothrow 版本返回 nullptr)
-- 自定义分配器包装函数
+
+**自定义分配器（大厂常见模式，参考 `knowledge/languages/cpp.md`）：**
+
+搜索以下命名模式的所有函数：
+```c
+// 命名约定：*_malloc, *_alloc, *_new, *_create, ALLOC_*, pool_alloc, zone_alloc
+void* my_malloc(size_t size);
+MyObj* object_new(Manager* mgr);
+void* ALLOC(size_t s);
+
+// 这些函数都可能返回 NULL，必须检查
+```
+
+**检测规则**：对任何匹配 `*_malloc`、`*_alloc`、`*_new`、`*_create`、`ALLOC_*`、`*_Alloc` 的函数调用，如果返回值被直接解引用而未先检查 NULL，则报告 null-dereference。
 
 ### Step 2: 检查返回值检查
 

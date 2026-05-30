@@ -41,16 +41,42 @@ delete[] p;                      // 类型不匹配
 
 ### Step 3: 自定义分配器
 
-检查是否使用了自定义分配/释放函数：
-```c
-// 自定义分配器必须配对使用
-void* my_alloc(size_t s) { return pool_alloc(s); }
-void my_free(void* p) { pool_free(p); }
+大厂项目几乎不使用裸 `malloc`/`free`，而是通过自定义包装器管理内存（参考 `knowledge/languages/cpp.md`）。
 
+检查是否存在自定义分配/释放配对，并验证它们被正确匹配：
+
+**常见自定义分配器命名模式：**
+
+| 分配端 | 释放端 | 示例项目 |
+|--------|--------|---------|
+| `xxx_malloc(s)` | `xxx_free(p)` | 内核、嵌入式 |
+| `xxx_alloc(s)` | `xxx_free(p)` / `xxx_dealloc(p)` | 游戏引擎 |
+| `xxx_new(...)` | `xxx_delete(p)` / `xxx_destroy(p)` | C 风格 OOP |
+| `xxx_create(...)` | `xxx_destroy(p)` / `xxx_release(p)` | 资源管理器 |
+| `ALLOC_xxx(s)` | `FREE_xxx(p)` | 宏包装 |
+| `pool_alloc(s)` | `pool_free(p)` | 内存池 |
+| `zone_alloc(z, s)` | `zone_free_all(z)` | Arena/Zoned allocator |
+
+**危险混用模式：**
+```c
 // BAD: 用 free() 释放自定义分配器返回的内存
 void *p = my_alloc(100);
-free(p);                         // 可能的堆损坏！
+free(p);                         // 堆损坏！
+
+// BAD: 用 A 的分配器和 B 的释放器
+void *p = zone_alloc(zone_a, 100);
+pool_free(pool_b, p);            // 跨分配器释放
+
+// BAD: 自定义释放器释放标准 malloc 的内存
+void *p = malloc(100);
+my_free(p);                      // my_free 可能期望 pool header
 ```
+
+**检测规则：**
+1. 识别项目中所有 `*_alloc`/`*_malloc`/`*_new`/`*_create`/`ALLOC_*` 函数
+2. 找到每个分配函数对应的释放函数（通常命名成对）
+3. 检查每个分配/释放调用：是否来自同一"家族"
+4. `free()` 只应释放 `malloc`/`calloc`/`realloc` 返回的指针，不能释放自定义分配器的内存
 
 ## 误报排除
 
