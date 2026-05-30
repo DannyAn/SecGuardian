@@ -294,7 +294,8 @@ function Write-Summary {
 
     if ($User) {
         Write-Host ""
-        Write-Host "  提示: 用户级安装使 SecGuardian 在所有项目中可用，无需每个项目重复安装。" -ForegroundColor Yellow
+        Write-Host "  提示: 用户级安装使 SecGuardian 在所有项目中可用。" -ForegroundColor Yellow
+        Write-Host "        如果某个项目同时存在项目级安装，项目级优先。" -ForegroundColor Yellow
     }
     Write-Host ""
 }

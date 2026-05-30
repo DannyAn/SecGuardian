@@ -348,7 +348,8 @@ print_summary() {
     echo ""
 
     if $USER_MODE; then
-        echo -e "  ${BOLD}提示:${NC} 用户级安装使 SecGuardian 在所有项目中可用，无需每个项目重复安装。"
+        echo -e "  ${BOLD}提示:${NC} 用户级安装使 SecGuardian 在所有项目中可用。"
+        echo "        如果某个项目同时存在项目级安装，项目级优先。"
     fi
     echo ""
 }
