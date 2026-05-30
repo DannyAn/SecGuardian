@@ -1,27 +1,33 @@
 #!/bin/bash
 # ╔══════════════════════════════════════════════════════════════╗
 # ║  SecGuardian — Installer (macOS / Linux)                   ║
-# ║  将发布包安装到目标项目的 AI Agent 目录中                     ║
+# ║  将发布包安装到用户级或项目级 AI Agent 目录中               ║
 # ╚══════════════════════════════════════════════════════════════╝
 #
 # 用法:
-#   bash install.sh <target-project> [options]
+#   bash install.sh --user [options]              # 用户级（推荐）
+#   bash install.sh <target-project> [options]    # 项目级
 #
 # 选项:
-#   --all       安装全部三个平台 (默认)
-#   --claude    仅安装 Claude Code    → <project>/.claude/extensions/
-#   --opencode  仅安装 OpenCode       → <project>/.opencode/
-#   --gemini    仅安装 Gemini CLI     → <project>/.gemini/
-#   --release-dir <dir>  指定发布包所在目录 (默认: 当前目录)
-#   --version <ver>      指定版本号 (默认: 自动检测)
-#   --dry-run            仅显示将要执行的操作，不实际安装
-#   --no-backup          不备份已有安装
+#   --user              安装到用户家目录（推荐，跨项目共用）
+#   --all               安装全部三个平台 (默认)
+#   --claude            仅安装 Claude Code
+#   --opencode          仅安装 OpenCode
+#   --gemini            仅安装 Gemini CLI
+#   --release-dir <dir> 指定发布包所在目录 (默认: 当前目录)
+#   --version <ver>     指定版本号 (默认: 自动检测)
+#   --dry-run           仅显示将要执行的操作，不实际安装
+#   --no-backup         不备份已有安装
 #
 # 示例:
-#   bash install.sh ~/my-project                          # 安装全部平台
-#   bash install.sh ~/my-project --opencode               # 仅安装 OpenCode
-#   bash install.sh ~/my-project --release-dir ./release  # 从指定目录安装
-#   bash install.sh ~/my-project --dry-run                # 预览操作
+#   # 用户级安装（推荐）
+#   bash install.sh --user --all                 # 安装全部平台到 ~/
+#   bash install.sh --user --opencode            # 仅 OpenCode 到 ~/.opencode/
+#
+#   # 项目级安装
+#   bash install.sh ~/my-project --all           # 安装全部平台到项目
+#   bash install.sh ~/my-project --opencode      # 仅 OpenCode 到项目
+#   bash install.sh ~/my-project --dry-run       # 预览操作
 
 set -euo pipefail
 
@@ -37,11 +43,12 @@ log_error() { echo -e "${RED}  ✗${NC} $1"; }
 
 # ── 帮助信息 ──────────────────────────────────
 show_help() {
-    head -28 "$0" | tail -20
+    head -36 "$0" | tail -30
     exit 0
 }
 
 # ── 参数解析 ──────────────────────────────────
+USER_MODE=false
 TARGET=""
 PLATFORM="all"
 RELEASE_DIR="."
@@ -52,6 +59,7 @@ NO_BACKUP=false
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -h|--help|help) show_help ;;
+        --user)         USER_MODE=true; shift ;;
         --all)          PLATFORM="all"; shift ;;
         --claude)       PLATFORM="claude"; shift ;;
         --opencode)     PLATFORM="opencode"; shift ;;
@@ -62,7 +70,7 @@ while [[ $# -gt 0 ]]; do
         --no-backup)    NO_BACKUP=true; shift ;;
         -*)
             log_error "未知选项: $1"
-            echo "用法: bash install.sh <target-project> [options]"
+            echo "用法: bash install.sh --user [options]  或  bash install.sh <project> [options]"
             exit 1
             ;;
         *)
@@ -77,65 +85,61 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [ -z "$TARGET" ]; then
-    log_error "缺少目标项目路径"
-    echo "用法: bash install.sh <target-project> [options]"
-    echo "示例: bash install.sh ~/my-project"
-    exit 1
+# ── 确定安装目标路径 ──────────────────────────
+if $USER_MODE; then
+    TARGET="$HOME"
+    INSTALL_MODE="用户级"
+    INSTALL_MODE_DESC="跨所有项目可用"
+else
+    if [ -z "$TARGET" ]; then
+        log_error "请指定 --user（用户级安装）或 <project-path>（项目级安装）"
+        echo ""
+        echo "  用户级（推荐）:  bash install.sh --user --all"
+        echo "  项目级:          bash install.sh ~/my-project --opencode"
+        exit 1
+    fi
+    if [ ! -d "$TARGET" ]; then
+        log_error "目标路径不存在: $TARGET"
+        exit 1
+    fi
+    TARGET="$(cd "$TARGET" && pwd)"
+    INSTALL_MODE="项目级"
+    INSTALL_MODE_DESC="仅当前项目可用"
 fi
 
-# ── 验证目标路径 ──────────────────────────────
-if [ ! -d "$TARGET" ]; then
-    log_error "目标路径不存在: $TARGET"
-    exit 1
-fi
-
-TARGET="$(cd "$TARGET" && pwd)"
 RELEASE_DIR="$(cd "$RELEASE_DIR" 2>/dev/null && pwd || echo "$RELEASE_DIR")"
 
 echo ""
 echo -e "${BOLD}╔══════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}║${NC}  SecGuardian — 安装到目标项目                ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}  SecGuardian — ${INSTALL_MODE}安装                 ${BOLD}║${NC}"
 echo -e "${BOLD}╚══════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "  目标项目: ${CYAN}$TARGET${NC}"
+echo -e "  安装模式: ${CYAN}${INSTALL_MODE} (${INSTALL_MODE_DESC})${NC}"
+echo -e "  安装路径: ${CYAN}$TARGET${NC}"
 echo -e "  平台:     ${CYAN}$PLATFORM${NC}"
 echo ""
 
 # ── 自动检测版本 ──────────────────────────────
 if [ -z "$VERSION" ]; then
-    # Try to find version from zip filenames
     for f in "$RELEASE_DIR"/secguardian-*-claude-code.zip; do
         if [ -f "$f" ]; then
             VERSION=$(basename "$f" | sed 's/secguardian-//; s/-claude-code.zip//')
             break
         fi
     done
-    # Fallback: try dist/archives/
-    if [ -z "$VERSION" ]; then
-        for f in "$RELEASE_DIR"/cc-secguard-*.zip; do
-            if [ -f "$f" ]; then
-                VERSION="0.3.1"  # default fallback
-                break
-            fi
-        done
-    fi
-    VERSION="${VERSION:-0.3.1}"
+    VERSION="${VERSION:-0.4.0}"
 fi
 
 log_info "检测到版本: v$VERSION"
 
 # ── 查找发布包 ────────────────────────────────
 find_claude_zip() {
-    # Try versioned name first, then legacy name
     local candidates=(
         "$RELEASE_DIR/secguardian-${VERSION}-claude-code.zip"
-        "$RELEASE_DIR/cc-secaudit-secguardian.zip"
     )
     for c in "${candidates[@]}"; do
         if [ -f "$c" ]; then echo "$c"; return 0; fi
     done
-    # Try glob
     local found=$(ls "$RELEASE_DIR"/secguardian-*-claude-code.zip 2>/dev/null | head -1)
     if [ -n "$found" ]; then echo "$found"; return 0; fi
     return 1
@@ -144,7 +148,6 @@ find_claude_zip() {
 find_opencode_zip() {
     local candidates=(
         "$RELEASE_DIR/secguardian-${VERSION}-opencode.zip"
-        "$RELEASE_DIR/nga-secguardian.zip"
     )
     for c in "${candidates[@]}"; do
         if [ -f "$c" ]; then echo "$c"; return 0; fi
@@ -157,7 +160,6 @@ find_opencode_zip() {
 find_gemini_zip() {
     local candidates=(
         "$RELEASE_DIR/secguardian-${VERSION}-gemini-cli.zip"
-        "$RELEASE_DIR/cac-secguardian.zip"
     )
     for c in "${candidates[@]}"; do
         if [ -f "$c" ]; then echo "$c"; return 0; fi
@@ -177,9 +179,14 @@ backup_dir() {
     fi
 }
 
-# ── 安装 Claude Code ──────────────────────────
+# ── 安装 Claude Code (用户级: ~/.claude/extensions/ ; 项目级: <project>/.claude/extensions/) ──
 install_claude() {
-    log_step "Claude Code → .claude/extensions/"
+    local label="Claude Code"
+    if $USER_MODE; then
+        log_step "Claude Code → ~/.claude/extensions/ (用户级)"
+    else
+        log_step "Claude Code → .claude/extensions/ (项目级)"
+    fi
 
     local zip_file=$(find_claude_zip)
     if [ -z "$zip_file" ]; then
@@ -200,19 +207,23 @@ install_claude() {
     mkdir -p "$ext_dir"
 
     unzip -qo "$zip_file" -d "$ext_dir/"
-    log_done "已安装到 .claude/extensions/"
+    log_done "已安装到 $ext_dir/"
 
     # Make binaries executable
     find "$ext_dir" -name 'secguardian-index*' -type f -exec chmod +x {} \; 2>/dev/null || true
 
-    # Verify
     local count=$(find "$ext_dir" -maxdepth 1 -type d | wc -l | tr -d ' ')
     log_info "安装了 $((count - 1)) 个 extension"
 }
 
-# ── 安装 OpenCode ─────────────────────────────
+# ── 安装 OpenCode (用户级: ~/.opencode/ ; 项目级: <project>/.opencode/) ──
 install_opencode() {
-    log_step "OpenCode → .opencode/"
+    local label="OpenCode"
+    if $USER_MODE; then
+        log_step "OpenCode → ~/.opencode/ (用户级)"
+    else
+        log_step "OpenCode → .opencode/ (项目级)"
+    fi
 
     local zip_file=$(find_opencode_zip)
     if [ -z "$zip_file" ]; then
@@ -233,15 +244,20 @@ install_opencode() {
     mkdir -p "$oc_dir"
 
     unzip -qo "$zip_file" -d "$oc_dir/"
-    log_done "已安装到 .opencode/"
+    log_done "已安装到 $oc_dir/"
 
     # Make binaries executable
     find "$oc_dir/scripts" -type f -exec chmod +x {} \; 2>/dev/null || true
 }
 
-# ── 安装 Gemini CLI ───────────────────────────
+# ── 安装 Gemini CLI (用户级: ~/.gemini/ ; 项目级: <project>/.gemini/) ──
 install_gemini() {
-    log_step "Gemini CLI → .gemini/"
+    local label="Gemini CLI"
+    if $USER_MODE; then
+        log_step "Gemini CLI → ~/.gemini/ (用户级)"
+    else
+        log_step "Gemini CLI → .gemini/ (项目级)"
+    fi
 
     local zip_file=$(find_gemini_zip)
     if [ -z "$zip_file" ]; then
@@ -262,7 +278,7 @@ install_gemini() {
     mkdir -p "$gm_dir"
 
     unzip -qo "$zip_file" -d "$gm_dir/"
-    log_done "已安装到 .gemini/"
+    log_done "已安装到 $gm_dir/"
 
     # Make binaries executable
     find "$gm_dir/scripts" -type f -exec chmod +x {} \; 2>/dev/null || true
@@ -273,7 +289,6 @@ run_health_check() {
     log_step "健康检查"
 
     local indexer=""
-    # Check all possible locations
     for candidate in \
         "$TARGET/.opencode/scripts/secguardian-index" \
         "$TARGET/.gemini/scripts/secguardian-index" \
@@ -299,7 +314,7 @@ run_health_check() {
     if "$indexer" --health 2>/dev/null; then
         log_done "索引器健康检查通过"
     else
-        log_warn "索引器健康检查失败（可能缺少源码文件，但二进制可执行）"
+        log_warn "索引器健康检查完成（退出码非0，但二进制可执行）"
     fi
 }
 
@@ -309,34 +324,31 @@ print_summary() {
     echo -e "${BOLD}════════════════════════════════════════════════${NC}"
     echo -e "${GREEN}${BOLD}  安装完成!${NC}"
     echo ""
-    echo -e "  目标项目: ${CYAN}$TARGET${NC}"
+    echo -e "  安装模式: ${CYAN}${INSTALL_MODE}${NC}"
+    echo -e "  安装路径: ${CYAN}$TARGET${NC}"
     echo ""
 
-    # Check what was installed
     if [ -d "$TARGET/.claude/extensions" ] && [ "$(ls -A "$TARGET/.claude/extensions" 2>/dev/null)" ]; then
-        echo -e "  ${GREEN}✓${NC} Claude Code:  .claude/extensions/"
+        echo -e "  ${GREEN}✓${NC} Claude Code:  $TARGET/.claude/extensions/"
         echo "     重启 Claude Code 后使用 /secguard, /secaudit, /secreview"
     fi
 
     if [ -d "$TARGET/.opencode/commands" ]; then
-        echo -e "  ${GREEN}✓${NC} OpenCode:      .opencode/ (commands + skills + knowledge + scripts)"
+        echo -e "  ${GREEN}✓${NC} OpenCode:      $TARGET/.opencode/ (commands + skills + knowledge + scripts)"
         echo "     重启 OpenCode 后使用 /secguard, /secaudit, /secreview"
     fi
 
     if [ -d "$TARGET/.gemini/skills" ]; then
-        echo -e "  ${GREEN}✓${NC} Gemini CLI:    .gemini/ (commands + skills + knowledge + scripts)"
+        echo -e "  ${GREEN}✓${NC} Gemini CLI:    $TARGET/.gemini/ (commands + skills + knowledge + scripts)"
         echo "     在 Gemini CLI 中运行 /skills reload"
     fi
 
     echo ""
     echo -e "  ${BOLD}扫描输出目录:${NC} .codeagent/<extension>/scans/<scan-id>/"
     echo ""
-    echo -e "  ${BOLD}快速验证:${NC}"
-    echo "    cd $TARGET"
-    if [ -x "$TARGET/.opencode/scripts/secguardian-index" ]; then
-        echo "    .opencode/scripts/secguardian-index --health"
-    elif [ -x "$TARGET/.gemini/scripts/secguardian-index" ]; then
-        echo "    .gemini/scripts/secguardian-index --health"
+
+    if $USER_MODE; then
+        echo -e "  ${BOLD}提示:${NC} 用户级安装使 SecGuardian 在所有项目中可用，无需每个项目重复安装。"
     fi
     echo ""
 }
@@ -363,7 +375,7 @@ case "$PLATFORM" in
         ;;
 esac
 
-if ! $DRY_RUN && [ "$FAILURES" -eq 0 ] || [ "$PLATFORM" != "all" ] && [ "$FAILURES" -lt 1 ]; then
+if ! $DRY_RUN && [ "$FAILURES" -eq 0 ]; then
     echo ""
     run_health_check
 fi

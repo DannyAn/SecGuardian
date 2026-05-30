@@ -154,30 +154,53 @@ AI Native Security Guardian — 45 个检测器，CWE Top 25 100%，OWASP Top 10
 
 ### 安装指南
 
-SecGuardian 是 **AI Agent 插件**，不是独立 CLI。安装方式为将发布包解压到目标项目目录。
+SecGuardian 是 **AI Agent 插件**，不是独立 CLI。提供两种安装方式。
 
-#### 方式一：一键安装（推荐）
+#### 方式一：用户级安装（推荐）
+
+安装到用户家目录，一次安装所有项目共用，无需每个项目重复配置。
 
 ```bash
-# 1. 下载你要安装的平台发布包（如 secguardian-VERSION-opencode.zip）
-# 2. 下载 install.sh 或 install.ps1（Windows）
-# 3. 执行安装
-bash install.sh <你的项目路径> --opencode    # 安装到 OpenCode
-bash install.sh <你的项目路径> --gemini      # 安装到 Gemini CLI
-bash install.sh <你的项目路径> --claude      # 安装到 Claude Code
-bash install.sh <你的项目路径> --all         # 安装全部三个平台
+# 1. 下载对应平台的发布包和 install.sh
+# 2. 执行安装
+bash install.sh --user --all        # 安装全部三个平台
+bash install.sh --user --opencode   # 仅安装 OpenCode
+bash install.sh --user --gemini     # 仅安装 Gemini CLI
+bash install.sh --user --claude     # 仅安装 Claude Code
 ```
 
-- `install.sh` 支持 `--dry-run` 预览、`--no-backup` 跳过备份
-- `install.ps1` 用法相同，仅参数名首字母大写（`-OpenCode`、`-Gemini`、`-Claude`）
+各平台用户级安装路径：
 
-#### 方式二：手动安装
+| AI 平台 | 安装路径 |
+|---------|---------|
+| OpenCode | `~/.opencode/` (commands + skills + knowledge + scripts) |
+| Gemini CLI | `~/.gemini/` (commands + skills + knowledge + scripts + GEMINI.md) |
+| Claude Code | `~/.claude/extensions/<name>/` |
+
+#### 方式二：项目级安装
+
+安装到指定项目目录，仅该项目的 AI Agent 可用。
+
+```bash
+bash install.sh <项目路径> --all
+bash install.sh <项目路径> --opencode
+```
+
+各平台项目级安装路径：
+
+| AI 平台 | 安装路径 |
+|---------|---------|
+| OpenCode | `<project>/.opencode/` |
+| Gemini CLI | `<project>/.gemini/` |
+| Claude Code | `<project>/.claude/extensions/<name>/` |
+
+#### 方式三：手动解压
 
 | AI 平台 | 下载包 | 解压到 |
 |---------|--------|--------|
-| OpenCode | `secguardian-VERSION-opencode.zip` | `<project>/.opencode/` |
-| Gemini CLI | `secguardian-VERSION-gemini-cli.zip` | `<project>/.gemini/` |
-| Claude Code | `secguardian-VERSION-claude-code.zip` | `<project>/.claude/extensions/` |
+| OpenCode | `secguardian-VERSION-opencode.zip` | `~/.opencode/`（用户级）或 `<project>/.opencode/`（项目级） |
+| Gemini CLI | `secguardian-VERSION-gemini-cli.zip` | `~/.gemini/`（用户级）或 `<project>/.gemini/`（项目级） |
+| Claude Code | `secguardian-VERSION-claude-code.zip` | `~/.claude/extensions/`（用户级）或 `<project>/.claude/extensions/`（项目级） |
 
 安装后重启 AI CLI 即可使用：
 - `/secguard <path> [mode] [filters]` — 安全加固项排查
@@ -196,8 +219,9 @@ bash install.sh <你的项目路径> --all         # 安装全部三个平台
 
 ### 更新内容
 
-详见 [CHANGELOG.md](./tree/develop/CHANGELOG.md)。
+详见 [CHANGELOG.md](https://gitee.com/jonyan/secguardian/blob/develop/CHANGELOG.md)。
 BODY
+
 )
 RELEASE_BODY="${RELEASE_BODY//VERSION/$VERSION}"
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 # SecGuardian — 统一部署脚本
-# 用法: bash scripts/deploy.sh <platform>
+# 用法: bash scripts/deploy.sh <platform> [--user] [--zip]
 #       bash scripts/deploy.sh all
 #       bash scripts/deploy.sh cc|nga|cac
 #
@@ -11,6 +11,8 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="$PROJECT_ROOT/dist"
+DEPLOY_USER=false   # 默认项目级，--user 切换为用户级
+
 # ── Help ──────────────────────────────────────
 show_help() {
     cat << 'EOF'
@@ -19,26 +21,39 @@ SecGuardian — 部署脚本
 将构建好的 dist/ 部署到 AI CLI 平台。
 
 用法:
-  bash scripts/deploy.sh <platform> [--zip]
+  bash scripts/deploy.sh <platform> [--user] [--zip]
 
 平台:
   all      三平台全部部署 (默认)
   cc       Claude Code    → .claude/extensions/
-  nga      OpenCode       → .opencode/commands/ (.md files = custom commands)
-  cac      Gemini CLI     → .gemini/ (commands/ + skills/ + knowledge/ + scripts/)
+  nga      OpenCode       → .opencode/ (commands + skills + knowledge + scripts)
+  cac      Gemini CLI     → .gemini/ (commands + skills + knowledge + scripts)
 
 选项:
+  --user   部署到用户家目录（推荐，跨项目共用）
   --zip    部署后生成发布压缩包 → dist/archives/
 
 示例:
-  bash scripts/deploy.sh all           # 部署到三平台
-  bash scripts/deploy.sh cc            # 仅 Claude Code
-  bash scripts/deploy.sh all --zip     # 部署三平台 + 打包发布
+  bash scripts/deploy.sh all --user     # 用户级部署到 ~/
+  bash scripts/deploy.sh cc             # 项目级部署 Claude Code
+  bash scripts/deploy.sh all --zip      # 项目级部署 + 打包发布
 EOF
     exit 0
 }
 
+# ── 解析参数 ──────────────────────────────────
 PLATFORM="${1:-all}"
+shift 2>/dev/null || true
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --user) DEPLOY_USER=true; shift ;;
+        --zip) DO_ZIP=true; shift ;;
+        -h|--help|help) show_help ;;
+        *) shift ;;
+    esac
+done
+
 case "$PLATFORM" in
     -h|--help|help) show_help ;;
     all|cc|nga|cac) ;;
@@ -48,6 +63,17 @@ case "$PLATFORM" in
         exit 1
         ;;
 esac
+
+# ── 部署目标路径 ──────────────────────────────
+if $DEPLOY_USER; then
+    TARGET_ROOT="$HOME"
+    DEPLOY_MODE="用户级"
+    DEPLOY_MODE_DESC="跨所有项目可用"
+else
+    TARGET_ROOT="$PROJECT_ROOT"
+    DEPLOY_MODE="项目级"
+    DEPLOY_MODE_DESC="仅当前项目可用"
+fi
 
 # ── 工具函数 ──────────────────────────────────
 BOLD='\033[1m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; NC='\033[0m'
@@ -107,7 +133,7 @@ deploy_binary() {
 # ── Claude Code ────────────────────────────────
 deploy_claude() {
     log_step "Claude Code → .claude/extensions/"
-    local ext_dir="$PROJECT_ROOT/.claude/extensions"
+    local ext_dir="$TARGET_ROOT/.claude/extensions"
     rm -rf "$ext_dir"
     mkdir -p "$ext_dir"
 
@@ -132,7 +158,7 @@ deploy_claude() {
 deploy_opencode() {
     log_step "OpenCode → .opencode/ (完整布局: commands/ + skills/ + knowledge/ + scripts/)"
 
-    local opencode_dir="$PROJECT_ROOT/.opencode"
+    local opencode_dir="$TARGET_ROOT/.opencode"
     local cmd_dir="$opencode_dir/commands"
     local skills_dir="$opencode_dir/skills"
     local knowledge_dir="$opencode_dir/knowledge"
@@ -192,7 +218,7 @@ deploy_opencode() {
 deploy_gemini() {
     log_step "Gemini CLI → .gemini/ (commands/ + skills/ + knowledge/ + scripts/)"
 
-    local gemini_dir="$PROJECT_ROOT/.gemini"
+    local gemini_dir="$TARGET_ROOT/.gemini"
     local skills_dir="$gemini_dir/skills"
     local cmd_dir="$gemini_dir/commands"
     local knowledge_dir="$gemini_dir/knowledge"
@@ -307,17 +333,17 @@ do_zip() {
     done
 
     # OpenCode: 完整布局 (commands/ + skills/ + knowledge/ + scripts/)
-    if [ -d "$PROJECT_ROOT/.opencode/commands" ]; then
+    if [ -d "$TARGET_ROOT/.opencode/commands" ]; then
         local nga_zip="$archive_dir/nga-secguardian.zip"
-        (cd "$PROJECT_ROOT/.opencode" && zip -rq "$nga_zip" commands/ skills/ knowledge/ scripts/ 2>/dev/null || \
+        (cd "$TARGET_ROOT/.opencode" && zip -rq "$nga_zip" commands/ skills/ knowledge/ scripts/ 2>/dev/null || \
          zip -rq "$nga_zip" commands/)
         log_done "nga-secguardian.zip"
     fi
 
     # Gemini CLI: 完整布局 (skills/ + knowledge/ + commands/ + scripts/ + GEMINI.md)
-    if [ -d "$PROJECT_ROOT/.gemini/skills" ]; then
+    if [ -d "$TARGET_ROOT/.gemini/skills" ]; then
         local cac_zip="$archive_dir/cac-secguardian.zip"
-        (cd "$PROJECT_ROOT/.gemini" && zip -rq "$cac_zip" skills/ knowledge/ commands/ scripts/ GEMINI.md 2>/dev/null || \
+        (cd "$TARGET_ROOT/.gemini" && zip -rq "$cac_zip" skills/ knowledge/ commands/ scripts/ GEMINI.md 2>/dev/null || \
          zip -rq "$cac_zip" skills/ commands/ GEMINI.md)
         log_done "cac-secguardian.zip"
     fi
