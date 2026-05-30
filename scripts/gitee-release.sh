@@ -150,22 +150,53 @@ log "Creating Gitee release..."
 RELEASE_BODY=$(cat <<'BODY'
 ## SecGuardian vVERSION
 
-AI Native Security Guardian — 45 detectors, CWE Top 25 100%, OWASP Top 10 90%.
+AI Native Security Guardian — 45 个检测器，CWE Top 25 100%，OWASP Top 10 90%。
+
+### 安装指南
+
+SecGuardian 是 **AI Agent 插件**，不是独立 CLI。安装方式为将发布包解压到目标项目目录。
+
+#### 方式一：一键安装（推荐）
+
+```bash
+# 1. 下载你要安装的平台发布包（如 secguardian-VERSION-opencode.zip）
+# 2. 下载 install.sh 或 install.ps1（Windows）
+# 3. 执行安装
+bash install.sh <你的项目路径> --opencode    # 安装到 OpenCode
+bash install.sh <你的项目路径> --gemini      # 安装到 Gemini CLI
+bash install.sh <你的项目路径> --claude      # 安装到 Claude Code
+bash install.sh <你的项目路径> --all         # 安装全部三个平台
+```
+
+- `install.sh` 支持 `--dry-run` 预览、`--no-backup` 跳过备份
+- `install.ps1` 用法相同，仅参数名首字母大写（`-OpenCode`、`-Gemini`、`-Claude`）
+
+#### 方式二：手动安装
+
+| AI 平台 | 下载包 | 解压到 |
+|---------|--------|--------|
+| OpenCode | `secguardian-VERSION-opencode.zip` | `<project>/.opencode/` |
+| Gemini CLI | `secguardian-VERSION-gemini-cli.zip` | `<project>/.gemini/` |
+| Claude Code | `secguardian-VERSION-claude-code.zip` | `<project>/.claude/extensions/` |
+
+安装后重启 AI CLI 即可使用：
+- `/secguard <path> [mode] [filters]` — 安全加固项排查
+- `/secaudit <skill-name> [path]` — 安全专项审计（17 项）
+- `/secreview <path> [language]` — 安全编码规范检视
+
+#### 产物说明
+
+| 文件 | 用途 |
+|------|------|
+| `secguardian-VERSION-opencode.zip` | OpenCode 插件包 |
+| `secguardian-VERSION-gemini-cli.zip` | Gemini CLI 插件包 |
+| `secguardian-VERSION-claude-code.zip` | Claude Code 插件包 |
+| `secguardian-index-VERSION-darwin-arm64` | 索引器二进制（已在 zip 中包含，通常无需单独下载） |
+| `secguardian-VERSION-source.tar.gz` | 源码包 |
 
 ### 更新内容
 
-详见 CHANGELOG.md
-
-### 安装
-
-```bash
-# macOS (Apple Silicon)
-chmod +x secguardian-VERSION-darwin-arm64
-./secguardian-VERSION-darwin-arm64 help
-
-# 或从源码构建
-cd internal && go build -o secguardian .
-```
+详见 [CHANGELOG.md](./tree/develop/CHANGELOG.md)。
 BODY
 )
 RELEASE_BODY="${RELEASE_BODY//VERSION/$VERSION}"
