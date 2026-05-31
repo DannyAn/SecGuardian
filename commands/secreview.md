@@ -72,6 +72,8 @@ Language: Java (auto-detected)
 
 ## 派发规则与执行步骤
 
+> **隔离约束**: 本命令只能加载 `secreview-*` 前缀的 skill，禁止加载 `secguard-*` 或 `secaudit-*` 前缀的任何文件。反模式检测矩阵仅从 `skills/secreview-{language}/SKILL.md` 和对应 `references/` 加载。
+
 你（AI Agent）在接收到 `/secreview` 命令后，必须按以下步骤执行来构建索引并进行安全编码规范检视。
 
 ### 前置检查（Pre-flight Checklist）

@@ -1,10 +1,10 @@
 {
   "name": "secreview-secguardian",
-  "version": "0.4.0",
-  "description": "通用安全规范检视 - 检视危险函数、安全函数等语义层面的安全规范",
+  "version": "0.5.0",
+  "description": "安全编码规范审查 — 反模式识别 + 最佳实践合规 + 检测矩阵",
   "author": "SecGuardian",
   "command": "secreview",
-  "protocol": "1.0",
+  "protocol": "2.0",
   "platforms": {
     "claude-code": {
       "entry": "commands/secreview.md"
@@ -17,38 +17,28 @@
     }
   },
   "skills": [
+    "cpp",
     "java",
     "python",
-    "cpp",
-    "go"
+    "go",
+    "js"
   ],
   "knowledge": {
     "protocols": [
       "scan-output",
       "sarif-output"
     ],
-    "concepts": [
-      "sql-injection",
-      "command-injection",
-      "xss",
-      "path-traversal",
-      "ssrf",
-      "deserialization",
-      "weak-cryptography",
-      "hardcoded-secrets",
-      "toctou",
-      "buffer-overflow"
-    ],
     "languages": [
+      "cpp",
       "java",
       "python",
-      "cpp",
-      "go"
+      "go",
+      "javascript"
     ]
   },
   "output": {
     "base_dir": ".codeagent",
     "scans_dir": "scans",
-    "protocol": "scan-output/1.1"
+    "protocol": "scan-output/2.0"
   }
 }
