@@ -8,9 +8,11 @@ tags: [web, xml, injection]
 
 # XML External Entity (XXE) Injection
 
-## Detection Summary
+## 威胁定义
 
-Check whether XML parsers are configured to allow external entity processing.
+XML 解析器启用了外部实体（External Entity）处理，攻击者通过恶意 XML 读取本地文件（`<!ENTITY xxe SYSTEM "file:///etc/passwd">`）、发起 SSRF、或触发 DoS（Billion Laughs）。
+
+**核心原则：所有 XML 解析器必须禁用 DTD/外部实体。Java: `XMLInputFactory` 设置 `IS_SUPPORTING_EXTERNAL_ENTITIES=false`，Python: `defusedxml`。**
 
 ## Detection Logic
 
@@ -63,6 +65,13 @@ SAXParser sp = spf.newSAXParser();  // XXE by default
 // BAD: XMLInputFactory default
 XMLInputFactory xif = XMLInputFactory.newInstance();
 ```
+
+## 修复指引
+
+1. Java: `XMLInputFactory.setProperty(IS_SUPPORTING_EXTERNAL_ENTITIES, false)` + `setProperty(SUPPORT_DTD, false)`
+2. Python: 使用 `defusedxml` 库替代标准 `xml.etree`
+3. Go: `xml.Decoder` 默认安全，但需确保未启用自定义 Entity
+4. 全局禁用 DTD 和外部实体，不要在每个解析点单独配置
 
 ## False Positive Exclusion
 

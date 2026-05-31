@@ -8,9 +8,11 @@ tags: [system, privilege, setuid]
 
 # 权限提升 (Privilege Escalation)
 
-## 检测概要
+## 威胁定义
 
-检查 setuid/setgid 程序中的权限操作安全性，包括特权丢弃是否正确、临时提权是否可被滥用。
+setuid/setgid 程序中权限操作不当——特权未及时丢弃、提权后未恢复、或权限检查可被绕过。攻击者可利用残留的高权限执行恶意操作。经典案例：`setuid(0)` 后未 `setuid(getuid())` 恢复。
+
+**核心原则：最小权限原则——程序启动后立即用 `setgid(getgid())`/`setuid(getuid())` 丢弃特权，且不可恢复。**
 
 ## 检测逻辑
 
@@ -50,6 +52,13 @@ seteuid(user_uid);               // saved uid 仍为 0
 execl("/bin/program", "program", user_input, NULL);
 // 子进程继承了 root 的 fd 和环境变量
 ```
+
+## 修复指引
+
+1. 程序启动后立即 `setgid(getgid()); setuid(getuid());` 永久丢弃特权
+2. 如需临时提权，使用 `seteuid()`/`setegid()` + fork 子进程
+3. 验证 `setuid(0)` 的返回值——失败必须退出程序
+4. 使用 capabilities（Linux）替代完整的 setuid root
 
 ## 误报排除
 

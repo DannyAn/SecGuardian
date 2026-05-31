@@ -8,105 +8,112 @@ tags: [memory, pointer, crash]
 
 # 空指针解引用 (Null Dereference)
 
-## 检测概要
+## 威胁定义
 
-检查指针在使用前是否经过 NULL 检查，或在分配失败后是否被直接使用。
+程序对值为 NULL 的指针进行解引用操作，导致段错误崩溃或（在特定条件下）可被利用的未定义行为。C/C++ 中 malloc/fopen/getenv 等函数可能返回 NULL，如果未检查直接使用就是高危。
+
+**核心原则：任何可能返回 NULL 的函数调用后，返回值必须在使用前检查。** 但需区分"直接检查"和"通过调用链保证"——调用者已检查的场景不重复报告。
 
 ## 检测逻辑
 
-### Step 1: 搜索内存分配函数调用
+### Step 1: 搜索可能返回 NULL 的调用
 
-在代码中搜索以下分配函数，检查返回值是否被验证：
+| 函数类别 | 示例 | 检测条件 |
+|---------|------|---------|
+| 内存分配 | `malloc`/`calloc`/`realloc` | 返回值被解引用且无 NULL 检查 |
+| 文件操作 | `fopen`/`opendir` | 同上 |
+| 环境变量 | `getenv` | 同上 |
+| 字符串查找 | `strchr`/`strstr`/`strtok` | 同上 |
+| 自定义分配器 | `xxx_malloc`/`xxx_alloc`/`xxx_new` | 同上，需匹配命名约定 |
+| C++ new (std::nothrow) | `new(std::nothrow) T` | 返回 nullptr |
+| C++ dynamic_cast (指针) | `dynamic_cast<T*>(ptr)` | 失败返回 nullptr |
 
-**标准函数：**
-- `malloc(size)` / `calloc(n, size)` / `realloc(ptr, size)`
-- C++: `new` / `new[]` (nothrow 版本返回 nullptr)
+### Step 2: 确认"检查"存在
 
-**自定义分配器（大厂常见模式，参考 `knowledge/languages/cpp.md`）：**
-
-搜索以下命名模式的所有函数：
+有效检查模式（**不报告**）：
 ```c
-// 命名约定：*_malloc, *_alloc, *_new, *_create, ALLOC_*, pool_alloc, zone_alloc
-void* my_malloc(size_t size);
-MyObj* object_new(Manager* mgr);
-void* ALLOC(size_t s);
-
-// 这些函数都可能返回 NULL，必须检查
+if (ptr == NULL) return ERROR;       // 显式检查
+if (!ptr) goto cleanup;              // 逻辑非检查
+if (ptr) { use(ptr); }               // 条件使用
 ```
 
-**检测规则**：对任何匹配 `*_malloc`、`*_alloc`、`*_new`、`*_create`、`ALLOC_*`、`*_Alloc` 的函数调用，如果返回值被直接解引用而未先检查 NULL，则报告 null-dereference。
-
-### Step 2: 检查返回值检查
-
-对于每个分配调用，检查是否存在以下模式：
-
-**危险模式（直接使用，无检查）：**
+**报告**模式：
 ```c
-// BAD: malloc 后直接使用
-char *buf = malloc(size);
-buf[0] = 'x';                    // 如果 malloc 返回 NULL 则崩溃
+ptr = malloc(n);
+ptr->field = value;                  // 无中间检查 ← 报告
 
-// BAD: 仅 assert 检查（release 构建会被优化掉）
-char *buf = malloc(size);
-assert(buf != NULL);             // NDEBUG 定义时 assert 为空操作
-buf[0] = 'x';
+// assert 不算检查（release 构建中 NDEBUG 定义后 assert 为空操作）
+ptr = malloc(n);
+assert(ptr != NULL);                 // 这不是真正的检查 ← 报告
+ptr->field = value;
 ```
 
-**安全模式：**
-```c
-// GOOD: 检查后使用
-char *buf = malloc(size);
-if (buf == NULL) { return ERROR; }
-buf[0] = 'x';
-
-// GOOD: 通过 goto 统一处理
-char *buf = malloc(size);
-if (!buf) { goto cleanup; }
-```
-
-### Step 3: 检查函数返回值
-
-非分配函数返回指针也可能为 NULL：
-- `fopen()` 返回 NULL
-- `getenv()` 返回 NULL
-- `strchr()`/`strstr()` 返回 NULL
-- `realloc()` 返回 NULL（注意：原内存不会释放）
+### Step 3: 调用链保证
 
 ```c
-// BAD: getenv 未检查
-char *home = getenv("HOME");
-strcpy(path, home);              // 如果 HOME 未设置则崩溃
+// 场景：调用者已检查
+void process(char *buf) {
+    buf[0] = 'x';  // 调用者保证 buf 非 NULL → 不报告
+}
+
+void caller() {
+    char *buf = malloc(100);
+    if (!buf) return;
+    process(buf);   // 已检查后传入
+}
 ```
 
-### Step 4: 路径分析
+## 修复指引
 
-对于每个未检查的使用点，追踪指针是否能到达该路径：
-1. 函数内直接路径：分配 → 使用（中间无分支检查）
-2. 跨函数路径：指针作为参数传递，在调用者中检查，被调用者中未检查
-3. 条件检查覆盖不全：只在一个分支中检查，另一个分支未检查
+1. **分配后立即检查**：`if (!ptr) return ERR_NOMEM;`
+2. **C++ 优先使用 throw 版本**：`new T` 失败抛 `std::bad_alloc`，无需手动 NULL 检查
+3. **使用 RAII 包装**：`std::unique_ptr<T>` 自动管理生命周期
+4. **禁止用 assert 做 NULL 检查**：release 构建中 assert 被移除
 
 ## 误报排除
 
 | 场景 | 原因 |
 |------|------|
-| `new` (默认版本) | 标准 C++ `new` 抛出 `std::bad_alloc` 而非返回 nullptr |
-| 已通过上层函数保证 | 调用者已检查，被调用者不需要再检查 |
-| `alloca()` | 栈上分配，失败直接 undefined behavior |
-| GCC `__attribute__((malloc))` 标注 | 编译器可优化 NULL 检查，但函数仍可能返回 NULL |
-| 静态/全局缓冲区 | 分配在编译期确定 |
+| C++ `new T`（非 nothrow） | 失败抛异常，不返回 nullptr |
+| 调用者已检查 NULL | 通过参数传递前已验证 |
+| `alloca()` / 栈分配 | 非堆分配，无 NULL 返回 |
+| `std::unique_ptr`/`std::shared_ptr` | RAII 保证有效 |
+| `static`/全局 buffer | 编译期分配，地址确定 |
+| GCC `__attribute__((returns_nonnull))` | 编译器标注函数不返回 NULL |
+| `assert(ptr)` 且 `NDEBUG` 未定义 | 开发/调试构建 |
 
 ## 检测模式汇总
 
 ```
-# 高危 API 后缺少 NULL 检查
-malloc|calloc|realloc|fopen|getenv|strdup|mmap
-→ 下一行不是 if.*NULL|if.*nullptr|if.*!
+# === MUST REPORT ===
 
-# assert 作为唯一的 NULL 检查
-malloc|calloc
-→ assert(ptr|buf|mem
-→ 直接使用 ptr|buf|mem
+# malloc/calloc/realloc 后无 NULL 检查直接使用
+(malloc|calloc|realloc)\(
+→ 下一非空行不是 if\s*\(.*NULL|if\s*\(!|goto\s+cleanup|return.*NULL
+→ 同作用域内指针被解引用 (->|[*\[\]])
 
-# realloc 存储在同一个变量中
-ptr = realloc(ptr, size)    # 泄漏风险（失败时返回 NULL 且原内存未释放）
+# assert 作为唯一检查
+(malloc|calloc)\([^)]*\)
+→ assert\(.*!=.*NULL\)
+→ 同作用域后使用指针
+
+# getenv/fopen/strchr 返回值未检查
+(getenv|fopen|strchr|strstr)\(
+→ 返回值赋值
+→ 无 if.*NULL 直接使用
+
+# realloc 覆盖原始指针（泄漏 + 空指针双重风险）
+\w+\s*=\s*realloc\(\1,
+
+# === MUST NOT REPORT (白名单) ===
+
+# C++ new (throw 版本) — 不返回 nullptr
+new\s+(?!\(std::nothrow\))
+
+# 调用者已检查的模式（通过上下文判断）
+# — 指针变量在 if (!ptr) 之后的作用域内使用
+# — 函数参数标注为 __attribute__((nonnull))
+
+# GCC returns_nonnull 标注
+__attribute__\(\(returns_nonnull\)\)
 ```

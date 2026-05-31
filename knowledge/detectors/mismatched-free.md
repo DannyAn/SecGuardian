@@ -8,9 +8,11 @@ tags: [memory, heap, api-misuse]
 
 # 释放函数不匹配 (Mismatched Free)
 
-## 检测概要
+## 威胁定义
 
-检查分配函数与释放函数是否配对正确（如 `malloc`/`free`、`new`/`delete`、`new[]`/`delete[]`）。
+分配和释放函数不配对（`malloc`→`delete` 或 `new`→`free`），导致未定义行为。不同分配体系使用不同的内部数据结构，混用必然导致堆损坏。C/C++ 混合代码和自定义分配器是高发场景。
+
+**核心原则：`malloc`↔`free`、`new`↔`delete`、`new[]`↔`delete[]`、`xxx_alloc`↔`xxx_free` 严格配对。**
 
 ## 检测逻辑
 
@@ -77,6 +79,13 @@ my_free(p);                      // my_free 可能期望 pool header
 2. 找到每个分配函数对应的释放函数（通常命名成对）
 3. 检查每个分配/释放调用：是否来自同一"家族"
 4. `free()` 只应释放 `malloc`/`calloc`/`realloc` 返回的指针，不能释放自定义分配器的内存
+
+## 修复指引
+
+1. **严格配对**：`malloc`→`free`、`new`→`delete`、`new[]`→`delete[]`
+2. **C++ 首选**：使用 `std::unique_ptr`/`std::make_unique` 自动管理
+3. **自定义分配器**：提供配对宏 `#define SAFE_FREE(ptr) xxx_free(ptr); ptr = NULL`
+4. **代码审查**：C/C++ 混合代码中特别关注分配/释放配对
 
 ## 误报排除
 

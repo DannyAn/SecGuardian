@@ -8,9 +8,11 @@ tags: [concurrency, signal, async-safety]
 
 # 信号处理函数中调用非安全函数 (Thread-Unsafe Signal)
 
-## 检测概要
+## 威胁定义
 
-检查信号处理函数（signal handler）中是否调用了非异步信号安全的函数。
+信号处理器中调用了非异步信号安全的函数（如 `printf`/`malloc`/`free`/`pthread_mutex_lock`），在信号到达时如果程序正处于这些函数的执行中，可能造成死锁或数据损坏。POSIX 标准明确限定了信号安全函数列表。
+
+**核心原则：信号处理器中只能调用 `write()`/`_exit()`/`signal()` 等 POSIX 明确列为 async-signal-safe 的函数。**
 
 ## 检测逻辑
 
@@ -46,6 +48,12 @@ void handler(int sig) {
     got_signal = 1;               // 安全：sig_atomic_t 保证原子写入
 }
 ```
+
+## 修复指引
+
+1. **只使用安全函数**：`write()`/`_exit()`/`signal()`/`sig_atomic_t` 变量
+2. **设置标志位模式**：信号处理器仅设置 `volatile sig_atomic_t flag = 1`，主循环检查标志
+3. **signalfd (Linux)** 或 **kqueue (BSD)** 替代信号处理器
 
 ## 误报排除
 

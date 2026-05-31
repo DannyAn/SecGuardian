@@ -8,9 +8,11 @@ tags: [memory, heap, exploitation, dangling-pointer]
 
 # 释放后使用 (Use-After-Free)
 
-## 检测概要
+## 威胁定义
 
-检查指针在 `free()`/`delete` 后是否被继续使用（读或写），这是可被利用的严重内存安全问题。
+指针在 `free()`/`delete` 后继续被读写，导致访问已释放内存。已释放内存可能被分配器重新分配给其他对象，攻击者可通过堆风水（heap feng shui）实现代码执行。这是 CWE Top 25 中最危险的漏洞之一。
+
+**核心原则：释放后立即置 NULL，且后续代码不得悬空使用。** 检测时必须识别自定义分配器（`xxx_free`/`xxx_destroy`/`xxx_release`/`FREE_xxx`）——它们和标准 `free` 一样危险。
 
 ## 检测逻辑
 
@@ -90,6 +92,13 @@ printf("%s", ptr);             // 悬空指针!
 1. 指针作为函数返回值的释放义务（谁分配谁释放）
 2. C++ 析构函数中的隐式释放
 3. 回调函数中释放主函数的指针
+
+## 修复指引
+
+1. **释放后置 NULL**：`free(ptr); ptr = NULL;` — 后续使用 NULL 会崩溃而非被利用
+2. **C++ 使用智能指针**：`std::unique_ptr::reset()` 自动置空
+3. **避免别名**：释放前确保无人持有该指针的副本
+4. **realloc 后使用新指针**：不继续使用 `realloc` 前的旧指针
 
 ## 误报排除
 

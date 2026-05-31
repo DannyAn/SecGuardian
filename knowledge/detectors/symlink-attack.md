@@ -8,9 +8,11 @@ tags: [system, filesystem, symlink]
 
 # 符号链接攻击 (Symlink Attack)
 
-## 检测概要
+## 威胁定义
 
-检查文件操作是否可能被攻击者通过符号链接重定向到意外目标。
+程序对文件路径进行操作时，攻击者通过替换路径中某部分为符号链接，将操作重定向到敏感文件（如 `/etc/shadow`）。TOCTOU 场景中 access+open 的符号链接替换是典型攻击。
+
+**核心原则：对共享目录中的文件，使用 `O_NOFOLLOW` 标志或 `lstat()` 检测符号链接后使用文件描述符操作。**
 
 ## 检测逻辑
 
@@ -46,6 +48,13 @@ fchmodat(AT_FDCWD, user_path, 0777, 0);  // 跟随 symlink!
 // GOOD:
 fchmodat(AT_FDCWD, user_path, 0777, AT_SYMLINK_NOFOLLOW);
 ```
+
+## 修复指引
+
+1. `open(path, O_NOFOLLOW)` — 如果目标是符号链接则失败
+2. 先 `lstat()` 确认非符号链接，再用 `open()` 操作
+3. 使用文件描述符（fd）操作替代路径操作
+4. 共享目录中创建文件使用 `O_CREAT | O_EXCL` 原子操作
 
 ## 误报排除
 

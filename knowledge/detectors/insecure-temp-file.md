@@ -8,9 +8,11 @@ tags: [system, filesystem, temp]
 
 # 不安全临时文件 (Insecure Temporary File)
 
-## 检测概要
+## 威胁定义
 
-检查临时文件创建是否使用了可预测的文件名或存在竞态条件的创建方式。
+临时文件使用可预测的文件名（`/tmp/myapp.tmp`）或非原子的创建方式（先检查再创建），攻击者可提前创建同名文件或符号链接劫持。典型攻击：CWE-377 / 符号链接替换。
+
+**核心原则：使用 `mkstemp()`/`tmpfile()` 等原子化创建函数，且设置严格权限（0600）。禁止使用 `mktemp()`（已被 POSIX 弃用）。**
 
 ## 检测逻辑
 
@@ -52,6 +54,13 @@ FILE *fp = tmpfile();
 // GOOD: C++ filesystem
 std::filesystem::path tmp = std::filesystem::temp_directory_path() / "myapp.XXXXXX";
 ```
+
+## 修复指引
+
+1. **C 代码**：使用 `mkstemp(template)` 原子创建（自动生成唯一文件名）
+2. **C 代码**：使用 `tmpfile()` — 创建匿名临时文件，关闭时自动删除
+3. **禁止**：`mktemp()`（POSIX 已弃用，可预测文件名）
+4. **权限**：创建时指定 `0600` 权限，防止其他用户读取
 
 ## 误报排除
 

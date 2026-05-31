@@ -2,15 +2,17 @@
 detector: weak-crypto-algorithm
 severity: high
 cwe: CWE-327
-language: [c, cpp]
+language: [c, cpp, java, python, go, js]
 tags: [crypto, algorithm, deprecated]
 ---
 
 # 弱加密算法 (Weak Crypto Algorithm)
 
-## 检测概要
+## 威胁定义
 
-检查是否使用了已被破解或废弃的加密算法和哈希函数。
+使用已被证明不安全或过时的加密算法、哈希函数、随机数生成器。按用途分类：弱哈希（MD2/MD4/MD5/SHA-1）、弱加密（DES/3DES/RC2/RC4/Blowfish/ECB 模式）、不安全随机数（rand()/Math.random() 用于安全用途）、弱密钥派生（单次 SHA/MD5 作密钥）。
+
+**核心原则：禁止已知弱算法，使用业界标准的安全算法。**
 
 ## 检测逻辑
 
@@ -56,6 +58,15 @@ DH_generate_parameters_ex(dh, 512, ...);  // 512 位太短
 | RSA PKCS#1 v1.5 | 填充攻击 | OAEP |
 | DH < 2048 位 | 不够安全 | DH 2048+ / ECDH |
 | DSA < 2048 位 | 不够安全 | ECDSA / EdDSA |
+
+## 修复指引
+
+| 用途 | 禁止 | 推荐 |
+|------|------|------|
+| 哈希 | MD5, SHA-1 | SHA-256/384/512 |
+| 对称加密 | DES, RC4, AES-ECB | AES-256-GCM, ChaCha20-Poly1305 |
+| 密码存储 | SHA, MD5 单次 | bcrypt, scrypt, Argon2id |
+| 随机数 | rand(), Math.random() | getrandom(), SecureRandom, secrets.token_bytes() |
 
 ## 误报排除
 

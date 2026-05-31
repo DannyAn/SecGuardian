@@ -8,9 +8,11 @@ tags: [web, deserialization, rce]
 
 # Java 反序列化漏洞检测
 
-## 检测概要
+## 威胁定义
 
-检查 Java 代码中是否对不可信数据执行反序列化操作。
+攻击者构造恶意序列化数据，在反序列化过程中触发代码执行、对象注入、权限提升。主要影响 Java（ObjectInputStream）、Python（pickle/yaml.load）和 Fastjson/Jackson/XStream 等框架。
+
+**核心原则：不可信数据不可反序列化，尤其是能够实例化任意类型的反序列化机制。**
 
 ## 检测逻辑
 
@@ -62,6 +64,12 @@ Object obj = yaml.load(yamlString);
 ObjectMapper mapper = new ObjectMapper();
 MyClass obj = mapper.readValue(jsonString, MyClass.class);
 ```
+
+## 修复指引
+
+1. **首选**：使用纯数据格式（JSON Schema 验证后的 JSON）
+2. **次选**：类型白名单反序列化（Look-ahead ObjectInputStream、FastJson autoType 关闭）
+3. **补充**：反序列化前签名验证（HMAC）
 
 ## 误报排除
 

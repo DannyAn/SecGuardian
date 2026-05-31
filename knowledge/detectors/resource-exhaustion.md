@@ -8,9 +8,11 @@ tags: [web, dos, resource, memory]
 
 # 不受控制的资源消耗 (Uncontrolled Resource Consumption)
 
-## 检测概要
+## 威胁定义
 
-检查用户输入是否可能触发不受限制的资源消耗（无限循环、无界内存分配、无限制递归、大文件读取等），导致拒绝服务。
+用户可控制的输入导致CPU/内存/磁盘等资源不受限制地消耗，引发拒绝服务。常见模式：用户控制的循环次数、分配大小、递归深度、文件读取量——全部无上限。
+
+**核心原则：所有用户可控的资源消耗操作必须设置硬上限。包括循环max迭代、malloc max size、递归 max depth、文件读取 max bytes。**
 
 ## 检测逻辑
 
@@ -95,6 +97,14 @@ while ((read = is.read(buf)) != -1) {
     process(buf, read);
 }
 ```
+
+## 修复指引
+
+1. **分配上限**：`if (user_size > MAX_ALLOC) return ERR_TOO_LARGE;`
+2. **循环上限**：`for (i = 0; i < MIN(user_count, MAX_ITERS); i++)`
+3. **文件大小**：`fstat(fd, &st); if (st.st_size > MAX_FILE_SIZE) ...`
+4. **递归深度**：增加深度参数 `void recurse(int depth) { if (depth > MAX_DEPTH) return; ... }`
+5. **超时保护**：所有外部资源操作设置超时
 
 ## 误报排除
 

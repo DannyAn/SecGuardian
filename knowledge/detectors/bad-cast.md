@@ -8,9 +8,11 @@ tags: [memory, type-safety, undefined-behavior]
 
 # 不安全的类型转换 (Bad Cast)
 
-## 检测概要
+## 威胁定义
 
-检查不安全或未定义行为的类型转换，特别是 C 风格强制转换和 `reinterpret_cast`。
+不兼容类型之间的强制转换导致未定义行为或类型混淆。C 风格 cast `(Type)val` 绕过编译器类型检查，`reinterpret_cast` 放弃类型安全。类型混淆可导致虚函数表劫持（vtable hijacking）。
+
+**核心原则：C++ 代码使用 `static_cast`/`dynamic_cast`，禁止 `reinterpret_cast` 的非必要使用。C 代码使用显式 union 而非指针 cast。**
 
 ## 检测逻辑
 
@@ -53,6 +55,13 @@ class VDerived : public VBase {};
 VBase* vb = new VDerived;
 VDerived* vd = dynamic_cast<VDerived*>(vb); // 安全：运行时检查
 ```
+
+## 修复指引
+
+1. **C++**：使用 `static_cast`（编译期类型检查）/ `dynamic_cast`（运行时检查）
+2. **禁止**：`reinterpret_cast` 用于非底层编程场景
+3. **C 代码**：使用显式 `union` 而非指针 cast 做类型双关（type punning）
+4. **编译器警告**：启用 `-Wold-style-cast` (GCC) / `-Wdeprecated` 检测 C 风格 cast
 
 ## 误报排除
 

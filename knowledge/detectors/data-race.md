@@ -8,9 +8,11 @@ tags: [concurrency, threading, undefined-behavior]
 
 # 数据竞争 (Data Race)
 
-## 检测概要
+## 威胁定义
 
-检查两个或多个线程同时访问同一内存位置，且至少一个是写操作，而没有任何同步机制。
+两个或多个线程同时访问同一内存位置且至少一个为写操作，无同步机制保护。在 C/C++ 中数据竞争是未定义行为，编译器可能做出破坏性的优化假设。
+
+**核心原则：跨线程共享的可变数据必须用 `std::atomic`/互斥锁保护，或通过 `thread_local` 隔离。**
 
 ## 检测逻辑
 
@@ -58,6 +60,14 @@ struct Flags {
 // Thread 1: flags.a = 1;       // 写整个字
 // Thread 2: flags.b = 1;       // 可能覆盖 Thread 1 的写
 ```
+
+## 修复指引
+
+1. **简单类型**：`std::atomic<int>` / `_Atomic int`
+2. **复杂结构**：`std::mutex` + `std::lock_guard` / `pthread_mutex_lock`
+3. **只读共享**：`const` 全局变量无需同步
+4. **线程隔离**：`thread_local` 变量每个线程独立副本
+5. **工具检测**：启用 ThreadSanitizer（`-fsanitize=thread`）
 
 ## 误报排除
 

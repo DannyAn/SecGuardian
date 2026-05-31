@@ -2,15 +2,17 @@
 detector: weak-random
 severity: high
 cwe: CWE-338
-language: [c, cpp]
+language: [c, cpp, java, python, go, js]
 tags: [crypto, randomness, prng]
 ---
 
 # 弱随机数生成 (Weak Random)
 
-## 检测概要
+## 威胁定义
 
-检查安全敏感场景中是否使用了非密码学安全的随机数生成器。
+安全场景（token/key/session/IV 生成）使用非密码学安全的 PRNG（`rand()`/`random()`/`Math.random()`），攻击者可预测输出，导致会话劫持、密钥猜测等。
+
+**核心原则：安全相关随机数必须使用 CSPRNG。检测时要区分安全场景和非安全场景（游戏/模拟），仅报告前者。**
 
 ## 检测逻辑
 
@@ -62,6 +64,17 @@ std::random_device rd;           // 硬件熵源
 std::mt19937 gen(rd());          // 但仅是梅森旋转，非密码学安全！
 // 密码学场景应用 std::random_device 或 OpenSSL
 ```
+
+## 修复指引
+
+| 平台 | 安全 API |
+|------|---------|
+| Linux | `getrandom()` / `getentropy()` / `read(/dev/urandom)` |
+| OpenSSL | `RAND_bytes(buf, len)` |
+| Java | `java.security.SecureRandom` |
+| Python | `secrets.token_bytes()` / `os.urandom()` |
+| Go | `crypto/rand.Read()` |
+| JS/Node | `crypto.randomBytes()` |
 
 ## 误报排除
 

@@ -8,9 +8,11 @@ tags: [memory, heap, exploitation]
 
 # 堆缓冲区溢出 (Heap Buffer Overflow)
 
-## 检测概要
+## 威胁定义
 
-检查通过 `malloc`/`calloc`/`realloc`/`new` 分配的堆缓冲区在写入时是否可能超出其分配大小。
+堆上分配的缓冲区发生溢出，覆盖相邻堆块的元数据（malloc chunk header）。攻击者可利用堆风水（heap feng shui）技术实现代码执行。
+
+**核心原则：堆上写入操作必须验证其大小不超过分配的堆块容量。关注 memcpy 第三个参数是否来自外部输入。**
 
 ## 检测逻辑
 
@@ -66,6 +68,13 @@ buf = realloc(buf, 128);
 for (int i = 0; i < 64; i++)       // 只初始化一半，不溢出但浪费
     buf[i] = 0;
 ```
+
+## 修复指引
+
+1. **首选**：使用 C++ `std::vector`/`std::string` 替代 C 风格堆数组
+2. **C 代码**：使用 `calloc`（清零+防止整数溢出）或显式验证大小
+3. **编译器保护**：启用 `-ftrapv`（GCC/Clang 有符号溢出捕获）和 AddressSanitizer
+4. **堆分配封装**：统一使用 `safe_malloc(size)` 包装函数内置大小校验
 
 ## 误报排除
 

@@ -8,9 +8,11 @@ tags: [web, authentication]
 
 # Authentication Bypass
 
-## Detection Summary
+## 威胁定义
 
-Check whether authentication checks are missing, misconfigured, or bypassable.
+认证检查缺失、配置错误或可被绕过，导致未认证用户访问受保护的功能和数据。常见的绕过方式：直接访问URL、修改认证参数、利用框架配置缺陷。
+
+**核心原则：所有受保护端点必须在进入业务逻辑前完成认证校验。框架中间件必须全局覆盖所有路由。**
 
 ## Detection Logic
 
@@ -60,6 +62,12 @@ app → middleware → handler
 .antMatchers("/api/**").permitAll()
 // But /api/admin/* should be authenticated!
 ```
+
+## 修复指引
+
+1. 全局认证中间件覆盖所有路由（Spring Interceptor / Django Middleware / Express middleware）
+2. 认证逻辑在进入业务代码前执行，不要依赖业务代码内部的手动检查
+3. 使用框架提供的认证注解（`@PreAuthorize`/`@login_required`/`@UseGuards`）
 
 ## False Positive Exclusion
 

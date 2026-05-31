@@ -8,9 +8,11 @@ tags: [web, authorization]
 
 # Insecure Direct Object Reference (IDOR)
 
-## Detection Summary
+## 威胁定义
 
-Check whether user-supplied identifiers are used to access objects without authorization checks.
+用户通过修改请求中的对象标识符（如 `/users/123` → `/users/456`）访问其他用户的资源，而服务端未验证当前用户对该资源的访问权限。IDOR 是 Web 应用中最常见的授权缺陷。
+
+**核心原则：每次通过标识符访问资源时，必须验证当前认证用户对该资源的所有权或访问权限。**
 
 ## Detection Logic
 
@@ -55,6 +57,12 @@ public Order getOrder(@PathVariable Long orderId, Principal principal) {
     return order;
 }
 ```
+
+## 修复指引
+
+1. 每次通过 ID 访问资源时验证所有权：`if (resource.ownerId != currentUser.id) return 403`
+2. 使用不可预测的资源标识符（UUID）替代自增 ID
+3. ORM 查询时加入用户过滤条件：`WHERE id = ? AND user_id = ?`
 
 ## False Positive Exclusion
 

@@ -8,105 +8,110 @@ tags: [memory, heap, resource-management]
 
 # 内存泄漏 (Memory Leak)
 
-## 检测概要
+## 威胁定义
 
-检查通过 `malloc`/`calloc`/`realloc`/`new` 分配的内存是否在所有执行路径上都被释放。
+通过 `malloc`/`calloc`/`new` 分配的堆内存未在合适的时机释放，导致进程内存持续增长，最终资源耗尽。C/C++ 无 GC，内存泄漏是常见但可防止的问题。
+
+**检测时需区分"真泄漏"和"刻意不释放"**：
+- **真泄漏**：每个请求/迭代中分配但不释放 → 内存持续增长
+- **非泄漏**：全局缓冲区、Arena 分配器、main() 中单次分配的 exit-time 回收
 
 ## 检测逻辑
 
-### Step 1: 搜索分配点
+### Step 1: 识别分配点（含自定义分配器）
 
-识别所有堆分配，包括标准函数和自定义分配器：
-
-```c
-// 标准 C 库
-ptr = malloc(size);
-ptr = calloc(n, size);
-ptr = realloc(ptr, new_size);
-
-// C++
-ptr = new T;
-ptr = new T[n];
-
-// 自定义分配器（大厂常见，参考 knowledge/languages/cpp.md）
-ptr = xxx_malloc(size);       // 如 my_malloc, pool_alloc
-ptr = xxx_alloc(size);        // 如 zone_alloc
-ptr = xxx_new(...);           // 如 object_new
-ptr = xxx_create(...);        // 如 resource_create
-ptr = ALLOC_xxx(s);           // 宏分配
+标准 C/C++ 和命名约定匹配的自定义分配器：
+```
+malloc / calloc / realloc / strdup
+new / new[]
+xxx_malloc / xxx_alloc / xxx_new / xxx_create / ALLOC_xxx
 ```
 
-**自定义分配器释放配对**：`xxx_malloc` ↔ `xxx_free`、`xxx_alloc` ↔ `xxx_free`/`xxx_dealloc`、`xxx_new`/`xxx_create` ↔ `xxx_delete`/`xxx_destroy`。
+### Step 2: 追踪释放路径 — 报告条件
 
-### Step 2: 追踪释放路径
+**报告以下模式**：
 
-对每个分配点，收集从分配点到函数出口的所有路径，确认每条路径都有对应的释放：
-
-**模式 1：提前返回未释放**
+1. **错误路径未释放**（最常见）：
 ```c
-// BAD: error 路径未释放
-char *buf = malloc(100);
-if (error_condition) {
-    return -1;                   // 泄漏！
-}
-// ... 正常路径
+buf = malloc(N);
+if (error) return -1;  // 泄漏！
 free(buf);
-return 0;
 ```
 
-**模式 2：异常安全 (C++)**
-```cpp
-// BAD: 异常导致泄漏
-char *buf = new char[100];
-process_data();                  // 可能抛出异常
-delete[] buf;                    // 异常时不会执行
-
-// GOOD: RAII
-std::vector<char> buf(100);
-process_data();                  // 安全，析构自动清理
-```
-
-**模式 3：指针覆盖**
+2. **循环中分配未释放**：
 ```c
-// BAD: 覆盖后旧内存泄漏
-char *buf = malloc(100);
-buf = malloc(200);               // 第一次的 100 字节泄漏
-```
-
-**模式 4：循环中分配未释放**
-```c
-// BAD: 循环内重复分配
-for (int i = 0; i < n; i++) {
-    char *tmp = malloc(1024);    // 每次迭代泄漏
+for (i = 0; i < n; i++) {
+    char *tmp = malloc(K);  // 每次迭代泄漏！
     process(tmp);
-}
+}  // 无 free(tmp)
 ```
+
+3. **指针覆盖**：
+```c
+ptr = malloc(N);
+ptr = malloc(M);  // 旧指针丢失，N 字节泄漏
+```
+
+### Step 3: 不报告（刻意不释放）
+
+| 模式 | 原因 |
+|------|------|
+| `main()` 中单次分配直到程序退出 | OS 回收 |
+| Arena/Zone 分配器 `pool_alloc` + 批量 `pool_free_all` | 整体管理 |
+| `static` 变量初始化分配 | 生命周期 = 程序 |
+| `atexit()` 注册的释放回调 | 程序退出时执行 |
+
+## 修复指引
+
+1. **C++ 首选**：`std::unique_ptr<T>` / `std::shared_ptr<T>` / RAII
+2. **C 代码**：使用 `goto cleanup` 模式统一资源释放
+3. **循环分配**：在循环内释放或复用缓冲区
+4. **编译器辅助**：启用 `-fanalyzer` (GCC 10+) 或 clang static analyzer
 
 ## 误报排除
 
 | 场景 | 原因 |
 |------|------|
-| `std::unique_ptr`/`std::shared_ptr` | RAII 自动管理 |
-| 全局生命周期指针 | 程序终止时 OS 回收 |
-| 自定义内存池（arena/zone） | 批量 `pool_free_all()` 或结束时整体回收 |
-| `atexit` 注册的清理 | 程序退出时回收 |
-| `alloca` 栈分配 | 函数返回时自动回收 |
-| `xxx_free(p)` 作为自定义释放 | 与 `xxx_malloc` 配对的自定义释放函数 |
+| `std::unique_ptr`/`std::shared_ptr` | RAII 自动释放 |
+| 自定义 Arena/Pool：`pool_alloc` + `pool_free_all()` | 批量释放 |
+| 全局/static 变量 | 整个程序生命周期 |
+| `main()` 或单次入口分配且程序很快退出 | OS 回收 |
+| `alloca()` 栈分配 | 函数返回自动回收 |
+| `atexit(cleanup_func)` | 程序退出时执行 |
+| 分配后赋值给带 `__attribute__((cleanup))` 的变量 | 自动清理 |
 
 ## 检测模式汇总
 
 ```
-# 分配后错误路径未释放（含自定义分配器）
-malloc|calloc|new|xxx_malloc|xxx_alloc|xxx_new|ALLOC_*
-→ if.*return.*-1|goto cleanup (goto 后未 free|xxx_free)
-→ (同路径无 free|xxx_free)
+# === MUST REPORT ===
 
-# 指针覆盖（含自定义分配器）
-ptr = malloc|xxx_malloc|xxx_alloc(N)
-→ ptr = malloc|xxx_malloc|xxx_alloc(M)   # 旧指针覆盖前未释放
+# 分配 + 中间 return 无释放
+(malloc|calloc|new|ALLOC_|_alloc|_malloc)\(
+→ (同一函数, 之后) return|goto.*(?!cleanup|error|fail)
+→ (return 之前, 同路径) 无 free|delete|xxx_free|xxx_release
 
-# 循环中分配（含自定义分配器）
-for|while
-→ malloc|calloc|new|xxx_malloc|xxx_alloc
-→ (循环体内无 free|delete|xxx_free)
+# 循环内分配无配对释放
+(for|while)\s*\(
+→ 循环体内 (malloc|calloc|new)
+→ 循环体内无 free|delete
+→ 且指针未保存到循环外的作用域
+
+# 指针重新赋值前未释放旧值
+\w+\s*=\s*(malloc|calloc|new)
+→ 同变量再次 \w+\s*=\s*(malloc|calloc|new)
+→ 两次之间无 free|delete
+
+# === MUST NOT REPORT (白名单) ===
+
+# RAII 包装
+std::unique_ptr|std::shared_ptr|std::vector|std::string
+
+# Arena/Zone 释放
+pool_free_all|zone_destroy|arena_reset|ALL_FREE
+
+# 全局/static
+static\s+\w+\s*=\s*malloc|全局初始化
+
+# atexit 注册
+atexit\(.*free|atexit\(.*cleanup
 ```

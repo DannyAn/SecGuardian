@@ -8,9 +8,11 @@ tags: [web, injection, database, embedded]
 
 # SQL 注入检测 (C/C++ / Java / Go)
 
-## 检测概要
+## 威胁定义
 
-检查代码中是否将不可信数据拼接到 SQL 查询字符串中。覆盖 Web 后端 (Java/Go) 和嵌入式/桌面应用 (C/C++ SQLite)。
+攻击者通过构造恶意输入拼接 SQL 语句，导致数据库执行非预期的查询，获取、篡改或删除数据。覆盖 Web 后端 (Java/Go) 和嵌入式/桌面应用 (C/C++ SQLite)。
+
+**核心原则：任何用户输入不得直接拼接到 SQL 语句中。**
 
 ## 检测逻辑
 
@@ -217,6 +219,12 @@ var allowed = map[string]bool{"id": true, "name": true}
 if !allowed[orderBy] { return errors.New("invalid") }
 db.Order(orderBy).Find(&users)
 ```
+
+## 修复指引
+
+1. **首选**：使用参数化查询（PreparedStatement / sqlite3_prepare_v2 + sqlite3_bind_*）
+2. **次选**：ORM 安全 API（非原生 SQL 接口）
+3. **不得已时**：输入校验 + 白名单过滤（ORDER BY/GROUP BY 等无法参数化的子句）
 
 ## 误报排除
 

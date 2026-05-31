@@ -2,15 +2,17 @@
 detector: path-traversal
 severity: high
 cwe: CWE-22
-language: [c, cpp]
+language: [c, cpp, java, python, go, js]
 tags: [system, filesystem, traversal]
 ---
 
 # 路径遍历 (Path Traversal)
 
-## 检测概要
+## 威胁定义
 
-检查文件操作中是否使用了未过滤的用户输入路径，允许 `../` 遍历到预期目录之外。
+攻击者使用 `../` 等特殊字符突破预期的文件目录边界，读取或写入任意文件。
+
+**核心原则：文件路径操作中，用户输入不得直接影响路径解析结果。**
 
 ## 检测逻辑
 
@@ -51,6 +53,12 @@ fd = open(resolved, O_RDONLY);
 int dir_fd = open(BASE_DIR, O_RDONLY);
 int file_fd = openat(dir_fd, basename(user_path), O_RDONLY | O_NOFOLLOW);
 ```
+
+## 修复指引
+
+1. **首选**：不直接用用户输入做文件名，使用 UUID/哈希映射
+2. **次选**：获取规范路径后验证父目录匹配（`realpath` + 前缀校验 / `openat` + `O_NOFOLLOW`）
+3. **Zip Slip**：解压前验证每个条目的规范路径
 
 ## 误报排除
 

@@ -16,7 +16,7 @@ language: python
 
 1. 读取 Command 生成的 `index.json`，获取扫描范围内的完整文件清单、符号表和调用图
 2. 加载 `knowledge/languages/python.md` 获取 Python 危险函数清单
-3. 加载各 `knowledge/concepts/*.md` 获取安全概念和检测逻辑
+3. 加载 `knowledge/threat-catalog.md` 获取威胁全景，再按需加载 `knowledge/detectors/<name>.md`（每个 detector 自包含威胁定义+检测逻辑+修复指引）
 4. 基于 index.json 的符号表定位检测目标，按以下优先级匹配:
 
 ### 检查优先级

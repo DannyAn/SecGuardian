@@ -8,9 +8,11 @@ tags: [web, authentication, jwt]
 
 # JWT Misuse
 
-## Detection Summary
+## 威胁定义
 
-Check for improper JWT implementation: weak secrets, algorithm confusion, missing expiration.
+JWT 实现不当：弱签名密钥（可被暴力破解）、算法混淆攻击（`alg: none`/RS256→HS256）、缺少过期验证（永不过期token）。OWASP #2 API 安全风险。
+
+**核心原则：JWT 签名必须使用强密钥（≥256 bits）、固定 `alg` 参数、设置合理 `exp`/`iat` 并验证。**
 
 ## Detection Logic
 
@@ -68,6 +70,13 @@ Jwts.builder()
     .signWith(SignatureAlgorithm.HS256, secret)
     .compact();
 ```
+
+## 修复指引
+
+1. 使用强密钥（≥256 bits 随机生成），禁止硬编码 `"secret"` / `"my-secret-key"`
+2. 固定 `alg` 参数（如 `RS256`），禁止 `alg: none`，白名单算法
+3. 验证 `exp`/`iat`/`nbf` 时间声明
+4. 不要在 URL/query string 中传递 JWT（日志泄露风险）
 
 ## False Positive Exclusion
 

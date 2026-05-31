@@ -2,15 +2,17 @@
 detector: insufficient-key-length
 severity: medium
 cwe: CWE-326
-language: [c, cpp]
+language: [c, cpp, java, python, go, js]
 tags: [crypto, key-size, configuration]
 ---
 
 # 不足的密钥长度 (Insufficient Key Length)
 
-## 检测概要
+## 威胁定义
 
-检查加密操作中使用的密钥长度是否达到当前安全标准。
+加密密钥长度不足——如RSA 1024（已可被破解）、EC P-192（非安全曲线）、PBKDF2 低迭代次数。NIST SP 800-57 和 BSI TR-02102 定义了最低安全强度（至少 128-bit security）。
+
+**核心原则：RSA ≥ 2048 / ECC ≥ P-256 / AES ≥ 128 / HMAC ≥ 256。不满足最低标准的密钥参数必须报告。**
 
 ## 检测逻辑
 
@@ -56,6 +58,18 @@ char salt[BCRYPT_HASHSIZE];
 bcrypt_gensalt(5, salt);         // cost=5 太低
 // 推荐 cost >= 12
 ```
+
+## 修复指引
+
+| 算法 | 最低安全参数 |
+|------|------------|
+| RSA | ≥ 2048 bits（推荐 3072） |
+| DH/ElGamal | ≥ 2048 bits |
+| ECDSA/ECDH | ≥ P-256（推荐 P-384） |
+| AES | ≥ 128 bits（推荐 256） |
+| HMAC | ≥ 256 bits |
+| PBKDF2 | ≥ 100,000 次迭代 |
+| bcrypt | cost ≥ 12 |
 
 ## 误报排除
 

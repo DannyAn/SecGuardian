@@ -1,40 +1,56 @@
-# Go 安全反模式
+# Go 安全反模式检测矩阵
 
-代码审查中需要关注的 Go 特有安全反模式。
+代码审查中需要关注的 Go 特有安全反模式及具体检测规则。
 
 ## 错误处理反模式
 
-| 反模式 | 风险 | 正确做法 |
-|--------|------|---------|
-| `err != nil` 后继续使用返回值 | 使用零值/损坏数据 | 检查 err 立即 return |
-| `panic` 在库代码中 | 调用方无法恢复 | 返回 error |
-| `recover()` 吞掉所有 panic | 隐藏严重错误 | 仅恢复已知类型 |
-| `log.Fatal` 在库代码中 | 进程退出无法处理 | 返回 error |
+| 反模式 | 检测 Pattern | 严重度 |
+|--------|-------------|--------|
+| `err != nil` 后继续使用返回值 | `if err != nil` 块内无 `return` 且后续使用函数返回值 | Critical |
+| `panic` 在库代码中 | `func\s+\w+\w+\([^)]*\).*\{[^}]*\bpanic\(` 在非 main 包 | High |
+| `recover()` 吞掉所有 panic | `recover\(\)[^}]*` 无 `log.Printf` 或错误分类 | Medium |
+| `log.Fatal` 在库代码中 | `log\.Fatal[fl]?\(` 在非 main/main_test 包 | Medium |
 
 ## 并发反模式
 
-| 反模式 | 风险 | 正确做法 |
-|--------|------|---------|
-| goroutine 无退出机制 | goroutine 泄漏 | context.Context / done channel |
-| channel 未关闭导致死锁 | 发送方永远阻塞 | 明确关闭责任 |
-| `sync.Mutex` 值复制 | 锁失效 | 通过指针传递 |
-| `sync.WaitGroup.Add()` 在 goroutine 内 | 竞态条件 | Add 在 goroutine 外 |
-| `map` 并发读写 | fatal error: concurrent map writes | `sync.Map` 或加锁 |
+| 反模式 | 检测 Pattern | 严重度 |
+|--------|-------------|--------|
+| goroutine 无退出机制 | `go func\([^)]*\)\s*\{[^}]*\}` 无 `context.Context` 或 `done` channel | High |
+| `map` 并发读写 | `map\[string\]\w+` 全局/共享且无 `sync.Mutex\|sync.RWMutex\|sync.Map` | Critical |
+| `sync.Mutex` 值复制 | `func.*\([^)]*\w+\s+sync\.Mutex\)` — Mutex 按值传递 | Critical |
+| `WaitGroup.Add()` 在 goroutine 内 | `go func.*\{[^}]*wg\.Add\(` — Add 在 goroutine 内 | Medium |
 
 ## 接口/类型反模式
 
-| 反模式 | 风险 | 正确做法 |
-|--------|------|---------|
-| `interface{}` 过度使用 | 丢失类型安全 | 使用泛型或明确接口 |
-| 类型断言不检查 ok | panic | `v, ok := x.(T)` |
-| `reflect` 包非必要使用 | 绕过类型系统 | 代码生成或接口 |
-| `unsafe` 包使用 | 内存安全破坏 | 绝对必要且有充分测试才用 |
+| 反模式 | 检测 Pattern | 严重度 |
+|--------|-------------|--------|
+| 类型断言不检查 ok | `\.\((\w+)\)$` 而非 `, ok :=` 模式（单返回值断言） | Medium |
+| `unsafe` 包使用 | `import\s+\"unsafe\"` 或 `unsafe\.(Pointer|Sizeof|Offsetof)` | Medium |
+| `reflect` 绕过类型安全 | `reflect\.(ValueOf|TypeOf)[^)]*\.(Interface|Set|Field)` | Medium |
 
 ## 网络/HTTP 反模式
 
-| 反模式 | 风险 | 正确做法 |
-|--------|------|---------|
-| DefaultServeMux 全局使用 | 任何包可注册路由 | 自定义 ServeMux |
-| `http.ListenAndServe(":8080", nil)` | 同上 | 非 nil handler |
-| pprof 路由生产暴露 | 性能信息泄露 | 仅内网/开发环境启用 |
-| ResponseWriter 在 goroutine 中使用 | 不安全的并发写 | goroutine 完成后再返回 |
+| 反模式 | 检测 Pattern | 严重度 |
+|--------|-------------|--------|
+| `DefaultServeMux` 全局 | `http\.Handle\(` 或 `http\.HandleFunc\(` 非自定义 mux | Medium |
+| pprof 生产暴露 | `import\s+_\s+\"net/http/pprof\"` 生产环境 | High |
+| `InsecureSkipVerify: true` | `tls\.Config\{[^}]*InsecureSkipVerify\s*:\s*true` | High |
+| ResponseWriter goroutine 并发写 | `go func[^)]*{[^}]*w\.(Write|Header)` | Critical |
+
+## 加密反模式
+
+| 反模式 | 检测 Pattern | 严重度 |
+|--------|-------------|--------|
+| `crypto/md5` 安全用途 | `md5\.(New|Sum)\(` 且上下文含 `pass\|auth\|sign\|token` | High |
+| `math/rand` 安全用途 | `rand\.(Int|Float|Read|Perm)\(` 且上下文含 `token\|key\|session\|csrf` | High |
+| 硬编码密钥 | `var\s+\w*(Key|Secret|Token|Password)\w*\s*=\s*["']` | High |
+| AES-ECB 手动实现 | `cipher\.NewCBCEncrypter\|des\.NewCipher` 循环逐块加密 | High |
+
+## 错误处理反模式
+
+| 反模式 | 检测 Pattern | 严重度 |
+|--------|-------------|--------|
+| panic 写入 HTTP 响应 | `recover.*fmt\.Fprintf\(w\|recover.*w\.Write\(` | High |
+| error 详情返回到 HTTP | `fmt\.Fprintf\(w.*err\.Error\(\)\|http\.Error\(w,\s*err\.Error\(\)` | High |
+| `text/template` 生成 HTML | `import "text/template"` 且输出到 HTTP ResponseWriter | Medium |
+| Gin DebugMode 生产 | `gin\.SetMode\(gin\.DebugMode\)` 非 debug/setup 环境 | Medium |

@@ -8,106 +8,104 @@ tags: [printf, exploitation, information-disclosure]
 
 # 格式化字符串漏洞 (Format String)
 
-## 检测概要
+## 威胁定义
 
-检查 `printf` 系列函数的格式参数是否来自用户输入或外部数据，攻击者可利用 `%n` 写入任意地址、`%s` 读取栈数据、`%x` 泄露内存布局。
+攻击者控制 printf 系列函数的格式参数，利用 `%n` 写入任意地址、`%s` 读取栈数据、`%x` 泄露内存布局。这是 C/C++ 特有的高危漏洞，可导致 RCE 或信息泄露。
+
+**核心原则：格式字符串必须是编译期字面量，绝不能来自外部输入。** `printf_s(user_input)` 和 `printf(user_input)` **一样危险**——`_s` 版本只防止溢出，不防格式字符串攻击。
 
 ## 检测逻辑
 
-### Step 1: 搜索格式字符串非字面量的调用
+### Step 1: 格式参数为变量的 printf 调用
 
-定位以下函数的调用点：
+识别以下函数调用中第一个参数非字面量的情况：
+
+| 函数 | 检测重点 |
+|------|---------|
+| `printf(fmt, ...)` | fmt 是否来自变量/参数/返回值 |
+| `fprintf(stream, fmt, ...)` | 同上 |
+| `sprintf(buf, fmt, ...)` | 同上 |
+| `snprintf(buf, n, fmt, ...)` | 同上 |
+| `syslog(priority, fmt, ...)` | 同上 |
+| `dprintf(fd, fmt, ...)` | 同上 |
+| `vfprintf` / `vsprintf` / `vsnprintf` | 包装函数中 fmt 参数的来源 |
+
+### Step 2: 区分"格式变量"和"格式字面量"
+
 ```
-printf        fprintf        sprintf        snprintf
-dprintf       vprintf        vfprintf       vsprintf
-syslog        setproctitle   err            warn
+# 必须报告 — 格式参数来自非字面量
+printf(user_input);                    # 完全可控
+printf(buf);                           # buf 内容非编译期常量
+fprintf(stderr, msg);                  # msg 来自变量
+syslog(LOG_ERR, error_text);           # error_text 来自变量
+printf(getenv("FORMAT"));              # 环境变量可控
 
-# C11 Annex K 安全版本 — 格式参数仍可能是变量，需同样检查
-printf_s       fprintf_s       sprintf_s       snprintf_s
-```
-
-注意：`_s` 后缀的函数虽然防止了缓冲区溢出，但**不防止格式字符串攻击**。
-`printf_s(user_input)` 和 `printf(user_input)` 一样危险 — `user_input` 中含 `%n` 仍可写入任意地址。
-
-### Step 2: 检查格式参数
-
-**危险模式：**
-```c
-// BAD: 用户输入直接作为格式字符串
-printf(user_input);           // 格式字符串攻击!
-fprintf(stderr, user_input);  // 同上
-syslog(LOG_ERR, user_input);  // 同上
-
-// BAD: 间接来自用户输入
-char *fmt = get_user_format();
-printf(fmt, arg1, arg2);      // 如果 fmt 含 %n 则危险
-
-// BAD: 拼接后的格式字符串
-char fmt[256];
-sprintf(fmt, "Error: %s", user_msg);
-printf(fmt);                  // 如果 user_msg 含 % 则危险
+# 不报告 — 格式参数是编译期字面量
+printf("%s\n", user_input);            # 格式是字面量
+printf("Error: %d\n", code);           # 格式是字面量
+fprintf(stderr, "Value: %x\n", val);   # 格式是字面量
 ```
 
-**安全模式：**
-```c
-// GOOD: 格式字符串是字面量
-printf("%s", user_input);     // 安全——user_input 是数据不是格式
-fprintf(stderr, "Error: %s\n", msg);
-syslog(LOG_ERR, "%s", data);
-```
-
-### Step 3: 间接格式字符串路径
+### Step 3: 间接路径
 
 ```c
-// BAD: 包装函数传递非字面量格式字符串
-void log_error(const char *fmt, ...) {
+// 检查包装函数的调用者
+void my_log(const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);   // 检查 fmt 是否来自字面量
+    vfprintf(stderr, fmt, ap);  // 需检查调用者传入的 fmt
     va_end(ap);
 }
-// 调用者：log_error("%s", msg)  → 安全
-// 调用者：log_error(user_input)  → 危险
+// 调用 my_log("%s", user) → 安全（字面量）
+// 调用 my_log(user_msg)    → 危险（变量）
 ```
 
-### Step 4: C++ 流输出检查
+## 修复指引
 
-```c++
-// BAD: C++ 中使用 printf 风格
-QString msg = getUserInput();
-printf(msg.toStdString().c_str());  // 危险
-
-// GOOD: C++ 流自动安全
-std::cout << user_input;           // 安全——流式操作
-```
+1. **必须**：第一个参数始终是字符串字面量：`printf("%s", user_input)`
+2. **禁止**：`printf(user_input)` 任何形式
+3. **包装函数**：如果必须传递动态格式字符串，在调用点添加注释确认格式来源可信任
+4. **编译器保护**：启用 `-Wformat-security` 和 `-Werror=format-security`
 
 ## 误报排除
 
 | 场景 | 原因 |
 |------|------|
-| 格式字符串是编译期常量 | 如 `#define FMT "Value: %d\n"` |
-| `snprintf(buf, n, "%s", src)` — 格式字面量 | 源数据作为参数而非格式 |
-| `printf_s("%s", user)` — 格式是字面量 | `_s` 版本格式参数仍可能是常量 |
-| C++ 流输出 (`std::cout`) | 不经过 printf 格式化机制 |
-
-> **特别提醒**：`sprintf_s`、`printf_s` 等 C11 Annex K 函数**只防止溢出，不防格式字符串攻击**。如果格式参数是变量（非字面量），仍须报告。
-| `puts(user_input)` / `fputs(user_input, f)` | 不解析格式说明符 |
-| 格式化调用在测试代码中 | 测试环境下用户输入可控性不考虑 |
+| `printf("%s", var)` — 格式是字面量 | 数据作为参数，安全 |
+| `printf(gettext("msg"))` — gettext 返回可信翻译 | 翻译表内容非用户可控 |
+| `printf("%s" + (flag ? 1 : 0), val)` — 仍为字面量指针算术 | 编译器仍可追踪 |
+| C++ `std::cout << var` | 不经过 printf 格式化机制 |
+| `puts(str)` / `fputs(str, f)` | 不解析格式说明符 |
+| 格式参数来自 `#define` 宏（展开为字面量） | 编译期常量 |
+| 测试代码中可控输入的非利用场景 | 测试环境 |
 
 ## 检测模式汇总
 
 ```
-# 格式参数非字面量
-printf|fprintf|sprintf|snprintf|syslog
-→ 第一个参数不是 "..." 字符串字面量
-→ 第一个参数来自变量|参数|返回值
+# === MUST REPORT ===
 
-# 特别的危险指示
-printf.*%[^sd]     # 格式字符串字面量中以变量作为数据（可能参数和格式反了）
-fprintf.*stderr.*user|input    # 用户输入作为格式参数
+# printf 系第一个参数是变量（非引号开头）
+(printf|fprintf|sprintf|syslog|dprintf)\s*\([^"]     # 注意排除如 printf("...
+(printf|fprintf|sprintf|syslog)\s*\(\s*\w+\s*[,;\)]  # 参数是变量名
 
-# 包装函数的格式参数传递
-void.*log|error|warn.*const char *fmt
-→ 内部调用 vfprintf|vsyslog
-→ 调用者传入非字面量格式参数
+# vprintf 系的包装函数——检查调用者传入的格式参数
+(vfprintf|vsprintf|vsnprintf)\s*\([^)]*fmt  # fmt 参数向上追溯到调用者
+→ 调用者传入 fmt 为非字面量
+
+# 特例：格式字面量但错位
+printf\(user_input,   # 无额外参数——user_input 被当作格式!
+
+# === MUST NOT REPORT (白名单) ===
+
+# 格式字面量（以 " 开头）
+printf\("[^"]*%[sdxc]  # 标准的 printf("format %s", var)
+
+# puts/fputs（不解析%）
+\bputs\(|\bfputs\(
+
+# C++ 流
+std::cout\s*<<|std::cerr\s*<<
+
+# gettext 可信翻译源
+printf\(gettext\(|printf\(_\(|fprintf\([^)]*gettext\(
 ```

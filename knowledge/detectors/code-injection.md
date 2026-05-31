@@ -8,9 +8,11 @@ tags: [web, injection, rce]
 
 # Python 代码注入检测
 
-## 检测概要
+## 威胁定义
 
-检查 Python 代码中是否将不可信数据传递给 eval/exec/compile/pickle 等代码执行函数。
+不可信数据传递给 Python 代码执行函数（`eval`/`exec`/`compile`/`pickle.load`），导致攻击者在服务端执行任意 Python 代码。`eval("__import__('os').system('id')")` 即可完成 RCE。
+
+**核心原则：永远不要将用户输入传递给任何代码执行函数。即使是看似安全的沙箱（`eval(x, {"__builtins__": {}})`）也可能被绕过。**
 
 ## 检测逻辑
 
@@ -62,6 +64,13 @@ ALLOWED_MODULES = {'json', 'csv', 'datetime'}
 if user_module_name in ALLOWED_MODULES:
     module = importlib.import_module(user_module_name)
 ```
+
+## 修复指引
+
+1. **禁止**：`eval()`/`exec()`/`compile()` 接受任何用户输入
+2. 如需动态执行，使用安全沙箱（如 RestrictedPython）并严格限制可用函数
+3. `pickle` → 替换为 JSON 序列化
+4. `yaml.load` → 替换为 `yaml.safe_load`
 
 ## 误报排除
 

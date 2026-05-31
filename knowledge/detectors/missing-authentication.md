@@ -8,9 +8,11 @@ tags: [web, authentication, access-control]
 
 # 缺失认证 (Missing Authentication for Critical Function)
 
-## 检测概要
+## 威胁定义
 
-检查关键功能端点是否要求用户认证。与 auth-bypass（CWE-287）关注绕过已存在的认证不同，本检测器关注完全不要求认证的端点。
+关键功能端点（管理接口、敏感数据API、用户操作）完全不需要认证即可访问 — 任何人都可调用。对于已部署认证机制的绕过缺陷，参考 `auth-bypass` 检测器。
+
+**核心原则：所有非公开端点必须经过认证中间件/拦截器。框架路由定义时即指定认证要求。**
 
 ## 检测逻辑
 
@@ -89,6 +91,12 @@ if (request.getHeader("X-Internal") != null) {
     return;
 }
 ```
+
+## 修复指引
+
+1. 全局认证中间件/拦截器覆盖所有路由
+2. 使用框架注解：`@PreAuthorize`/`@Authenticated`/`@UseGuards(AuthGuard)`
+3. 默认拒绝：所有端点默认要求认证，公开端点显式标记白名单
 
 ## 误报排除
 

@@ -8,9 +8,11 @@ tags: [web, csrf, access-control]
 
 # Cross-Site Request Forgery (CSRF)
 
-## Detection Summary
+## 威胁定义
 
-Check whether state-changing requests lack CSRF protection tokens.
+攻击者诱导已认证用户点击恶意链接/表单，利用用户的已认证状态执行非预期的状态变更操作（转账、修改密码、删除数据）。CSRF 依赖"浏览器自动携带Cookie"的特性。
+
+**核心原则：所有状态变更的请求（POST/PUT/DELETE）必须包含 CSRF Token 或验证 `Origin`/`Referer` 头。**
 
 ## Detection Logic
 
@@ -63,6 +65,12 @@ r.POST("/transfer", handler)
 ### Step 3: Check non-GET endpoints
 
 Focus on POST/PUT/DELETE/PATCH endpoints that change state without token verification.
+
+## 修复指引
+
+1. 使用框架 CSRF 保护：Spring Security CSRF / Django `{% csrf_token %}` / Express `csurf`
+2. 对 API（非浏览器客户端）使用 `Authorization` header 而非 Cookie 认证
+3. SameSite Cookie 设置为 `Strict` 或 `Lax`
 
 ## False Positive Exclusion
 

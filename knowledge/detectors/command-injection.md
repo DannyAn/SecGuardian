@@ -2,15 +2,17 @@
 detector: command-injection
 severity: critical
 cwe: CWE-77
-language: [c, cpp]
+language: [c, cpp, java, python, go, js]
 tags: [system, injection, shell]
 ---
 
 # 命令注入 (Command Injection)
 
-## 检测概要
+## 威胁定义
 
-检查是否将不可信输入直接传递给 shell 执行函数 (`system`/`popen`/`exec*` 系列)。
+攻击者通过用户输入拼接系统命令，导致服务器执行恶意的操作系统命令。
+
+**核心原则：用户输入不得直接拼接到系统命令中。**
 
 ## 检测逻辑
 
@@ -52,6 +54,12 @@ if (!is_allowed(user_cmd, allowed)) {
     return ERROR;
 }
 ```
+
+## 修复指引
+
+1. **首选**：使用 API 而非命令执行
+2. **次选**：参数数组形式调用，绕过 shell 解析（`execve` / `subprocess.run([...], shell=False)`）
+3. **不得已时**：严格白名单 + shell 元字符转义
 
 ## 误报排除
 

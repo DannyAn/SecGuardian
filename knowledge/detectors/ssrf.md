@@ -8,9 +8,11 @@ tags: [web, ssrf, network]
 
 # Server-Side Request Forgery (SSRF)
 
-## Detection Summary
+## 威胁定义
 
-Check whether user-controlled URLs are used in server-side HTTP requests without validation.
+攻击者诱导服务器向内部网络或自身发起请求，绕过防火墙访问内部服务（云元数据、内网数据库、管理接口）。
+
+**核心原则：用户可控的 URL/地址不应被服务端直接请求。** 覆盖 URL 直接请求、重定向链跟随、DNS Rebinding 三种攻击模式。
 
 ## Detection Logic
 
@@ -73,6 +75,12 @@ if u.Scheme != "https" {
     return errors.New("https only")
 }
 ```
+
+## 修复指引
+
+1. **首选**：禁用用户完全控制的 URL 请求
+2. **次选**：严格 DNS 白名单 + 禁止内网 IP 段（127.0.0.0/8, 10.0.0.0/8, 169.254.169.254）
+3. **补充**：禁止跟随重定向 / 禁用非 HTTP 协议（file://、gopher://、dict://）
 
 ## False Positive Exclusion
 

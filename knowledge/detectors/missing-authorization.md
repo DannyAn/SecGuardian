@@ -8,9 +8,11 @@ tags: [web, authorization, access-control]
 
 # 缺失授权检查 (Missing Authorization)
 
-## 检测概要
+## 威胁定义
 
-检查 API 端点和业务操作是否在执行前进行了授权检查（角色/权限验证）。缺失授权会导致越权访问——与 IDOR（CWE-639）关注对象级权限不同，本检测器关注功能级权限。
+已认证用户访问超出其权限的功能或数据——普通用户执行管理员操作。与 IDOR（对象级授权缺失）不同，本检测器关注功能级授权缺失。
+
+**核心原则：每个端点/服务方法必须在执行前验证当前用户的角色/权限。`@PreAuthorize`/`@RolesAllowed`/Django `permission_required` 等注解应全局覆盖。**
 
 ## 检测逻辑
 
@@ -81,6 +83,12 @@ if (!currentUser.hasAdminRole()) { ... }   // 后判断
 @PreAuthorize("hasRole('ADMIN')")
 public void deleteUser(Long id) { ... }
 ```
+
+## 修复指引
+
+1. 每个端点/方法在执行业务逻辑前验证角色权限
+2. Spring: `@PreAuthorize("hasRole('ADMIN')")` / Django: `@permission_required`
+3. 角色检查在业务逻辑之前执行，不要依赖业务逻辑内部的权限判断
 
 ## 误报排除
 

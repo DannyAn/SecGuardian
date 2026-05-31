@@ -8,9 +8,11 @@ tags: [memory, bounds, read, information-leak]
 
 # 越界读取 (Out-of-bounds Read)
 
-## 检测概要
+## 威胁定义
 
-检查是否从分配的内存区域之外读取数据。越界读取可导致信息泄露（Heartbleed 类型）、程序崩溃和任意内存读取。
+程序读取超出缓冲区边界的数据，可能泄露敏感内存内容（密钥、栈 canary、ASLR 基址）。著名的 Heartbleed（CVE-2014-0160）即为此类漏洞。
+
+**核心原则：读取操作的索引和长度必须在分配大小范围内。特别关注 memcpy 的第三个参数和循环索引。**
 
 ## 检测逻辑
 
@@ -78,6 +80,13 @@ ssize_t n = read(fd, buf, sizeof(buf));
 close(fd);
 read(fd, buf, sizeof(buf));  // 可能读取到其他文件数据
 ```
+
+## 修复指引
+
+1. **读取前验证**：确保索引/偏移量 < 缓冲区大小
+2. **使用安全封装**：`std::vector::at()` 越界抛异常，`std::array::at()` 同理
+3. **编译器保护**：启用 AddressSanitizer（`-fsanitize=address`）运行时检测
+4. **C 代码**：保持缓冲区大小与读取长度的一致性校验
 
 ## 误报排除
 

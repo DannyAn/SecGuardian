@@ -8,9 +8,11 @@ tags: [web, injection, xss]
 
 # Cross-Site Scripting (XSS)
 
-## Detection Summary
+## 威胁定义
 
-Check whether user-controlled data is rendered into HTML/JS contexts without proper encoding.
+攻击者将恶意脚本注入到 Web 页面中，当其他用户访问时，脚本在浏览器中执行，窃取会话、重定向、篡改页面。
+
+**核心原则：所有输出到 HTML 页面的动态内容必须经过上下文感知的编码。** 涵盖反射型 XSS（用户输入回显）、存储型 XSS（富文本未清洗）、DOM 型 XSS（innerHTML/document.write 可控）。
 
 ## Detection Logic
 
@@ -72,6 +74,13 @@ return render_template('page.html', data=user_input)
 // GOOD: html/template auto-escapes by default
 html/template.Must(html/template.New("page").Parse(templateStr))
 ```
+
+## 修复指引
+
+1. **首选**：使用模板引擎的自动上下文编码（html/template 而非 text/template）
+2. **次选**：手动选择正确编码函数（HTML/JS/URL/CSS 编码）
+3. **富文本**：使用专用清洗库（DOMPurify、OWASP AntiSamy）
+4. **CSP**：配置 Content-Security-Policy 作为纵深防御
 
 ## False Positive Exclusion
 
