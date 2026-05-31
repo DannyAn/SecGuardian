@@ -254,8 +254,8 @@ deploy_opencode() {
     # Clean and recreate target dirs
     rm -rf "$cmd_dir" "$skills_dir" "$knowledge_dir" "$scripts_dir"
     mkdir -p "$cmd_dir" "$skills_dir" "$scripts_dir/bin" \
-             "$knowledge_dir/concepts" "$knowledge_dir/languages" \
-             "$knowledge_dir/detectors" "$knowledge_dir/protocols"
+             "$knowledge_dir/languages" "$knowledge_dir/detectors" \
+             "$knowledge_dir/protocols" "$knowledge_dir/standards"
 
     local cmd_n=0 skill_n=0
     for d in "$DIST"/*/; do
@@ -272,13 +272,18 @@ deploy_opencode() {
             done
         fi
         # Knowledge: merge across all extensions
-        for cat in concepts languages detectors protocols; do
+        for cat in languages detectors protocols; do
             if [ -d "$d/knowledge/$cat" ]; then
                 find "$d/knowledge/$cat" -name '*.md' -exec cp {} "$knowledge_dir/$cat/" \;
             fi
         done
     done
     log_done "$cmd_n commands (.md), $skill_n skills"
+
+    # Copy project-level knowledge (v2.0)
+    [ -f "$PROJECT_ROOT/knowledge/threat-catalog.md" ] && cp "$PROJECT_ROOT/knowledge/threat-catalog.md" "$knowledge_dir/"
+    [ -f "$PROJECT_ROOT/knowledge/report-template.md" ] && cp "$PROJECT_ROOT/knowledge/report-template.md" "$knowledge_dir/"
+    [ -d "$PROJECT_ROOT/knowledge/standards" ] && cp -r "$PROJECT_ROOT/knowledge/standards/"* "$knowledge_dir/standards/" 2>/dev/null || true
 
     # Copy wrapper scripts and binaries
     for wrapper in secguardian-index secguardian-index.ps1; do
@@ -314,8 +319,8 @@ deploy_gemini() {
     # Clean and recreate target dirs
     rm -rf "$skills_dir" "$cmd_dir" "$knowledge_dir" "$scripts_dir"
     mkdir -p "$skills_dir" "$cmd_dir" "$scripts_dir/bin" \
-             "$knowledge_dir/concepts" "$knowledge_dir/languages" \
-             "$knowledge_dir/detectors" "$knowledge_dir/protocols"
+             "$knowledge_dir/languages" "$knowledge_dir/detectors" \
+             "$knowledge_dir/protocols" "$knowledge_dir/standards"
 
     local skill_n=0
     for d in "$DIST"/*/; do
@@ -326,12 +331,17 @@ deploy_gemini() {
             done
         fi
         # Knowledge: merge across all extensions at top level
-        for cat in concepts languages detectors protocols; do
+        for cat in languages detectors protocols; do
             if [ -d "$d/knowledge/$cat" ]; then
                 find "$d/knowledge/$cat" -name '*.md' -exec cp {} "$knowledge_dir/$cat/" \;
             fi
         done
     done
+
+    # Copy project-level knowledge (v2.0)
+    [ -f "$PROJECT_ROOT/knowledge/threat-catalog.md" ] && cp "$PROJECT_ROOT/knowledge/threat-catalog.md" "$knowledge_dir/"
+    [ -f "$PROJECT_ROOT/knowledge/report-template.md" ] && cp "$PROJECT_ROOT/knowledge/report-template.md" "$knowledge_dir/"
+    [ -d "$PROJECT_ROOT/knowledge/standards" ] && cp -r "$PROJECT_ROOT/knowledge/standards/"* "$knowledge_dir/standards/" 2>/dev/null || true
 
     # 自动从 .md 命令生成 TOML，再拷贝
     log_info "生成 Gemini TOML 命令..."
