@@ -265,10 +265,12 @@ deploy_opencode() {
                 [ -f "$f" ] && cp "$f" "$cmd_dir/" && cmd_n=$((cmd_n + 1))
             done
         fi
-        # Skills: all skill directories
+        # Skills: deploy under secguardian-xuanwu extension namespace
+        local ext_skills="$skills_dir/secguardian-xuanwu"
+        mkdir -p "$ext_skills"
         if [ -d "$d/skills" ]; then
             for sd in "$d/skills"/*/; do
-                [ -d "$sd" ] && cp -r "$sd" "$skills_dir/$(basename "$sd")" && skill_n=$((skill_n + 1))
+                [ -d "$sd" ] && cp -r "$sd" "$ext_skills/$(basename "$sd")" && skill_n=$((skill_n + 1))
             done
         fi
         # Knowledge: merge across all extensions
@@ -323,11 +325,13 @@ deploy_gemini() {
              "$knowledge_dir/protocols" "$knowledge_dir/standards"
 
     local skill_n=0
+    local ext_skills="$skills_dir/secguardian-xuanwu"
+    mkdir -p "$ext_skills"
     for d in "$DIST"/*/; do
-        # Skills: all skill directories
+        # Skills: deploy under secguardian-xuanwu extension namespace
         if [ -d "$d/skills" ]; then
             for sd in "$d/skills"/*/; do
-                [ -d "$sd" ] && cp -r "$sd" "$skills_dir/$(basename "$sd")" && skill_n=$((skill_n + 1))
+                [ -d "$sd" ] && cp -r "$sd" "$ext_skills/$(basename "$sd")" && skill_n=$((skill_n + 1))
             done
         fi
         # Knowledge: merge across all extensions at top level

@@ -11,10 +11,10 @@
 #   ├── extension.json
 #   ├── commands/<cmd>.md
 #   ├── skills/<skill-name>/SKILL.md
-#   ├── knowledge/concepts/
 #   ├── knowledge/languages/
 #   ├── knowledge/detectors/
 #   ├── knowledge/protocols/
+#   ├── knowledge/standards/
 #   └── scripts/
 #       ├── secguardian-index      (shell wrapper)
 #       ├── secguardian-index.ps1  (powershell wrapper)
@@ -40,7 +40,7 @@ SecGuardian — Extension 打包脚本
   bash scripts/package.sh -h        # 显示此帮助
 
 构建流程:
-  1. 读取 extension.json 中的 skills/concepts/languages/detectors/protocols 清单
+  1. 读取 extension.json 中的 skills/languages/detectors/protocols/standards 清单
   2. 从 skills/ 目录复制 SKILL.md + references/
   3. 从 knowledge/ 目录复制对应的安全知识文件
   4. 从 commands/ 目录复制 slash command 定义
@@ -102,8 +102,9 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
     dist_dir="$DIST/$ext"
     rm -rf "$dist_dir"
     mkdir -p "$dist_dir/commands" "$dist_dir/skills" \
-             "$dist_dir/knowledge/concepts" "$dist_dir/knowledge/languages" \
+             "$dist_dir/knowledge/languages" \
              "$dist_dir/knowledge/detectors" "$dist_dir/knowledge/protocols" \
+             "$dist_dir/knowledge/standards" \
              "$dist_dir/scripts/bin"
 
     # Copy extension manifest

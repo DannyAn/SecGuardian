@@ -94,7 +94,7 @@ Skill: secaudit-taint-analysis
 
 ## 派发规则与执行步骤
 
-> **隔离约束**: 本命令只能加载 `secaudit-*` 前缀的 skill，禁止加载 `secguard-*` 或 `secreview-*` 前缀的任何文件。审计技能仅从 `skills/secaudit-{name}/SKILL.md` 路由。
+> **隔离约束**: 本命令只能加载 `skills/secguardian-xuanwu/` 扩展下的 `secaudit-*` 前缀 skill，禁止加载 `secguard-*` 或 `secreview-*` 前缀的任何文件。审计技能仅从 `skills/secguardian-xuanwu/secaudit-{name}/SKILL.md` 路由。
 
 你（AI Agent）在接收到 `/secaudit` 命令后，必须按以下步骤执行来构建索引并进行安全审计。
 
