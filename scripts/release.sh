@@ -76,14 +76,17 @@ log "Building extension packages..."
 cd "$PROJECT_ROOT"
 bash scripts/package.sh > /dev/null 2>&1
 
-# Claude Code: bundle all 3 extensions into one
+# Claude Code: official plugin format (.claude-plugin/plugin.json)
+bash scripts/deploy.sh cc > /dev/null 2>&1
 claude_zip="$OUTPUT/secguardian-${VERSION}-claude-code.zip"
 rm -f "$claude_zip"
-(cd dist && zip -rq "$claude_zip" secaudit-secguardian/ secguard-secguardian/ secreview-secguardian/)
-shasum -a 256 "$claude_zip" | cut -d' ' -f1 > "$claude_zip.sha256"
-done_msg "secguardian-${VERSION}-claude-code.zip ($(du -h "$claude_zip" | cut -f1))"
+if [ -d ".claude/plugins/secguardian" ]; then
+    (cd .claude/plugins && zip -rq "$claude_zip" secguardian/)
+    shasum -a 256 "$claude_zip" | cut -d' ' -f1 > "$claude_zip.sha256"
+    done_msg "secguardian-${VERSION}-claude-code.zip ($(du -h "$claude_zip" | cut -f1))"
+fi
 
-# OpenCode: commands + skills + knowledge + scripts
+# OpenCode: commands + skills/secguardian/ + knowledge + scripts
 bash scripts/deploy.sh nga > /dev/null 2>&1
 opencode_zip="$OUTPUT/secguardian-${VERSION}-opencode.zip"
 rm -f "$opencode_zip"
@@ -93,12 +96,12 @@ if [ -d ".opencode/commands" ]; then
     done_msg "secguardian-${VERSION}-opencode.zip ($(du -h "$opencode_zip" | cut -f1))"
 fi
 
-# Gemini CLI: commands + skills + knowledge + scripts + GEMINI.md
+# Gemini CLI: official extension format (.gemini/extensions/secguardian/)
 bash scripts/deploy.sh cac > /dev/null 2>&1
 gemini_zip="$OUTPUT/secguardian-${VERSION}-gemini-cli.zip"
 rm -f "$gemini_zip"
-if [ -d ".gemini/skills" ]; then
-    (cd .gemini && zip -rq "$gemini_zip" commands/ skills/ knowledge/ scripts/ GEMINI.md)
+if [ -d ".gemini/extensions/secguardian" ]; then
+    (cd .gemini/extensions && zip -rq "$gemini_zip" secguardian/)
     shasum -a 256 "$gemini_zip" | cut -d' ' -f1 > "$gemini_zip.sha256"
     done_msg "secguardian-${VERSION}-gemini-cli.zip ($(du -h "$gemini_zip" | cut -f1))"
 fi

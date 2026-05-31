@@ -28,9 +28,9 @@ SecGuardian — 部署脚本
 
 平台:
   all      三平台全部 (默认)
-  cc       Claude Code    → .claude/extensions/
-  nga      OpenCode       → .opencode/ (commands + skills + knowledge + scripts)
-  cac      Gemini CLI     → .gemini/ (commands + skills + knowledge + scripts)
+  cc       Claude Code    → .claude/plugins/secguardian/
+  nga      OpenCode       → .opencode/ (project) / ~/.config/opencode/ (user)
+  cac      Gemini CLI     → .gemini/extensions/secguardian/
 
 选项:
   --user       部署到用户家目录（推荐，跨项目共用）
@@ -136,25 +136,50 @@ deploy_binary() {
     return 1
 }
 
-# ── Claude Code ────────────────────────────────
+# ── Claude Code (Official Plugin Format) ──────────
+# Ref: https://code.claude.com/docs/en/plugins-reference
 deploy_claude() {
-    log_step "Claude Code → .claude/extensions/"
-    local ext_dir="$TARGET_ROOT/.claude/extensions"
-    mkdir -p "$ext_dir"
+    local plugin_name="secguardian"
+    local plugin_dir="$TARGET_ROOT/.claude/plugins/$plugin_name"
 
-    # Only remove our own extensions, leave others intact
-    for our_name in secguard-secguardian secaudit-secguardian secreview-secguardian; do
-        rm -rf "$ext_dir/$our_name"
-    done
+    log_step "Claude Code → .claude/plugins/$plugin_name/"
 
+    # Clean old: remove legacy extensions/ format AND old plugin
+    rm -rf "$TARGET_ROOT/.claude/extensions/secguard-secguardian" \
+           "$TARGET_ROOT/.claude/extensions/secaudit-secguardian" \
+           "$TARGET_ROOT/.claude/extensions/secreview-secguardian" \
+           "$plugin_dir"
+
+    mkdir -p "$plugin_dir/.claude-plugin" "$plugin_dir/commands" "$plugin_dir/skills"
+
+    # Write official plugin.json
+    cat > "$plugin_dir/.claude-plugin/plugin.json" << JSON
+{
+  "name": "secguardian",
+  "version": "0.5.0",
+  "description": "SecGuardian XuanWu — 企业级白盒安全 AI Agent 辅助解决方案。60 检测器、17 审计技能、5 语言安全检视。",
+  "author": { "name": "SecGuardian", "url": "https://gitee.com/jonyan/secguardian" },
+  "homepage": "https://gitee.com/jonyan/secguardian",
+  "keywords": ["security", "sast", "audit", "code-review", "vulnerability"]
+}
+JSON
+
+    local total_skills=0 total_cmds=0
     for d in "$DIST"/*/; do
-        local name=$(basename "$d")
-        rm -rf "$ext_dir/$name"  # Clean old version of this extension first
-        cp -r "$d" "$ext_dir/$name"
-        local s=$(find "$d/skills" -maxdepth 1 -type d 2>/dev/null | tail -n +2 | wc -l | tr -d ' ')
-        local c=$(ls "$d/commands/" 2>/dev/null | wc -l | tr -d ' ')
-        log_done "$name — $c commands, $s skills"
+        # Commands
+        if [ -d "$d/commands" ]; then
+            for f in "$d/commands"/*.md; do
+                [ -f "$f" ] && cp "$f" "$plugin_dir/commands/" && total_cmds=$((total_cmds + 1))
+            done
+        fi
+        # Skills
+        if [ -d "$d/skills" ]; then
+            for sd in "$d/skills"/*/; do
+                [ -d "$sd" ] && cp -r "$sd" "$plugin_dir/skills/$(basename "$sd")" && total_skills=$((total_skills + 1))
+            done
+        fi
     done
+    log_done "$total_cmds commands, $total_skills skills"
 
     deploy_binary "$PROJECT_ROOT/scripts" 2>/dev/null || true
 
@@ -167,53 +192,45 @@ deploy_claude() {
 
 # ── 卸载 ──────────────────────────────────────
 uninstall_claude() {
-    local ext_dir="$TARGET_ROOT/.claude/extensions"
-    local removed=0
-    for name in secguard-secguardian secaudit-secguardian secreview-secguardian; do
-        if [ -d "$ext_dir/$name" ]; then
-            rm -rf "$ext_dir/$name"
-            log_done "已移除: $ext_dir/$name"
-            removed=$((removed + 1))
-        fi
-    done
-    if [ "$removed" -eq 0 ]; then
-        log_info "Claude Code: 未找到已安装的 extension"
+    local plugin_dir="$TARGET_ROOT/.claude/plugins/secguardian"
+    local legacy_ext="$TARGET_ROOT/.claude/extensions"
+    if [ -d "$plugin_dir" ]; then
+        rm -rf "$plugin_dir"
+        log_done "已移除: $plugin_dir"
     fi
+    for name in secguard-secguardian secaudit-secguardian secreview-secguardian; do
+        [ -d "$legacy_ext/$name" ] && rm -rf "$legacy_ext/$name"
+    done
 }
 
 uninstall_opencode() {
     local oc_dir="$TARGET_ROOT/.opencode"
-    local removed=0
-    for sub in commands skills knowledge scripts; do
-        if [ -d "$oc_dir/$sub" ]; then
-            # Only remove if it looks like secguardian content
-            rm -rf "$oc_dir/$sub"
-            if [ "$sub" = "skills" ]; then
-                log_done "已移除: $oc_dir/$sub/ (25 个 skill)"
-            else
-                log_done "已移除: $oc_dir/$sub/"
+    local oc_user_dir="$HOME/.config/opencode"
+    for dir in "$oc_dir" "$oc_user_dir"; do
+        for sub in commands skills knowledge scripts; do
+            if [ -d "$dir/$sub" ]; then
+                rm -rf "$dir/$sub"
+                log_done "已移除: $dir/$sub"
             fi
-            removed=$((removed + 1))
-        fi
+        done
     done
-    if [ "$removed" -eq 0 ]; then
-        log_info "OpenCode: 未找到已安装的 secguardian 内容"
-    fi
 }
 
 uninstall_gemini() {
     local gm_dir="$TARGET_ROOT/.gemini"
-    local removed=0
+    local ext_dir="$TARGET_ROOT/.gemini/extensions/secguardian"
+    for dir in "$ext_dir"; do
+        if [ -d "$dir" ]; then
+            rm -rf "$dir"
+            log_done "已移除: $dir"
+        fi
+    done
     for sub in commands skills knowledge scripts GEMINI.md; do
         if [ -e "$gm_dir/$sub" ]; then
             rm -rf "$gm_dir/$sub"
             log_done "已移除: $gm_dir/$sub"
-            removed=$((removed + 1))
         fi
     done
-    if [ "$removed" -eq 0 ]; then
-        log_info "Gemini CLI: 未找到已安装的 secguardian 内容"
-    fi
 }
 
 do_uninstall() {
@@ -242,10 +259,16 @@ do_uninstall() {
 }
 
 # ── OpenCode ────────────────────────────────────
+# Ref: https://opencode.ai/docs/skills
+# User-level: ~/.config/opencode/  Project-level: <project>/.opencode/
 deploy_opencode() {
-    log_step "OpenCode → .opencode/ (完整布局: commands/ + skills/ + knowledge/ + scripts/)"
-
-    local opencode_dir="$TARGET_ROOT/.opencode"
+    if $DEPLOY_USER; then
+        local opencode_dir="$HOME/.config/opencode"
+        log_step "OpenCode → ~/.config/opencode/ (用户级)"
+    else
+        local opencode_dir="$TARGET_ROOT/.opencode"
+        log_step "OpenCode → .opencode/ (项目级)"
+    fi
     local cmd_dir="$opencode_dir/commands"
     local skills_dir="$opencode_dir/skills"
     local knowledge_dir="$opencode_dir/knowledge"
@@ -265,8 +288,8 @@ deploy_opencode() {
                 [ -f "$f" ] && cp "$f" "$cmd_dir/" && cmd_n=$((cmd_n + 1))
             done
         fi
-        # Skills: deploy under secguardian-xuanwu extension namespace
-        local ext_skills="$skills_dir/secguardian-xuanwu"
+        # Skills: deploy under secguardian extension namespace
+        local ext_skills="$skills_dir/secguardian"
         mkdir -p "$ext_skills"
         if [ -d "$d/skills" ]; then
             for sd in "$d/skills"/*/; do
@@ -308,46 +331,57 @@ deploy_opencode() {
     echo "    /secreview (command from .md file)"
 }
 
-# ── Gemini CLI ───────────────────────────────────
+# ── Gemini CLI (Official Extension Format) ──────
+# Ref: https://geminicli.com/docs/extensions/reference/
 deploy_gemini() {
-    log_step "Gemini CLI → .gemini/ (commands/ + skills/ + knowledge/ + scripts/)"
+    local ext_name="secguardian"
+    local ext_dir="$TARGET_ROOT/.gemini/extensions/$ext_name"
 
-    local gemini_dir="$TARGET_ROOT/.gemini"
-    local skills_dir="$gemini_dir/skills"
-    local cmd_dir="$gemini_dir/commands"
-    local knowledge_dir="$gemini_dir/knowledge"
-    local scripts_dir="$gemini_dir/scripts"
+    log_step "Gemini CLI → .gemini/extensions/$ext_name/"
 
-    # Clean and recreate target dirs
-    rm -rf "$skills_dir" "$cmd_dir" "$knowledge_dir" "$scripts_dir"
-    mkdir -p "$skills_dir" "$cmd_dir" "$scripts_dir/bin" \
-             "$knowledge_dir/languages" "$knowledge_dir/detectors" \
-             "$knowledge_dir/protocols" "$knowledge_dir/standards"
+    # Clean: remove old flat format AND old extension dir
+    rm -rf "$TARGET_ROOT/.gemini/commands" "$TARGET_ROOT/.gemini/skills" \
+           "$TARGET_ROOT/.gemini/knowledge" "$TARGET_ROOT/.gemini/scripts" \
+           "$TARGET_ROOT/.gemini/GEMINI.md" \
+           "$ext_dir"
+
+    mkdir -p "$ext_dir/commands" "$ext_dir/skills" \
+             "$ext_dir/knowledge/languages" "$ext_dir/knowledge/detectors" \
+             "$ext_dir/knowledge/protocols" "$ext_dir/knowledge/standards" \
+             "$ext_dir/scripts/bin"
+
+    # Write official gemini-extension.json
+    cat > "$ext_dir/gemini-extension.json" << JSON
+{
+  "name": "secguardian",
+  "version": "0.5.0",
+  "description": "SecGuardian XuanWu — 企业级白盒安全 AI Agent 辅助解决方案",
+  "author": "SecGuardian",
+  "homepage": "https://gitee.com/jonyan/secguardian",
+  "commands": ["commands/secaudit.toml", "commands/secguard.toml", "commands/secreview.toml"]
+}
+JSON
 
     local skill_n=0
-    local ext_skills="$skills_dir/secguardian-xuanwu"
-    mkdir -p "$ext_skills"
     for d in "$DIST"/*/; do
-        # Skills: deploy under secguardian-xuanwu extension namespace
         if [ -d "$d/skills" ]; then
             for sd in "$d/skills"/*/; do
-                [ -d "$sd" ] && cp -r "$sd" "$ext_skills/$(basename "$sd")" && skill_n=$((skill_n + 1))
+                [ -d "$sd" ] && cp -r "$sd" "$ext_dir/skills/$(basename "$sd")" && skill_n=$((skill_n + 1))
             done
         fi
-        # Knowledge: merge across all extensions at top level
         for cat in languages detectors protocols; do
             if [ -d "$d/knowledge/$cat" ]; then
-                find "$d/knowledge/$cat" -name '*.md' -exec cp {} "$knowledge_dir/$cat/" \;
+                find "$d/knowledge/$cat" -name '*.md' -exec cp {} "$ext_dir/knowledge/$cat/" \;
             fi
         done
     done
 
-    # Copy project-level knowledge (v2.0)
-    [ -f "$PROJECT_ROOT/knowledge/threat-catalog.md" ] && cp "$PROJECT_ROOT/knowledge/threat-catalog.md" "$knowledge_dir/"
-    [ -f "$PROJECT_ROOT/knowledge/report-template.md" ] && cp "$PROJECT_ROOT/knowledge/report-template.md" "$knowledge_dir/"
-    [ -d "$PROJECT_ROOT/knowledge/standards" ] && cp -r "$PROJECT_ROOT/knowledge/standards/"* "$knowledge_dir/standards/" 2>/dev/null || true
+    # Project-level knowledge (v2.0)
+    [ -f "$PROJECT_ROOT/knowledge/threat-catalog.md" ] && cp "$PROJECT_ROOT/knowledge/threat-catalog.md" "$ext_dir/knowledge/"
+    [ -f "$PROJECT_ROOT/knowledge/report-template.md" ] && cp "$PROJECT_ROOT/knowledge/report-template.md" "$ext_dir/knowledge/"
+    [ -d "$PROJECT_ROOT/knowledge/standards" ] && cp -r "$PROJECT_ROOT/knowledge/standards/"* "$ext_dir/knowledge/standards/" 2>/dev/null || true
 
-    # 自动从 .md 命令生成 TOML，再拷贝
+    # Generate TOML commands
     log_info "生成 Gemini TOML 命令..."
     bash "$PROJECT_ROOT/scripts/gen-toml.sh" > /dev/null
 
@@ -355,25 +389,21 @@ deploy_gemini() {
     local cmd_n=0
     if [ -d "$toml_src" ]; then
         for f in "$toml_src"/*.toml; do
-            cp "$f" "$cmd_dir/"; cmd_n=$((cmd_n + 1))
+            cp "$f" "$ext_dir/commands/"; cmd_n=$((cmd_n + 1))
         done
     fi
 
-    # Copy wrapper scripts and cross-platform binaries
+    # Wrapper scripts and binaries
     for wrapper in secguardian-index secguardian-index.ps1; do
-        if [ -f "$PROJECT_ROOT/scripts/$wrapper" ]; then
-            cp "$PROJECT_ROOT/scripts/$wrapper" "$scripts_dir/$wrapper"
-            chmod +x "$scripts_dir/$wrapper" 2>/dev/null || true
-        fi
+        [ -f "$PROJECT_ROOT/scripts/$wrapper" ] && cp "$PROJECT_ROOT/scripts/$wrapper" "$ext_dir/scripts/"
     done
+    chmod +x "$ext_dir/scripts/"* 2>/dev/null || true
     local bin_src="$PROJECT_ROOT/scripts/bin"
-    if [ -d "$bin_src" ]; then
-        cp -r "$bin_src/"* "$scripts_dir/bin/" 2>/dev/null || true
-        chmod +x "$scripts_dir/bin/"* 2>/dev/null || true
-    fi
+    [ -d "$bin_src" ] && cp -r "$bin_src/"* "$ext_dir/scripts/bin/" 2>/dev/null || true
+    chmod +x "$ext_dir/scripts/bin/"* 2>/dev/null || true
 
     # 生成 Gemini 上下文文件
-    cat > "$gemini_dir/GEMINI.md" << 'MD'
+    cat > "$ext_dir/GEMINI.md" << 'MD'
 # SecGuardian - 安全守卫
 
 本项目配置了 SecGuardian 安全扫描能力。

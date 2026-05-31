@@ -190,13 +190,14 @@ backup_dir() {
     fi
 }
 
-# ── 安装 Claude Code (用户级: ~/.claude/extensions/ ; 项目级: <project>/.claude/extensions/) ──
+# ── 安装 Claude Code (官方插件格式: ~/.claude/plugins/) ──
+# Ref: https://code.claude.com/docs/en/plugins-reference
 install_claude() {
     local label="Claude Code"
     if $USER_MODE; then
-        log_step "Claude Code → ~/.claude/extensions/ (用户级)"
+        log_step "Claude Code → ~/.claude/plugins/ (用户级)"
     else
-        log_step "Claude Code → .claude/extensions/ (项目级)"
+        log_step "Claude Code → .claude/plugins/ (项目级)"
     fi
 
     local zip_file=$(find_claude_zip)
@@ -206,37 +207,33 @@ install_claude() {
         return 1
     fi
 
-    local ext_dir="$TARGET/.claude/extensions"
+    local plugin_dir="$TARGET/.claude/plugins"
 
     if $DRY_RUN; then
-        echo "  [DRY-RUN] 解压 $zip_file → $ext_dir/"
+        echo "  [DRY-RUN] 解压 $zip_file → $plugin_dir/"
         return 0
     fi
 
-    # Back up our own extensions, then remove old versions
-    for our_name in secguard-secguardian secaudit-secguardian secreview-secguardian; do
-        if [ -d "$ext_dir/$our_name" ]; then
-            $NO_BACKUP || mv "$ext_dir/$our_name" "$ext_dir/${our_name}.backup.$(date +%Y%m%d-%H%M%S)"
-        fi
-        rm -rf "$ext_dir/$our_name"
-    done
-    mkdir -p "$ext_dir"
+    # Clean old legacy extensions format + old plugin
+    rm -rf "$TARGET/.claude/extensions/secguard-secguardian" \
+           "$TARGET/.claude/extensions/secaudit-secguardian" \
+           "$TARGET/.claude/extensions/secreview-secguardian" \
+           "$plugin_dir/secguardian"
 
-    unzip -qo "$zip_file" -d "$ext_dir/"
-    log_done "已安装到 $ext_dir/"
+    mkdir -p "$plugin_dir"
+    unzip -qo "$zip_file" -d "$plugin_dir/"
+    log_done "已安装到 $plugin_dir/secguardian/"
 
     # Make binaries executable
-    find "$ext_dir" -name 'secguardian-index*' -type f -exec chmod +x {} \; 2>/dev/null || true
-
-    local count=$(find "$ext_dir" -maxdepth 1 -type d | wc -l | tr -d ' ')
-    log_info "安装了 $((count - 1)) 个 extension"
+    find "$plugin_dir" -name 'secguardian-index*' -type f -exec chmod +x {} \; 2>/dev/null || true
 }
 
-# ── 安装 OpenCode (用户级: ~/.opencode/ ; 项目级: <project>/.opencode/) ──
+# ── 安装 OpenCode (用户级: ~/.config/opencode/ ; 项目级: <project>/.opencode/) ──
+# Ref: https://opencode.ai/docs/skills
 install_opencode() {
     local label="OpenCode"
     if $USER_MODE; then
-        log_step "OpenCode → ~/.opencode/ (用户级)"
+        log_step "OpenCode → ~/.config/opencode/ (用户级)"
     else
         log_step "OpenCode → .opencode/ (项目级)"
     fi
@@ -248,7 +245,11 @@ install_opencode() {
         return 1
     fi
 
-    local oc_dir="$TARGET/.opencode"
+    if $USER_MODE; then
+        local oc_dir="$HOME/.config/opencode"
+    else
+        local oc_dir="$TARGET/.opencode"
+    fi
 
     if $DRY_RUN; then
         echo "  [DRY-RUN] 解压 $zip_file → $oc_dir/"
@@ -266,13 +267,14 @@ install_opencode() {
     find "$oc_dir/scripts" -type f -exec chmod +x {} \; 2>/dev/null || true
 }
 
-# ── 安装 Gemini CLI (用户级: ~/.gemini/ ; 项目级: <project>/.gemini/) ──
+# ── 安装 Gemini CLI (官方扩展格式: ~/.gemini/extensions/) ──
+# Ref: https://geminicli.com/docs/extensions/reference/
 install_gemini() {
     local label="Gemini CLI"
     if $USER_MODE; then
-        log_step "Gemini CLI → ~/.gemini/ (用户级)"
+        log_step "Gemini CLI → ~/.gemini/extensions/ (用户级)"
     else
-        log_step "Gemini CLI → .gemini/ (项目级)"
+        log_step "Gemini CLI → .gemini/extensions/ (项目级)"
     fi
 
     local zip_file=$(find_gemini_zip)
@@ -282,19 +284,20 @@ install_gemini() {
         return 1
     fi
 
-    local gm_dir="$TARGET/.gemini"
+    if $USER_MODE; then
+        local gm_dir="$HOME/.gemini/extensions"
+    else
+        local gm_dir="$TARGET/.gemini/extensions"
+    fi
 
     if $DRY_RUN; then
         echo "  [DRY-RUN] 解压 $zip_file → $gm_dir/"
         return 0
     fi
 
-    $NO_BACKUP || backup_dir "$gm_dir"
-    rm -rf "$gm_dir"
     mkdir -p "$gm_dir"
-
     unzip -qo "$zip_file" -d "$gm_dir/"
-    log_done "已安装到 $gm_dir/"
+    log_done "已安装到 $gm_dir/secguardian/"
 
     # Make binaries executable
     find "$gm_dir/scripts" -type f -exec chmod +x {} \; 2>/dev/null || true

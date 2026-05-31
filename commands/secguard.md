@@ -83,7 +83,7 @@ Filters: memory.*, system.*
 
 ## 派发规则与执行步骤
 
-> **隔离约束**: 本命令只能加载 `skills/secguardian-xuanwu/` 扩展下的 `secguard-*` 前缀 skill，禁止加载 `secaudit-*` 或 `secreview-*` 前缀的任何文件。知识文件仅从 `knowledge/detectors/` 和 `knowledge/languages/` 加载。
+> **隔离约束**: 本命令只能加载 `skills/secguardian/` 扩展下的 `secguard-*` 前缀 skill，禁止加载 `secaudit-*` 或 `secreview-*` 前缀的任何文件。知识文件仅从 `knowledge/detectors/` 和 `knowledge/languages/` 加载。
 
 你（AI Agent）在接收到 `/secguard` 命令后，必须按以下步骤执行来构建索引并进行安全扫描。
 
