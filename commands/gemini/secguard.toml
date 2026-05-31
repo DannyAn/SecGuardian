@@ -35,56 +35,57 @@ SARIF 输出 (CI/CD 集成):
 
 ## 输出
 
-扫描结果写入 `.codeagent/secguard-secguardian/scans/<scan-id>/`：
+遵循 [Scan Output Protocol 2.0](../knowledge/protocols/scan-output.md)。人读/机读分离。
 
 ```
-.codeagent/secguard-secguardian/scans/2026-05-23T14-30-00-a1b2/
-├── manifest.json            # 扫描摘要 + 检出索引
-└── findings/
-    ├── C-001.json            # Critical 检出
-    ├── H-001.json            # High 检出
-    └── ...
+.codeagent/secguard-secguardian/scans/<scan-id>/
+├── report.md               # ★ 人读审计报告 (Markdown)
+├── results.sarif            # 机读: SARIF 2.1.0 (CI/CD)
+├── summary.json             # 仪表盘统计
+├── manifest.json            # 扫描元数据 + 检出索引
+├── status.json              # CI 门禁
+└── delta.json               # 增量对比 (vs 上次扫描)
 ```
-
-### 输出协议
-
-遵循 [Scan Output Protocol 1.0](../knowledge/protocols/scan-output.md)。
 
 **执行完毕后必须输出扫描摘要和 scan-id：**
 
 ```
 ## secguard 扫描完成
 
-Scan ID: 2026-05-23T14-30-00-a1b2
+Scan ID: sc-20260531-143000-a1b2
 Path: ./src
-Mode: git diff HEAD~1
+Mode: full
 Filters: memory.*, system.*
 
 ### 结果
-- 扫描文件: 12 (变更行: 95)
+- 扫描文件: 12, 扫描行: 450
 - 检测器: 18 matched, 8 executed
 - 检出: 3 (Critical: 1, High: 2)
+- 安全评分: 45/100 🔴
 
 ### 检出
-| ID | Severity | Detector | File |
-|----|----------|----------|------|
-| C-001 | Critical | memory.buffer-overflow | src/parser.c:42 |
-| H-001 | High | memory.null-dereference | src/network.c:305 |
-| H-002 | High | system.command-injection | src/executor.c:89 |
+| ID | Severity | Detector | File | 修复建议 |
+|----|----------|----------|------|---------|
+| C-001 | 🔴 Critical | memory.buffer-overflow | src/parser.c:42 | 使用 `snprintf(buf, sizeof(buf), ...)` 替代 `sprintf` |
+| H-001 | 🟠 High | memory.null-dereference | src/network.c:305 | malloc() 后检查 `if (!ptr) return ERR_NOMEM;` |
+| H-002 | 🟠 High | system.command-injection | src/executor.c:89 | 使用 `execve()` 参数数组替代 `system()` |
 
-输出目录: .codeagent/secguard-secguardian/scans/2026-05-23T14-30-00-a1b2/
+📄 完整报告: `.codeagent/secguard-secguardian/scans/sc-20260531-143000-a1b2/report.md`
+📊 SARIF: `.codeagent/secguard-secguardian/scans/sc-20260531-143000-a1b2/results.sarif`
 ```
 
 ## 命名空间
 
 | Namespace | 覆盖范围 | 检测器数 |
 |-----------|---------|---------|
-| `memory` | 内存安全 + 内存管理 | 12 |
+| `memory` | 内存安全 + 内存管理 | 13 |
 | `concurrency` | 并发安全 | 4 |
-| `system` | 系统安全 | 6 |
-| `crypto` | 加密与密钥 | 4 |
+| `system` | 系统安全 | 7 |
+| `crypto` | 加密与密钥 | 9 |
+| `web` | Web + 应用安全 | 22 |
+| `error` | 错误处理 + 信息泄露 | 6 |
 | `critical` | 所有 Critical 严重度 | 跨 namespace |
-| `*` (默认) | 全部 | 26 |
+| `*` (默认) | 全部 | 60 |
 
 ## 派发规则与执行步骤
 
