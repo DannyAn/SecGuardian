@@ -17,15 +17,16 @@
 
 ## 输出
 
-检视结果写入 `.codeagent/secreview-secguardian/scans/<scan-id>/`：
+遵循 [Scan Output Protocol 2.0](../knowledge/protocols/scan-output.md)。人读/机读分离。
 
 ```
-.codeagent/secreview-secguardian/scans/2026-05-23T14-30-00-c4d5/
-├── manifest.json            # 检视摘要 + 发现索引
-└── findings/
-    ├── H-001.json            # High 发现
-    ├── M-001.json            # Medium 发现
-    └── ...
+.codeagent/secreview-secguardian/scans/<scan-id>/
+├── report.md               # ★ 人读检视报告 (Markdown)
+├── results.sarif            # 机读: SARIF 2.1.0 (CI/CD)
+├── summary.json             # 仪表盘统计
+├── manifest.json            # 检视元数据 + 发现索引
+├── status.json              # CI 门禁
+└── delta.json               # 增量对比 (vs 上次扫描)
 ```
 
 ### 输出协议
@@ -47,13 +48,15 @@ Language: Java (auto-detected)
 - 检出: 5 (Critical: 0, High: 2, Medium: 3)
 
 ### 发现
-| ID | Severity | Category | File |
-|----|----------|----------|------|
-| H-001 | High | 异常吞掉 | src/service/UserService.java:89 |
-| H-002 | High | 字段注入 | src/controller/AdminController.java:23 |
-| M-001 | Medium | 日志含敏感信息 | src/handler/AuthHandler.java:156 |
-| M-002 | Medium | ThreadLocal 未清理 | src/filter/RequestFilter.java:42 |
-| M-003 | Medium | @Transactional 自调用 | src/service/OrderService.java:203 |
+| ID | Severity | Category | File | 修复建议 |
+|----|----------|----------|------|---------|
+| H-001 | High | 异常吞掉 | src/service/UserService.java:89 | 空 catch 块至少添加错误日志；安全关键操作（认证/鉴权）必须传播异常 |
+| H-002 | High | 字段注入 | src/controller/AdminController.java:23 | 使用构造函数注入替代 `@Autowired` 字段注入 |
+| M-001 | Medium | 日志含敏感信息 | src/handler/AuthHandler.java:156 | 日志脱敏：`logger.info("User: {}", username)` 而非 `logger.info(user.toString())` |
+| M-002 | Medium | ThreadLocal 未清理 | src/filter/RequestFilter.java:42 | 在 `finally` 块中调用 `ThreadLocal.remove()` |
+| M-003 | Medium | @Transactional 自调用 | src/service/OrderService.java:203 | 通过代理调用或提取到独立的 Service 方法 |
+
+> 每个发现的修复建议来自反模式检测矩阵和对应语言的 `## 修复指引` 节。
 
 输出目录: .codeagent/secreview-secguardian/scans/2026-05-23T14-30-00-c4d5/
 ```

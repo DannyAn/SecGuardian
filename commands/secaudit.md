@@ -26,15 +26,16 @@ SecAudit 是 SecGuardian 的旗舰产品——AI 深度安全审计。它替代�
 
 ## 输出
 
-审计结果写入 `.codeagent/secaudit-secguardian/scans/<scan-id>/`：
+遵循 [Scan Output Protocol 2.0](../knowledge/protocols/scan-output.md)。人读/机读分离。
 
 ```
-.codeagent/secaudit-secguardian/scans/2026-05-23T14-30-00-b3c4/
-├── manifest.json            # 审计摘要 + 发现索引
-└── findings/
-    ├── C-001.json            # Critical 发现
-    ├── H-001.json            # High 发现
-    └── ...
+.codeagent/secaudit-secguardian/scans/<scan-id>/
+├── report.md               # ★ 人读审计报告 (Markdown)
+├── results.sarif            # 机读: SARIF 2.1.0 (CI/CD)
+├── summary.json             # 仪表盘统计
+├── manifest.json            # 审计元数据 + 发现索引
+├── status.json              # CI 门禁
+└── delta.json               # 增量对比 (vs 上次扫描)
 ```
 
 ### 输出协议
@@ -169,7 +170,7 @@ print(f'Index OK: {len(d[\"files\"])} files, {len(d.get(\"symbols\",{}).get(\"fu
 
 - 如果用户未指定 skill-name，或输入为 `analysis` / `domain` / `list`，列出对应的 skills 列表。
 - 如果指定了具体的 skill-name，精确加载 `../skills/secaudit-{skill-name}/SKILL.md`。
-- 根据 `index.json` 提供的符号表和调用图、`SKILL.md` 的审计规范以及 `../knowledge/concepts/` 中相关的安全概念进行深度推理审计。
+- 根据 `index.json` 提供的符号表和调用图、`SKILL.md` 的审计规范以及 `../knowledge/detectors/` 中相关检测器的威胁定义进行深度推理审计。
 
 ### Step 4: 保存检出并输出摘要
 
