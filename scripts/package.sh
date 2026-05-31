@@ -142,16 +142,23 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
     done
     echo "    skills: $skill_count"
 
-    # Copy knowledge files declared in extension.json
-    concept_count=0
-    for concept in $(jq -r '.knowledge.concepts[]' "$ext_json"); do
-        cf="$PROJECT_ROOT/knowledge/concepts/${concept}.md"
-        if [ -f "$cf" ]; then
-            cp "$cf" "$dist_dir/knowledge/concepts/"
-            concept_count=$((concept_count + 1))
-        fi
-    done
-    echo "    concepts: $concept_count"
+    # Copy threat-catalog (v2.0: replaces concepts/)
+    if [ -f "$PROJECT_ROOT/knowledge/threat-catalog.md" ]; then
+        cp "$PROJECT_ROOT/knowledge/threat-catalog.md" "$dist_dir/knowledge/"
+    fi
+    # Copy standards if declared
+    std_count=0
+    if jq -e '.knowledge.standards' "$ext_json" > /dev/null 2>&1; then
+        for std in $(jq -r '.knowledge.standards[]' "$ext_json"); do
+            sf="$PROJECT_ROOT/knowledge/standards/${std}.md"
+            if [ -f "$sf" ]; then
+                mkdir -p "$dist_dir/knowledge/standards"
+                cp "$sf" "$dist_dir/knowledge/standards/"
+                std_count=$((std_count + 1))
+            fi
+        done
+    fi
+    echo "    standards: $std_count"
 
     lang_count=0
     for lang in $(jq -r '.knowledge.languages[]' "$ext_json"); do

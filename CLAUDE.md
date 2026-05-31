@@ -42,9 +42,10 @@ secguardian/
 ├── commands/              # 三个全局 slash command
 ├── skills/                # 每个 skill 一个目录 (SKILL.md + references/)
 ├── knowledge/             # 可复用知识库
-│   ├── concepts/          # 安全概念 (10)
-│   ├── languages/         # 语言画像 (4)
-│   ├── detectors/         # 检测规则 (26, 6 active)
+│   ├── threat-catalog.md   # 威胁目录索引
+│   ├── languages/          # 语言画像 (5)
+│   ├── detectors/          # 检测规则 (60, 自包含 WHAT+HOW+FIX)
+│   ├── standards/          # 业界标准映射 (4)
 │   └── protocols/         # 输出协议
 ├── extensions/            # extension 包定义
 ├── examples/              # 漏洞示例代码仓库

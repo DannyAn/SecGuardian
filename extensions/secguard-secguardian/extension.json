@@ -1,10 +1,10 @@
 {
   "name": "secguard-secguardian",
-  "version": "0.4.0",
-  "description": "安全加固项排查 - 对特定编程语言的特定安全问题给出扫描检测技能",
+  "version": "0.5.0",
+  "description": "安全加固项排查 — 60 个检测器覆盖 6 大安全分类",
   "author": "SecGuardian",
   "command": "secguard",
-  "protocol": "1.0",
+  "protocol": "2.0",
   "platforms": {
     "claude-code": {
       "entry": "commands/secguard.md"
@@ -17,84 +17,55 @@
     }
   },
   "skills": [
+    "cpp",
     "java",
     "python",
-    "cpp",
-    "go"
+    "go",
+    "js"
   ],
   "knowledge": {
     "protocols": [
       "scan-output",
       "sarif-output"
     ],
-    "concepts": [
-      "sql-injection",
-      "command-injection",
-      "xss",
-      "path-traversal",
-      "ssrf",
-      "deserialization",
-      "weak-cryptography",
-      "hardcoded-secrets",
-      "toctou",
-      "buffer-overflow"
-    ],
+    "threat_catalog": "knowledge/threat-catalog.md",
     "languages": [
+      "cpp",
       "java",
       "python",
-      "cpp",
-      "go"
+      "go",
+      "javascript"
+    ],
+    "standards": [
+      "sei-cert-c",
+      "sei-cert-cpp",
+      "sei-cert-java",
+      "owasp-cheatsheet-mapping"
     ],
     "detectors": [
-      "null-dereference",
-      "double-free",
-      "use-after-free",
-      "buffer-overflow",
-      "format-string",
-      "integer-overflow",
-      "heap-buffer-overflow",
-      "uninitialized-memory",
-      "memory-leak",
-      "mismatched-free",
-      "off-by-one",
-      "bad-cast",
-      "race-condition",
-      "deadlock",
-      "data-race",
-      "thread-unsafe-signal",
-      "command-injection",
-      "path-traversal",
-      "toctou",
-      "insecure-temp-file",
-      "symlink-attack",
-      "privilege-escalation",
-      "hardcoded-secrets",
-      "weak-random",
-      "weak-crypto-algorithm",
-      "insufficient-key-length",
-      "sql-injection",
-      "deserialization",
-      "code-injection",
-      "xss",
-      "ssrf",
-      "csrf",
-      "auth-bypass",
-      "idor",
-      "xxe",
-      "jwt-misuse",
-      "open-redirect",
-      "oob-read",
-      "input-validation",
-      "insecure-permissions",
-      "resource-exhaustion",
-      "missing-authentication",
-      "missing-authorization",
-      "unrestricted-upload"
+      "null-dereference", "double-free", "use-after-free",
+      "buffer-overflow", "format-string", "integer-overflow",
+      "heap-buffer-overflow", "uninitialized-memory", "memory-leak",
+      "mismatched-free", "off-by-one", "bad-cast", "oob-read",
+      "race-condition", "deadlock", "data-race", "thread-unsafe-signal",
+      "command-injection", "path-traversal", "toctou",
+      "insecure-temp-file", "symlink-attack", "privilege-escalation", "insecure-permissions",
+      "hardcoded-secrets", "weak-random", "weak-crypto-algorithm", "insufficient-key-length",
+      "crypto-aes-ecb-mode", "crypto-tls-version", "crypto-custom-crypto",
+      "crypto-password-storage", "crypto-hardcoded-iv",
+      "sql-injection", "deserialization", "code-injection",
+      "xss", "ssrf", "csrf", "auth-bypass", "idor", "xxe",
+      "jwt-misuse", "open-redirect", "input-validation", "resource-exhaustion",
+      "missing-authentication", "missing-authorization", "unrestricted-upload",
+      "web-mass-assignment", "web-excessive-data-exposure",
+      "web-nosql-injection", "web-prototype-pollution", "web-ssti",
+      "error-stack-trace-leak", "error-log-sensitive-data", "error-exception-swallow",
+      "error-unified-error-format", "error-debug-mode-production", "error-panic-to-client"
     ]
   },
   "output": {
     "base_dir": ".codeagent",
     "scans_dir": "scans",
-    "protocol": "scan-output/1.1"
+    "protocol": "scan-output/2.0"
   }
 }

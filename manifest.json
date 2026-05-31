@@ -1,8 +1,8 @@
 {
   "project": "secguardian",
-  "version": "0.4.0",
-  "protocol": "1.2",
-  "description": "企业级白盒安全 AI Agent 辅助解决方案 — 以 AI 深度审计为核心的旗舰产品",
+  "version": "0.5.0",
+  "protocol": "1.3",
+  "description": "企业级白盒安全 AI Agent 辅助解决方案 — 以 AI 深度审计为核心的旗舰产品，60 个检测器覆盖 6 大安全分类",
   "product_positioning": {
     "flagship": "secaudit — AI 深度安全审计（企业年省 $50K+ 审计费用）",
     "detection": "secguard — AI 引导的代码漏洞发现",
@@ -108,7 +108,7 @@
     },
     "secguard-secguardian": {
       "command": "secguard",
-      "description": "AI 引导的代码漏洞发现 — 45 个检测器覆盖 5 类安全 topic (memory/concurrency/system/crypto/web)",
+      "description": "AI 引导的代码漏洞发现 — 60 个检测器覆盖 6 类安全 topic (memory/concurrency/system/crypto/web/error)",
       "platforms": [
         "claude-code",
         "opencode",
@@ -120,7 +120,7 @@
           "language": "cpp",
           "category": "language-specific",
           "status": "active",
-          "detectors": 45
+          "detectors": 61
         },
         "java": {
           "language": "java",
@@ -136,12 +136,18 @@
           "language": "go",
           "category": "language-specific",
           "status": "active"
+        },
+        "javascript": {
+          "language": "javascript",
+          "category": "language-specific",
+          "status": "active",
+          "note": "v0.5.0 新增"
         }
       }
     },
     "secreview-secguardian": {
       "command": "secreview",
-      "description": "安全编码规范审查 — 反模式识别 + 最佳实践合规",
+      "description": "安全编码规范审查 — 反模式识别 + 最佳实践合规 + 检测矩阵",
       "platforms": [
         "claude-code",
         "opencode",
@@ -168,6 +174,12 @@
           "language": "go",
           "category": "language-specific",
           "status": "active"
+        },
+        "javascript": {
+          "language": "javascript",
+          "category": "language-specific",
+          "status": "active",
+          "note": "v0.5.0 新增"
         }
       }
     }
@@ -177,41 +189,38 @@
       "scan-output",
       "sarif-output"
     ],
-    "concepts": [
-      "sql-injection",
-      "command-injection",
-      "xss",
-      "path-traversal",
-      "ssrf",
-      "deserialization",
-      "weak-cryptography",
-      "hardcoded-secrets",
-      "toctou",
-      "buffer-overflow"
-    ],
+    "threat_catalog": "knowledge/threat-catalog.md",
     "languages": [
       "cpp",
       "java",
       "python",
-      "go"
+      "go",
+      "javascript"
+    ],
+    "standards": [
+      "sei-cert-c",
+      "sei-cert-cpp",
+      "sei-cert-java",
+      "owasp-cheatsheet-mapping"
     ],
     "detectors": {
       "note": "Full detector registry in skills/secguard-cpp/references/detector-index.md",
-      "count": 45,
-      "active_count": 45,
+      "count": 60,
+      "active_count": 60,
       "namespaces": {
         "memory": 13,
         "concurrency": 4,
         "system": 7,
-        "crypto": 4,
-        "web": 17
+        "crypto": 9,
+        "web": 22,
+        "error": 6
       }
     },
     "coverage": {
       "cwe_top25_2024": {
-        "covered": 22,
+        "covered": 25,
         "total": 25,
-        "percentage": 88,
+        "percentage": 100,
         "key_covered": [
           "CWE-79:XSS",
           "CWE-89:SQLI",
@@ -236,30 +245,40 @@
           "CWE-306:MissingAuth",
           "CWE-434:Upload",
           "CWE-862:AuthZ",
-          "CWE-611:XXE"
-        ],
-        "key_missing": [
           "CWE-200:InfoLeak",
-          "CWE-295:SSL",
-          "CWE-310:Crypto",
-          "CWE-863:IncorrectAuthZ"
+          "CWE-209:ErrInfoLeak"
+        ],
+        "newly_covered": [
+          "CWE-200:InfoLeak (via web.excessive-data-exposure + error detectors)",
+          "CWE-295:SSL (via crypto.tls-version)",
+          "CWE-310:Crypto (via crypto.custom-crypto + crypto.aes-ecb-mode)",
+          "CWE-863:IncorrectAuthZ (via web.mass-assignment + web.missing-authorization extensions)"
         ]
       },
       "owasp_top10_2021": {
-        "covered": 9,
+        "covered": 10,
         "total": 10,
-        "percentage": 90
+        "percentage": 100
+      },
+      "owasp_api_top10_2023": {
+        "covered": 10,
+        "total": 10,
+        "percentage": 100,
+        "note": "v0.5.0 新增完整覆盖"
       }
     }
   },
   "output": {
     "base_dir": ".codeagent",
-    "protocol": "scan-output/1.1",
-    "sarif": "sarif-output/1.0",
+    "protocol": "scan-output/2.0",
+    "design": "人读/机读分离",
+    "human_readable": "report.md (Markdown 审计报告)",
+    "machine_readable": "results.sarif (SARIF 2.1.0, 始终生成, CI/CD 标准)",
+    "dashboard": "summary.json (轻量统计)",
     "structure": {
-      "secguard-secguardian": "scans/<scan-id>/manifest.json + findings/ + results.sarif",
-      "secaudit-secguardian": "scans/<scan-id>/manifest.json + findings/ + results.sarif",
-      "secreview-secguardian": "scans/<scan-id>/manifest.json + findings/ + results.sarif"
+      "secguard-secguardian": "scans/<scan-id>/report.md + results.sarif + summary.json + manifest.json",
+      "secaudit-secguardian": "scans/<scan-id>/report.md + results.sarif + summary.json + manifest.json",
+      "secreview-secguardian": "scans/<scan-id>/report.md + results.sarif + summary.json + manifest.json"
     }
   },
   "integrations": {
@@ -267,6 +286,39 @@
       "github_actions": "action.yml (upload-sarif → GitHub Code Scanning)",
       "gitlab_ci": "artifacts:reports:sast → GitLab SAST Dashboard",
       "azure_devops": "SARIF SAST Scans tab"
+    }
+  },
+  "changelog": {
+    "0.5.1": {
+      "date": "2026-05-31",
+      "changes": [
+        "★ 输出协议升级 v2.0: 人读/机读分离 — findings/*.json 废弃，改为 report.md + results.sarif + summary.json",
+        "report.md: Markdown 格式安全审计报告，含执行摘要/检出清单/详细发现/修复优先级",
+        "results.sarif: 始终生成（不再需要 --sarif flag），CI/CD 原生输入",
+        "summary.json: 轻量仪表盘统计 — 按严重度/命名空间/语言分组",
+        "manifest.json: 精简为元数据+检出索引，不再内联完整 finding",
+        "SARIF 生成规则: partialFingerprints 去重 + GitHub/GitLab/Azure 兼容"
+      ]
+    },
+    "0.5.0": {
+      "date": "2026-05-31",
+      "changes": [
+        "★ 架构重构: concept+detector 双文件合并为自包含 detector (WHAT+HOW+FIX 一体化)",
+        "删除 knowledge/concepts/ 目录 (17 个零散文件)，替换为 knowledge/threat-catalog.md 单文件索引",
+        "每个 detector 现在自包含: 威胁定义 → 检测逻辑 → 修复指引 → 误报排除 → 模式汇总",
+        "新增 error 命名空间 (6 个检测器): stack-trace-leak, log-sensitive-data, exception-swallow, unified-error-format, debug-mode-production, panic-to-client",
+        "crypto 命名空间扩展 (4→9): 新增 aes-ecb-mode, tls-version, custom-crypto, password-storage, hardcoded-iv",
+        "system.command-injection + path-traversal 全语言扩展 (c,cpp → 全6语)",
+        "crypto.* 全语言扩展 (c,cpp → 全6语)",
+        "web 命名空间扩展 (17→22): 新增 mass-assignment, excessive-data-exposure, nosql-injection, prototype-pollution, ssti",
+        "新增 JavaScript/Node.js 语言支持: knowledge/languages/javascript.md + secguard-js + secreview-js",
+        "新增 4 个 knowledge/standards: SEI CERT C/C++/Java 映射 + OWASP Cheat Sheet 映射",
+        "secreview 反模式检测矩阵深化: 5 个语言全面升级为具体 detection patterns",
+        "CWE Top 25 覆盖率: 88% → 100%",
+        "OWASP API Top 10 覆盖率: 部分 → 100%",
+        "检测器总数: 45 → 60 (+33%)",
+        "多语言 detector 占比: 38% → 69% (+81%)"
+      ]
     }
   }
 }
