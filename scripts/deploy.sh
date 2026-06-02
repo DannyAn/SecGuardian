@@ -142,7 +142,11 @@ deploy_claude() {
     local plugin_name="secguardian"
     local plugin_dir="$TARGET_ROOT/.claude/plugins/$plugin_name"
 
-    log_step "Claude Code → .claude/plugins/$plugin_name/"
+    if $DEPLOY_USER; then
+        log_step "Claude Code → ~/.claude/plugins/$plugin_name/ (用户级)"
+    else
+        log_step "Claude Code → .claude/plugins/$plugin_name/ (项目级)"
+    fi
 
     # Clean old: remove legacy extensions/ format AND old plugin
     rm -rf "$TARGET_ROOT/.claude/extensions/secguard-secguardian" \
@@ -150,9 +154,14 @@ deploy_claude() {
            "$TARGET_ROOT/.claude/extensions/secreview-secguardian" \
            "$plugin_dir"
 
-    mkdir -p "$plugin_dir/.claude-plugin" "$plugin_dir/commands" "$plugin_dir/skills"
+    mkdir -p "$plugin_dir/.claude-plugin" "$plugin_dir/commands" "$plugin_dir/skills" \
+             "$plugin_dir/knowledge/languages" "$plugin_dir/knowledge/detectors" \
+             "$plugin_dir/knowledge/cheatsheets" \
+             "$plugin_dir/knowledge/protocols" "$plugin_dir/knowledge/standards" \
+             "$plugin_dir/scripts/bin"
 
     # Write official plugin.json
+    # NOTE: version "0.5.0" below should match manifest.json version
     cat > "$plugin_dir/.claude-plugin/plugin.json" << JSON
 {
   "name": "secguardian",
@@ -178,10 +187,33 @@ JSON
                 [ -d "$sd" ] && cp -r "$sd" "$plugin_dir/skills/$(basename "$sd")" && total_skills=$((total_skills + 1))
             done
         fi
+        # Knowledge: merge across all extensions
+        for cat in languages detectors cheatsheets protocols; do
+            if [ -d "$d/knowledge/$cat" ]; then
+                find "$d/knowledge/$cat" -name '*.md' -exec cp {} "$plugin_dir/knowledge/$cat/" \;
+            fi
+        done
     done
     log_done "$total_cmds commands, $total_skills skills"
 
-    deploy_binary "$PROJECT_ROOT/scripts" 2>/dev/null || true
+    # Copy project-level knowledge (v2.0)
+    [ -f "$PROJECT_ROOT/knowledge/threat-catalog.md" ] && cp "$PROJECT_ROOT/knowledge/threat-catalog.md" "$plugin_dir/knowledge/"
+    [ -f "$PROJECT_ROOT/knowledge/report-template.md" ] && cp "$PROJECT_ROOT/knowledge/report-template.md" "$plugin_dir/knowledge/"
+    [ -d "$PROJECT_ROOT/knowledge/standards" ] && cp -r "$PROJECT_ROOT/knowledge/standards/"* "$plugin_dir/knowledge/standards/" 2>/dev/null || true
+
+    # Copy wrapper scripts and binaries into plugin
+    for wrapper in secguardian-index secguardian-index.ps1; do
+        if [ -f "$PROJECT_ROOT/scripts/$wrapper" ]; then
+            cp "$PROJECT_ROOT/scripts/$wrapper" "$plugin_dir/scripts/$wrapper"
+            chmod +x "$plugin_dir/scripts/$wrapper" 2>/dev/null || true
+        fi
+    done
+    local bin_src="$PROJECT_ROOT/scripts/bin"
+    if [ -d "$bin_src" ]; then
+        cp "$bin_src/"secguardian-index-* "$plugin_dir/scripts/bin/" 2>/dev/null || true
+        chmod +x "$plugin_dir/scripts/bin/"* 2>/dev/null || true
+        log_done "cross-platform binaries in .claude/plugins/$plugin_name/scripts/bin/"
+    fi
 
     echo ""
     log_info "Claude Code 命令（重启后生效）:"
@@ -198,19 +230,34 @@ uninstall_claude() {
         rm -rf "$plugin_dir"
         log_done "已移除: $plugin_dir"
     fi
+    # Clean legacy extension-format plugins
     for name in secguard-secguardian secaudit-secguardian secreview-secguardian; do
         [ -d "$legacy_ext/$name" ] && rm -rf "$legacy_ext/$name"
     done
+    # Clean legacy binary deployed outside plugin
+    [ -f "$PROJECT_ROOT/scripts/secguardian-index" ] && rm -f "$PROJECT_ROOT/scripts/secguardian-index"
 }
 
 uninstall_opencode() {
+    local brand="secguardian"
     local oc_dir="$TARGET_ROOT/.opencode"
     local oc_user_dir="$HOME/.config/opencode"
-    for dir in "$oc_dir" "$oc_user_dir"; do
+    for base in "$oc_dir" "$oc_user_dir"; do
+        local plugin_dir="$base/plugins/$brand"
+        if [ -d "$plugin_dir" ]; then
+            rm -rf "$plugin_dir"
+            log_done "已移除: $plugin_dir"
+        fi
+        # Clean legacy flat deployment if present
         for sub in commands skills knowledge scripts; do
-            if [ -d "$dir/$sub" ]; then
-                rm -rf "$dir/$sub"
-                log_done "已移除: $dir/$sub"
+            if [ -d "$base/$sub" ]; then
+                # Only remove if it was our deployment
+                if [ -f "$base/$sub/secaudit.md" ] || \
+                   [ -f "$base/$sub/secguard.md" ] || \
+                   [ -d "$base/$sub/secaudit-attack-surface-analysis" ]; then
+                    rm -rf "$base/$sub"
+                    log_done "已移除 (legacy): $base/$sub"
+                fi
             fi
         done
     done
@@ -259,26 +306,57 @@ do_uninstall() {
 }
 
 # ── OpenCode ────────────────────────────────────
-# Ref: https://opencode.ai/docs/skills
-# User-level: ~/.config/opencode/  Project-level: <project>/.opencode/
+# Ref: https://opencode.ai/docs/plugins
+# OpenCode discovers plugins from: ~/.config/opencode/ (user) and .opencode/ (project)
+# Project-level plugins go under .opencode/plugins/<brand-name>/
+# Top-level .opencode/commands/ and .opencode/skills/ are for handwritten files only
 deploy_opencode() {
+    local brand="secguardian"
     if $DEPLOY_USER; then
         local opencode_dir="$HOME/.config/opencode"
-        log_step "OpenCode → ~/.config/opencode/ (用户级)"
+        log_step "OpenCode → ~/.config/opencode/plugins/$brand/ (用户级)"
     else
         local opencode_dir="$TARGET_ROOT/.opencode"
-        log_step "OpenCode → .opencode/ (项目级)"
+        log_step "OpenCode → .opencode/plugins/$brand/ (项目级)"
     fi
-    local cmd_dir="$opencode_dir/commands"
-    local skills_dir="$opencode_dir/skills"
-    local knowledge_dir="$opencode_dir/knowledge"
-    local scripts_dir="$opencode_dir/scripts"
+    local plugin_dir="$opencode_dir/plugins/$brand"
+    local cmd_dir="$plugin_dir/commands"
+    local skills_dir="$plugin_dir/skills"
+    local knowledge_dir="$plugin_dir/knowledge"
+    local scripts_dir="$plugin_dir/scripts"
 
-    # Clean and recreate target dirs
-    rm -rf "$cmd_dir" "$skills_dir" "$knowledge_dir" "$scripts_dir"
+    # Clean old: remove legacy flat deployment AND old plugin dir
+    # (legacy: .opencode/commands/, .opencode/skills/, .opencode/knowledge/, .opencode/scripts/)
+    for legacy_sub in commands skills knowledge scripts; do
+        if [ -d "$opencode_dir/$legacy_sub" ]; then
+            # Only remove if it was our deployment (detect by presence of our files)
+            if [ -f "$opencode_dir/$legacy_sub/secaudit.md" ] || \
+               [ -f "$opencode_dir/$legacy_sub/secguard.md" ] || \
+               [ -d "$opencode_dir/$legacy_sub/secaudit-attack-surface-analysis" ] || \
+               [ -d "$opencode_dir/$legacy_sub/threat-catalog.md" ] || \
+               [ -f "$opencode_dir/$legacy_sub/secguardian-index" ]; then
+                rm -rf "$opencode_dir/$legacy_sub"
+                log_info "removed legacy flat deployment: $legacy_sub/"
+            fi
+        fi
+    done
+    rm -rf "$plugin_dir"
+
     mkdir -p "$cmd_dir" "$skills_dir" "$scripts_dir/bin" \
              "$knowledge_dir/languages" "$knowledge_dir/detectors" \
+             "$knowledge_dir/cheatsheets" \
              "$knowledge_dir/protocols" "$knowledge_dir/standards"
+
+    # Write plugin.json
+    cat > "$plugin_dir/plugin.json" << JSON
+{
+  "name": "$brand",
+  "version": "0.5.0",
+  "description": "SecGuardian XuanWu — 企业级白盒安全 AI Agent 辅助解决方案。60 检测器、17 审计技能、5 语言安全检视。",
+  "author": { "name": "SecGuardian", "url": "https://gitee.com/jonyan/secguardian" },
+  "keywords": ["security", "sast", "audit", "code-review", "vulnerability"]
+}
+JSON
 
     local cmd_n=0 skill_n=0
     for d in "$DIST"/*/; do
@@ -288,16 +366,14 @@ deploy_opencode() {
                 [ -f "$f" ] && cp "$f" "$cmd_dir/" && cmd_n=$((cmd_n + 1))
             done
         fi
-        # Skills: deploy under secguardian extension namespace
-        local ext_skills="$skills_dir/secguardian"
-        mkdir -p "$ext_skills"
+        # Skills: deploy under brand namespace
         if [ -d "$d/skills" ]; then
             for sd in "$d/skills"/*/; do
-                [ -d "$sd" ] && cp -r "$sd" "$ext_skills/$(basename "$sd")" && skill_n=$((skill_n + 1))
+                [ -d "$sd" ] && cp -r "$sd" "$skills_dir/$(basename "$sd")" && skill_n=$((skill_n + 1))
             done
         fi
         # Knowledge: merge across all extensions
-        for cat in languages detectors protocols; do
+        for cat in languages detectors cheatsheets protocols; do
             if [ -d "$d/knowledge/$cat" ]; then
                 find "$d/knowledge/$cat" -name '*.md' -exec cp {} "$knowledge_dir/$cat/" \;
             fi
@@ -319,9 +395,9 @@ deploy_opencode() {
     done
     local bin_src="$PROJECT_ROOT/scripts/bin"
     if [ -d "$bin_src" ]; then
-        cp -r "$bin_src/"* "$scripts_dir/bin/" 2>/dev/null || true
+        cp "$bin_src/"secguardian-index-* "$scripts_dir/bin/" 2>/dev/null || true
         chmod +x "$scripts_dir/bin/"* 2>/dev/null || true
-        log_done "cross-platform binaries in .opencode/scripts/bin/"
+        log_done "cross-platform binaries in .opencode/plugins/$brand/scripts/bin/"
     fi
 
     echo ""
@@ -347,10 +423,12 @@ deploy_gemini() {
 
     mkdir -p "$ext_dir/commands" "$ext_dir/skills" \
              "$ext_dir/knowledge/languages" "$ext_dir/knowledge/detectors" \
+             "$ext_dir/knowledge/cheatsheets" \
              "$ext_dir/knowledge/protocols" "$ext_dir/knowledge/standards" \
              "$ext_dir/scripts/bin"
 
     # Write official gemini-extension.json
+    # NOTE: version "0.5.0" below should match manifest.json version
     cat > "$ext_dir/gemini-extension.json" << JSON
 {
   "name": "secguardian",
@@ -369,7 +447,7 @@ JSON
                 [ -d "$sd" ] && cp -r "$sd" "$ext_dir/skills/$(basename "$sd")" && skill_n=$((skill_n + 1))
             done
         fi
-        for cat in languages detectors protocols; do
+        for cat in languages detectors cheatsheets protocols; do
             if [ -d "$d/knowledge/$cat" ]; then
                 find "$d/knowledge/$cat" -name '*.md' -exec cp {} "$ext_dir/knowledge/$cat/" \;
             fi
@@ -399,7 +477,7 @@ JSON
     done
     chmod +x "$ext_dir/scripts/"* 2>/dev/null || true
     local bin_src="$PROJECT_ROOT/scripts/bin"
-    [ -d "$bin_src" ] && cp -r "$bin_src/"* "$ext_dir/scripts/bin/" 2>/dev/null || true
+    [ -d "$bin_src" ] && cp "$bin_src/"secguardian-index-* "$ext_dir/scripts/bin/" 2>/dev/null || true
     chmod +x "$ext_dir/scripts/bin/"* 2>/dev/null || true
 
     # 生成 Gemini 上下文文件

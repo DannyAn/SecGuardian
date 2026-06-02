@@ -46,16 +46,12 @@ SecAudit 是 SecGuardian 的旗舰产品——AI 深度安全审计。它替代�
 └── delta.json               # 增量对比 (vs 上次扫描)
 ```
 
-### 输出协议
-
-遵循 [Scan Output Protocol 1.0](../knowledge/protocols/scan-output.md)。
-
 **执行完毕后必须输出审计摘要：**
 
 ```
 ## secaudit 审计完成 — taint-analysis
 
-Scan ID: 2026-05-23T14-30-00-b3c4
+Scan ID: sec-20260523-143000-b3c4
 Skill: secaudit-taint-analysis
 
 ### 结果
@@ -70,7 +66,7 @@ Skill: secaudit-taint-analysis
 | C-002 | Critical | File upload → os.system | src/upload.py:108 |
 | H-001 | High | Cookie → response.write | src/middleware.js:56 |
 
-输出目录: .codeagent/secaudit-secguardian/scans/2026-05-23T14-30-00-b3c4/
+输出目录: .codeagent/secaudit-secguardian/scans/sec-20260523-143000-b3c4/
 ```
 
 ## 可用 Skills
@@ -102,13 +98,15 @@ Skill: secaudit-taint-analysis
 
 ## 派发规则与执行步骤
 
+> **隔离约束**: 本命令只能加载 `skills/` 扩展下的 `secaudit-*` 前缀 skill，禁止加载 `secguard-*` 或 `secreview-*` 前缀的任何文件。审计技能仅从 `skills/secaudit-{name}/SKILL.md` 路由。
+
 你（AI Agent）在接收到 `/secaudit` 命令后，必须按以下步骤执行来构建索引并进行安全审计。
 
 ### 前置检查（Pre-flight Checklist）
 
 在执行任何审计步骤之前，必须逐项确认以下所有条件。**任一项未通过，审计不得开始，向用户报告具体错误。**
 
-- [ ] 定位索引器 wrapper：检查 `.opencode/scripts/secguardian-index`、`.gemini/scripts/secguardian-index`、`.claude/extensions/*/scripts/secguardian-index`，或 `scripts/secguardian-index`（至少一个存在且可执行）
+- [ ] 定位索引器 wrapper：检查 `.opencode/plugins/secguardian/scripts/secguardian-index`、`.gemini/extensions/secguardian/scripts/secguardian-index`、`.claude/plugins/secguardian/scripts/secguardian-index`、`.claude/extensions/*/scripts/secguardian-index`，或 `scripts/secguardian-index`（至少一个存在且可执行）
 - [ ] 执行 `{indexer} --health` 通过（输出必须包含 `HEALTH:OK` 或 `HEALTH:WARN`，不接受 `HEALTH:FAIL`）
 - [ ] 目标路径 `<path>` 存在且包含至少一个源码文件
 
@@ -132,8 +130,9 @@ Skill: secaudit-taint-analysis
 # 定位 wrapper（按优先级尝试）
 INDEXER=""
 for candidate in \
-    .opencode/scripts/secguardian-index \
-    .gemini/scripts/secguardian-index \
+    .opencode/plugins/secguardian/scripts/secguardian-index \
+    .gemini/extensions/secguardian/scripts/secguardian-index \
+	    .claude/plugins/secguardian/scripts/secguardian-index \
     .claude/extensions/secaudit-secguardian/scripts/secguardian-index \
     .claude/extensions/secguard-secguardian/scripts/secguardian-index \
     .claude/extensions/secreview-secguardian/scripts/secguardian-index \
@@ -179,6 +178,7 @@ print(f'Index OK: {len(d[\"files\"])} files, {len(d.get(\"symbols\",{}).get(\"fu
 - 如果用户未指定 skill-name，或输入为 `analysis` / `domain` / `list`，列出对应的 skills 列表。
 - 如果指定了具体的 skill-name，精确加载 `../skills/secaudit-{skill-name}/SKILL.md`。
 - 根据 `index.json` 提供的符号表和调用图、`SKILL.md` 的审计规范以及 `../knowledge/detectors/` 中相关检测器的威胁定义进行深度推理审计。
+- **同步加载 `../knowledge/cheatsheets/<domain>.md`** — 每个审计 skill 在 SKILL.md 中声明了其对应的 cheatsheet（如 cryptography → crypto-algorithms.md），提供跨语言全景速查。
 
 ### Step 4: 保存检出并输出摘要
 

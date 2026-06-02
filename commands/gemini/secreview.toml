@@ -37,10 +37,6 @@ prompt = """
 └── delta.json               # 增量对比 (vs 上次扫描)
 ```
 
-### 输出协议
-
-遵循 [Scan Output Protocol 1.0](../knowledge/protocols/scan-output.md)。
-
 **执行完毕后必须输出检视摘要：**
 
 ```
@@ -80,13 +76,15 @@ Language: Java (auto-detected)
 
 ## 派发规则与执行步骤
 
+> **隔离约束**: 本命令只能加载 `skills/` 扩展下的 `secreview-*` 前缀 skill，禁止加载 `secguard-*` 或 `secaudit-*` 前缀的任何文件。反模式检测矩阵仅从 `skills/secreview-{language}/SKILL.md` 和对应 `references/` 加载。
+
 你（AI Agent）在接收到 `/secreview` 命令后，必须按以下步骤执行来构建索引并进行安全编码规范检视。
 
 ### 前置检查（Pre-flight Checklist）
 
 在执行任何检视步骤之前，必须逐项确认以下所有条件。**任一项未通过，检视不得开始，向用户报告具体错误。**
 
-- [ ] 定位索引器 wrapper：检查 `.opencode/scripts/secguardian-index`、`.gemini/scripts/secguardian-index`、`.claude/extensions/*/scripts/secguardian-index`，或 `scripts/secguardian-index`（至少一个存在且可执行）
+- [ ] 定位索引器 wrapper：检查 `.opencode/plugins/secguardian/scripts/secguardian-index`、`.gemini/extensions/secguardian/scripts/secguardian-index`、`.claude/plugins/secguardian/scripts/secguardian-index`、`.claude/extensions/*/scripts/secguardian-index`，或 `scripts/secguardian-index`（至少一个存在且可执行）
 - [ ] 执行 `{indexer} --health` 通过（输出必须包含 `HEALTH:OK` 或 `HEALTH:WARN`，不接受 `HEALTH:FAIL`）
 - [ ] 目标路径 `<path>` 存在且包含至少一个源码文件
 
@@ -110,8 +108,9 @@ Language: Java (auto-detected)
 # 定位 wrapper（按优先级尝试）
 INDEXER=""
 for candidate in \
-    .opencode/scripts/secguardian-index \
-    .gemini/scripts/secguardian-index \
+    .opencode/plugins/secguardian/scripts/secguardian-index \
+    .gemini/extensions/secguardian/scripts/secguardian-index \
+	    .claude/plugins/secguardian/scripts/secguardian-index \
     .claude/extensions/secreview-secguardian/scripts/secguardian-index \
     .claude/extensions/secguard-secguardian/scripts/secguardian-index \
     .claude/extensions/secaudit-secguardian/scripts/secguardian-index \
@@ -156,6 +155,7 @@ print(f'Index OK: {len(d[\"files\"])} files, {len(d.get(\"symbols\",{}).get(\"fu
 - 通过 `index.json` 中的文件扩展名分布自动检测目标语言。
 - 加载对应语言的 skill：`../skills/secreview-{language}/SKILL.md`。
 - 参考 `../knowledge/languages/{language}.md` 中的危险 API 列表和框架安全说明。
+- **按需加载 `../knowledge/cheatsheets/<domain>.md`** 获取跨语言安全速查表，辅助反模式判定。
 - **利用 index.json 中的符号表定位检视目标**，而非逐文件遍历。
 
 ### Step 4: 保存检出并输出摘要

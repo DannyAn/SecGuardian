@@ -83,7 +83,7 @@ Filters: memory.*, system.*
 
 ## 派发规则与执行步骤
 
-> **隔离约束**: 本命令只能加载 `skills/secguardian/` 扩展下的 `secguard-*` 前缀 skill，禁止加载 `secaudit-*` 或 `secreview-*` 前缀的任何文件。知识文件仅从 `knowledge/detectors/` 和 `knowledge/languages/` 加载。
+> **隔离约束**: 本命令只能加载 `skills/` 扩展下的 `secguard-*` 前缀 skill，禁止加载 `secaudit-*` 或 `secreview-*` 前缀的任何文件。知识文件仅从 `knowledge/detectors/` 和 `knowledge/languages/` 加载。
 
 你（AI Agent）在接收到 `/secguard` 命令后，必须按以下步骤执行来构建索引并进行安全扫描。
 
@@ -91,7 +91,7 @@ Filters: memory.*, system.*
 
 在执行任何扫描步骤之前，必须逐项确认以下所有条件。**任一项未通过，扫描不得开始，向用户报告具体错误。**
 
-- [ ] 定位索引器 wrapper：检查 `.opencode/scripts/secguardian-index`、`.gemini/scripts/secguardian-index`、`.claude/extensions/*/scripts/secguardian-index`，或 `scripts/secguardian-index`（至少一个存在且可执行）
+- [ ] 定位索引器 wrapper：检查 `.opencode/plugins/secguardian/scripts/secguardian-index`、`.gemini/extensions/secguardian/scripts/secguardian-index`、`.claude/plugins/secguardian/scripts/secguardian-index`、`.claude/extensions/*/scripts/secguardian-index`，或 `scripts/secguardian-index`（至少一个存在且可执行）
 - [ ] 执行 `{indexer} --health` 通过（输出必须包含 `HEALTH:OK` 或 `HEALTH:WARN`，不接受 `HEALTH:FAIL`）
 - [ ] 目标路径 `<path>` 存在且包含至少一个源码文件
 
@@ -115,8 +115,9 @@ Filters: memory.*, system.*
 # 定位 wrapper（按优先级尝试）
 INDEXER=""
 for candidate in \
-    .opencode/scripts/secguardian-index \
-    .gemini/scripts/secguardian-index \
+    .opencode/plugins/secguardian/scripts/secguardian-index \
+    .gemini/extensions/secguardian/scripts/secguardian-index \
+	    .claude/plugins/secguardian/scripts/secguardian-index \
     .claude/extensions/secguard-secguardian/scripts/secguardian-index \
     .claude/extensions/secaudit-secguardian/scripts/secguardian-index \
     .claude/extensions/secreview-secguardian/scripts/secguardian-index \
@@ -163,6 +164,7 @@ print(f'Index OK: {len(d[\"files\"])} files, {len(d.get(\"symbols\",{}).get(\"fu
 - 读取 `skills/secguard-cpp/references/detector-index.md`，根据命名空间过滤 active 状态的检测器。
 - 按 Critical → High → Medium 排序执行。
 - 对每一个匹配到的检测器，加载 `../knowledge/detectors/<name>.md` 中的检测逻辑。
+- **按需加载 `../knowledge/cheatsheets/<domain>.md`** 获取跨语言安全速查表（如 crypto-algorithms、injection-patterns），辅助全景判断。
 - **利用 index.json 中的符号表和调用图定位检测目标**，而非逐文件遍历。
 - 增量模式（`git diff`）下，仅分析由 diff 识别的变更行。
 
