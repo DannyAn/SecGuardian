@@ -249,12 +249,22 @@ if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
 fi
 ok "Release v$VERSION created (ID: $RELEASE_ID)"
 
-# ── 4. 上传产物 ────────────────────────────
+# ── 4. 上传产物（幂等：跳过已存在的同名文件） ──
 log "Uploading ${#ARTIFACTS[@]} artifacts..."
 UPLOAD_URL="${GITEE_API}/releases/${RELEASE_ID}/attach_files"
 
+# Fetch existing assets to avoid duplicates
+EXISTING_ASSETS=$(curl -s "${GITEE_API}/releases/${RELEASE_ID}/attach_files?access_token=$TOKEN&per_page=100" | jq -r '.[].name // empty' 2>/dev/null)
+
 for artifact in "${ARTIFACTS[@]}"; do
     filename=$(basename "$artifact")
+
+    # Skip if already uploaded (idempotent)
+    if echo "$EXISTING_ASSETS" | grep -qxF "$filename"; then
+        ok "$filename (already exists, skipping)"
+        continue
+    fi
+
     log "  Uploading $filename..."
 
     HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
@@ -266,12 +276,16 @@ for artifact in "${ARTIFACTS[@]}"; do
     if [ "$HTTP_CODE" = "201" ]; then
         ok "$filename"
     else
-        warn "$filename upload returned HTTP $HTTP_CODE (may already exist)"
+        warn "$filename upload returned HTTP $HTTP_CODE"
     fi
 
     # 上传 .sha256 校验文件
     sha_file="${artifact}.sha256"
     if [ -f "$sha_file" ]; then
+        sha_name=$(basename "$sha_file")
+        if echo "$EXISTING_ASSETS" | grep -qxF "$sha_name"; then
+            continue
+        fi
         HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
             -X POST "$UPLOAD_URL" \
             -H "Content-Type: multipart/form-data" \
