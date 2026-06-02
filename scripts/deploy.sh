@@ -178,11 +178,11 @@ deploy_claude() {
              "$plugin_dir/scripts/bin"
 
     # Write official plugin.json
-    # NOTE: version "0.5.1" below should match manifest.json version
+    # NOTE: version "0.5.2" below should match manifest.json version
     cat > "$plugin_dir/.claude-plugin/plugin.json" << JSON
 {
   "name": "secguardian",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "SecGuardian XuanWu — 企业级白盒安全 AI Agent 辅助解决方案。60 检测器、17 审计技能、5 语言安全检视。",
   "author": { "name": "SecGuardian", "url": "https://gitee.com/jonyan/secguardian" },
   "homepage": "https://gitee.com/jonyan/secguardian",
@@ -364,7 +364,7 @@ deploy_opencode() {
     cat > "$plugin_dir/plugin.json" << JSON
 {
   "name": "$brand",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "SecGuardian XuanWu — 企业级白盒安全 AI Agent 辅助解决方案。60 检测器、17 审计技能、5 语言安全检视。",
   "author": { "name": "SecGuardian", "url": "https://gitee.com/jonyan/secguardian" },
   "keywords": ["security", "sast", "audit", "code-review", "vulnerability"]
@@ -437,11 +437,11 @@ deploy_gemini() {
              "$ext_dir/scripts/bin"
 
     # Write official gemini-extension.json
-    # NOTE: version "0.5.1" below should match manifest.json version
+    # NOTE: version "0.5.2" below should match manifest.json version
     cat > "$ext_dir/gemini-extension.json" << JSON
 {
   "name": "secguardian",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "SecGuardian XuanWu — 企业级白盒安全 AI Agent 辅助解决方案",
   "author": "SecGuardian",
   "homepage": "https://gitee.com/jonyan/secguardian",

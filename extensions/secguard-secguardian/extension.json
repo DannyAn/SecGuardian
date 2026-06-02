@@ -1,6 +1,6 @@
 {
   "name": "secguard-secguardian",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "安全加固项排查 — 60 个检测器覆盖 6 大安全分类",
   "author": "SecGuardian",
   "command": "secguard",

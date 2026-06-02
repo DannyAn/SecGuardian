@@ -69,22 +69,25 @@ mkdir -p "$BUILD_BIN_DIR"
 find "$BUILD_BIN_DIR" -name 'secguardian-index' ! -name 'secguardian-index-*' -type f -delete 2>/dev/null || true
 
 if [ -f "$PROJECT_ROOT/internal/go.mod" ] && command -v go &>/dev/null; then
-    echo "  → Cross-compiling secguardian-index binaries..."
+    echo "  → Compiling secguardian-index binaries (dual-mode: CGO=tree-sitter, !CGO=regex)..."
+    # Native build: CGO enabled (tree-sitter)
     (cd "$PROJECT_ROOT/internal" && \
-        GOOS=darwin GOARCH=arm64 go build -o "$BUILD_BIN_DIR/secguardian-index-darwin-arm64" . 2>/dev/null && \
-        echo "    [OK] darwin-arm64" || echo "    [WARN] darwin-arm64 build failed") &
+        go build -o "$BUILD_BIN_DIR/secguardian-index-darwin-arm64" . 2>/dev/null && \
+        echo "    [OK] darwin-arm64 (tree-sitter)" || echo "    [WARN] darwin-arm64 build failed") &
+    # Cross-platform: CGO disabled (pure-Go regex fallback, works everywhere)
     (cd "$PROJECT_ROOT/internal" && \
-        GOOS=darwin GOARCH=amd64 go build -o "$BUILD_BIN_DIR/secguardian-index-darwin-amd64" . 2>/dev/null && \
-        echo "    [OK] darwin-amd64" || echo "    [WARN] darwin-amd64 build failed") &
+        CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o "$BUILD_BIN_DIR/secguardian-index-darwin-amd64" . 2>/dev/null && \
+        echo "    [OK] darwin-amd64 (regex)" || echo "    [WARN] darwin-amd64 build failed") &
     (cd "$PROJECT_ROOT/internal" && \
-        GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o "$BUILD_BIN_DIR/secguardian-index-linux-amd64" . 2>/dev/null && \
-        echo "    [OK] linux-amd64 (CGO_ENABLED=0)" || echo "    [WARN] linux-amd64 build failed") &
+        CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o "$BUILD_BIN_DIR/secguardian-index-linux-amd64" . 2>/dev/null && \
+        echo "    [OK] linux-amd64 (regex)" || echo "    [WARN] linux-amd64 build failed") &
     (cd "$PROJECT_ROOT/internal" && \
-        GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o "$BUILD_BIN_DIR/secguardian-index-windows-amd64.exe" . 2>/dev/null && \
-        echo "    [OK] windows-amd64 (CGO_ENABLED=0)" || echo "    [WARN] windows-amd64 build failed") &
+        CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o "$BUILD_BIN_DIR/secguardian-index-windows-amd64.exe" . 2>/dev/null && \
+        echo "    [OK] windows-amd64 (regex)" || echo "    [WARN] windows-amd64 build failed") &
     wait
-    echo "  → Cross-compilation done. Binaries in: $BUILD_BIN_DIR/"
+    echo "  → Compilation done. Binaries in: $BUILD_BIN_DIR/"
     ls -lh "$BUILD_BIN_DIR/" 2>/dev/null | grep -v "^total" | awk '{print "    " $NF " (" $5 ")"}' || true
+    echo "  → Note: tree-sitter (CGO) on native platform, pure-Go regex fallback on cross-compiled platforms."
 else
     echo "    [SKIP] Go not available — indexer binaries not built"
 fi
