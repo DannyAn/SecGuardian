@@ -127,7 +127,7 @@ list_skills() {
 
 list_detectors() {
     echo ""
-    echo -e "${BOLD}SecGuardian — 26 个检测器${NC}"
+    echo -e "${BOLD}SecGuardian — 60 个检测器${NC}"
     echo ""
     for ns in memory concurrency system crypto; do
         echo -e "${BOLD}  $ns${NC}"

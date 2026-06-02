@@ -38,7 +38,7 @@ stages:
           displayName: 项目结构验证
           commands:
             - echo "=== 知识库文件统计 ==="
-            - echo "Concepts:  $(ls knowledge/concepts/*.md 2>/dev/null | wc -l)"
+            - echo "Cheatsheets: $(ls knowledge/cheatsheets/*.md 2>/dev/null | wc -l)"
             - echo "Languages: $(ls knowledge/languages/*.md 2>/dev/null | wc -l)"
             - echo "Detectors: $(ls knowledge/detectors/*.md 2>/dev/null | wc -l)"
             - echo "Protocols: $(ls knowledge/protocols/*.md 2>/dev/null | wc -l)"

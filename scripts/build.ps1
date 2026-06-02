@@ -23,16 +23,16 @@ Write-Host "=== SecGuardian Build (Windows) ===" -ForegroundColor Cyan
 Write-Host "  → Building secguardian binary..." -ForegroundColor Cyan
 Push-Location "$Root\internal"
 try {
-    go build -o secguardian.exe .
-    $binSize = (Get-Item secguardian.exe).Length / 1MB
-    Write-Host "    Built: secguardian.exe ($([math]::Round($binSize, 1)) MB)" -ForegroundColor Green
+    go build -o secguardian-index.exe .
+    $binSize = (Get-Item secguardian-index.exe).Length / 1MB
+    Write-Host "    Built: secguardian-index.exe ($([math]::Round($binSize, 1)) MB)" -ForegroundColor Green
 } finally {
     Pop-Location
 }
 
 # Copy binary to scripts/
-Copy-Item -Force "$Root\internal\secguardian.exe" "$Root\scripts\secguardian.exe"
-Write-Host "    Copied to scripts/secguardian.exe" -ForegroundColor Green
+Copy-Item -Force "$Root\internal\secguardian-index.exe" "$Root\scripts\secguardian-index.exe"
+Write-Host "    Copied to scripts/secguardian-index.exe" -ForegroundColor Green
 
 if ($Target -eq "binary") {
     Write-Host "Done (binary only)." -ForegroundColor Green
@@ -46,4 +46,4 @@ Write-Host "    Extension deployment available via Go CLI: secguardian detectors
 
 Write-Host ""
 Write-Host "Build complete." -ForegroundColor Green
-Write-Host "Run: .\scripts\secguardian.exe help" -ForegroundColor White
+Write-Host "Run: .\scripts\secguardian-index.exe help" -ForegroundColor White

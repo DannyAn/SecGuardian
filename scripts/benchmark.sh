@@ -1,6 +1,10 @@
 #!/bin/bash
 # SecGuardian — 质量基准测试
 #
+# NOTE: This benchmark script requires AI execution for actual pattern matching.
+# The shell-only mode is limited to vulnerability marker counting. For accurate
+# results, run benchmarks through the AI CLI with detector skills.
+#
 # 用法: bash scripts/benchmark.sh [language]
 #       bash scripts/benchmark.sh           # 所有语言
 #       bash scripts/benchmark.sh python    # 仅 Python

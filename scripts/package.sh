@@ -64,6 +64,10 @@ echo "==> Packaging SecGuardian extensions..."
 BUILD_BIN_DIR="$PROJECT_ROOT/scripts/bin"
 mkdir -p "$BUILD_BIN_DIR"
 
+# Clean up stale binaries without platform suffix (legacy build artifact)
+# Only keep properly suffixed binaries: secguardian-index-{os}-{arch}
+find "$BUILD_BIN_DIR" -name 'secguardian-index' ! -name 'secguardian-index-*' -type f -delete 2>/dev/null || true
+
 if [ -f "$PROJECT_ROOT/internal/go.mod" ] && command -v go &>/dev/null; then
     echo "  → Cross-compiling secguardian-index binaries..."
     (cd "$PROJECT_ROOT/internal" && \
@@ -146,6 +150,11 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
     # Copy threat-catalog (v2.0: replaces concepts/)
     if [ -f "$PROJECT_ROOT/knowledge/threat-catalog.md" ]; then
         cp "$PROJECT_ROOT/knowledge/threat-catalog.md" "$dist_dir/knowledge/"
+    fi
+    # Copy cheatsheets (cross-skill quick reference tables)
+    if [ -d "$PROJECT_ROOT/knowledge/cheatsheets" ]; then
+        mkdir -p "$dist_dir/knowledge/cheatsheets"
+        cp "$PROJECT_ROOT/knowledge/cheatsheets/"*.md "$dist_dir/knowledge/cheatsheets/"
     fi
     # Copy standards if declared
     std_count=0

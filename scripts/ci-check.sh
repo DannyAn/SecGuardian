@@ -28,7 +28,7 @@ echo ""
 
 # ── 1. 项目结构检查 ──────────────────────────
 echo -e "${BOLD}[1/5] 项目结构${NC}"
-echo "  Concepts:  $(ls knowledge/concepts/*.md 2>/dev/null | wc -l | tr -d ' ')"
+echo "  Cheatsheets: $(ls knowledge/cheatsheets/*.md 2>/dev/null | wc -l | tr -d ' ')"
 echo "  Languages: $(ls knowledge/languages/*.md 2>/dev/null | wc -l | tr -d ' ')"
 echo "  Detectors: $(ls knowledge/detectors/*.md 2>/dev/null | wc -l | tr -d ' ')"
 echo "  Protocols: $(ls knowledge/protocols/*.md 2>/dev/null | wc -l | tr -d ' ')"
