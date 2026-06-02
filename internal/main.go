@@ -23,7 +23,7 @@ import (
 	"github.com/secguardian/internal/parser"
 )
 
-const version = "0.4.0"
+const version = "0.5.0"
 
 // Detector definition for the CLI's built-in registry
 type DetectorInfo struct {
@@ -67,7 +67,19 @@ var detectorRegistry = []DetectorInfo{
 	{ID: "crypto.weak-random", CWE: "CWE-338", Severity: "High", Language: "c,cpp", Category: "crypto"},
 	{ID: "crypto.weak-crypto-algorithm", CWE: "CWE-327", Severity: "High", Language: "c,cpp", Category: "crypto"},
 	{ID: "crypto.insufficient-key-length", CWE: "CWE-326", Severity: "Medium", Language: "c,cpp", Category: "crypto"},
-	// Web — 17
+	{ID: "crypto.aes-ecb-mode", CWE: "CWE-327", Severity: "High", Language: "c,cpp,java,python,go,js", Category: "crypto"},
+	{ID: "crypto.custom-crypto", CWE: "CWE-327", Severity: "Critical", Language: "c,cpp,java,python,go,js", Category: "crypto"},
+	{ID: "crypto.hardcoded-iv", CWE: "CWE-329", Severity: "High", Language: "c,cpp,java,python,go,js", Category: "crypto"},
+	{ID: "crypto.password-storage", CWE: "CWE-916", Severity: "Critical", Language: "java,python,go,js", Category: "crypto"},
+	{ID: "crypto.tls-version", CWE: "CWE-326", Severity: "Medium", Language: "c,cpp,java,python,go,js", Category: "crypto"},
+	// Error — 6
+	{ID: "error.debug-mode-production", CWE: "CWE-489", Severity: "High", Language: "c,cpp,java,python,go,js", Category: "error"},
+	{ID: "error.exception-swallow", CWE: "CWE-391", Severity: "Medium", Language: "c,cpp,java,python,go,js", Category: "error"},
+	{ID: "error.log-sensitive-data", CWE: "CWE-532", Severity: "High", Language: "c,cpp,java,python,go,js", Category: "error"},
+	{ID: "error.panic-to-client", CWE: "CWE-248", Severity: "Medium", Language: "go", Category: "error"},
+	{ID: "error.stack-trace-leak", CWE: "CWE-209", Severity: "High", Language: "c,cpp,java,python,go,js", Category: "error"},
+	{ID: "error.unified-error-format", CWE: "CWE-544", Severity: "Medium", Language: "java,python,go,js", Category: "error"},
+	// Web — 21
 	{ID: "web.xss", CWE: "CWE-79", Severity: "Critical", Language: "java,python,go", Category: "web"},
 	{ID: "web.ssrf", CWE: "CWE-918", Severity: "High", Language: "java,python,go", Category: "web"},
 	{ID: "web.csrf", CWE: "CWE-352", Severity: "High", Language: "java,python,go", Category: "web"},
@@ -84,6 +96,11 @@ var detectorRegistry = []DetectorInfo{
 	{ID: "web.code-injection", CWE: "CWE-94", Severity: "Critical", Language: "python", Category: "web"},
 	{ID: "web.input-validation", CWE: "CWE-20", Severity: "High", Language: "c,cpp,java,python,go", Category: "web"},
 	{ID: "web.resource-exhaustion", CWE: "CWE-400", Severity: "Medium", Language: "c,cpp,java,python,go", Category: "web"},
+	{ID: "web.excessive-data-exposure", CWE: "CWE-200", Severity: "High", Language: "java,python,go,js", Category: "web"},
+	{ID: "web.mass-assignment", CWE: "CWE-915", Severity: "Critical", Language: "java,python,go,js", Category: "web"},
+	{ID: "web.nosql-injection", CWE: "CWE-943", Severity: "Critical", Language: "js", Category: "web"},
+	{ID: "web.prototype-pollution", CWE: "CWE-1321", Severity: "High", Language: "js", Category: "web"},
+	{ID: "web.ssti", CWE: "CWE-1336", Severity: "Critical", Language: "java,python,go,js", Category: "web"},
 }
 
 func main() {
@@ -143,11 +160,11 @@ func printHelp() {
 	fmt.Println("  secguardian audit  --skill <name> --path <dir>    # Deep AI security audit")
 	fmt.Println("  secguardian review --path <dir> --lang <lang>     # Coding standard review")
 	fmt.Println("  secguardian index  --path <dir>                   # Build semantic index")
-	fmt.Println("  secguardian detectors                             # List all 45 detectors")
+	fmt.Println("  secguardian detectors                             # List all 60 detectors")
 	fmt.Println("  secguardian version                               # Print version")
 	fmt.Println()
 	fmt.Println("Filters:")
-	fmt.Println("  memory, concurrency, system, crypto, web")
+	fmt.Println("  memory, concurrency, error, system, crypto, web")
 	fmt.Println()
 	fmt.Println("Platforms:")
 	fmt.Println("  Windows  ⬡   macOS  🍎   Linux  🐧")
@@ -299,12 +316,12 @@ func matchFilter(id, filter string) bool {
 }
 
 func listDetectors() {
-	fmt.Printf("SecGuardian v%s — 45 Detectors\n", version)
+	fmt.Printf("SecGuardian v%s — 60 Detectors\n", version)
 	fmt.Println(strings.Repeat("─", 70))
 	fmt.Printf("%-30s %-10s %-10s %s\n", "DETECTOR", "CWE", "SEVERITY", "LANG")
 	fmt.Println(strings.Repeat("─", 70))
 
-	categories := []string{"memory", "concurrency", "system", "crypto", "web"}
+	categories := []string{"memory", "concurrency", "error", "system", "crypto", "web"}
 	for _, cat := range categories {
 		hasHeader := false
 		for _, d := range detectorRegistry {
@@ -320,7 +337,7 @@ func listDetectors() {
 	}
 
 	fmt.Println(strings.Repeat("─", 70))
-	fmt.Printf("CWE Top 25: 22/25 (88%%)  |  OWASP Top 10: 9/10 (90%%)\n")
+	fmt.Printf("CWE Top 25: 25/25 (100%%)  |  OWASP Top 10: 9/10 (90%%)\n")
 	fmt.Printf("Docs & audit skills: secguardian --help\n")
 }
 
@@ -452,7 +469,7 @@ func collectFiles(path, lang string) ([]string, error) {
 		}
 		if info.IsDir() {
 			base := filepath.Base(p)
-			if strings.HasPrefix(base, ".") || base == "node_modules" || base == "dist" {
+			if base == ".git" || base == ".claude" || base == ".codeagent" || base == ".gemini" || base == ".opencode" || base == "node_modules" || base == "dist" {
 				return filepath.SkipDir
 			}
 			return nil

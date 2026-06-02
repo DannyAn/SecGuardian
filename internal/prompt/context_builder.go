@@ -1,6 +1,9 @@
 package prompt
 
 import (
+	"os"
+	"strings"
+
 	"github.com/secguardian/internal/context"
 	"github.com/secguardian/internal/indexer"
 	"github.com/secguardian/internal/parser"
@@ -52,10 +55,24 @@ func BuildSlice(actx *context.AnalysisContext, targetFile string, targetLine uin
 	}
 
 	// Find the function containing this line
-	for _, fn := range actx.Symbols.Functions {
+	var targetFn *parser.FunctionInfo
+	for i, fn := range actx.Symbols.Functions {
 		if fn.File == targetFile && targetLine >= fn.StartLine && targetLine <= fn.EndLine {
 			slice.FunctionName = fn.Name
+			targetFn = &actx.Symbols.Functions[i]
 			break
+		}
+	}
+
+	// Populate FunctionBody from source file
+	if targetFn != nil {
+		if content, err := os.ReadFile(targetFile); err == nil {
+			lines := strings.Split(string(content), "\n")
+			start := int(targetFn.StartLine) - 1
+			end := int(targetFn.EndLine)
+			if start >= 0 && end <= len(lines) && start < end {
+				slice.FunctionBody = strings.Join(lines[start:end], "\n")
+			}
 		}
 	}
 

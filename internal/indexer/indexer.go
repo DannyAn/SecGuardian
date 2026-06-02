@@ -61,6 +61,13 @@ func ExtractSymbols(parsed map[string]*parser.ParseResult) SymbolIndex {
 	return idx
 }
 
+// isCommentLine checks if a trimmed line looks like a comment line (heuristic).
+func isCommentLine(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	return strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "/*") ||
+		strings.HasPrefix(trimmed, "* ")
+}
+
 // BuildCallGraph scans each function body for calls to other known functions.
 func BuildCallGraph(parsed map[string]*parser.ParseResult, symbols SymbolIndex) CallGraph {
 	cg := CallGraph{}
@@ -92,6 +99,23 @@ func BuildCallGraph(parsed map[string]*parser.ParseResult, symbols SymbolIndex) 
 					continue
 				}
 				if strings.Contains(body, callee.Name+"(") || strings.Contains(body, callee.Name+" (") {
+					// Skip if the call appears only in comment lines
+					foundInCode := false
+					for i := start; i < end; i++ {
+						if i >= len(lines) {
+							break
+						}
+						if isCommentLine(lines[i]) {
+							continue
+						}
+						if strings.Contains(lines[i], callee.Name+"(") || strings.Contains(lines[i], callee.Name+" (") {
+							foundInCode = true
+							break
+						}
+					}
+					if !foundInCode {
+						continue
+					}
 					cg.Edges = append(cg.Edges, CallGraphEdge{
 						Caller: fn.Name,
 						Callee: callee.Name,
@@ -119,6 +143,9 @@ func MatchAllocFree(parsed map[string]*parser.ParseResult) AllocFreeMap {
 		lines := strings.Split(string(content), "\n")
 
 		for i, line := range lines {
+			if isCommentLine(line) {
+				continue
+			}
 			for afn := range allocFns {
 				if strings.Contains(line, afn+"(") {
 					pair := AllocFreePair{
@@ -127,6 +154,9 @@ func MatchAllocFree(parsed map[string]*parser.ParseResult) AllocFreeMap {
 						AllocLine: uint(i + 1),
 					}
 					for j, fline := range lines {
+						if isCommentLine(fline) {
+							continue
+						}
 						for ffn := range freeFns {
 							if strings.Contains(fline, ffn+"(") {
 								pair.FreeSites = append(pair.FreeSites, FreeSite{

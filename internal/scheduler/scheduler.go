@@ -27,7 +27,20 @@ func DefaultGroups() []GroupDef {
 				"insecure-temp-file", "symlink-attack", "privilege-escalation"}},
 		{Name: "crypto",
 			Detectors: []string{"hardcoded-secrets", "weak-random",
-				"weak-crypto-algorithm", "insufficient-key-length"}},
+				"weak-crypto-algorithm", "insufficient-key-length",
+				"aes-ecb-mode", "custom-crypto", "hardcoded-iv",
+				"password-storage", "tls-version"}},
+		{Name: "web",
+			Detectors: []string{"xss", "ssrf", "csrf", "auth-bypass", "idor",
+				"xxe", "jwt-misuse", "open-redirect", "missing-authentication",
+				"missing-authorization", "unrestricted-upload", "sql-injection",
+				"deserialization", "code-injection", "input-validation",
+				"resource-exhaustion", "excessive-data-exposure", "mass-assignment",
+				"nosql-injection", "prototype-pollution", "ssti"}},
+		{Name: "error",
+			Detectors: []string{"debug-mode-production", "exception-swallow",
+				"log-sensitive-data", "panic-to-client", "stack-trace-leak",
+				"unified-error-format"}},
 	}
 }
 
@@ -63,12 +76,45 @@ func Schedule(detectorNames []string) []string {
 }
 
 // MatchFilter checks if a detector name matches a namespace filter pattern.
-// Supports glob-like patterns: "memory.*", "system", "critical"
+// Supports:
+//   - Wildcard: "*" or "" matches everything
+//   - Glob: "memory.*" matches all detectors in the memory namespace
+//   - Exact: "memory.null-dereference" matches a single detector
+//   - Partial: "sql" matches "web.sql-injection"
+//   - Comma-separated: "memory.*,system.*" matches multiple namespaces
 func MatchFilter(detector string, filter string) bool {
-	if filter == "*" || filter == "" || filter == "critical" {
+	if filter == "*" || filter == "" {
 		return true
 	}
-	ns := strings.SplitN(detector, ".", 2)[0]
-	f := strings.TrimSuffix(filter, ".*")
-	return ns == f
+	for _, f := range strings.Split(filter, ",") {
+		f = strings.TrimSpace(f)
+		if f == "" {
+			continue
+		}
+		// Exact match
+		if detector == f {
+			return true
+		}
+		// Glob match: memory.* matches memory.null-dereference
+		if strings.HasSuffix(f, ".*") {
+			prefix := strings.TrimSuffix(f, ".*")
+			if strings.HasPrefix(detector, prefix+".") || detector == prefix {
+				return true
+			}
+			continue
+		}
+		// Namespace-only match: "memory" matches all "memory.*"
+		ns := strings.SplitN(detector, ".", 2)[0]
+		if ns == f {
+			return true
+		}
+		// Partial name match: "sql" matches "web.sql-injection"
+		if !strings.Contains(f, ".") && !strings.Contains(f, "*") {
+			parts := strings.SplitN(detector, ".", 2)
+			if len(parts) > 1 && strings.Contains(parts[1], f) {
+				return true
+			}
+		}
+	}
+	return false
 }
