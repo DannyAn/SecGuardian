@@ -112,7 +112,7 @@ if ! curl -sf "$GITEE_API?access_token=$TOKEN" > /dev/null 2>&1; then
         -d "{
             \"access_token\": \"$TOKEN\",
             \"name\": \"$REPO\",
-            \"description\": \"AI Native Security Guardian — 45 detectors, CWE Top 25 100%\",
+            \"description\": \"AI Native Security Guardian — 60 detectors, CWE Top 25 100%, 27 audit skills\",
             \"homepage\": \"https://gitee.com/$OWNER/$REPO\",
             \"private\": false,
             \"has_issues\": true,
@@ -150,7 +150,7 @@ log "Creating Gitee release..."
 RELEASE_BODY=$(cat <<'BODY'
 ## SecGuardian vVERSION
 
-AI Native Security Guardian — 45 个检测器，CWE Top 25 100%，OWASP Top 10 90%。
+AI Native Security Guardian — 60 个检测器，CWE Top 25 100%，OWASP Top 10 100%，27 个审计技能。
 
 ### 安装指南
 
