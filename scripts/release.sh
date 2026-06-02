@@ -21,9 +21,9 @@
 #   ├── secguardian-index-<version>-linux-amd64.sha256
 #   ├── secguardian-index-<version>-windows-amd64.exe
 #   ├── secguardian-index-<version>-windows-amd64.exe.sha256
-#   ├── secguardian-<version>-claude-code.zip
-#   ├── secguardian-<version>-opencode.zip
-#   ├── secguardian-<version>-gemini-cli.zip
+#   ├── secguardian-<version>-claude-code-${PLATFORM_SUFFIX}.zip
+#   ├── secguardian-<version>-opencode-${PLATFORM_SUFFIX}.zip
+#   ├── secguardian-<version>-gemini-cli-${PLATFORM_SUFFIX}.zip
 #   ├── secguardian-<version>-source.tar.gz
 #   └── manifest.json
 
@@ -51,6 +51,11 @@ mkdir -p "$OUTPUT"
 log "Building indexer binaries (macOS)..."
 cd "$PROJECT_ROOT/internal"
 
+# Detect current platform for naming
+BUILD_OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+BUILD_ARCH="$(uname -m | sed 's/x86_64/amd64/;s/arm64/arm64/;s/aarch64/arm64/')"
+PLATFORM_SUFFIX="${BUILD_OS}-${BUILD_ARCH}"
+
 for arch in arm64 amd64; do
     bin_name="secguardian-index-${VERSION}-darwin-${arch}"
     if GOOS=darwin GOARCH=$arch go build -o "$OUTPUT/$bin_name" . 2>/dev/null; then
@@ -62,13 +67,12 @@ for arch in arm64 amd64; do
 done
 
 # ── 1b. Build Notes ──────────────────────────────
-log "Linux/Windows builds managed by CI:"
-log "  .github/workflows/ci.yml builds on OS matrix: ubuntu/macos/windows"
-log "  Each runner builds natively with tree-sitter CGO support"
-log ""
-log "  Manual cross-build (no tree-sitter indexer):"
-log "    CGO_ENABLED=0 GOOS=linux  GOARCH=amd64 go build -o secguardian-linux  ./internal/"
-log "    CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o secguardian.exe ./internal/"
+log "Cross-platform note:"
+log "  tree-sitter requires CGO, cross-compilation to Linux/Windows not possible locally."
+log "  Linux/Windows binaries are built by CI (.github/workflows/ci.yml) on native runners."
+log "  This release contains ${PLATFORM_SUFFIX} binaries only."
+log "  For other platforms, download the source tarball and build natively:"
+log "    cd internal && go build -o secguardian-index ."
 
 # ── 2. Extension Packages ─────────────────────────
 log "Building extension packages..."
@@ -78,32 +82,32 @@ bash scripts/package.sh > /dev/null 2>&1
 
 # Claude Code: official plugin format (.claude-plugin/plugin.json)
 bash scripts/deploy.sh cc > /dev/null 2>&1
-claude_zip="$OUTPUT/secguardian-${VERSION}-claude-code.zip"
+claude_zip="$OUTPUT/secguardian-${VERSION}-claude-code-${PLATFORM_SUFFIX}.zip"
 rm -f "$claude_zip"
 if [ -d ".claude/plugins/secguardian" ]; then
     (cd .claude/plugins && zip -rq "$claude_zip" secguardian/)
     shasum -a 256 "$claude_zip" | cut -d' ' -f1 > "$claude_zip.sha256"
-    done_msg "secguardian-${VERSION}-claude-code.zip ($(du -h "$claude_zip" | cut -f1))"
+    done_msg "secguardian-${VERSION}-claude-code-${PLATFORM_SUFFIX}.zip ($(du -h "$claude_zip" | cut -f1))"
 fi
 
 # OpenCode: plugin under .opencode/plugins/secguardian/
 bash scripts/deploy.sh nga > /dev/null 2>&1
-opencode_zip="$OUTPUT/secguardian-${VERSION}-opencode.zip"
+opencode_zip="$OUTPUT/secguardian-${VERSION}-opencode-${PLATFORM_SUFFIX}.zip"
 rm -f "$opencode_zip"
 if [ -d ".opencode/plugins/secguardian" ]; then
     (cd .opencode/plugins && zip -rq "$opencode_zip" secguardian/)
     shasum -a 256 "$opencode_zip" | cut -d' ' -f1 > "$opencode_zip.sha256"
-    done_msg "secguardian-${VERSION}-opencode.zip ($(du -h "$opencode_zip" | cut -f1))"
+    done_msg "secguardian-${VERSION}-opencode-${PLATFORM_SUFFIX}.zip ($(du -h "$opencode_zip" | cut -f1))"
 fi
 
 # Gemini CLI: official extension format (.gemini/extensions/secguardian/)
 bash scripts/deploy.sh cac > /dev/null 2>&1
-gemini_zip="$OUTPUT/secguardian-${VERSION}-gemini-cli.zip"
+gemini_zip="$OUTPUT/secguardian-${VERSION}-gemini-cli-${PLATFORM_SUFFIX}.zip"
 rm -f "$gemini_zip"
 if [ -d ".gemini/extensions/secguardian" ]; then
     (cd .gemini/extensions && zip -rq "$gemini_zip" secguardian/)
     shasum -a 256 "$gemini_zip" | cut -d' ' -f1 > "$gemini_zip.sha256"
-    done_msg "secguardian-${VERSION}-gemini-cli.zip ($(du -h "$gemini_zip" | cut -f1))"
+    done_msg "secguardian-${VERSION}-gemini-cli-${PLATFORM_SUFFIX}.zip ($(du -h "$gemini_zip" | cut -f1))"
 fi
 
 # ── 3. Source Archive ─────────────────────────────
@@ -137,20 +141,20 @@ cat > "$OUTPUT/manifest.json" << EOF
       "description": "Code indexer binary (tree-sitter), called by AI Agent commands"
     },
     {
-      "name": "secguardian-${VERSION}-claude-code.zip",
+      "name": "secguardian-${VERSION}-claude-code-${PLATFORM_SUFFIX}.zip",
       "platform": "claude-code",
       "type": "extension",
       "contents": ["commands", "skills", "knowledge", "scripts"]
     },
     {
-      "name": "secguardian-${VERSION}-opencode.zip",
+      "name": "secguardian-${VERSION}-opencode-${PLATFORM_SUFFIX}.zip",
       "platform": "opencode",
       "type": "extension",
       "contents": ["commands", "skills", "knowledge", "scripts"],
       "install": ".opencode/"
     },
     {
-      "name": "secguardian-${VERSION}-gemini-cli.zip",
+      "name": "secguardian-${VERSION}-gemini-cli-${PLATFORM_SUFFIX}.zip",
       "platform": "gemini-cli",
       "type": "extension",
       "contents": ["commands", "skills", "knowledge", "scripts", "GEMINI.md"],

@@ -89,6 +89,8 @@ ARTIFACTS=()
 while IFS= read -r -d '' f; do
     [[ "$f" == *.sha256 ]] && continue
     [[ "$f" == *manifest.json ]] && continue
+    # Standalone binaries are inside the platform zips — don't upload separately
+    [[ "$f" == *secguardian-index-* ]] && continue
     ARTIFACTS+=("$f")
 done < <(find "$RELEASE_DIR" -maxdepth 1 -type f ! -name "*.sha256" ! -name "manifest.json" -print0)
 
@@ -211,13 +213,14 @@ bash install.sh <项目路径> --opencode
 
 #### 产物说明
 
+> ⚠️ **平台说明**: 受 tree-sitter CGO 限制，本地发布仅包含当前平台的二进制。每个 zip 的文件名含平台后缀（如 `-darwin-arm64`），下载与您操作系统匹配的版本。Linux/Windows 用户请使用源码包在本机编译，或等待 CI 构建产物。
+
 | 文件 | 用途 |
 |------|------|
-| `secguardian-VERSION-opencode.zip` | OpenCode 插件包 |
-| `secguardian-VERSION-gemini-cli.zip` | Gemini CLI 插件包 |
-| `secguardian-VERSION-claude-code.zip` | Claude Code 插件包 |
-| `secguardian-index-VERSION-darwin-arm64` | 索引器二进制（已在 zip 中包含，通常无需单独下载） |
-| `secguardian-VERSION-source.tar.gz` | 源码包 |
+| `secguardian-VERSION-opencode-PLATFORM.zip` | OpenCode 插件包（自包含，含二进制） |
+| `secguardian-VERSION-gemini-cli-PLATFORM.zip` | Gemini CLI 插件包（自包含，含二进制） |
+| `secguardian-VERSION-claude-code-PLATFORM.zip` | Claude Code 插件包（自包含，含二进制） |
+| `secguardian-VERSION-source.tar.gz` | 源码包（跨平台，需本机编译 `cd internal && go build`） |
 
 ### 更新内容
 
