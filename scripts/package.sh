@@ -151,6 +151,10 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
     if [ -f "$PROJECT_ROOT/knowledge/threat-catalog.md" ]; then
         cp "$PROJECT_ROOT/knowledge/threat-catalog.md" "$dist_dir/knowledge/"
     fi
+    # Copy SECURITY.md for corporate AV whitelisting
+    if [ -f "$PROJECT_ROOT/SECURITY.md" ]; then
+        cp "$PROJECT_ROOT/SECURITY.md" "$dist_dir/knowledge/"
+    fi
     # Copy cheatsheets (cross-skill quick reference tables)
     if [ -d "$PROJECT_ROOT/knowledge/cheatsheets" ]; then
         mkdir -p "$dist_dir/knowledge/cheatsheets"

@@ -199,6 +199,7 @@ JSON
     # Copy project-level knowledge (v2.0)
     [ -f "$PROJECT_ROOT/knowledge/threat-catalog.md" ] && cp "$PROJECT_ROOT/knowledge/threat-catalog.md" "$plugin_dir/knowledge/"
     [ -f "$PROJECT_ROOT/knowledge/report-template.md" ] && cp "$PROJECT_ROOT/knowledge/report-template.md" "$plugin_dir/knowledge/"
+    [ -f "$PROJECT_ROOT/SECURITY.md" ] && cp "$PROJECT_ROOT/SECURITY.md" "$plugin_dir/knowledge/"
     [ -d "$PROJECT_ROOT/knowledge/standards" ] && cp -r "$PROJECT_ROOT/knowledge/standards/"* "$plugin_dir/knowledge/standards/" 2>/dev/null || true
 
     # Copy wrapper scripts and binaries into plugin
@@ -384,6 +385,7 @@ JSON
     # Copy project-level knowledge (v2.0)
     [ -f "$PROJECT_ROOT/knowledge/threat-catalog.md" ] && cp "$PROJECT_ROOT/knowledge/threat-catalog.md" "$knowledge_dir/"
     [ -f "$PROJECT_ROOT/knowledge/report-template.md" ] && cp "$PROJECT_ROOT/knowledge/report-template.md" "$knowledge_dir/"
+    [ -f "$PROJECT_ROOT/SECURITY.md" ] && cp "$PROJECT_ROOT/SECURITY.md" "$knowledge_dir/"
     [ -d "$PROJECT_ROOT/knowledge/standards" ] && cp -r "$PROJECT_ROOT/knowledge/standards/"* "$knowledge_dir/standards/" 2>/dev/null || true
 
     # Copy wrapper scripts and binaries
@@ -457,6 +459,7 @@ JSON
     # Project-level knowledge (v2.0)
     [ -f "$PROJECT_ROOT/knowledge/threat-catalog.md" ] && cp "$PROJECT_ROOT/knowledge/threat-catalog.md" "$ext_dir/knowledge/"
     [ -f "$PROJECT_ROOT/knowledge/report-template.md" ] && cp "$PROJECT_ROOT/knowledge/report-template.md" "$ext_dir/knowledge/"
+    [ -f "$PROJECT_ROOT/SECURITY.md" ] && cp "$PROJECT_ROOT/SECURITY.md" "$ext_dir/knowledge/"
     [ -d "$PROJECT_ROOT/knowledge/standards" ] && cp -r "$PROJECT_ROOT/knowledge/standards/"* "$ext_dir/knowledge/standards/" 2>/dev/null || true
 
     # Generate TOML commands
