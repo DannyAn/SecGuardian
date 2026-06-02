@@ -5,7 +5,100 @@ All notable changes to SecGuardian will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.5.0] - 2026-05-31
+## [0.5.2] - 2026-06-02
+
+### Added
+
+- **Dual-mode cross-platform parser**: Tree-sitter (CGO, full AST) + pure-Go
+  regex fallback (!CGO, works everywhere). Build-tag-separated: `parser_ts.go`
+  and `parser_re.go`. Enables cross-compilation to Linux/Windows/darwin-amd64
+  from any platform.
+- **Cross-platform binary builds**: `package.sh` now produces 4 platform binaries:
+  darwin-arm64 (tree-sitter), darwin-amd64 (regex), linux-amd64 (regex),
+  windows-amd64.exe (regex).
+- **`SECURITY.md`**: Corporate AV whitelisting document explaining unsigned
+  binaries, security detector documentation content, and SHA-256 verification.
+
+### Fixed
+
+- **Parser panic**: Fixed slice bounds out of range in `safeUtf8Text()` — static
+  1024-byte buffer overflowed on large tree-sitter nodes (e.g., crypto.c at 1382
+  bytes). Replaced with `safeText()` using direct content byte access.
+- **Detector registry completeness**: `main.go` detector count 45→60. Added 15
+  missing detectors across error (6), web (5), and crypto (5) namespaces.
+- **`scheduler.MatchFilter`**: Added comma-separated filter support, removed
+  `"critical"` wildcard bug, added `web` and `error` group definitions.
+- **`context_builder.FunctionBody`**: Previously always empty — now populated
+  from source file.
+- **Release platform naming**: Zip files now include platform suffix
+  (`-darwin-arm64`) so users know exactly which platform each zip supports.
+- **Gitee release idempotency**: `gitee-release.sh` now checks existing assets
+  before uploading, preventing duplicate uploads on re-run.
+
+### Changed
+
+- **Version bump**: 0.5.1→0.5.2
+
+## [0.5.1] - 2026-06-02
+
+### Added
+
+- **Knowledge cheatsheets** (`knowledge/cheatsheets/`): Cross-skill quick-reference
+  layer between skills and detectors. 4 files: `crypto-algorithms.md`,
+  `injection-patterns.md`, `secrets-detection.md`, `tls-config.md`. Each
+  provides cross-language comparison tables and decision matrices.
+- **Skill description triggers**: All 27 skills now include "当用户请求...时使用"
+  trigger phrases for more accurate AI skill activation.
+- **`secguard-*` topic fields**: All 5 language-specific security skills now
+  have `topic` frontmatter (was missing).
+- **Secreview content**: 5 `secreview-*` skills expanded from ~45 to ~100 lines
+  each with structured Phase 1-5 execution flow, detection tables, code examples.
+- **Claude Code plugin `knowledge/` and `scripts/`**: Previously only had
+  `commands/` + `skills/`. Now includes full knowledge base and indexer binary.
+
+### Fixed
+
+- **Dead `knowledge/concepts/` references**: Replaced across `ci-check.sh`,
+  `.gitee-ci.yml`, `.github/workflows/ci.yml`, `tools/check.sh` —
+  all now reference `knowledge/cheatsheets/`.
+- **CI Go version mismatch**: `.github/ci.yml` `go-version: 1.22` → `1.25`
+  (matching `go.mod` requirement of 1.25.3).
+- **`build.ps1` binary name**: `secguardian.exe` → `secguardian-index.exe` (6 places).
+- **`sync-version.sh`**: Now also updates `const version` in `main.go`.
+- **`secguardian.sh` detector count**: "26" → "60".
+- **`benchmark.sh`**: Added deprecation notice (requires AI execution).
+- **Manifest detector count**: `web: 22` → `web: 21` (namespace sum now correctly = 60).
+- **Duplicate `secguardian-index` binary**: Removed stale 8.4MB build artifact
+  from `scripts/bin/`. Added auto-cleanup in `package.sh`.
+- **Command isolation paths**: `skills/secguardian/` → `skills/` across 6 files.
+- **Protocol version**: Unified duplicate v1.0/v2.0 references in commands.
+- **Scan ID format**: Fixed `secaudit.md` example to include `sec-` prefix.
+
+### Changed
+
+- **Brand extension namespacing**: All 3 platforms now use consistent
+  `<brand>/` namespace structure:
+  - Claude Code: `.claude/plugins/secguardian/`
+  - OpenCode: `.opencode/plugins/secguardian/` (was flat `.opencode/skills/`)
+  - Gemini CLI: `.gemini/extensions/secguardian/`
+- **OpenCode plugin format**: Creates `plugin.json` manifest. Top-level
+  `.opencode/skills/` and `.opencode/commands/` preserved for user's own
+  handwritten files — extensions go under `plugins/<brand>/`.
+- **Canonical binary naming**: Inside release zips, binary is always
+  `secguardian-index` (no platform suffix). Deploy step handles renaming.
+- **Shell wrapper simplification**: Tries canonical `bin/secguardian-index`
+  first, falls back to platform-specific name for multi-platform dev builds.
+- **Skill frontmatter standardization**: `topic` unified as YAML arrays across
+  all 27 skills. H1 titles converted to descriptive Chinese.
+- **Phase naming consistency**: `secguard` `Step N` → `Phase N`, matching
+  `secaudit` convention.
+- **Version bump**: 0.5.0→0.5.1
+
+### Removed
+
+- **`safeUtf8Text()`**: Deleted unsafe fixed-buffer function from parser.
+- **Stale `.claude/extensions/` directory**: All content migrated to `.claude/plugins/`.
+- **Legacy flat `.opencode/` deployment**: Auto-detected and cleaned on redeploy.
 
 ### Architecture
 
