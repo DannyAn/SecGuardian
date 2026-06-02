@@ -82,6 +82,9 @@ if [ -f "$PROJECT_ROOT/internal/go.mod" ] && command -v go &>/dev/null; then
         CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o "$BUILD_BIN_DIR/secguardian-index-linux-amd64" . 2>/dev/null && \
         echo "    [OK] linux-amd64 (regex)" || echo "    [WARN] linux-amd64 build failed") &
     (cd "$PROJECT_ROOT/internal" && \
+        CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o "$BUILD_BIN_DIR/secguardian-index-linux-arm64" . 2>/dev/null && \
+        echo "    [OK] linux-arm64 (regex)" || echo "    [WARN] linux-arm64 build failed") &
+    (cd "$PROJECT_ROOT/internal" && \
         CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o "$BUILD_BIN_DIR/secguardian-index-windows-amd64.exe" . 2>/dev/null && \
         echo "    [OK] windows-amd64 (regex)" || echo "    [WARN] windows-amd64 build failed") &
     wait
