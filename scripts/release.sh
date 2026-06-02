@@ -112,6 +112,62 @@ if [ -d ".gemini/extensions/secguardian" ]; then
     done_msg "secguardian-${VERSION}-gemini-cli-${PLATFORM_SUFFIX}.zip ($(du -h "$gemini_zip" | cut -f1))"
 fi
 
+# ── 2b. Cross-platform zips (all platforms from pre-built binaries) ──
+log "Generating cross-platform zips..."
+BIN_DIR="$PROJECT_ROOT/scripts/bin"
+for target_os in darwin linux windows; do
+    for target_arch in amd64 arm64; do
+        # Determine binary extension and platform suffix
+        ext=""
+        plat_suffix="${target_os}-${target_arch}"
+        case "$target_os" in
+            windows) ext=".exe" ;;
+        esac
+        src_bin="$BIN_DIR/secguardian-index-${target_os}-${target_arch}${ext}"
+        [ ! -f "$src_bin" ] && continue  # Skip if this platform wasn't built
+
+        # Skip current platform (already zipped in section 2)
+        [ "$plat_suffix" = "$PLATFORM_SUFFIX" ] && continue
+
+        # Claude Code
+        if [ -d ".claude/plugins/secguardian" ]; then
+            rm -f ".claude/plugins/secguardian/scripts/bin/"*
+            cp "$src_bin" ".claude/plugins/secguardian/scripts/bin/secguardian-index${ext}"
+            chmod +x ".claude/plugins/secguardian/scripts/bin/secguardian-index${ext}"
+            cc_zip="$OUTPUT/secguardian-${VERSION}-claude-code-${plat_suffix}.zip"
+            (cd .claude/plugins && zip -rq "$cc_zip" secguardian/)
+            shasum -a 256 "$cc_zip" | cut -d' ' -f1 > "$cc_zip.sha256"
+        fi
+
+        # OpenCode
+        if [ -d ".opencode/plugins/secguardian" ]; then
+            rm -f ".opencode/plugins/secguardian/scripts/bin/"*
+            cp "$src_bin" ".opencode/plugins/secguardian/scripts/bin/secguardian-index${ext}"
+            chmod +x ".opencode/plugins/secguardian/scripts/bin/secguardian-index${ext}"
+            oc_zip="$OUTPUT/secguardian-${VERSION}-opencode-${plat_suffix}.zip"
+            (cd .opencode/plugins && zip -rq "$oc_zip" secguardian/)
+            shasum -a 256 "$oc_zip" | cut -d' ' -f1 > "$oc_zip.sha256"
+        fi
+
+        # Gemini CLI
+        if [ -d ".gemini/extensions/secguardian" ]; then
+            rm -f ".gemini/extensions/secguardian/scripts/bin/"*
+            cp "$src_bin" ".gemini/extensions/secguardian/scripts/bin/secguardian-index${ext}"
+            chmod +x ".gemini/extensions/secguardian/scripts/bin/secguardian-index${ext}"
+            gc_zip="$OUTPUT/secguardian-${VERSION}-gemini-cli-${plat_suffix}.zip"
+            (cd .gemini/extensions && zip -rq "$gc_zip" secguardian/)
+            shasum -a 256 "$gc_zip" | cut -d' ' -f1 > "$gc_zip.sha256"
+        fi
+
+        done_msg "  ${plat_suffix}: claude-code + opencode + gemini-cli"
+    done
+done
+
+# Restore native binary for local deployment
+deploy_indexer_binary ".claude/plugins/secguardian/scripts/bin" 2>/dev/null || true
+deploy_indexer_binary ".opencode/plugins/secguardian/scripts/bin" 2>/dev/null || true
+deploy_indexer_binary ".gemini/extensions/secguardian/scripts/bin" 2>/dev/null || true
+
 # ── 3. Source Archive ─────────────────────────────
 log "Packing source archive..."
 source_archive="$OUTPUT/secguardian-${VERSION}-source.tar.gz"
