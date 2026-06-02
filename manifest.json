@@ -190,6 +190,15 @@
       "sarif-output"
     ],
     "threat_catalog": "knowledge/threat-catalog.md",
+    "cheatsheets": {
+      "note": "跨 skill 共享的安全速查表 — 单主题、横向对比、决策辅助",
+      "files": [
+        "crypto-algorithms",
+        "injection-patterns",
+        "secrets-detection",
+        "tls-config"
+      ]
+    },
     "languages": [
       "cpp",
       "java",
@@ -212,7 +221,7 @@
         "concurrency": 4,
         "system": 7,
         "crypto": 9,
-        "web": 22,
+        "web": 21,
         "error": 6
       }
     },
