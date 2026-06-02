@@ -95,45 +95,62 @@ ensure_dist() {
     fi
 }
 
-# ── Shared binary deployment (idempotent) ────────
-deploy_binary() {
-    local target_dir="$1"
-    mkdir -p "$target_dir"
-    local target="$target_dir/secguardian-index"
+# ── Indexer binary deployment (canonical naming) ──
+# Copies the current platform's binary as 'secguardian-index' (no suffix)
+# so users always see the same binary name regardless of platform.
+deploy_indexer_binary() {
+    local target_bin_dir="$1"
+    mkdir -p "$target_bin_dir"
+    local target="$target_bin_dir/secguardian-index"
 
-    # Idempotency check: if existing binary reports same version, skip
-    if [ -x "$target" ]; then
-        local existing_ver=$("$target" --version 2>/dev/null || echo "unknown")
-        for d in "$DIST"/*/; do
-            if [ -x "$d/scripts/secguardian-index" ]; then
-                local new_ver=$("$d/scripts/secguardian-index" --version 2>/dev/null || echo "unknown")
-                if [ "$existing_ver" = "$new_ver" ] && [ -n "$existing_ver" ] && [ "$existing_ver" != "unknown" ]; then
-                    log_info "indexer binary already up-to-date ($existing_ver) at $target_dir/"
-                    return 0
-                fi
-            fi
-        done
+    # Detect current platform
+    local os_name arch_name
+    case "$(uname -s)" in
+        Darwin) os_name="darwin" ;;
+        Linux)  os_name="linux" ;;
+        *)      os_name="unknown" ;;
+    esac
+    case "$(uname -m)" in
+        x86_64|amd64)  arch_name="amd64" ;;
+        arm64|aarch64) arch_name="arm64" ;;
+        *)             arch_name="unknown" ;;
+    esac
+
+    local bin_src="$PROJECT_ROOT/scripts/bin"
+    local src="$bin_src/secguardian-index-${os_name}-${arch_name}"
+
+    # If exact platform binary doesn't exist, try any available
+    if [ ! -f "$src" ]; then
+        src=$(ls "$bin_src"/secguardian-index-* 2>/dev/null | head -1)
+    fi
+    if [ -z "$src" ] || [ ! -f "$src" ]; then
+        log_info "no indexer binary found for ${os_name}-${arch_name} — skipping binary deployment"
+        return 0
     fi
 
-    # Atomic replacement: write to .tmp first, then mv
-    for d in "$DIST"/*/; do
-        if [ -x "$d/scripts/secguardian-index" ]; then
-            cp "$d/scripts/secguardian-index" "${target}.tmp"
-            chmod +x "${target}.tmp"
-            # Verify the new binary works before replacing
-            if "${target}.tmp" --version >/dev/null 2>&1; then
-                mv "${target}.tmp" "$target"
-                local ver=$("$target" --version 2>/dev/null || echo "unknown")
-                log_info "indexer binary deployed ($ver) to $target_dir/"
-                return 0
-            else
-                rm -f "${target}.tmp"
-                log_info "indexer binary verification failed — keeping existing version"
-                return 1
-            fi
+    # Idempotency: skip if same version already deployed
+    if [ -x "$target" ]; then
+        local existing_ver=$("$target" --version 2>/dev/null || echo "unknown")
+        local new_ver=$("$src" --version 2>/dev/null || echo "unknown")
+        if [ "$existing_ver" = "$new_ver" ] && [ -n "$existing_ver" ] && [ "$existing_ver" != "unknown" ]; then
+            log_info "indexer binary already up-to-date ($existing_ver)"
+            return 0
         fi
-    done
-    return 1
+    fi
+
+    # Atomic replacement
+    cp "$src" "${target}.tmp"
+    chmod +x "${target}.tmp"
+    if "${target}.tmp" --version >/dev/null 2>&1; then
+        mv "${target}.tmp" "$target"
+        local ver=$("$target" --version 2>/dev/null || echo "unknown")
+        log_info "indexer binary deployed: secguardian-index ($ver, ${os_name}-${arch_name})"
+        return 0
+    else
+        rm -f "${target}.tmp"
+        log_info "indexer binary verification failed — keeping existing version"
+        return 1
+    fi
 }
 
 # ── Claude Code (Official Plugin Format) ──────────
@@ -209,12 +226,7 @@ JSON
             chmod +x "$plugin_dir/scripts/$wrapper" 2>/dev/null || true
         fi
     done
-    local bin_src="$PROJECT_ROOT/scripts/bin"
-    if [ -d "$bin_src" ]; then
-        cp "$bin_src/"secguardian-index-* "$plugin_dir/scripts/bin/" 2>/dev/null || true
-        chmod +x "$plugin_dir/scripts/bin/"* 2>/dev/null || true
-        log_done "cross-platform binaries in .claude/plugins/$plugin_name/scripts/bin/"
-    fi
+    deploy_indexer_binary "$plugin_dir/scripts/bin"
 
     echo ""
     log_info "Claude Code 命令（重启后生效）:"
@@ -395,12 +407,7 @@ JSON
             chmod +x "$scripts_dir/$wrapper" 2>/dev/null || true
         fi
     done
-    local bin_src="$PROJECT_ROOT/scripts/bin"
-    if [ -d "$bin_src" ]; then
-        cp "$bin_src/"secguardian-index-* "$scripts_dir/bin/" 2>/dev/null || true
-        chmod +x "$scripts_dir/bin/"* 2>/dev/null || true
-        log_done "cross-platform binaries in .opencode/plugins/$brand/scripts/bin/"
-    fi
+    deploy_indexer_binary "$scripts_dir/bin"
 
     echo ""
     log_info "OpenCode 使用方式（重启后生效）:"
@@ -479,8 +486,7 @@ JSON
         [ -f "$PROJECT_ROOT/scripts/$wrapper" ] && cp "$PROJECT_ROOT/scripts/$wrapper" "$ext_dir/scripts/"
     done
     chmod +x "$ext_dir/scripts/"* 2>/dev/null || true
-    local bin_src="$PROJECT_ROOT/scripts/bin"
-    [ -d "$bin_src" ] && cp "$bin_src/"secguardian-index-* "$ext_dir/scripts/bin/" 2>/dev/null || true
+    deploy_indexer_binary "$ext_dir/scripts/bin"
     chmod +x "$ext_dir/scripts/bin/"* 2>/dev/null || true
 
     # 生成 Gemini 上下文文件

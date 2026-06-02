@@ -86,12 +86,12 @@ if [ -d ".claude/plugins/secguardian" ]; then
     done_msg "secguardian-${VERSION}-claude-code.zip ($(du -h "$claude_zip" | cut -f1))"
 fi
 
-# OpenCode: commands + skills/secguardian/ + knowledge + scripts
+# OpenCode: plugin under .opencode/plugins/secguardian/
 bash scripts/deploy.sh nga > /dev/null 2>&1
 opencode_zip="$OUTPUT/secguardian-${VERSION}-opencode.zip"
 rm -f "$opencode_zip"
-if [ -d ".opencode/commands" ]; then
-    (cd .opencode && zip -rq "$opencode_zip" commands/ skills/ knowledge/ scripts/)
+if [ -d ".opencode/plugins/secguardian" ]; then
+    (cd .opencode/plugins && zip -rq "$opencode_zip" secguardian/)
     shasum -a 256 "$opencode_zip" | cut -d' ' -f1 > "$opencode_zip.sha256"
     done_msg "secguardian-${VERSION}-opencode.zip ($(du -h "$opencode_zip" | cut -f1))"
 fi
@@ -161,9 +161,11 @@ cat > "$OUTPUT/manifest.json" << EOF
       "type": "source"
     }
   ],
-  "detectors": 45,
+  "detectors": 60,
   "cwe_top25": "25/25 (100%)",
-  "owasp_top10": "9/10 (90%)"
+  "owasp_top10": "10/10 (100%)",
+	  "owasp_api_top10": "10/10 (100%)",
+	  "audit_skills": 27
 }
 EOF
 done_msg "manifest.json"
