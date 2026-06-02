@@ -46,6 +46,8 @@ echo -e "${BOLD}╚════════════════════�
 echo ""
 
 mkdir -p "$OUTPUT"
+# Clean previous release artifacts
+rm -f "$OUTPUT"/*.zip "$OUTPUT"/*.zip.sha256 "$OUTPUT"/*.tar.gz "$OUTPUT"/*.tar.gz.sha256 "$OUTPUT"/secguardian-index-* "$OUTPUT"/manifest.json
 
 # ── 1. Go Binary: macOS (native) ──────────────────
 log "Building indexer binaries (macOS)..."
