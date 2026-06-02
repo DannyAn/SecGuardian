@@ -306,7 +306,7 @@ func extractTypeName(node *treesitter.Node, content []byte, file, kind string) T
 	for i := uint(0); i < node.ChildCount(); i++ {
 		child := node.Child(i)
 		if child.Kind() == "type_identifier" || child.Kind() == "identifier" {
-			ti.Name = safeUtf8Text(child)
+			ti.Name = safeText(content, child.StartByte(), child.EndByte())
 			break
 		}
 	}
@@ -314,13 +314,8 @@ func extractTypeName(node *treesitter.Node, content []byte, file, kind string) T
 }
 
 func safeText(content []byte, start, end uint) string {
-	if int(end) > len(content) {
+	if int(start) >= len(content) || int(end) > len(content) || start > end {
 		return ""
 	}
 	return string(content[start:end])
-}
-
-func safeUtf8Text(node *treesitter.Node) string {
-	buf := make([]byte, 1024)
-	return node.Utf8Text(buf)
 }
