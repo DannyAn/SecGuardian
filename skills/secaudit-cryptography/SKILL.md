@@ -1,17 +1,20 @@
 ---
 name: secaudit-cryptography
-description: 审计密码学实现的安全性，检测弱算法、错误使用模式、密钥管理缺陷和随机数安全问题
+description: 审计密码学实现的安全性，检测弱算法、错误使用模式、密钥管理缺陷和随机数安全问题。当用户请求密码学审计、加密算法检测、密钥管理审查、随机数安全、弱加密检测时使用。
 category: domain
-topic: crypto
+topic: [crypto]
 ---
 
 > **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`（含 `symbols.functions`、`call_graph.edges`、`files`）。审计时优先利用符号表和调用图定位目标，追踪数据流路径。
+> **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
 
 # 密码学安全审计
 
 ## 审计概览
 
 密码学错误通常是最隐蔽的安全漏洞——代码能正常运行，但保护形同虚设。本次审计覆盖四个方面：
+
+> **参考**: 详细算法安全速查表（对称/非对称/哈希/KDF）、常见误用模式见 [`../../knowledge/cheatsheets/crypto-algorithms.md`](../../knowledge/cheatsheets/crypto-algorithms.md)。
 - **算法选择**：用了什么算法，是否已被破解
 - **使用模式**：算法用对了吗（模式、填充、IV）
 - **随机数安全**：密钥、Token、盐值是否真正随机

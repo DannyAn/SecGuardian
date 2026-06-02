@@ -1,13 +1,14 @@
 ---
 name: secaudit-attack-surface-analysis
-description: 系统性地分析代码库的攻击面，识别所有暴露的入口点、接口和数据通道，评估每个暴露面的风险等级
+description: 系统性地分析代码库的攻击面，识别所有暴露的入口点、接口和数据通道，评估每个暴露面的风险等级。当用户请求安全审计、攻击面评估、暴露面分析、入口点识别、架构安全评审时使用。
 category: analysis
-topic: web
+topic: [web]
 ---
 
 > **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`（含 `symbols.functions`、`call_graph.edges`、`files`）。审计时优先利用符号表和调用图定位目标，追踪数据流路径。
+> **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
 
-# 攻击面分析 (Attack Surface Analysis)
+# 攻击面分析
 
 ## 分析方法概述
 

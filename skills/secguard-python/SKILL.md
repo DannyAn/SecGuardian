@@ -1,12 +1,13 @@
 ---
 name: secguard-python
-description: 对 Python 代码进行安全加固项排查，扫描危险函数调用和常见漏洞模式
+description: 对 Python 代码进行安全加固项排查，扫描危险函数调用和常见漏洞模式。当用户请求Python安全扫描、Python代码审计、Django/Flask安全、Python注入检测、pickle安全时使用。
 category: language-specific
 language: python
+topic: [web, crypto, system]
 ---
 
 
-# secguard-python
+# Python 安全加固排查
 
 对 Python 代码进行安全加固项排查，扫描代码和 PR 中需要安全加固的问题。
 

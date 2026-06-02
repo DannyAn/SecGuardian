@@ -1,13 +1,14 @@
 ---
 name: secaudit-data-flow-analysis
-description: 追踪数据在系统中的完整传播路径，识别从输入点到输出点的所有数据流，发现隐式的数据依赖和潜在的数据泄露通道
+description: 追踪数据在系统中的完整传播路径，识别从输入点到输出点的所有数据流，发现隐式的数据依赖和潜在的数据泄露通道。当用户请求数据流分析、敏感数据追踪、数据泄露审计、数据生命周期分析、PII保护审查时使用。
 category: analysis
-topic: memory
+topic: [system]
 ---
 
 > **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`（含 `symbols.functions`、`call_graph.edges`、`files`）。审计时优先利用符号表和调用图定位目标，追踪数据流路径。
+> **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
 
-# 数据流分析 (Data Flow Analysis)
+# 数据流分析
 
 ## 分析方法概述
 

@@ -1,12 +1,13 @@
 ---
 name: secguard-java
-description: 对 Java 代码进行安全加固项排查，扫描危险 API 调用和常见漏洞模式
+description: 对 Java 代码进行安全加固项排查，扫描危险 API 调用和常见漏洞模式。当用户请求Java安全扫描、Java代码审计、反序列化漏洞、Spring安全、Java加密安全时使用。
 category: language-specific
 language: java
+topic: [web, crypto, system]
 ---
 
 
-# secguard-java
+# Java 安全加固排查
 
 对 Java 代码进行安全加固项排查，扫描代码和 PR 中需要安全加固的问题。
 

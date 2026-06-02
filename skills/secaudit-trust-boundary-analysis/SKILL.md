@@ -1,13 +1,14 @@
 ---
 name: secaudit-trust-boundary-analysis
-description: 识别系统架构中的信任边界，检查跨边界交互的安全控制，发现因信任假设错误导致的安全漏洞
+description: 识别系统架构中的信任边界，检查跨边界交互的安全控制，发现因信任假设错误导致的安全漏洞。当用户请求信任边界分析、架构安全评审、跨边界数据验证、微服务安全边界、零信任架构审查时使用。
 category: analysis
-topic: system
+topic: [system]
 ---
 
 > **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`（含 `symbols.functions`、`call_graph.edges`、`files`）。审计时优先利用符号表和调用图定位目标，追踪数据流路径。
+> **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
 
-# 信任边界分析 (Trust Boundary Analysis)
+# 信任边界分析
 
 ## 分析方法概述
 

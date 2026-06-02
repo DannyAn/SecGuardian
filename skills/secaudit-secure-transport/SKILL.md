@@ -1,17 +1,20 @@
 ---
 name: secaudit-secure-transport
-description: 审计网络通信的TLS/SSL配置和传输层安全，检测证书问题、降级攻击风险、协议配置缺陷和不安全的加密套件
+description: 审计网络通信的TLS/SSL配置和传输层安全，检测证书问题、降级攻击风险、协议配置缺陷和不安全的加密套件。当用户请求传输安全审计、TLS配置审查、证书管理检测、中间人攻击防护、加密套件安全时使用。
 category: domain
-topic: system
+topic: [system]
 ---
 
 > **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`（含 `symbols.functions`、`call_graph.edges`、`files`）。审计时优先利用符号表和调用图定位目标，追踪数据流路径。
+> **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
 
 # 安全传输审计
 
 ## 审计概览
 
 传输层安全（TLS）是保护数据在网络上传输的基础。配置错误可能导致中间人攻击（MITM）、降级攻击和敏感数据泄露。审计覆盖：
+
+> **参考**: 详细 TLS 配置检查清单、加密套件速查、证书检查项见 [`../../knowledge/cheatsheets/tls-config.md`](../../knowledge/cheatsheets/tls-config.md)。
 - **TLS 版本和加密套件**
 - **证书管理和验证**
 - **客户端和服务端双向认证**

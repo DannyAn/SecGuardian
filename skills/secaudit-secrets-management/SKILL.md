@@ -1,17 +1,20 @@
 ---
 name: secaudit-secrets-management
-description: 审计密钥、凭证、Token等敏感信息的管理方式，检测硬编码、泄露、不当存储和缺失轮换等安全风险
+description: 审计密钥、凭证、Token等敏感信息的管理方式，检测硬编码、泄露、不当存储和缺失轮换等安全风险。当用户请求密钥管理审计、硬编码凭证检测、密钥泄露扫描、凭证轮换审查、密钥存储安全时使用。
 category: domain
-topic: system
+topic: [system]
 ---
 
 > **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`（含 `symbols.functions`、`call_graph.edges`、`files`）。审计时优先利用符号表和调用图定位目标，追踪数据流路径。
+> **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
 
 # 密钥管理安全审计
 
 ## 审计概览
 
 密钥管理是安全体系中最核心也最容易出问题的环节。审计覆盖：
+
+> **参考**: 高熵字符串检测正则模式、密钥存储安全矩阵、密钥生命周期检查清单见 [`../../knowledge/cheatsheets/secrets-detection.md`](../../knowledge/cheatsheets/secrets-detection.md)。
 - **硬编码检测**：代码和配置中是否包含明文凭证
 - **存储安全**：密钥的存储方式和访问控制
 - **生命周期管理**：密钥的生成、分发、轮换、撤销

@@ -1,11 +1,12 @@
 ---
 name: secaudit-http-security-headers
-description: 审计 HTTP 响应安全头配置，检测缺失、错误配置或相互冲突的安全头，确保浏览器安全策略正确实施
+description: 审计 HTTP 响应安全头配置，检测缺失、错误配置或相互冲突的安全头，确保浏览器安全策略正确实施。当用户请求HTTP安全头审计、CSP配置审查、CORS安全、浏览器安全策略、HSTS检测时使用。
 category: domain
-topic: web
+topic: [web]
 ---
 
 > **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`（含 `symbols.functions`、`call_graph.edges`、`files`）。审计时优先利用符号表和调用图定位目标，追踪数据流路径。
+> **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
 
 # HTTP 安全头审计
 

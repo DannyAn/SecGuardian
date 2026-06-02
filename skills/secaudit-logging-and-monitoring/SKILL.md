@@ -1,11 +1,12 @@
 ---
 name: secaudit-logging-and-monitoring
-description: 审计安全日志的完整性、可追溯性、防篡改和监控覆盖度，检测日志注入、敏感信息泄露和安全事件遗漏
+description: 审计安全日志的完整性、可追溯性、防篡改和监控覆盖度，检测日志注入、敏感信息泄露和安全事件遗漏。当用户请求日志安全审计、监控覆盖审查、安全事件追溯、日志注入检测、SIEM配置审查时使用。
 category: domain
-topic: system
+topic: [system]
 ---
 
 > **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`（含 `symbols.functions`、`call_graph.edges`、`files`）。审计时优先利用符号表和调用图定位目标，追踪数据流路径。
+> **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
 
 # 日志与监控安全审计
 

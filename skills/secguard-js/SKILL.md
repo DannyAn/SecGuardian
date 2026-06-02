@@ -1,11 +1,12 @@
 ---
 name: secguard-js
-description: 对 JavaScript/TypeScript 代码进行安全加固项排查，扫描危险函数调用、原型污染、NoSQL 注入等漏洞
+description: 对 JavaScript/TypeScript 代码进行安全加固项排查，扫描危险函数调用、原型污染、NoSQL 注入等漏洞。当用户请求JavaScript安全扫描、Node.js安全审计、前端安全、原型污染检测、npm安全时使用。
 category: language-specific
 language: javascript
+topic: [web, crypto, system]
 ---
 
-# secguard-js
+# JavaScript/Node.js 安全加固排查
 
 对 JavaScript/TypeScript 代码进行安全加固项排查，扫描代码和 PR 中需要安全加固的问题。
 

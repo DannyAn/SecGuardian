@@ -1,13 +1,14 @@
 ---
 name: secaudit-taint-analysis
-description: 通过污点传播追踪检测不可信数据是否未经净化到达危险操作点，发现注入类和安全敏感操作漏洞
+description: 通过污点传播追踪检测不可信数据是否未经净化到达危险操作点，发现注入类和安全敏感操作漏洞。当用户请求污点分析、数据流追踪、注入漏洞检测、Source-Sink分析、不可信数据传播审查时使用。
 category: analysis
-topic: memory
+topic: [web]
 ---
 
 > **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`（含 `symbols.functions`、`call_graph.edges`、`files`）。审计时优先利用符号表和调用图定位目标，追踪数据流路径。
+> **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
 
-# 污点分析 (Taint Analysis)
+# 污点分析
 
 ## 分析方法概述
 

@@ -1,13 +1,14 @@
 ---
 name: secaudit-state-machine-analysis
-description: 分析系统状态转换逻辑的安全性，检测非法的状态跃迁路径，发现认证绕过、权限提升和业务逻辑漏洞
+description: 分析系统状态转换逻辑的安全性，检测非法的状态跃迁路径，发现认证绕过、权限提升和业务逻辑漏洞。当用户请求状态机分析、业务逻辑漏洞检测、状态跃迁安全、工作流安全审计、流程绕过检测时使用。
 category: analysis
-topic: concurrency
+topic: [concurrency]
 ---
 
 > **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`（含 `symbols.functions`、`call_graph.edges`、`files`）。审计时优先利用符号表和调用图定位目标，追踪数据流路径。
+> **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
 
-# 状态机分析 (State Machine Analysis)
+# 状态机分析
 
 ## 分析方法概述
 

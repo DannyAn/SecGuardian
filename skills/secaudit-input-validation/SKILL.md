@@ -1,17 +1,20 @@
 ---
 name: secaudit-input-validation
-description: 审计用户输入的验证和净化逻辑，检测各类注入漏洞和不充分的输入校验，覆盖 OWASP Top 10 注入类风险
+description: 审计用户输入的验证和净化逻辑，检测各类注入漏洞和不充分的输入校验，覆盖 OWASP Top 10 注入类风险。当用户请求输入验证审计、注入漏洞检测、SQL注入、命令注入、XSS检测时使用。
 category: domain
-topic: web
+topic: [web]
 ---
 
 > **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`（含 `symbols.functions`、`call_graph.edges`、`files`）。审计时优先利用符号表和调用图定位目标，追踪数据流路径。
+> **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
 
 # 输入验证安全审计
 
 ## 审计概览
 
 输入验证失败是注入类漏洞的根源（OWASP A03:2021）。审计覆盖所有外部输入点：
+
+> **参考**: 各语言 SQL 注入/命令注入/XSS/路径穿越检测模式速查见 [`../../knowledge/cheatsheets/injection-patterns.md`](../../knowledge/cheatsheets/injection-patterns.md)。
 - **SQL 注入**：参数化 vs 拼接
 - **命令注入**：shell 拼接
 - **XSS**：反射/存储/DOM
