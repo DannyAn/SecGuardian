@@ -40,98 +40,221 @@ version: "2.0"
 
 | 我想做什么 | 打开哪个文件 | 为什么 |
 |-----------|------------|--------|
-| 快速看一眼有什么问题 | `manifest.json` | JSON 索引：检出 ID、严重度、文件、行号一目了然 |
-| 深入了解某个漏洞 | `report.md` | Markdown 报告：证据链（代码上下文）+ before/after 修复方案 |
-| 手动改代码 | `report.md` | 复制 before/after 代码片段，直接在 IDE 中修改 |
-| 交给 AI Agent 批量修复 | `report.md` | 对 AI 说："读取 report.md，按每个检出的修复方案修改代码" |
-| 接入 CI/CD 流水线 | `results.sarif` | SARIF 2.1.0，GitHub/GitLab/Azure 原生消费，PR 内联注释 |
-| 查看趋势（比上次多了还是少了） | `delta.json` | 与 `latest` 符号链接指向的上次扫描做增量对比 |
+| **★ 看整体安全水位（商业决策）** | `report.md` §1-2 | 安全评分 A-F + 合规仪表盘 + 趋势，可直接发给 CTO/客户 |
+| **快速看一眼有什么问题** | `report.md` §3 或 `manifest.json` | Markdown 表格 或 JSON 索引，检出 ID/严重度/文件/行号 |
+| **深入了解某个漏洞 + 改代码** | `report.md` §4 | 证据链（代码上下文）+ before/after 修复方案 |
+| **规划修复工作** | `report.md` §5 | 四阶段修复路线图，按风险 × 成本排序，预估工时 |
+| **交给 AI Agent 批量修复** | `report.md` | 对 AI 说："读取 report.md §4，按每个修复方案修改代码" |
+| **导出 PDF 交付客户** | `report.md` | `pandoc report.md -o report.pdf --pdf-engine=weasyprint` |
+| **接入 CI/CD 流水线** | `results.sarif` | SARIF 2.1.0，GitHub/GitLab/Azure 原生消费，PR 内联注释 |
+| **查看趋势** | `delta.json` | 与 `latest` 符号链接指向的上次扫描做增量对比 |
 
-**无需打开 `findings/` 目录** —— 所有详情已在 `report.md` 中按章节组织完成。
+## report.md — 商业交付物（人读审计报告）
 
-## report.md — 人读审计报告
+`report.md` 是 SecGuardian 的**核心商业交付物**。一份报告同时服务三个角色：
 
-### 结构
+| 角色 | 阅读章节 | 关注点 |
+|------|---------|--------|
+| 决策者（CTO/客户） | §1 执行摘要 + §2 合规仪表盘 | 安全评分、合规状态、风险趋势 |
+| 技术负责人 | §3 检出清单 + §5 修复路线图 | 优先级排序、预估工时 |
+| 工程师 | §4 详细发现 | 证据链、修复代码、CWE 参考 |
+
+### 安全评分算法
+
+```
+评分 = 100 - (Critical×25 + High×10 + Medium×3 + Low×1)
+上限 100，下限 0
+
+等级映射:
+  90-100   A  优秀 — 可发布生产环境
+  75-89    B  良好 — 建议修复 High+ 后发布
+  60-74    C  及格 — 存在需关注的风险
+  40-59    D  较差 — 禁止发布，必须修复所有 Critical
+  0-39     F  危险 — 存在可远程利用的已知漏洞
+```
+
+### 完整模板
 
 ```markdown
-# SecGuardian 安全扫描报告
+# 🔐 SecGuardian 安全审计报告
 
-> Scan ID: {{SCAN_ID}} | Command: /{{COMMAND}} | Date: {{DATE}}
-> Path: {{PATH}} | Language: {{LANGUAGE}} | Mode: {{MODE}}
-
----
-
-## 执行摘要
-
-- 扫描文件: {{SCANNED_FILES}}
-- 启用检测器: {{DETECTORS_EXECUTED}} / {{DETECTORS_MATCHED}}
-- 检出总数: **{{TOTAL}}** (C: {{CRITICAL}} / H: {{HIGH}} / M: {{MEDIUM}} / L: {{LOW}})
-- 安全评分: {{SCORE}}/100
+> **Scan ID**: {{SCAN_ID}} | **命令**: /{{COMMAND}} | **日期**: {{DATE}}
+> **扫描范围**: `{{PATH}}` | **语言**: {{LANGUAGE}} | **模式**: {{MODE}}
+> **审计方**: SecGuardian XuanWu v{{VERSION}} | **60 检测器** | CWE Top 25 全覆盖
 
 ---
 
-## 检出清单
+## 1. 执行摘要
 
-| ID | 严重度 | 置信度 | 检测器 | 文件:行 | 标题 |
-|----|--------|--------|--------|---------|------|
-| C-001 | 🔴 Critical | high | memory.buffer-overflow | src/parser.c:42 | strcpy 缓冲区溢出 |
-| H-001 | 🟠 High | high | memory.null-dereference | src/network.c:305 | malloc 返回值未检查 |
+| 指标 | 本次 | 上次 | 趋势 |
+|------|------|------|------|
+| 安全评分 | **{{SCORE}}/100 — {{GRADE}}** | {{LAST_SCORE}} | {{TREND}} |
+| 扫描文件 | {{SCANNED_FILES}} | — | — |
+| 代码行数 | {{SCANNED_LINES}} | — | — |
+| Critical | {{CRITICAL}} | {{LAST_CRITICAL}} | {{CRITICAL_TREND}} |
+| High | {{HIGH}} | {{LAST_HIGH}} | {{HIGH_TREND}} |
+| Medium | {{MEDIUM}} | {{LAST_MEDIUM}} | {{MED_TREND}} |
+| Low | {{LOW}} | {{LAST_LOW}} | {{LOW_TREND}} |
+
+> **评级**: {{GRADE_DESC}}
+> {{RECOMMENDATION}}
 
 ---
 
-## 详细发现
+## 2. 合规仪表盘
 
-### C-001: strcpy 缓冲区溢出 [Critical]
+### OWASP Top 10 (2021)
+
+| 类别 | 覆盖率 | 检出数 |
+|------|--------|--------|
+| A01:2021 访问控制失效 | ✅ 覆盖 | {{A01_COUNT}} |
+| A02:2021 加密失败 | ✅ 覆盖 | {{A02_COUNT}} |
+| A03:2021 注入 | ✅ 覆盖 | {{A03_COUNT}} |
+| A04:2021 不安全设计 | ⚠️ 部分 | 0 |
+| A05:2021 安全配置错误 | ✅ 覆盖 | {{A05_COUNT}} |
+| A06:2021 脆弱组件 | ✅ 覆盖 | {{A06_COUNT}} |
+| A07:2021 认证失效 | ✅ 覆盖 | {{A07_COUNT}} |
+| A08:2021 软件和数据完整性 | ⚠️ 部分 | 0 |
+| A09:2021 日志和监控 | ✅ 覆盖 | {{A09_COUNT}} |
+| A10:2021 SSRF | ✅ 覆盖 | {{A10_COUNT}} |
+
+### CWE Top 25 (2024)
+
+**覆盖率: 25/25 (100%)**
+
+| CWE | 名称 | 检出数 |
+|-----|------|--------|
+| CWE-79 | XSS | {{XSS_COUNT}} |
+| CWE-89 | SQL 注入 | {{SQLI_COUNT}} |
+| CWE-120 | 缓冲区溢出 | {{BOF_COUNT}} |
+| ... | ... | ... |
+
+---
+
+## 3. 检出清单
+
+| ID | 严重度 | 置信度 | CWE | 文件:行 | 标题 |
+|----|--------|--------|-----|---------|------|
+| C-BOF-parser_c-42 | 🔴 Critical | high | CWE-120 | src/parser.c:42 | strcpy 缓冲区溢出 |
+| H-NPD-network_c-305 | 🟠 High | high | CWE-476 | src/network.c:305 | malloc 返回值未检查 |
+| H-CMD-executor_c-89 | 🟠 High | medium | CWE-77 | src/executor.c:89 | system() 命令注入 |
+
+> **共 {{TOTAL}} 个检出** (C: {{C}} / H: {{H}} / M: {{M}} / L: {{L}})
+
+---
+
+## 4. 详细发现
+
+### C-BOF-parser_c-42: strcpy 缓冲区溢出
 
 | 属性 | 值 |
 |------|-----|
-| **文件** | `src/parser.c:42` |
+| **严重度** | 🔴 Critical (CVSS 9.8) |
 | **检测器** | `memory.buffer-overflow` |
-| **CWE** | [CWE-120](https://cwe.mitre.org/data/definitions/120.html) |
-| **置信度** | high — 存在完整利用路径 |
-| **函数** | `parse_input()` |
+| **CWE** | [CWE-120: Buffer Copy without Checking Size of Input](https://cwe.mitre.org/data/definitions/120.html) |
+| **OWASP** | A03:2021 注入 |
+| **位置** | `src/parser.c:42` → `parse_input()` |
+| **置信度** | high — 存在完整利用路径（用户输入 → strcpy → 栈缓冲区） |
 
-**问题描述**: ...
+**证据链**:
 
-**代码段**:
-\`\`\`c
-  40: char buf[64];
-  41: if (input) {
-> 42:     strcpy(buf, user_input);   // ← 高危
-  43:     process(buf);
-  44: }
-\`\`\`
+```c
+// src/parser.c:40-44  parse_input()
+char buf[64];                          // 40: 64 字节栈缓冲区
+if (input) {                           // 41: 来自用户输入
+    strcpy(buf, user_input);           // 42: ← 无长度检查!
+    process(buf);                      // 43: 处理后继续使用
+}                                      // 44
+```
 
-**影响**: ...
+**影响**: 攻击者可构造超长输入覆盖栈帧，劫持返回地址实现 RCE。
 
 **修复方案**:
-\`\`\`c
-// 替换为
+
+```c
+// ❌ Before
+strcpy(buf, user_input);
+
+// ✅ After
 strncpy(buf, user_input, sizeof(buf) - 1);
 buf[sizeof(buf) - 1] = '\0';
-\`\`\`
-
-**修复工作量**: low | **修复风险**: none
-
----
-
-## 修复优先级
-
-### 🔴 立即修复 (Critical)
-1. C-001: 使用 strncpy 替代 strcpy (src/parser.c:42)
-
-### 🟠 本次迭代 (High)
-2. H-001: malloc 后添加 NULL 检查 (src/network.c:305)
-
----
-
-## 附录
-
-- 扫描命令: /secguard ./src
-- 检测器: memory.*, system.*
-- 输出目录: .codeagent/secguard-secguardian/scans/{{SCAN_ID}}/
-- SARIF: results.sarif (可导入 GitHub Code Scanning)
 ```
+
+| 修复属性 | 值 |
+|---------|-----|
+| 工作量 | Low (< 5 min) |
+| 回滚风险 | None |
+| 验证方法 | 输入 > 64 字节测试 |
+
+**参考资料**:
+- [CWE-120](https://cwe.mitre.org/data/definitions/120.html)
+- [SEI CERT STR31-C](https://wiki.sei.cmu.edu/confluence/x/1dUxBQ)
+- [OWASP Buffer Overflow](https://owasp.org/www-community/vulnerabilities/Buffer_Overflow)
+
+---
+
+## 5. 修复路线图
+
+按 `风险 × 可达性 ÷ 修复成本` 排序：
+
+### 🔴 Phase 1 — 立即修复 ({{CRITICAL}} 项, 预计 {{CRITICAL_HOURS}}h)
+
+| # | ID | 文件:行 | 标题 | 工作量 |
+|---|-----|---------|------|--------|
+| 1 | C-BOF-parser_c-42 | src/parser.c:42 | strcpy 缓冲区溢出 | ~5 min |
+
+### 🟠 Phase 2 — 本次迭代 ({{HIGH}} 项, 预计 {{HIGH_HOURS}}h)
+
+| # | ID | 文件:行 | 标题 | 工作量 |
+|---|-----|---------|------|--------|
+| 2 | H-NPD-network_c-305 | src/network.c:305 | malloc 返回值未检查 | ~2 min |
+| 3 | H-CMD-executor_c-89 | src/executor.c:89 | system() 命令注入 | ~15 min |
+
+### 🟡 Phase 3 — 下个迭代 ({{MEDIUM}} 项, 预计 {{MED_HOURS}}h)
+### ⚪ Phase 4 — 技术债 ({{LOW}} 项, 预计 {{LOW_HOURS}}h)
+
+> **预计总修复时间: {{TOTAL_HOURS}}h** | 修复后预估评分: {{FIXED_SCORE}}/100 ({{FIXED_GRADE}})
+
+---
+
+## 6. 附录
+
+| 项目 | 值 |
+|------|-----|
+| 扫描工具 | SecGuardian XuanWu v{{VERSION}} |
+| 扫描命令 | /{{COMMAND}} {{PATH}} |
+| 检测器范围 | {{FILTERS}} ({{MATCHED}} matched, {{EXECUTED}} executed) |
+| 扫描时间 | {{DURATION}}ms |
+| 输出目录 | `.codeagent/{{EXTENSION}}/scans/{{SCAN_ID}}/` |
+| SARIF | `results.sarif`（导入 GitHub Code Scanning / GitLab SAST / Azure DevOps） |
+| 报表生成 | `pandoc report.md -o report.pdf --pdf-engine=weasyprint` |
+```
+
+### PDF 导出
+
+`report.md` 可一键导出为专业 PDF 交付客户：
+
+```bash
+# 安装依赖 (macOS)
+brew install pandoc weasyprint
+
+# 导出 PDF
+pandoc report.md -o report.pdf --pdf-engine=weasyprint \
+  --metadata title="SecGuardian 安全审计报告" \
+  --metadata author="SecGuardian XuanWu"
+```
+
+### 与商业竞品对比
+
+| 能力 | Coverity | Snyk | SonarQube | **SecGuardian** |
+|------|----------|------|-----------|----------------|
+| 执行摘要 | ✅ | ✅ | ✅ | ✅ |
+| 安全评分 | ❌ | ✅ | ✅ | ✅ (A-F 等级) |
+| 合规映射 | ✅ CWE | ❌ | ✅ OWASP | ✅ OWASP + CWE |
+| 修复路线图 | 部分 | ❌ | ❌ | ✅ 四阶段 + 预估工时 |
+| AI 可执行 | ❌ | ❌ | ❌ | ✅ report.md → AI Agent |
+| 免费导出 PDF | ❌ | ❌ | ❌ | ✅ pandoc 开源工具 |
+| 单文件交付 | ❌ (需 Web) | ❌ | ❌ (PDF) | ✅ Markdown (人 + AI 通读) |
 
 ### 生成规则
 
