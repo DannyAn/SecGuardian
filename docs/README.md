@@ -34,12 +34,18 @@
 
 ### 历史档案
 
-| 目录 | 说明 |
+| 文件 | 说明 |
 |------|------|
-| [`archive/codeplan/`](archive/codeplan/) | CodePlan V1/V2 调研笔记 — 已融入当前架构，保留作设计溯源 |
+| [`archive/codeplan/codeplan-v2-overview.md`](archive/codeplan/codeplan-v2-overview.md) | CodePlan V2 总体设计 |
+| [`archive/codeplan/codeplan-v2-packaging.md`](archive/codeplan/codeplan-v2-packaging.md) | 打包安装方案 |
+| [`archive/codeplan/codeplan-v2-command-skill.md`](archive/codeplan/codeplan-v2-command-skill.md) | 命令与 Skill 对齐 |
+| [`archive/codeplan/codeplan-v2-execution.md`](archive/codeplan/codeplan-v2-execution.md) | 执行计划 |
+| [`archive/codeplan/codeplan-v2-study.md`](archive/codeplan/codeplan-v2-study.md) | 调研笔记 |
+| [`archive/codeplan/codeplan-v2-study-addendum.md`](archive/codeplan/codeplan-v2-study-addendum.md) | 调研补遗 |
 
 ## 命名规范
 
-- 活跃文档：`kebab-case.md`（小写连字符）
-- 历史档案：`archive/<topic>/` 下保留原名
-- 新增文档：先判断属于上述哪个分类，再命名
+- 活跃文档：`kebab-case.md`（小写连字符，如 `design-journal.md`）
+- 历史档案：`archive/<topic>/<topic>-<descriptor>.md`（统一前缀 + kebab-case）
+- 治理文件：`governance/NN_Title_Name.md`（数字前缀保证顺序）
+- 新增文档：先判断属于哪个分类，按对应规范命名
