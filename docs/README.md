@@ -36,12 +36,11 @@
 
 | 文件 | 说明 |
 |------|------|
-| [`archive/codeplan/codeplan-v2-overview.md`](archive/codeplan/codeplan-v2-overview.md) | CodePlan V2 总体设计 |
-| [`archive/codeplan/codeplan-v2-packaging.md`](archive/codeplan/codeplan-v2-packaging.md) | 打包安装方案 |
-| [`archive/codeplan/codeplan-v2-command-skill.md`](archive/codeplan/codeplan-v2-command-skill.md) | 命令与 Skill 对齐 |
-| [`archive/codeplan/codeplan-v2-execution.md`](archive/codeplan/codeplan-v2-execution.md) | 执行计划 |
-| [`archive/codeplan/codeplan-v2-study.md`](archive/codeplan/codeplan-v2-study.md) | 调研笔记 |
-| [`archive/codeplan/codeplan-v2-study-addendum.md`](archive/codeplan/codeplan-v2-study-addendum.md) | 调研补遗 |
+| [`archive/codeplan/vision-and-gap-analysis.md`](archive/codeplan/vision-and-gap-analysis.md) | 竞品差距分析 + 进化方向 |
+| [`archive/codeplan/implementation-plan.md`](archive/codeplan/implementation-plan.md) | 可执行实施计划 |
+| [`archive/codeplan/refactor-plan.md`](archive/codeplan/refactor-plan.md) | 重构方案 + 抽象泄漏修正 |
+| [`archive/codeplan/packaging-and-install.md`](archive/codeplan/packaging-and-install.md) | 打包安装架构 |
+| [`archive/codeplan/command-skill-alignment.md`](archive/codeplan/command-skill-alignment.md) | 命令与 Skill 对齐 |
 
 ## 命名规范
 
