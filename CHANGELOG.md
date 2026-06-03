@@ -5,6 +5,50 @@ All notable changes to SecGuardian will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3] - 2026-06-03
+
+### Added
+
+- **Professional audit report** (`report.md`): Six-section commercial deliverable
+  with security score A-F + OWASP/CWE compliance dashboard + evidence chain +
+  before/after fix code + prioritized remediation roadmap with estimated hours.
+  Single file serves decision makers, tech leads, and engineers.
+- **User workflow guidance**: Terminal output now includes "如何使用结果" section
+  mapping each user intent to the right file.
+- **Design journal** (`docs/design-journal.md`): Chronological record of 10 major
+  architectural decisions with rationale, trade-offs, and lessons learned.
+- **`knowledge/detectors/secrets-detection.md`**: 61st detector — regex patterns
+  for hardcoded secrets + storage security matrix + lifecycle checklist.
+
+### Changed
+
+- **Output protocol v2.0 fully enforced**: All 6 commands and 27 skills now
+  produce `report.md` (human) + `results.sarif` (machine) instead of legacy
+  `findings/<id>.json`. Phase renamed "生成 Findings" → "持久化输出".
+- **SARIF 2.1.0 compliance**: OASIS standard format with `partialFingerprints`
+  dedup, per-tool upload support, field mapping documented.
+- **`secguard/cpp` Phase 5-7** merged into single "Phase 5: 持久化输出".
+
+### Removed
+
+- **`knowledge/cheatsheets/`**: Over-engineered abstraction layer. Content
+  migrated to detectors (secrets-detection) or skill references (tls-config).
+  Remaining files (crypto-algorithms, injection-patterns) deleted — detectors
+  already cover these domains exhaustively.
+- **`knowledge/prompt-templates/`**: CLI-only prompt assembly, superseded by
+  `commands/*.md` + `skills/*/SKILL.md`.
+- **`internal/` dead packages**: `prompt/`, `budget/`, `reflection/`, `scheduler/`
+  — 7 files, zero imports. `main.go` CLI subcommands (scan/audit/review/detectors)
+  — 60-entry detector registry removed. Result: 13→6 Go files, 5→3 packages.
+- **`secguardian-index` standalone binary from release**: Now only platform-
+  specific zips. Binary included inside each zip.
+
+### Fixed
+
+- Protocol version: all descriptions upgraded to "Scan Output Protocol 2.0"
+- `output-schemas.md` rewritten with Markdown finding example + SARIF field mapping
+- `report.md` re-anchored as single commercial deliverable vs multi-file confusion
+
 ## [0.5.2] - 2026-06-02
 
 ### Added

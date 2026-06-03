@@ -1,6 +1,6 @@
 {
   "name": "secaudit-secguardian",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "★ 旗舰产品：AI 深度安全审计 — 替代传统安全顾问的 17 项纵深分析",
   "author": "SecGuardian",
   "command": "secaudit",

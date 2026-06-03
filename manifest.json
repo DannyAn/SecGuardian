@@ -1,6 +1,6 @@
 {
   "project": "secguardian",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "protocol": "1.3",
   "description": "企业级白盒安全 AI Agent 辅助解决方案 — 以 AI 深度审计为核心的旗舰产品，60 个检测器覆盖 6 大安全分类",
   "product_positioning": {
