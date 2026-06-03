@@ -152,7 +152,7 @@ print(f'Index OK: {len(d[\"files\"])} files, {len(d.get(\"symbols\",{}).get(\"fu
 
 ### Step 4: 保存检出并输出摘要
 
-- 按照 [Scan Output Protocol 1.0](../knowledge/protocols/scan-output.md) 写入 `findings/<id>.json` 和 `manifest.json`。
+- 按照 `knowledge/protocols/scan-output.md` (v2.0) 写入 `report.md`（人读）+ `results.sarif`（机读）+ `manifest.json` + `summary.json` + `status.json`。
 - `manifest.json` 中的 `duration_ms` 必须使用 **实际 wall-clock 耗时**（结束时间戳 − 开始时间戳），不得编造。
 - 向用户展示检视发现和检视摘要。
 

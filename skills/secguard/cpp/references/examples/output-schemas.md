@@ -1,118 +1,135 @@
-# C/C++ 安全加固 — 输出 Schema 参考
+# Output Schemas — Protocol v2.0
 
-## finding.json 格式
+SecGuardian 输出协议 2.0 人读/机读分离。详见 `knowledge/protocols/scan-output.md`。
 
-每个检测到的安全问题，按以下格式输出到 `findings/<id>.json`：
+## report.md — 人读（Markdown 报告）
 
-```json
-{
-  "id": "C-001",
-  "severity": "critical",
-  "title": "Buffer overflow via strcpy in parse_input()",
-  "detector": {
-    "name": "memory.buffer-overflow",
-    "namespace": "memory",
-    "cwe": "CWE-120",
-    "cvss": 9.8
-  },
-  "location": {
-    "file": "src/parser.c",
-    "line": 42,
-    "column": 10,
-    "function": "parse_input",
-    "symbol": "strcpy"
-  },
-  "code": {
-    "snippet": "strcpy(buf, user_input);",
-    "context": {
-      "before": [
-        {"line": 40, "content": "char buf[64];"},
-        {"line": 41, "content": "if (input) {"}
-      ],
-      "vulnerable": {"line": 42, "content": "    strcpy(buf, user_input);"},
-      "after": [
-        {"line": 43, "content": "    process(buf);"},
-        {"line": 44, "content": "}"}
-      ]
-    }
-  },
-  "diff_status": {
-    "in_diff": true,
-    "diff_line": "+42",
-    "is_new_code": true
-  },
-  "analysis": {
-    "description": "用户输入通过 strcpy 直接拷贝到 64 字节栈缓冲区，未做长度检查。超长输入将覆盖返回地址。",
-    "impact": "攻击者可构造超长输入实现任意代码执行 (RCE)。",
-    "confidence": "high"
-  },
-  "remediation": {
-    "description": "将 strcpy 替换为 strncpy，确保 null 终止。更佳方案使用 std::string。",
-    "code_before": "strcpy(buf, user_input);",
-    "code_after": "strncpy(buf, user_input, sizeof(buf) - 1);\nbuf[sizeof(buf) - 1] = '\\0';",
-    "effort": "low",
-    "risk_of_fix": "none"
-  },
-  "references": [
-    {"type": "cwe", "id": "CWE-120", "url": "https://cwe.mitre.org/data/definitions/120.html"},
-    {"type": "cert", "id": "STR31-C", "url": "https://wiki.sei.cmu.edu/confluence/x/1dUxBQ"}
-  ]
-}
+每个检出以 Markdown 子章节形式嵌入 `report.md`，包含位置、证据链和修复方案：
+
+```markdown
+### C-BOF-parse_input-42: Buffer overflow via strcpy
+
+| 属性 | 值 |
+|------|-----|
+| 严重度 | 🔴 Critical (CVSS 9.8) |
+| 检测器 | `memory.buffer-overflow` (CWE-120) |
+| 位置 | `src/parser.c:42` → `parse_input()` |
+| 置信度 | High |
+
+#### 证据链
+
+```c
+// src/parser.c:40-44
+char buf[64];                          // 40: 64 字节栈缓冲区
+if (input) {                           // 41: 来自用户输入
+    strcpy(buf, user_input);           // 42: ← 漏洞点：无长度检查
+    process(buf);                      // 43: 处理后继续使用
+}                                      // 44
 ```
 
-## manifest.json 格式
+#### 修复方案
+
+将 `strcpy` 替换为 `strncpy`，确保 null 终止。更佳方案使用 `std::string`。
+
+```c
+// Before
+strcpy(buf, user_input);
+
+// After
+strncpy(buf, user_input, sizeof(buf) - 1);
+buf[sizeof(buf) - 1] = '\0';
+```
+
+**修复工作量**: Low | **回滚风险**: None
+
+#### 参考
+
+- [CWE-120: Buffer Copy without Checking Size of Input](https://cwe.mitre.org/data/definitions/120.html)
+- [SEI CERT STR31-C](https://wiki.sei.cmu.edu/confluence/x/1dUxBQ)
+```
+
+## results.sarif — 机读（SARIF 2.1.0）
+
+[OASIS SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/) 标准格式，始终生成。GitHub Code Scanning / GitLab SAST / Azure DevOps 原生消费。
+
+关键要求（[GitHub 2025-07 起强制](https://github.blog/changelog/2025-07-22-code-scanning-per-tool-category/)）：
+- `partialFingerprints` 去重
+- 每个 tool/category 独立上传，禁止合并多工具结果
+- Gzip 压缩后 ≤ 10 MB
+
+SARIF result 核心字段映射：
+
+| SARIF 字段 | SecGuardian 来源 |
+|-----------|-----------------|
+| `ruleId` | `detector.name` |
+| `level` | `severity` → `error`/`warning`/`note` |
+| `message.text` | `title` |
+| `locations[].physicalLocation` | `file` + `line` + `column` |
+| `partialFingerprints` | `id` 的 SHA-256 |
+| `properties.cwe` | `detector.cwe` |
+| `properties.cvss` | 按严重度映射 |
+
+## manifest.json — 入口（元数据 + 索引）
 
 ```json
 {
   "protocol": "2.0",
   "scan": {
-    "id": "2026-05-23T14-30-00-a1b2",
+    "id": "sc-20260603-143000-a1b2",
     "command": "secguard",
     "extension": "secguard-secguardian",
-    "timestamp": "2026-05-23T14:30:00Z",
+    "timestamp": "2026-06-03T14:30:00Z",
     "duration_ms": 2300,
     "status": "completed"
   },
   "scope": {
     "path": "./src",
-    "mode": "git-diff",
-    "ref": "HEAD~1",
+    "mode": "full",
     "language": "cpp",
-    "changed_files": 12,
     "scanned_files": 12,
-    "scanned_lines": 95
-  },
-  "filters": {
-    "raw": "memory.*,system.*",
-    "resolved": ["memory.*", "system.*"],
-    "detectors_matched": 18,
-    "detectors_executed": 8,
-    "detectors_skipped": 10
+    "scanned_lines": 450
   },
   "summary": {
     "findings": {
-      "critical": 1,
-      "high": 2,
-      "medium": 0,
-      "low": 0,
-      "info": 0,
+      "critical": 1, "high": 2, "medium": 0, "low": 0, "info": 0,
       "total": 3
     }
   },
   "findings": [
-    { "id": "C-001", "severity": "critical", "detector": "memory.buffer-overflow",
-      "cwe": "CWE-120", "file": "src/parser.c", "line": 42,
-      "title": "Buffer overflow via strcpy", "finding_file": "findings/C-001.json" }
+    {
+      "id": "C-BOF-parse_input-42",
+      "severity": "critical",
+      "detector": "memory.buffer-overflow",
+      "cwe": "CWE-120",
+      "file": "src/parser.c",
+      "line": 42,
+      "title": "Buffer overflow via strcpy",
+      "report_section": "#c-bof-parse_input-42-buffer-overflow-via-strcpy"
+    }
   ]
 }
 ```
 
-## 严重度定义
+## summary.json — 仪表盘
 
-| 严重度 | 定义 | 示例 |
-|--------|------|------|
-| critical | 可远程利用、导致 RCE/LPE、CVSS ≥ 9.0 | strcpy 栈溢出、system() 注入 |
-| high | 可远程利用、导致信息泄露/DoS、CVSS 7.0-8.9 | 格式字符串漏洞、路径穿越写 |
-| medium | 本地利用或需用户交互、CVSS 4.0-6.9 | TOCTOU 竞争、整数溢出 |
-| low | 理论风险、CVSS 0.1-3.9 | 未初始化变量、信息泄露 |
-| info | 加固建议、非直接漏洞 | 编译标志缺失、过时 API |
+```json
+{
+  "scan_id": "sc-20260603-143000-a1b2",
+  "timestamp": "2026-06-03T14:30:00Z",
+  "by_severity": {"critical": 1, "high": 2, "medium": 0, "low": 0, "info": 0},
+  "by_namespace": {"memory": 2, "system": 1},
+  "by_language": {"c": 3},
+  "security_score": 45
+}
+```
+
+## status.json — CI 门禁
+
+```json
+{
+  "pass": false,
+  "exit_code": 2,
+  "reason": "1 critical finding(s) exceed threshold (max: 0)",
+  "thresholds": {"critical": 0, "high": 5, "medium": 10}
+}
+```

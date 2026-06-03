@@ -1,6 +1,6 @@
 ---
 name: cpp
-description: 对 C/C++ 代码进行安全加固项排查，支持全量/增量扫描、命名空间过滤，输出符合 Scan Output Protocol 1.0。当用户请求C/C++安全扫描、内存安全检测、缓冲区溢出、C++代码审计、指针安全时使用。
+description: 对 C/C++ 代码进行安全加固项排查，支持全量/增量扫描、命名空间过滤，输出符合 Scan Output Protocol 2.0。当用户请求C/C++安全扫描、内存安全检测、缓冲区溢出、C++代码审计、指针安全时使用。
 category: language-specific
 language: cpp
 topic: [memory, concurrency, system, crypto]
@@ -59,19 +59,27 @@ Critical detectors → High detectors → Medium detectors
 
 每个 detector 读取 `knowledge/detectors/<name>.md`，利用 Phase 2 加载的 index.json 符号表定位检测目标，而非遍历文件。
 
-### Phase 5: 生成 Findings
+### Phase 5: 持久化输出
 
-对每个检测到的安全问题，创建 `findings/<id>.json`。完整 JSON Schema 参见 [output-schemas.md](references/examples/output-schemas.md)。
+> 遵循 `knowledge/protocols/scan-output.md` (v2.0，人读/机读分离)。
 
-核心字段：`id`、`severity` (critical/high/medium/low/info)、`detector.name`、`detector.cwe`、`location.file`、`location.line`、`analysis.description`、`analysis.confidence`、`remediation.description`、`remediation.code_before/after`。
+按以下结构写入 `.codeagent/secguard-secguardian/scans/<scan-id>/`：
 
-### Phase 6: 生成 manifest.json
+**人读**：
+- `report.md` — 完整安全扫描报告（Markdown）。每个检出包含：位置、证据链（上下文代码片段）、检测器判定依据、具体修复建议（含 before/after 代码）。
+- `manifest.json` — 扫描元数据 + 检出索引（引用 report.md 章节锚点）。
 
-按 `knowledge/protocols/scan-output.md` 的 manifest 格式生成。包含 `protocol`、`scan`、`scope`、`filters`、`summary`、`findings` 段。完整 Schema 参见 [output-schemas.md](references/examples/output-schemas.md)。
+**机读**（CI/CD 系统消费）：
+- `results.sarif` — SARIF 2.1.0（[OASIS 标准](https://docs.oasis-open.org/sarif/sarif/v2.1.0/)，GitHub Code Scanning / GitLab SAST / Azure DevOps 原生支持）。
+- `summary.json` — 轻量仪表盘统计（按严重度/命名空间分组）。
+- `status.json` — CI 门禁判定（pass/fail + exit_code）。
+- `delta.json` — 与上次扫描的增量对比（新增/修复/仍存在）。
 
-### Phase 7: 输出扫描摘要
+SARIF 格式要求（[GitHub 2025-07 起强制](https://github.blog/changelog/2025-07-22-code-scanning-per-tool-category/)）：
+- `partialFingerprints` 去重（基于 `id` + `detector.name` + `location.file` + `location.line`）
+- 每个 tool/category 独立上传，禁止合并多个工具结果
 
-向用户输出 Markdown 格式的扫描摘要（见 commands/secguard.md 的输出格式示例），并告知输出目录路径。
+向用户输出扫描摘要并告知输出目录路径。
 
 ## 错误处理
 

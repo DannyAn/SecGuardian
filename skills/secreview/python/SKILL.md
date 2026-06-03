@@ -49,7 +49,7 @@ topic: [web, crypto, system]
 
 ### Phase 5: 输出
 
-按 `knowledge/protocols/scan-output.md` 生成报告（`report.md` + `results.sarif` + `summary.json`）。
+遵循 `knowledge/protocols/scan-output.md` (v2.0，人读/机读分离)：`report.md` + `results.sarif` + `summary.json` + `manifest.json` + `status.json`。
 
 ## 与 secguard-python 的区别
 
