@@ -32,16 +32,6 @@
 |------|------|
 | [`governance/`](governance/) | 治理框架 — 12 个安全治理子章节 |
 
-### 历史档案
-
-| 文件 | 说明 |
-|------|------|
-| [`archive/codeplan/vision-and-gap-analysis.md`](archive/codeplan/vision-and-gap-analysis.md) | 竞品差距分析 + 进化方向 |
-| [`archive/codeplan/implementation-plan.md`](archive/codeplan/implementation-plan.md) | 可执行实施计划 |
-| [`archive/codeplan/refactor-plan.md`](archive/codeplan/refactor-plan.md) | 重构方案 + 抽象泄漏修正 |
-| [`archive/codeplan/packaging-and-install.md`](archive/codeplan/packaging-and-install.md) | 打包安装架构 |
-| [`archive/codeplan/command-skill-alignment.md`](archive/codeplan/command-skill-alignment.md) | 命令与 Skill 对齐 |
-
 ## 命名规范
 
 - 活跃文档：`kebab-case.md`（小写连字符，如 `design-journal.md`）
