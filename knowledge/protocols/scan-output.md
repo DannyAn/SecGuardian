@@ -34,6 +34,21 @@ version: "2.0"
 - `<extension-name>`: `secguard-secguardian` / `secaudit-secguardian` / `secreview-secguardian`
 - `<scan-id>`: `YYYY-MM-DDTHH-mm-ss-<6-char-uuid>`
 
+## 用户使用流程
+
+工程师拿到扫描结果后的典型路径：
+
+| 我想做什么 | 打开哪个文件 | 为什么 |
+|-----------|------------|--------|
+| 快速看一眼有什么问题 | `manifest.json` | JSON 索引：检出 ID、严重度、文件、行号一目了然 |
+| 深入了解某个漏洞 | `report.md` | Markdown 报告：证据链（代码上下文）+ before/after 修复方案 |
+| 手动改代码 | `report.md` | 复制 before/after 代码片段，直接在 IDE 中修改 |
+| 交给 AI Agent 批量修复 | `report.md` | 对 AI 说："读取 report.md，按每个检出的修复方案修改代码" |
+| 接入 CI/CD 流水线 | `results.sarif` | SARIF 2.1.0，GitHub/GitLab/Azure 原生消费，PR 内联注释 |
+| 查看趋势（比上次多了还是少了） | `delta.json` | 与 `latest` 符号链接指向的上次扫描做增量对比 |
+
+**无需打开 `findings/` 目录** —— 所有详情已在 `report.md` 中按章节组织完成。
+
 ## report.md — 人读审计报告
 
 ### 结构
