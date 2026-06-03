@@ -190,15 +190,6 @@
       "sarif-output"
     ],
     "threat_catalog": "knowledge/threat-catalog.md",
-    "cheatsheets": {
-      "note": "跨 skill 共享的安全速查表 — 单主题、横向对比、决策辅助",
-      "files": [
-        "crypto-algorithms",
-        "injection-patterns",
-        "secrets-detection",
-        "tls-config"
-      ]
-    },
     "languages": [
       "cpp",
       "java",
@@ -213,7 +204,7 @@
       "owasp-cheatsheet-mapping"
     ],
     "detectors": {
-      "note": "Full detector registry in skills/secguard-cpp/references/detector-index.md",
+      "note": "Full detector registry in skills/secguard/cpp/references/detector-index.md",
       "count": 60,
       "active_count": 60,
       "namespaces": {

@@ -173,7 +173,6 @@ deploy_claude() {
 
     mkdir -p "$plugin_dir/.claude-plugin" "$plugin_dir/commands" "$plugin_dir/skills" \
              "$plugin_dir/knowledge/languages" "$plugin_dir/knowledge/detectors" \
-             "$plugin_dir/knowledge/cheatsheets" \
              "$plugin_dir/knowledge/protocols" "$plugin_dir/knowledge/standards" \
              "$plugin_dir/scripts/bin"
 
@@ -201,11 +200,11 @@ JSON
         # Skills
         if [ -d "$d/skills" ]; then
             for sd in "$d/skills"/*/; do
-                [ -d "$sd" ] && cp -r "$sd" "$plugin_dir/skills/$(basename "$sd")" && total_skills=$((total_skills + 1))
+                [ -d "$sd" ] && cp -r "$sd" "$plugin_dir/skills/$(basename "$d" | sed 's/-secguardian//')-$(basename "$sd")" && total_skills=$((total_skills + 1))
             done
         fi
         # Knowledge: merge across all extensions
-        for cat in languages detectors cheatsheets protocols; do
+        for cat in languages detectors protocols; do
             if [ -d "$d/knowledge/$cat" ]; then
                 find "$d/knowledge/$cat" -name '*.md' -exec cp {} "$plugin_dir/knowledge/$cat/" \;
             fi
@@ -357,7 +356,6 @@ deploy_opencode() {
 
     mkdir -p "$cmd_dir" "$skills_dir" "$scripts_dir/bin" \
              "$knowledge_dir/languages" "$knowledge_dir/detectors" \
-             "$knowledge_dir/cheatsheets" \
              "$knowledge_dir/protocols" "$knowledge_dir/standards"
 
     # Write plugin.json
@@ -382,11 +380,11 @@ JSON
         # Skills: deploy under brand namespace
         if [ -d "$d/skills" ]; then
             for sd in "$d/skills"/*/; do
-                [ -d "$sd" ] && cp -r "$sd" "$skills_dir/$(basename "$sd")" && skill_n=$((skill_n + 1))
+                [ -d "$sd" ] && cp -r "$sd" "$skills_dir/$(basename "$d" | sed 's/-secguardian//')-$(basename "$sd")" && skill_n=$((skill_n + 1))
             done
         fi
         # Knowledge: merge across all extensions
-        for cat in languages detectors cheatsheets protocols; do
+        for cat in languages detectors protocols; do
             if [ -d "$d/knowledge/$cat" ]; then
                 find "$d/knowledge/$cat" -name '*.md' -exec cp {} "$knowledge_dir/$cat/" \;
             fi
@@ -432,7 +430,6 @@ deploy_gemini() {
 
     mkdir -p "$ext_dir/commands" "$ext_dir/skills" \
              "$ext_dir/knowledge/languages" "$ext_dir/knowledge/detectors" \
-             "$ext_dir/knowledge/cheatsheets" \
              "$ext_dir/knowledge/protocols" "$ext_dir/knowledge/standards" \
              "$ext_dir/scripts/bin"
 
@@ -453,10 +450,10 @@ JSON
     for d in "$DIST"/*/; do
         if [ -d "$d/skills" ]; then
             for sd in "$d/skills"/*/; do
-                [ -d "$sd" ] && cp -r "$sd" "$ext_dir/skills/$(basename "$sd")" && skill_n=$((skill_n + 1))
+                [ -d "$sd" ] && cp -r "$sd" "$ext_dir/skills/$(basename "$d" | sed 's/-secguardian//')-$(basename "$sd")" && skill_n=$((skill_n + 1))
             done
         fi
-        for cat in languages detectors cheatsheets protocols; do
+        for cat in languages detectors protocols; do
             if [ -d "$d/knowledge/$cat" ]; then
                 find "$d/knowledge/$cat" -name '*.md' -exec cp {} "$ext_dir/knowledge/$cat/" \;
             fi

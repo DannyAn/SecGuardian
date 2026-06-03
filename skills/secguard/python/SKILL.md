@@ -1,0 +1,44 @@
+---
+name: python
+description: 对 Python 代码进行安全加固项排查，扫描危险函数调用和常见漏洞模式。当用户请求Python安全扫描、Python代码审计、Django/Flask安全、Python注入检测、pickle安全时使用。
+category: language-specific
+language: python
+topic: [web, crypto, system]
+---
+
+
+# Python 安全加固排查
+
+对 Python 代码进行安全加固项排查，扫描代码和 PR 中需要安全加固的问题。
+
+## 执行流程
+
+> **前置条件**: Command 层面已完成 `secguardian-index` 索引器调用，`index.json` 已生成在扫描输出目录下。包含 `symbols.functions`（函数→文件:行号）、`call_graph.edges`（调用关系）、`files`（文件清单）。**请在后续步骤中利用这些结构化数据定位检测目标，而非逐个读取文件。**
+
+1. 读取 Command 生成的 `index.json`，获取扫描范围内的完整文件清单、符号表和调用图
+2. 加载 `knowledge/languages/python.md` 获取 Python 危险函数清单
+3. 加载 `knowledge/threat-catalog.md` 获取威胁全景，再按需加载 `knowledge/detectors/<name>.md`（每个 detector 自包含威胁定义+检测逻辑+修复指引）
+4. 基于 index.json 的符号表定位检测目标，按以下优先级匹配:
+
+### 检查优先级
+
+| 优先级 | 问题类型 | 核心检测逻辑 |
+|--------|---------|-------------|
+| Critical | 反序列化漏洞 | pickle.load / yaml.load / dill.load 不可信数据 |
+| Critical | 命令注入 | os.system / subprocess(shell=True) + 用户输入 |
+| Critical | SSTI | Jinja2 render_template_string / Mako Template 用户输入 |
+| Critical | 代码注入 | eval / exec / compile / import_module 用户可控 |
+| High | SQL 注入 | cursor.execute + 字符串格式 / f-string / % |
+| High | 路径穿越 | open(user_path) / tarfile.extractall / shutil |
+| High | SSRF | requests.get(user_url) 未验证 |
+| High | 弱加密 | hashlib.md5 / random.random / SHA-1 |
+| High | 硬编码密钥 | API Key / SECRET_KEY / Password 硬编码 |
+| Medium | DEBUG 模式 | Django DEBUG=True / Flask debug=True 生产环境 |
+| Medium | XSS | render_template_string vs render_template / mark_safe |
+
+### 框架覆盖
+- Django (ORM, 模板, 安全中间件)
+- Flask (Jinja2, Flask-Login, WTForms)
+- FastAPI (依赖注入, Pydantic, Response)
+- SQLAlchemy (ORM, Core, text())
+- Celery (任务序列化安全)

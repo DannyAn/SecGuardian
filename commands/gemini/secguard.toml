@@ -169,10 +169,10 @@ print(f'Index OK: {len(d[\"files\"])} files, {len(d.get(\"symbols\",{}).get(\"fu
 ### Step 3: 语言与检测器匹配
 
 - 通过 `index.json` 中的文件扩展名分布自动检测目标语言。
-- 读取 `skills/secguard-cpp/references/detector-index.md`，根据命名空间过滤 active 状态的检测器。
+- 读取 `skills/secguard/cpp/references/detector-index.md`，根据命名空间过滤 active 状态的检测器。
 - 按 Critical → High → Medium 排序执行。
 - 对每一个匹配到的检测器，加载 `../knowledge/detectors/<name>.md` 中的检测逻辑。
-- **按需加载 `../knowledge/cheatsheets/<domain>.md`** 获取跨语言安全速查表（如 crypto-algorithms、injection-patterns），辅助全景判断。
+
 - **利用 index.json 中的符号表和调用图定位检测目标**，而非逐文件遍历。
 - 增量模式（`git diff`）下，仅分析由 diff 识别的变更行。
 

@@ -143,7 +143,7 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
     # Copy skill directories (each contains SKILL.md + optional references/)
     skill_count=0
     for skill_name in $(jq -r '.skills[]' "$ext_json"); do
-        skill_dir="$PROJECT_ROOT/skills/${cmd}-${skill_name}"
+        skill_dir="$PROJECT_ROOT/skills/${cmd}/${skill_name}"
         if [ -d "$skill_dir" ]; then
             cp -r "$skill_dir" "$dist_dir/skills/"
             skill_count=$((skill_count + 1))
@@ -160,11 +160,6 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
     # Copy SECURITY.md for corporate AV whitelisting
     if [ -f "$PROJECT_ROOT/SECURITY.md" ]; then
         cp "$PROJECT_ROOT/SECURITY.md" "$dist_dir/knowledge/"
-    fi
-    # Copy cheatsheets (cross-skill quick reference tables)
-    if [ -d "$PROJECT_ROOT/knowledge/cheatsheets" ]; then
-        mkdir -p "$dist_dir/knowledge/cheatsheets"
-        cp "$PROJECT_ROOT/knowledge/cheatsheets/"*.md "$dist_dir/knowledge/cheatsheets/"
     fi
     # Copy standards if declared
     std_count=0

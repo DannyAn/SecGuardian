@@ -90,7 +90,7 @@ Skill: secaudit-taint-analysis
 
 ## 派发规则与执行步骤
 
-> **隔离约束**: 本命令只能加载 `skills/` 扩展下的 `secaudit-*` 前缀 skill，禁止加载 `secguard-*` 或 `secreview-*` 前缀的任何文件。审计技能仅从 `skills/secaudit-{name}/SKILL.md` 路由。
+> **隔离约束**: 本命令只能加载 `skills/` 扩展下的 `secaudit-*` 前缀 skill，禁止加载 `secguard-*` 或 `secreview-*` 前缀的任何文件。审计技能仅从 `skills/secaudit/{name}/SKILL.md` 路由。
 
 你（AI Agent）在接收到 `/secaudit` 命令后，必须按以下步骤执行来构建索引并进行安全审计。
 
@@ -168,9 +168,9 @@ print(f'Index OK: {len(d[\"files\"])} files, {len(d.get(\"symbols\",{}).get(\"fu
 ### Step 3: 路由并应用 Audit Skill
 
 - 如果用户未指定 skill-name，或输入为 `analysis` / `domain` / `list`，列出对应的 skills 列表。
-- 如果指定了具体的 skill-name，精确加载 `../skills/secaudit-{skill-name}/SKILL.md`。
+- 如果指定了具体的 skill-name，精确加载 `../skills/secaudit/{skill-name}/SKILL.md`。
 - 根据 `index.json` 提供的符号表和调用图、`SKILL.md` 的审计规范以及 `../knowledge/detectors/` 中相关检测器的威胁定义进行深度推理审计。
-- **同步加载 `../knowledge/cheatsheets/<domain>.md`** — 每个审计 skill 在 SKILL.md 中声明了其对应的 cheatsheet（如 cryptography → crypto-algorithms.md），提供跨语言全景速查。
+
 
 ### Step 4: 保存检出并输出摘要
 
