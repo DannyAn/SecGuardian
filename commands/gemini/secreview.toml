@@ -63,6 +63,12 @@ Language: Java (auto-detected)
 > 每个发现的修复建议来自反模式检测矩阵和对应语言的 `## 修复指引` 节。
 
 输出目录: .codeagent/secreview-secguardian/scans/2026-05-23T14-30-00-c4d5/
+
+💡 **如何使用检视结果？**
+- **快速看汇总** → 打开 `manifest.json`
+- **看详情 + 改代码** → 打开 `report.md`（每个不合规项含证据 + 修复指引）
+- **CI/CD 集成** → 消费 `results.sarif`
+- **AI Agent 修复** → 告诉 AI：`读取 report.md，按修复指引修改代码`
 ```
 
 ## 与 /secguard 的区别
