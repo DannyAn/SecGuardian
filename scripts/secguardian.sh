@@ -314,8 +314,6 @@ run_scan() {
     local prompt_file="$output_dir/.system_prompt.md"
 
     # Layer 1: System (immutable rules — cached by LLM provider)
-    if [ -f "$PROJECT_ROOT/knowledge/prompt-templates/system.md" ]; then
-        cp "$PROJECT_ROOT/knowledge/prompt-templates/system.md" "$system_file"
     else
         echo "# SecGuardian System Prompt (fallback)" > "$system_file"
         cat "$PROJECT_ROOT/knowledge/protocols/scan-output.md" >> "$system_file"
@@ -326,8 +324,6 @@ run_scan() {
         echo "# Security Scan: $PATH_ARG"
         echo "Target: $PATH_ARG | Filters: $FILTERS | Mode: full"
         echo ""
-        if [ -f "$PROJECT_ROOT/knowledge/prompt-templates/skill-secguard.md" ]; then
-            cat "$PROJECT_ROOT/knowledge/prompt-templates/skill-secguard.md"
         else
             echo "Execute all matched detectors in severity order."
             echo "Output results to findings/ and manifest.json."
