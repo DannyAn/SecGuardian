@@ -14,34 +14,6 @@ import (
 	py "github.com/tree-sitter/tree-sitter-python/bindings/go"
 )
 
-type ParseResult struct {
-	File      string         `json:"file"`
-	Language  string         `json:"language"`
-	Functions []FunctionInfo `json:"functions"`
-	Variables []VariableInfo `json:"variables"`
-	Types     []TypeInfo     `json:"types"`
-}
-
-type FunctionInfo struct {
-	Name      string `json:"name"`
-	File      string `json:"file"`
-	StartLine uint   `json:"start_line"`
-	EndLine   uint   `json:"end_line"`
-}
-
-type VariableInfo struct {
-	Name     string `json:"name"`
-	File     string `json:"file"`
-	Line     uint   `json:"line"`
-}
-
-type TypeInfo struct {
-	Name      string `json:"name"`
-	Kind      string `json:"kind"`
-	File      string `json:"file"`
-	StartLine uint   `json:"start_line"`
-}
-
 func ParseFile(filePath string, lang string) (*ParseResult, error) {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
@@ -78,6 +50,9 @@ func ParseFile(filePath string, lang string) (*ParseResult, error) {
 func walkTopLevel(node *treesitter.Node, content []byte, file, lang string, result *ParseResult) {
 	for i := uint(0); i < node.ChildCount(); i++ {
 		child := node.Child(i)
+		if child == nil {
+			continue
+		}
 		kind := child.Kind()
 
 		switch lang {
@@ -132,12 +107,13 @@ func walkTopLevel(node *treesitter.Node, content []byte, file, lang string, resu
 				}
 			case "method_declaration":
 				fn := FunctionInfo{File: file, StartLine: child.StartPosition().Row + 1, EndLine: child.EndPosition().Row + 1}
-				for j := uint(0); j < child.ChildCount(); j++ {
-					gc := child.Child(j)
-					if gc.Kind() == "identifier" {
-						fn.Name = safeText(content, gc.StartByte(), gc.EndByte())
-					}
+			for j := uint(0); j < child.ChildCount(); j++ {
+				gc := child.Child(j)
+				if gc == nil || gc.Kind() != "identifier" {
+					continue
 				}
+				fn.Name = safeText(content, gc.StartByte(), gc.EndByte())
+			}
 				if fn.Name != "" {
 					result.Functions = append(result.Functions, fn)
 				}
@@ -164,20 +140,23 @@ func walkTopLevel(node *treesitter.Node, content []byte, file, lang string, resu
 				// walk into class_body for methods
 				for j := uint(0); j < child.ChildCount(); j++ {
 					body := child.Child(j)
-					if body.Kind() == "class_body" {
-						for k := uint(0); k < body.ChildCount(); k++ {
-							method := body.Child(k)
-							if method.Kind() == "method_declaration" {
-								fn := FunctionInfo{File: file, StartLine: method.StartPosition().Row + 1, EndLine: method.EndPosition().Row + 1}
-								for l := uint(0); l < method.ChildCount(); l++ {
-									if method.Child(l).Kind() == "identifier" {
-										fn.Name = safeText(content, method.Child(l).StartByte(), method.Child(l).EndByte())
-									}
-								}
-								if fn.Name != "" {
-									result.Functions = append(result.Functions, fn)
-								}
+					if body == nil || body.Kind() != "class_body" {
+						continue
+					}
+					for k := uint(0); k < body.ChildCount(); k++ {
+						method := body.Child(k)
+						if method == nil || method.Kind() != "method_declaration" {
+							continue
+						}
+						fn := FunctionInfo{File: file, StartLine: method.StartPosition().Row + 1, EndLine: method.EndPosition().Row + 1}
+						for l := uint(0); l < method.ChildCount(); l++ {
+							mchild := method.Child(l)
+							if mchild != nil && mchild.Kind() == "identifier" {
+								fn.Name = safeText(content, mchild.StartByte(), mchild.EndByte())
 							}
+						}
+						if fn.Name != "" {
+							result.Functions = append(result.Functions, fn)
 						}
 					}
 				}
@@ -193,9 +172,15 @@ func extractIdent(node *treesitter.Node, content []byte, file, declaratorKind st
 	fn := FunctionInfo{File: file}
 	for i := uint(0); i < node.ChildCount(); i++ {
 		child := node.Child(i)
+		if child == nil {
+			continue
+		}
 		if child.Kind() == declaratorKind {
 			for j := uint(0); j < child.ChildCount(); j++ {
 				decl := child.Child(j)
+				if decl == nil {
+					continue
+				}
 				if decl.Kind() == "identifier" || decl.Kind() == "field_identifier" {
 					fn.Name = safeText(content, decl.StartByte(), decl.EndByte())
 				}
@@ -215,7 +200,7 @@ func extractNamedChild(node *treesitter.Node, content []byte, file, targetKind s
 	fn := FunctionInfo{File: file}
 	for i := uint(0); i < node.ChildCount(); i++ {
 		child := node.Child(i)
-		if child.Kind() == targetKind {
+		if child != nil && child.Kind() == targetKind {
 			fn.Name = safeText(content, child.StartByte(), child.EndByte())
 			break
 		}
@@ -228,10 +213,16 @@ func extractInitDecls(node *treesitter.Node, content []byte, file string) []Vari
 	var vars []VariableInfo
 	for i := uint(0); i < node.ChildCount(); i++ {
 		child := node.Child(i)
+		if child == nil {
+			continue
+		}
 		if child.Kind() == "init_declarator" {
 			v := VariableInfo{File: file, Line: child.StartPosition().Row + 1}
 			for j := uint(0); j < child.ChildCount(); j++ {
 				sub := child.Child(j)
+				if sub == nil {
+					continue
+				}
 				if sub.Kind() == "identifier" && v.Name == "" {
 					v.Name = safeText(content, sub.StartByte(), sub.EndByte())
 				}
@@ -239,14 +230,15 @@ func extractInitDecls(node *treesitter.Node, content []byte, file string) []Vari
 			if v.Name == "" {
 				continue
 			}
-			// Check for array: identifier + bracket
 			for j := uint(0); j < child.ChildCount(); j++ {
-				if child.Child(j).Kind() == "array_declarator" {
-					// try extracting from array declarator
-					for k := uint(0); k < child.Child(j).ChildCount(); k++ {
-						if child.Child(j).Child(k).Kind() == "identifier" && v.Name == "" {
-							v.Name = safeText(content, child.Child(j).Child(k).StartByte(), child.Child(j).Child(k).EndByte())
-						}
+				ad := child.Child(j)
+				if ad == nil || ad.Kind() != "array_declarator" {
+					continue
+				}
+				for k := uint(0); k < ad.ChildCount(); k++ {
+					ak := ad.Child(k)
+					if ak != nil && ak.Kind() == "identifier" && v.Name == "" {
+						v.Name = safeText(content, ak.StartByte(), ak.EndByte())
 					}
 				}
 			}
@@ -254,11 +246,13 @@ func extractInitDecls(node *treesitter.Node, content []byte, file string) []Vari
 				vars = append(vars, v)
 			}
 		}
-		// Java-style: variable_declarator
 		if child.Kind() == "variable_declarator" {
 			v := VariableInfo{File: file, Line: child.StartPosition().Row + 1}
 			for j := uint(0); j < child.ChildCount(); j++ {
 				sub := child.Child(j)
+				if sub == nil {
+					continue
+				}
 				if sub.Kind() == "identifier" && v.Name == "" {
 					v.Name = safeText(content, sub.StartByte(), sub.EndByte())
 				}
@@ -275,29 +269,30 @@ func extractInitDecls(node *treesitter.Node, content []byte, file string) []Vari
 func extractGoType(node *treesitter.Node, content []byte, file string) TypeInfo {
 	for i := uint(0); i < node.ChildCount(); i++ {
 		child := node.Child(i)
-		if child.Kind() == "type_spec" {
-			ti := TypeInfo{File: file, StartLine: child.StartPosition().Row + 1}
-			for j := uint(0); j < child.ChildCount(); j++ {
-				gc := child.Child(j)
-				if gc.Kind() == "type_identifier" {
-					ti.Name = safeText(content, gc.StartByte(), gc.EndByte())
-					// Determine if struct or interface
-					for k := uint(0); k < child.ChildCount(); k++ {
-						switch child.Child(k).Kind() {
-						case "struct_type":
-							ti.Kind = "struct"
-						case "interface_type":
-							ti.Kind = "interface"
-						}
-					}
-					break
+		if child == nil || child.Kind() != "type_spec" {
+			continue
+		}
+		ti := TypeInfo{File: file, StartLine: child.StartPosition().Row + 1}
+		for j := uint(0); j < child.ChildCount(); j++ {
+			gc := child.Child(j)
+			if gc == nil || gc.Kind() != "type_identifier" {
+				continue
+			}
+			ti.Name = safeText(content, gc.StartByte(), gc.EndByte())
+			for k := uint(0); k < child.ChildCount(); k++ {
+				switch ck := child.Child(k); {
+				case ck != nil && ck.Kind() == "struct_type":
+					ti.Kind = "struct"
+				case ck != nil && ck.Kind() == "interface_type":
+					ti.Kind = "interface"
 				}
 			}
-			if ti.Name != "" && ti.Kind == "" {
-				ti.Kind = "type"
-			}
-			return ti
+			break
 		}
+		if ti.Name != "" && ti.Kind == "" {
+			ti.Kind = "type"
+		}
+		return ti
 	}
 	return TypeInfo{}
 }
@@ -307,6 +302,9 @@ func extractTypeName(node *treesitter.Node, content []byte, file, kind string) T
 	ti := TypeInfo{File: file, Kind: kind, StartLine: node.StartPosition().Row + 1}
 	for i := uint(0); i < node.ChildCount(); i++ {
 		child := node.Child(i)
+		if child == nil {
+			continue
+		}
 		if child.Kind() == "type_identifier" || child.Kind() == "identifier" {
 			ti.Name = safeText(content, child.StartByte(), child.EndByte())
 			break
@@ -321,3 +319,5 @@ func safeText(content []byte, start, end uint) string {
 	}
 	return string(content[start:end])
 }
+
+

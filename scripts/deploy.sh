@@ -246,8 +246,7 @@ uninstall_claude() {
     for name in secguard-secguardian secaudit-secguardian secreview-secguardian; do
         [ -d "$legacy_ext/$name" ] && rm -rf "$legacy_ext/$name"
     done
-    # Clean legacy binary deployed outside plugin
-    [ -f "$PROJECT_ROOT/scripts/secguardian-index" ] && rm -f "$PROJECT_ROOT/scripts/secguardian-index"
+    # NOTE: Do NOT delete scripts/secguardian-index — it is a source file, not a deployment artifact.
 }
 
 uninstall_opencode() {

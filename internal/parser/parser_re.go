@@ -9,35 +9,6 @@ import (
 	"strings"
 )
 
-// ParseResult, FunctionInfo, VariableInfo, TypeInfo — same types as parser_ts.go
-type ParseResult struct {
-	File      string         `json:"file"`
-	Language  string         `json:"language"`
-	Functions []FunctionInfo `json:"functions"`
-	Variables []VariableInfo `json:"variables"`
-	Types     []TypeInfo     `json:"types"`
-}
-
-type FunctionInfo struct {
-	Name      string `json:"name"`
-	File      string `json:"file"`
-	StartLine uint   `json:"start_line"`
-	EndLine   uint   `json:"end_line"`
-}
-
-type VariableInfo struct {
-	Name string `json:"name"`
-	File string `json:"file"`
-	Line uint   `json:"line"`
-}
-
-type TypeInfo struct {
-	Name      string `json:"name"`
-	Kind      string `json:"kind"`
-	File      string `json:"file"`
-	StartLine uint   `json:"start_line"`
-}
-
 // Language-specific regex patterns for function detection
 var funcPatterns = map[string]*regexp.Regexp{
 	"c":   regexp.MustCompile(`(?m)^\s*(?:static\s+|inline\s+|extern\s+)*(?:void|int|char|float|double|long|short|unsigned|size_t|ssize_t|uint\w*|int\w*|bool|struct\s+\w+|\w+\s*\*)\s+(\w+)\s*\([^)]*\)\s*\{`),
@@ -65,12 +36,11 @@ func ParseFile(filePath string, lang string) (*ParseResult, error) {
 	}
 
 	result := &ParseResult{File: filePath, Language: lang}
-	lines := strings.Split(string(content), "\n")
 
 	// Extract functions
 	if pat, ok := funcPatterns[lang]; ok {
 		matches := pat.FindAllStringSubmatch(string(content), -1)
-		for i, m := range matches {
+		for _, m := range matches {
 			name := ""
 			for _, g := range m[1:] {
 				if g != "" {
@@ -94,7 +64,6 @@ func ParseFile(filePath string, lang string) (*ParseResult, error) {
 				StartLine: lineNo,
 				EndLine:   endLine,
 			})
-			_ = i // suppress unused warning
 		}
 	}
 
@@ -170,7 +139,6 @@ func ParseFile(filePath string, lang string) (*ParseResult, error) {
 			})
 		}
 	}
-	_ = lines
 
 	return result, nil
 }

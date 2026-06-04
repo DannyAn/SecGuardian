@@ -71,10 +71,6 @@ func isCommentLine(line string) bool {
 // BuildCallGraph scans each function body for calls to other known functions.
 func BuildCallGraph(parsed map[string]*parser.ParseResult, symbols SymbolIndex) CallGraph {
 	cg := CallGraph{}
-	knownFuncs := make(map[string]bool)
-	for _, fn := range symbols.Functions {
-		knownFuncs[fn.Name] = true
-	}
 
 	for _, result := range parsed {
 		content, err := os.ReadFile(result.File)

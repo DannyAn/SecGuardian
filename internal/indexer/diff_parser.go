@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"os/exec"
 	"strings"
+
+	"github.com/secguardian/internal/parser"
 )
 
 // DiffFile describes a single changed file from git diff.
@@ -86,7 +88,7 @@ func ParseGitDiff(repoPath string, ref string) (*DiffResult, error) {
 
 // AffectedSymbols returns symbol names affected by changes.
 // Symbols are "affected" if they overlap with changed line ranges.
-func AffectedSymbols(functions []struct{ Name string; StartLine, EndLine uint }, changes []Change) []string {
+func AffectedSymbols(functions []parser.FunctionInfo, changes []Change) []string {
 	var affected []string
 	seen := make(map[string]bool)
 
