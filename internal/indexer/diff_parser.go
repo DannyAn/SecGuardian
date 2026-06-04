@@ -3,6 +3,7 @@ package indexer
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"os/exec"
 	"strings"
 
@@ -29,6 +30,9 @@ type DiffResult struct {
 
 // ParseGitDiff runs git diff and parses the output into structured changes.
 func ParseGitDiff(repoPath string, ref string) (*DiffResult, error) {
+	if strings.Contains(ref, "--") || strings.Contains(ref, ";") || strings.Contains(ref, "|") {
+		return nil, fmt.Errorf("invalid ref: %q", ref)
+	}
 	cmd := exec.Command("git", "-C", repoPath, "diff", ref, "--unified=0")
 	var out bytes.Buffer
 	cmd.Stdout = &out

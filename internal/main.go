@@ -44,12 +44,16 @@ func runIndex(args []string) {
 	}
 
 	if *healthFlag {
-		files, _ := collectFiles(*pathFlag, *langFlag)
+		files, err := collectFiles(*pathFlag, *langFlag)
+		if err != nil {
+			fmt.Printf("HEALTH:FAIL %v\n", err)
+			os.Exit(1)
+		}
 		if len(files) == 0 {
 			fmt.Println("HEALTH:WARN no source files found (but binary is executable)")
 			os.Exit(0)
 		}
-		_, err := parser.ParseFile(files[0], detectLanguage(files[0], *langFlag))
+		_, err = parser.ParseFile(files[0], detectLanguage(files[0], *langFlag))
 		if err != nil {
 			fmt.Printf("HEALTH:FAIL parser error: %v\n", err)
 			os.Exit(1)
@@ -78,7 +82,7 @@ func runIndex(args []string) {
 		lang := detectLanguage(f, *langFlag)
 		result, err := parser.ParseFile(f, lang)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "  [WARN] Failed to parse %s: %v\n", f, err)
+			fmt.Fprintf(os.Stderr, "  [WARN] Failed to parse %s: %v\n", filepath.Base(f), err)
 			continue
 		}
 		parsed[f] = result
