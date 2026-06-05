@@ -86,7 +86,7 @@ BAD: 共享内存 + shm_open + 0777
 
 1. 文件创建：`open(path, O_CREAT, 0600)` — 仅所有者读写
 2. 目录创建：`mkdir(path, 0700)` — 仅所有者访问
-3. 禁止 `chmod 0777` 和 `umask(0)` 
+3. 禁止 `chmod 0777` 和 `umask(0)`
 4. 使用 `fchmod(fd, mode)` 在创建后立即设置权限（避免 TOCTOU）
 
 ## 误报排除

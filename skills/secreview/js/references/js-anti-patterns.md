@@ -5,7 +5,7 @@
 | 反模式 | 检测 Pattern | 严重度 |
 |--------|-------------|--------|
 | 递归合并无 `__proto__` 过滤 | `for\s*\(.*in\s+source[^}]*target\[` 且无 `__proto__`/`constructor`/`prototype` 检查 | High |
-| lodash `_.merge` 旧版本 | `_.merge\([^,]*,\s*req\.(body|query)` | High |
+| lodash `_.merge` 旧版本 | `_.merge\([^,]*,\s*req\.(body\|query)` | High |
 | `qs.parse` + 对象合并 | `qs\.parse\(.*\)` → `Object\.assign\|_.merge` 使用解析结果 | High |
 | 深层路径无过滤设置 | `\.split\(['"\`]\.['"\`]\)` 来自 `req\.body\|query` 的路径 | Medium |
 
@@ -16,7 +16,7 @@
 | Promise 无 catch | `\.then\([^)]+\)$` 无 `.catch` | Medium |
 | async 无 try-catch | `async function.*\{` 内部 `await` 且无 `try`/`catch` | Medium |
 | catch 空块 | `.catch\(\s*\(\)\s*=>\s*\{\s*\}\)` | Medium |
-| Express 未 next(err) | `catch.*\{.*console\.(error|log).*\}[^n]` | Medium |
+| Express 未 next(err) | `catch.*\{.*console\.(error\|log).*\}[^n]` | Medium |
 
 ## 代码执行
 
@@ -42,7 +42,7 @@
 |--------|-------------|--------|
 | 缺少 secure 标志 | `cookie\(.*\{[^}]*\)` 且无 `secure:\s*true` | Medium |
 | 缺少 httpOnly | cookie 设置无 `httpOnly:\s*true` | Medium |
-| sameSite 宽松 | `sameSite\s*:\s*['\"](none|lax)['\"]` 且无 `secure: true` | Medium |
+| sameSite 宽松 | `sameSite\s*:\s*['\"](none\|lax)['\"]` 且无 `secure: true` | Medium |
 
 ## Crypto 误用
 
@@ -50,7 +50,7 @@
 |--------|-------------|--------|
 | MD5 哈希安全用 | `createHash\(['\"]md5['\"]\)` 且上下文含 `pass\|auth\|sign\|token` | High |
 | Math.random() 安全用 | `Math\.random\(\)` 用于 token/session ID 生成 | High |
-| 硬编码密钥 | `const\s+\w*(KEY|SECRET|PWD|PASSWORD)\w*\s*=\s*['\"]` | High |
+| 硬编码密钥 | `const\s+\w*(KEY\|SECRET\|PWD\|PASSWORD)\w*\s*=\s*['\"]` | High |
 | ECB 模式 | `createCipheriv\(['\"]aes-\d+-ecb` | High |
 
 ## 依赖安全

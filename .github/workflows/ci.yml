@@ -42,6 +42,25 @@ jobs:
         working-directory: internal
         run: ./secguardian-index${{ matrix.os == 'windows' && '.exe' || '' }} audit --skill list
 
+  test:
+    name: Test (${{ matrix.os }}, CGO=${{ matrix.cgo }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        cgo: [0, 1]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Run tests
+        working-directory: internal
+        run: CGO_ENABLED=${{ matrix.cgo }} go test -v -cover ./...
+
   knowledge:
     name: Knowledge File Check
     runs-on: ubuntu-latest
@@ -51,9 +70,9 @@ jobs:
       - name: Count knowledge files
         run: |
           echo "Knowledge files: $(ls knowledge/detectors/*.md | wc -l)"
-          echo "Cheatsheets: $(ls knowledge/cheatsheets/*.md | wc -l)"
           echo "Languages: $(ls knowledge/languages/*.md | wc -l)"
           echo "Protocols: $(ls knowledge/protocols/*.md | wc -l)"
+          echo "Standards: $(ls knowledge/standards/*.md | wc -l)"
 
       - name: Verify frontmatter completeness
         run: |
@@ -89,3 +108,10 @@ jobs:
             fi
           done
           echo "If any missing lines above, examples need updating."
+
+  markdown-lint:
+    name: Markdown Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DavidAnson/markdownlint-cli2-action@v19

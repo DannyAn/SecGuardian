@@ -124,7 +124,7 @@ INDEXER=""
 for candidate in \
     .opencode/plugins/secguardian/scripts/secguardian-index \
     .gemini/extensions/secguardian/scripts/secguardian-index \
-	    .claude/plugins/secguardian/scripts/secguardian-index \
+        .claude/plugins/secguardian/scripts/secguardian-index \
     .claude/extensions/secguard-secguardian/scripts/secguardian-index \
     .claude/extensions/secaudit-secguardian/scripts/secguardian-index \
     .claude/extensions/secreview-secguardian/scripts/secguardian-index \

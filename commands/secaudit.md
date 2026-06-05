@@ -130,7 +130,7 @@ INDEXER=""
 for candidate in \
     .opencode/plugins/secguardian/scripts/secguardian-index \
     .gemini/extensions/secguardian/scripts/secguardian-index \
-	    .claude/plugins/secguardian/scripts/secguardian-index \
+        .claude/plugins/secguardian/scripts/secguardian-index \
     .claude/extensions/secaudit-secguardian/scripts/secguardian-index \
     .claude/extensions/secguard-secguardian/scripts/secguardian-index \
     .claude/extensions/secreview-secguardian/scripts/secguardian-index \
@@ -176,7 +176,6 @@ print(f'Index OK: {len(d[\"files\"])} files, {len(d.get(\"symbols\",{}).get(\"fu
 - 如果用户未指定 skill-name，或输入为 `analysis` / `domain` / `list`，列出对应的 skills 列表。
 - 如果指定了具体的 skill-name，精确加载 `../skills/secaudit/{skill-name}/SKILL.md`。
 - 根据 `index.json` 提供的符号表和调用图、`SKILL.md` 的审计规范以及 `../knowledge/detectors/` 中相关检测器的威胁定义进行深度推理审计。
-
 
 ### Step 4: 保存检出并输出摘要
 

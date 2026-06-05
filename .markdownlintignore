@@ -1,0 +1,6 @@
+.claude/
+.opencode/
+.gemini/
+.codeagent/
+.remember/
+dist/

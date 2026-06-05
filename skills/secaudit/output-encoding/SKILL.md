@@ -74,7 +74,7 @@ CSS 输出:
 | HTML 属性 (无引号) | 空格和所有特殊字符 | 不要输出到无引号属性 |
 | JavaScript (数据) | 取决于上下文 | `json_encode` + HTML 编码外层 |
 | URL 参数 | `& = + % # ?` | `encodeURIComponent` |
-| CSS | `< > & ' " ( ) ;` | CSS 编码 (`\HH `) |
+| CSS | `< > & ' " ( ) ;` | CSS 编码 (`\HH`) |
 | HTTP 响应头 | `\r \n` | 过滤换行符防响应拆分 |
 
 #### 2.2 模板引擎安全

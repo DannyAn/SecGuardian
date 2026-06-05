@@ -7,8 +7,8 @@
 | 反模式 | 检测 Pattern | 严重度 |
 |--------|-------------|--------|
 | `new`/`delete` 与 `malloc`/`free` 混用 | `malloc\(` 与 `delete\s` 在同一函数；`new\s` 与 `free\(` 在同一函数 | Critical |
-| `delete` 数组用 `delete` 非 `delete[]` | `(new\s+\w+\[|new\s+\w+<\w+>\[)` 但 `delete\s+(?!\[\])` | Critical |
-| 异常路径未释放资源 | `(malloc|new)\s[^;]*;[^}]*throw[^}]*(?!(free|delete))` | High |
+| `delete` 数组用 `delete` 非 `delete[]` | `(new\s+\w+\[\|new\s+\w+<\w+>\[)` 但 `delete\s+(?!\[\])` | Critical |
+| 异常路径未释放资源 | `(malloc\|new)\s[^;]*;[^}]*throw[^}]*(?!(free\|delete))` | High |
 | 裸指针管理所有权 | 成员变量为 `\w+\*\s+\w+` 且类无析构函数/`unique_ptr` | High |
 | 构造函数中 `new` 异常不安全 | `new\s` 在构造函数中，且无 try-catch 包装 | Medium |
 
@@ -26,7 +26,7 @@
 | 反模式 | 检测 Pattern | 严重度 |
 |--------|-------------|--------|
 | `volatile` 用作同步 | `volatile\s+\w+` 在多线程上下文中（非 MMIO） | High |
-| 无锁数据结构手写 | `std::atomic.*(compare_exchange|fetch_add)` + 自定义循环 | Medium |
+| 无锁数据结构手写 | `std::atomic.*(compare_exchange\|fetch_add)` + 自定义循环 | Medium |
 | 析构函数中访问静态对象 | `~\w+\(\)[^}]*\w+::\w+\(\)` 调用静态对象方法 | Medium |
 | mutex lock 后异常未解锁 | `\.lock\(\)[^}]*throw` 无 `unlock` (应用 `lock_guard`) | High |
 
@@ -45,5 +45,5 @@
 |--------|-------------|--------|
 | 有符号整数溢出 | `INT_MAX\|INT_MIN` 运算无溢出检查 | High |
 | 重叠内存 `memcpy` | `memcpy\([^,]*,[^,]*,[^)]*\)` 且源/目标区域可能重叠 | High |
-| 移位超出范围 | `<<\s*(31|63)` 或 `>>\s*` 负数移位 | Medium |
+| 移位超出范围 | `<<\s*(31\|63)` 或 `>>\s*` 负数移位 | Medium |
 | 空指针成员函数调用 | `\w+->\w+\(\)` 前无空指针检查 | High |

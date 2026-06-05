@@ -121,7 +121,7 @@ bash scripts/deploy.sh cac    # Gemini CLI
 | **SecGuard** | `/secguard` | AI 引导的代码漏洞发现 | 4 (4 语言) + 26 detectors | SARIF + manifest.json |
 | **SecReview** | `/secreview` | 安全编码规范审查 | 4 (4 语言) | SARIF + manifest.json |
 
---- 
+---
 
 ## CI/CD 集成
 

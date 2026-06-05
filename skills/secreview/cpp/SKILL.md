@@ -57,6 +57,7 @@ topic: [memory, concurrency, system, crypto]
 按 `knowledge/protocols/scan-output.md` 生成报告，格式为 `report.md` + `results.sarif` + `summary.json`。
 
 每个发现记录：
+
 - 文件路径 + 行号 + 函数名（来自 index.json）
 - 不合规描述 + 违反的规范条目
 - 修复建议（含代码 before/after）

@@ -68,7 +68,10 @@ mkdir -p "$BUILD_BIN_DIR"
 # Only keep properly suffixed binaries: secguardian-index-{os}-{arch}
 find "$BUILD_BIN_DIR" -name 'secguardian-index' ! -name 'secguardian-index-*' -type f -delete 2>/dev/null || true
 
-if [ -f "$PROJECT_ROOT/internal/go.mod" ] && command -v go &>/dev/null; then
+if [ "${SKIP_GO_BUILD:-}" = "1" ]; then
+    echo "  → [SKIP] SKIP_GO_BUILD=1 — using pre-built binaries in $BUILD_BIN_DIR/"
+    ls -lh "$BUILD_BIN_DIR/" 2>/dev/null | grep -v "^total" | awk '{print "    " $NF " (" $5 ")"}' || true
+elif [ -f "$PROJECT_ROOT/internal/go.mod" ] && command -v go &>/dev/null; then
     echo "  → Compiling secguardian-index binaries (dual-mode: CGO=tree-sitter, !CGO=regex)..."
     # Native build: CGO enabled (tree-sitter)
     (cd "$PROJECT_ROOT/internal" && \

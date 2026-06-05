@@ -26,7 +26,7 @@
 |--------|-------------|--------|
 | `synchronized(this)` | `synchronized\s*\(\s*this\s*\)` | Medium |
 | Double-checked locking 错误 | `if\s*\(.*==\s*null.*\)\s*\{[^}]*synchronized[^}]*if[^}]*\}[^}]*\}` 中字段无 `volatile` | High |
-| `ThreadLocal` 未清理 | `ThreadLocal\.(set|initialValue)\(\)[^}]*` 且 `finally` 块无 `.remove()` | Medium |
+| `ThreadLocal` 未清理 | `ThreadLocal\.(set\|initialValue)\(\)[^}]*` 且 `finally` 块无 `.remove()` | Medium |
 
 ## Spring 反模式
 
@@ -43,12 +43,12 @@
 |--------|-------------|--------|
 | MD5/SHA-1 安全用途 | `MessageDigest\.getInstance\("MD5"\|"SHA-1"\)` 且上下文含 `pass\|auth\|sign` | High |
 | AES-ECB 模式 | `Cipher\.getInstance\("AES/ECB\|"AES"\)` | High |
-| 硬编码密码/密钥 | `static\s+(final\s+)?String\s+\w*(PASS|SECRET|KEY|TOKEN)` 初始化为字符串字面量 | High |
+| 硬编码密码/密钥 | `static\s+(final\s+)?String\s+\w*(PASS\|SECRET\|KEY\|TOKEN)` 初始化为字符串字面量 | High |
 
 ## 错误处理反模式
 
 | 反模式 | 检测 Pattern | 严重度 |
 |--------|-------------|--------|
 | 异常抛到 Controller 未处理 | `@(GetMapping\|PostMapping).*throws\s` — 无 `@ExceptionHandler` | Medium |
-| 日志注入 (Log Injection) | `log\.\w+\(.*\+\s*(request|input|param|user)` 含 CRLF 未过滤 | Medium |
+| 日志注入 (Log Injection) | `log\.\w+\(.*\+\s*(request\|input\|param\|user)` 含 CRLF 未过滤 | Medium |
 | DEBUG 级别日志泄露 | `log\.debug\(.*(token\|password\|secret\|key)` | Medium |

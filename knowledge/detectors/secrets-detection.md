@@ -1,3 +1,11 @@
+---
+detector: secrets-detection
+severity: critical
+cwe: CWE-798
+language: [c, cpp, python, java, go, javascript]
+tags: [secrets, credentials, hardcoded, entropy]
+---
+
 # 密钥检测模式
 
 ## 高熵字符串检测

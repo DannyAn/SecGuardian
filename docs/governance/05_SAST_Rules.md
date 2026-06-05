@@ -142,7 +142,7 @@ if (!resolved.startsWith(baseDir)) throw new SecurityException();
 | AWS Access Key | `AKIA[0-9A-Z]{16}` | Critical |
 | GitHub Token | `gh[pousr]_[A-Za-z0-9_]+` | Critical |
 | Slack Token | `xox[baprs]-[0-9a-zA-Z-]+` | Critical |
-| Private Key | `-----BEGIN (RSA|EC|DSA) PRIVATE KEY-----` | Critical |
+| Private Key | `-----BEGIN (RSA\|EC\|DSA) PRIVATE KEY-----` | Critical |
 | Generic Password | `password\s*=\s*['\"][^'\"]{6,}['\"]` | High |
 | JWT Token | `eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+` | High |
 

@@ -68,7 +68,7 @@ VDerived* vd = dynamic_cast<VDerived*>(vb); // 安全：运行时检查
 | 场景 | 原因 |
 |------|------|
 | `dynamic_cast` 向下转换 | 运行时类型检查 |
-| void* → T* 的合法转换 | 常见模式（如 malloc 包装） |
+| void\* → T\* 的合法转换 | 常见模式（如 malloc 包装） |
 | `static_cast` 数值类型转换 | 标准定义的行为 |
 | 位运算的 `reinterpret_cast<intptr_t>` | 合法用途（如标记指针） |
 

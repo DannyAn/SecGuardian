@@ -66,7 +66,7 @@ Language: Java (auto-detected)
 ## 与 /secguard 的区别
 
 | 维度 | secguard | secreview |
-|------|----------|-----------| 
+|------|----------|-----------|
 | 粒度 | 具体 API 调用级 + detector 过滤 | 函数/模块级语义 + 语言 |
 | 关注点 | 是否存在可利用漏洞 | 是否符合安全编码规范 |
 | 输出 | CWE + CVSS | 反模式 + 最佳实践违规 |
@@ -108,7 +108,7 @@ INDEXER=""
 for candidate in \
     .opencode/plugins/secguardian/scripts/secguardian-index \
     .gemini/extensions/secguardian/scripts/secguardian-index \
-	    .claude/plugins/secguardian/scripts/secguardian-index \
+        .claude/plugins/secguardian/scripts/secguardian-index \
     .claude/extensions/secreview-secguardian/scripts/secguardian-index \
     .claude/extensions/secguard-secguardian/scripts/secguardian-index \
     .claude/extensions/secaudit-secguardian/scripts/secguardian-index \
@@ -161,4 +161,3 @@ print(f'Index OK: {len(d[\"files\"])} files, {len(d.get(\"symbols\",{}).get(\"fu
 - 按照 `knowledge/protocols/scan-output.md` (v2.0) 写入 `report.md`（人读）+ `results.sarif`（机读）+ `manifest.json` + `summary.json` + `status.json`。
 - `manifest.json` 中的 `duration_ms` 必须使用 **实际 wall-clock 耗时**（结束时间戳 − 开始时间戳），不得编造。
 - 向用户展示检视发现和检视摘要。
-

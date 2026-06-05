@@ -25,8 +25,8 @@
 | 反模式 | 检测 Pattern | 严重度 |
 |--------|-------------|--------|
 | 类型断言不检查 ok | `\.\((\w+)\)$` 而非 `, ok :=` 模式（单返回值断言） | Medium |
-| `unsafe` 包使用 | `import\s+\"unsafe\"` 或 `unsafe\.(Pointer|Sizeof|Offsetof)` | Medium |
-| `reflect` 绕过类型安全 | `reflect\.(ValueOf|TypeOf)[^)]*\.(Interface|Set|Field)` | Medium |
+| `unsafe` 包使用 | `import\s+\"unsafe\"` 或 `unsafe\.(Pointer\|Sizeof\|Offsetof)` | Medium |
+| `reflect` 绕过类型安全 | `reflect\.(ValueOf\|TypeOf)[^)]*\.(Interface\|Set\|Field)` | Medium |
 
 ## 网络/HTTP 反模式
 
@@ -35,18 +35,18 @@
 | `DefaultServeMux` 全局 | `http\.Handle\(` 或 `http\.HandleFunc\(` 非自定义 mux | Medium |
 | pprof 生产暴露 | `import\s+_\s+\"net/http/pprof\"` 生产环境 | High |
 | `InsecureSkipVerify: true` | `tls\.Config\{[^}]*InsecureSkipVerify\s*:\s*true` | High |
-| ResponseWriter goroutine 并发写 | `go func[^)]*{[^}]*w\.(Write|Header)` | Critical |
+| ResponseWriter goroutine 并发写 | `go func[^)]*{[^}]*w\.(Write\|Header)` | Critical |
 
 ## 加密反模式
 
 | 反模式 | 检测 Pattern | 严重度 |
 |--------|-------------|--------|
-| `crypto/md5` 安全用途 | `md5\.(New|Sum)\(` 且上下文含 `pass\|auth\|sign\|token` | High |
-| `math/rand` 安全用途 | `rand\.(Int|Float|Read|Perm)\(` 且上下文含 `token\|key\|session\|csrf` | High |
-| 硬编码密钥 | `var\s+\w*(Key|Secret|Token|Password)\w*\s*=\s*["']` | High |
+| `crypto/md5` 安全用途 | `md5\.(New\|Sum)\(` 且上下文含 `pass\|auth\|sign\|token` | High |
+| `math/rand` 安全用途 | `rand\.(Int\|Float\|Read\|Perm)\(` 且上下文含 `token\|key\|session\|csrf` | High |
+| 硬编码密钥 | `var\s+\w*(Key\|Secret\|Token\|Password)\w*\s*=\s*["']` | High |
 | AES-ECB 手动实现 | `cipher\.NewCBCEncrypter\|des\.NewCipher` 循环逐块加密 | High |
 
-## 错误处理反模式
+## HTTP 错误处理反模式
 
 | 反模式 | 检测 Pattern | 严重度 |
 |--------|-------------|--------|
