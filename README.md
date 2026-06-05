@@ -3,7 +3,7 @@
 **AI 深度安全审计 + 代码漏洞发现 + 安全规范审查。年省 $50K+ 安全顾问费用。**
 
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue)](https://github.com/secguardian/secguardian)
-[![Version](https://img.shields.io/badge/version-0.5.4-blue)](https://github.com/secguardian/secguardian/blob/develop/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.5.5-blue)](https://github.com/secguardian/secguardian/blob/develop/CHANGELOG.md)
 [![Go](https://img.shields.io/badge/Go-1.22%2B-00ADD8)](https://go.dev)
 [![Detectors](https://img.shields.io/badge/detectors-60-brightgreen)](https://github.com/secguardian/secguardian/blob/develop/skills/secguard/cpp/references/detector-index.md)
 [![CWE Top 25](https://img.shields.io/badge/CWE_Top_25-100%25-brightgreen)](https://github.com/secguardian/secguardian/blob/develop/skills/secguard/cpp/references/detector-index.md)
