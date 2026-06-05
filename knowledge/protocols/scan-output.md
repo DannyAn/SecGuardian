@@ -1,6 +1,6 @@
 ---
 category: protocol
-version: "2.0"
+version: "3.0"
 ---
 
 # SecGuardian 扫描输出协议 2.0
@@ -17,6 +17,8 @@ version: "2.0"
 | `manifest.json` | 程序入口 | JSON | 扫描元数据 + 检出索引（引用 report.md 章节） |
 | `status.json` | CI 门禁 | JSON | pass/fail 判定 + exit_code |
 | `delta.json` | 趋势分析 | JSON | 与上一次扫描的增量对比 |
+
+> **v3.0 变更 (2026-06-05)**: report.md §4 详细发现改为强制四段式结构（📍 Location → 📋 Evidence → ⚠️ Impact → 🔧 Fix）。增加输出前质量门禁（Step 4b）。SARIF 增加 `message.markdown` 和 `relatedLocations` 要求。
 
 ## 目录结构
 
@@ -145,51 +147,65 @@ version: "2.0"
 
 ## 4. 详细发现
 
-### C-BOF-parser_c-42: strcpy 缓冲区溢出
+### {{ID}}: {{TITLE}}
+
+### 📍 1. Location — 问题位置
 
 | 属性 | 值 |
 |------|-----|
-| **严重度** | 🔴 Critical (CVSS 9.8) |
-| **检测器** | `memory.buffer-overflow` |
-| **CWE** | [CWE-120: Buffer Copy without Checking Size of Input](https://cwe.mitre.org/data/definitions/120.html) |
-| **OWASP** | A03:2021 注入 |
-| **位置** | `src/parser.c:42` → `parse_input()` |
-| **置信度** | high — 存在完整利用路径（用户输入 → strcpy → 栈缓冲区） |
+| **严重度** | {{SEVERITY_EMOJI}} {{SEVERITY_LABEL}} (CVSS {{CVSS}}) |
+| **CWE** | [{{CWE_ID}}](https://cwe.mitre.org/data/definitions/{{CWE_NUM}}.html) |
+| **文件** | `{{FILE}}:{{LINE}}` |
+| **函数** | `{{FUNCTION}}()` |
+| **代码** | `{{VULNERABLE_LINE}}` |
+| **检测器** | `{{NAMESPACE}}.{{DETECTOR}}` |
+| **置信度** | {{CONFIDENCE}} — {{CONFIDENCE_REASON}} |
 
-**证据链**:
+### 📋 2. Evidence — 证据链
 
-```c
-// src/parser.c:40-44  parse_input()
-char buf[64];                          // 40: 64 字节栈缓冲区
-if (input) {                           // 41: 来自用户输入
-    strcpy(buf, user_input);           // 42: ← 无长度检查!
-    process(buf);                      // 43: 处理后继续使用
-}                                      // 44
+**判定依据**: {{WHY_THIS_IS_A_FINDING}}（引用 detector 的检测逻辑）
+
+**代码上下文**:
+
+```{{LANGUAGE}}
+// {{FILE}}:{{CONTEXT_START}}-{{CONTEXT_END}}  {{FUNCTION}}()
+... // 前 2-3 行上下文
+{{VULNERABLE_LINE}}     // ← 漏洞点
+... // 后 2-3 行上下文
 ```
 
-**影响**: 攻击者可构造超长输入覆盖栈帧，劫持返回地址实现 RCE。
+**数据流路径** (如适用):
 
-**修复方案**:
+`{{SOURCE}}` → `{{PROPAGATION}}` → `{{SINK}}` → {{CONSEQUENCE}}
 
-```c
+### ⚠️ 3. Impact — 影响评估
+
+**攻击场景**: {{ATTACK_SCENARIO}}
+
+**CVSS 3.1**: {{CVSS_SCORE}} — {{CVSS_VECTOR_STRING}}
+
+**利用条件**: {{EXPLOITABILITY}}
+
+### 🔧 4. Fix — 修复方案
+
+```{{LANGUAGE}}
 // ❌ Before
-strcpy(buf, user_input);
+{{CODE_BEFORE}}
 
 // ✅ After
-strncpy(buf, user_input, sizeof(buf) - 1);
-buf[sizeof(buf) - 1] = '\0';
+{{CODE_AFTER}}
 ```
 
-| 修复属性 | 值 |
-|---------|-----|
-| 工作量 | Low (< 5 min) |
-| 回滚风险 | None |
-| 验证方法 | 输入 > 64 字节测试 |
+| 属性 | 值 |
+|------|-----|
+| **工作量** | {{EFFORT}} |
+| **回滚风险** | {{RISK}} |
+| **验证方法** | {{VERIFICATION}} |
 
 **参考资料**:
-- [CWE-120](https://cwe.mitre.org/data/definitions/120.html)
-- [SEI CERT STR31-C](https://wiki.sei.cmu.edu/confluence/x/1dUxBQ)
-- [OWASP Buffer Overflow](https://owasp.org/www-community/vulnerabilities/Buffer_Overflow)
+- [{{CWE_ID}}](https://cwe.mitre.org/data/definitions/{{CWE_NUM}}.html)
+- {{CERT_REF}} (如适用)
+- {{OWASP_REF}} (如适用)
 
 ---
 
@@ -259,10 +275,11 @@ pandoc report.md -o report.pdf --pdf-engine=weasyprint \
 ### 生成规则
 
 1. **report.md 是主要输出** — 工程师打开目录首先阅读此文件
-2. **每个检出包含完整修复建议** — 来自 detector 的 `## 修复指引` 节
+2. **每个检出必须包含完整四段式** — 📍 Location → 📋 Evidence → ⚠️ Impact → 🔧 Fix，内容来自 detector 的 `## 检测逻辑` 和 `## 修复指引` 节
 3. **代码段包含上下文** — 前后各 2-3 行
 4. **严重度用 emoji** — 🔴 Critical / 🟠 High / 🟡 Medium / 🔵 Low / ⚪ Info
 5. **检出 ID 自我描述** — 格式 `<SEVERITY>-<DETECTOR_ABBREV>-<FILE_SLUG>-L<LINE>`，工程师一眼看懂
+6. **质量门禁强制执行** — 写入报告前执行 Step 4b 检查清单，每个 finding 四段式完整性不达标则补充后重试（最多 3 次）
 
 ### 检出 ID 格式
 
@@ -367,5 +384,6 @@ M-DLK-concurrency_c-L43 ← Medium, DeadLock, concurrency.c:43
 
 ## 协议演进
 
-- **2.0** (当前): 人读/机读分离。`findings/*.json` 废弃。`report.md` 为主要人读输出。SARIF 始终生成。
+- **3.0** (当前): report.md §4 强制四段式结构（📍 Location → 📋 Evidence → ⚠️ Impact → 🔧 Fix）。增加质量门禁（Step 4b）。SARIF 要求 `message.markdown` + `relatedLocations`。
+- **2.0**: 人读/机读分离。`findings/*.json` 废弃。`report.md` 为主要人读输出。SARIF 始终生成。
 - **1.x**: findings/*.json + manifest.json + --sarif 可选
