@@ -84,12 +84,12 @@ Filters: memory.*, system.*
 | `memory` | 内存安全 + 内存管理 | 13 |
 | `concurrency` | 并发安全 | 4 |
 | `system` | 系统安全 | 8 |
-| `resource` | 资源生命周期 | 4 |
+| `resource` | 资源生命周期 | 6 |
 | `crypto` | 加密与密钥 | 9 |
 | `web` | Web + 应用安全 | 22 |
 | `error` | 错误处理 + 信息泄露 | 6 |
 | `critical` | 所有 Critical 严重度 | 跨 namespace |
-| `*` (默认) | 全部 | 65 |
+| `*` (默认) | 全部 | 67 |
 
 ## 派发规则与执行步骤
 
