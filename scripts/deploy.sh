@@ -30,7 +30,7 @@ SecGuardian — 部署脚本
   all      三平台全部 (默认)
   cc       Claude Code    → .claude/plugins/secguardian/
   nga      OpenCode       → .opencode/ (project) / ~/.config/opencode/extensions/ (user)
-  cac      Gemini CLI     → .gemini/extensions/secguardian/
+  cac      Gemini CLI     → .gemini/extensions/secguardian/ (project) / ~/.gemini/extensions/secguardian/ (user)
 
 选项:
   --user       部署到用户家目录（推荐，跨项目共用）
@@ -275,19 +275,26 @@ uninstall_opencode() {
 }
 
 uninstall_gemini() {
-    local gm_dir="$TARGET_ROOT/.gemini"
-    local ext_dir="$TARGET_ROOT/.gemini/extensions/secguardian"
-    for dir in "$ext_dir"; do
-        if [ -d "$dir" ]; then
-            rm -rf "$dir"
-            log_done "已移除: $dir"
+    local brand="secguardian"
+    # Check both user-level and project-level paths
+    for base in "$HOME/.gemini" "$PROJECT_ROOT/.gemini"; do
+        local ext_dir="$base/extensions/$brand"
+        if [ -d "$ext_dir" ]; then
+            rm -rf "$ext_dir"
+            log_done "已移除: $ext_dir"
         fi
-    done
-    for sub in commands skills knowledge scripts GEMINI.md; do
-        if [ -e "$gm_dir/$sub" ]; then
-            rm -rf "$gm_dir/$sub"
-            log_done "已移除: $gm_dir/$sub"
-        fi
+        # Clean legacy flat deployment
+        for sub in commands skills knowledge scripts GEMINI.md; do
+            if [ -e "$base/$sub" ]; then
+                # Only remove if it was our deployment
+                if [ -f "$base/$sub/secaudit.toml" ] || \
+                   [ -f "$base/$sub/secguard.toml" ] || \
+                   [ -d "$base/$sub/secaudit-attack-surface-analysis" ]; then
+                    rm -rf "$base/$sub"
+                    log_done "已移除 (legacy): $base/$sub"
+                fi
+            fi
+        done
     done
 }
 
@@ -436,7 +443,11 @@ deploy_gemini() {
     local ext_name="secguardian"
     local ext_dir="$TARGET_ROOT/.gemini/extensions/$ext_name"
 
-    log_step "Gemini CLI → .gemini/extensions/$ext_name/"
+    if $DEPLOY_USER; then
+        log_step "Gemini CLI → ~/.gemini/extensions/$ext_name/ (用户级)"
+    else
+        log_step "Gemini CLI → .gemini/extensions/$ext_name/ (项目级)"
+    fi
 
     # Clean: remove old flat format AND old extension dir
     rm -rf "$TARGET_ROOT/.gemini/commands" "$TARGET_ROOT/.gemini/skills" \
