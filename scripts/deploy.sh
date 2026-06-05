@@ -364,6 +364,16 @@ deploy_opencode() {
              "$knowledge_dir/languages" "$knowledge_dir/detectors" \
              "$knowledge_dir/protocols" "$knowledge_dir/standards"
 
+    # Write codeagent-extension.json — OpenCode extension manifest
+    # Only name/version/description are recognized; author/keywords cause parse failure
+    cat > "$plugin_dir/codeagent-extension.json" << JSON
+{
+  "name": "$brand",
+  "version": "0.5.5",
+  "description": "SecGuardian XuanWu — 企业级白盒安全 AI Agent 辅助解决方案"
+}
+JSON
+
     local cmd_n=0 skill_n=0
     for d in "$DIST"/*/; do
         # Commands: .md files are OpenCode slash commands
