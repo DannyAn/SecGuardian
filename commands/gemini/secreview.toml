@@ -92,7 +92,7 @@ Language: Java (auto-detected)
 
 在执行任何检视步骤之前，必须逐项确认以下所有条件。**任一项未通过，检视不得开始，向用户报告具体错误。**
 
-- [ ] 定位索引器 wrapper：检查 `.opencode/plugins/secguardian/`（项目级）→ `~/.config/opencode/plugins/secguardian/`（用户级）→ `.gemini/` → `.claude/` → `scripts/` 回退（至少一个存在且可执行）
+- [ ] 定位索引器 wrapper：检查 `.opencode/extensions/secguardian/`（项目级）→ `~/.config/opencode/extensions/secguardian/`（用户级）→ `.gemini/` → `.claude/` → `scripts/` 回退（至少一个存在且可执行）
 - [ ] 执行 `{indexer} --health` 通过（输出必须包含 `HEALTH:OK` 或 `HEALTH:WARN`，不接受 `HEALTH:FAIL`）
 - [ ] 目标路径 `<path>` 存在且包含至少一个源码文件
 
@@ -118,8 +118,8 @@ find_indexer() {
     INDEXER=""
     for base in "." "$HOME"; do
         for path in \
-            ".opencode/plugins/secguardian/scripts/secguardian-index" \
-            ".config/opencode/plugins/secguardian/scripts/secguardian-index" \
+            ".opencode/extensions/secguardian/scripts/secguardian-index" \
+            ".config/opencode/extensions/secguardian/scripts/secguardian-index" \
             ".gemini/extensions/secguardian/scripts/secguardian-index" \
             ".claude/plugins/secguardian/scripts/secguardian-index"; do
             candidate="$base/$path"

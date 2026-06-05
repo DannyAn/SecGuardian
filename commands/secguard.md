@@ -132,8 +132,8 @@ find_indexer() {
     # Base directories × relative paths — covers project-level + user-level
     for base in "." "$HOME"; do
         for path in \
-            ".opencode/plugins/secguardian/scripts/secguardian-index" \
-            ".config/opencode/plugins/secguardian/scripts/secguardian-index" \
+            ".opencode/extensions/secguardian/scripts/secguardian-index" \
+            ".config/opencode/extensions/secguardian/scripts/secguardian-index" \
             ".gemini/extensions/secguardian/scripts/secguardian-index" \
             ".claude/plugins/secguardian/scripts/secguardian-index"; do
             candidate="$base/$path"

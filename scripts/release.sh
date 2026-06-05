@@ -92,12 +92,12 @@ if [ -d ".claude/plugins/secguardian" ]; then
     done_msg "secguardian-${VERSION}-claude-code-${PLATFORM_SUFFIX}.zip ($(du -h "$claude_zip" | cut -f1))"
 fi
 
-# OpenCode: plugin under .opencode/plugins/secguardian/
+# OpenCode: plugin under .opencode/extensions/secguardian/
 bash scripts/deploy.sh nga > /dev/null 2>&1
 opencode_zip="$OUTPUT/secguardian-${VERSION}-opencode-${PLATFORM_SUFFIX}.zip"
 rm -f "$opencode_zip"
-if [ -d ".opencode/plugins/secguardian" ]; then
-    (cd .opencode/plugins && zip -rq "$opencode_zip" secguardian/)
+if [ -d ".opencode/extensions/secguardian" ]; then
+    (cd .opencode/extensions && zip -rq "$opencode_zip" secguardian/)
     shasum -a 256 "$opencode_zip" | cut -d' ' -f1 > "$opencode_zip.sha256"
     done_msg "secguardian-${VERSION}-opencode-${PLATFORM_SUFFIX}.zip ($(du -h "$opencode_zip" | cut -f1))"
 fi
@@ -140,12 +140,12 @@ for target_os in darwin linux windows; do
         fi
 
         # OpenCode
-        if [ -d ".opencode/plugins/secguardian" ]; then
-            rm -f ".opencode/plugins/secguardian/scripts/bin/"*
-            cp "$src_bin" ".opencode/plugins/secguardian/scripts/bin/secguardian-index${ext}"
-            chmod +x ".opencode/plugins/secguardian/scripts/bin/secguardian-index${ext}"
+        if [ -d ".opencode/extensions/secguardian" ]; then
+            rm -f ".opencode/extensions/secguardian/scripts/bin/"*
+            cp "$src_bin" ".opencode/extensions/secguardian/scripts/bin/secguardian-index${ext}"
+            chmod +x ".opencode/extensions/secguardian/scripts/bin/secguardian-index${ext}"
             oc_zip="$OUTPUT/secguardian-${VERSION}-opencode-${plat_suffix}.zip"
-            (cd .opencode/plugins && zip -rq "$oc_zip" secguardian/)
+            (cd .opencode/extensions && zip -rq "$oc_zip" secguardian/)
             shasum -a 256 "$oc_zip" | cut -d' ' -f1 > "$oc_zip.sha256"
         fi
 
@@ -165,7 +165,7 @@ done
 
 # Restore native binary for local deployment
 deploy_indexer_binary ".claude/plugins/secguardian/scripts/bin" 2>/dev/null || true
-deploy_indexer_binary ".opencode/plugins/secguardian/scripts/bin" 2>/dev/null || true
+deploy_indexer_binary ".opencode/extensions/secguardian/scripts/bin" 2>/dev/null || true
 deploy_indexer_binary ".gemini/extensions/secguardian/scripts/bin" 2>/dev/null || true
 
 # ── 3. Source Archive ─────────────────────────────

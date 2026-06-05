@@ -218,7 +218,7 @@ verify_platform() {
 }
 
 verify_platform "$PROJECT_ROOT/.claude/plugins/secguardian" "Claude Code"
-verify_platform "$PROJECT_ROOT/.opencode/plugins/secguardian" "OpenCode"
+verify_platform "$PROJECT_ROOT/.opencode/extensions/secguardian" "OpenCode"
 verify_platform "$PROJECT_ROOT/.gemini/extensions/secguardian" "Gemini CLI"
 
 # ═══════════════════════════════════════════

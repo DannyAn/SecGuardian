@@ -29,7 +29,7 @@ SecGuardian — 部署脚本
 平台:
   all      三平台全部 (默认)
   cc       Claude Code    → .claude/plugins/secguardian/
-  nga      OpenCode       → .opencode/ (project) / ~/.config/opencode/ (user)
+  nga      OpenCode       → .opencode/ (project) / ~/.config/opencode/extensions/ (user)
   cac      Gemini CLI     → .gemini/extensions/secguardian/
 
 选项:
@@ -254,7 +254,7 @@ uninstall_opencode() {
     local oc_dir="$TARGET_ROOT/.opencode"
     local oc_user_dir="$HOME/.config/opencode"
     for base in "$oc_dir" "$oc_user_dir"; do
-        local plugin_dir="$base/plugins/$brand"
+        local plugin_dir="$base/extensions/$brand"
         if [ -d "$plugin_dir" ]; then
             rm -rf "$plugin_dir"
             log_done "已移除: $plugin_dir"
@@ -318,19 +318,19 @@ do_uninstall() {
 
 # ── OpenCode ────────────────────────────────────
 # Ref: https://opencode.ai/docs/plugins
-# OpenCode discovers plugins from: ~/.config/opencode/ (user) and .opencode/ (project)
-# Project-level plugins go under .opencode/plugins/<brand-name>/
+# OpenCode discovers plugins from: ~/.config/opencode/extensions/ (user) and .opencode/extensions/ (project)
+# Project-level plugins go under .opencode/extensions/<brand-name>/
 # Top-level .opencode/commands/ and .opencode/skills/ are for handwritten files only
 deploy_opencode() {
     local brand="secguardian"
     if $DEPLOY_USER; then
         local opencode_dir="$HOME/.config/opencode"
-        log_step "OpenCode → ~/.config/opencode/plugins/$brand/ (用户级)"
+        log_step "OpenCode → ~/.config/opencode/extensions/$brand/ (用户级)"
     else
         local opencode_dir="$TARGET_ROOT/.opencode"
-        log_step "OpenCode → .opencode/plugins/$brand/ (项目级)"
+        log_step "OpenCode → .opencode/extensions/$brand/ (项目级)"
     fi
-    local plugin_dir="$opencode_dir/plugins/$brand"
+    local plugin_dir="$opencode_dir/extensions/$brand"
     local cmd_dir="$plugin_dir/commands"
     local skills_dir="$plugin_dir/skills"
     local knowledge_dir="$plugin_dir/knowledge"
