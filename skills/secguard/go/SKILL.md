@@ -43,3 +43,13 @@ topic: [web, concurrency, crypto, system]
 - GORM, sqlx
 - html/template, text/template
 - cgo (C 互操作安全)
+
+## 输出完整性要求
+
+> **每个检出必须满足四段式完整性**（Command 层 Step 4b 质量门禁强制检查）：
+> 1. **📍 Location** — 文件路径 + 行号 + 函数名 + 代码行内容
+> 2. **📋 Evidence** — 代码上下文（前后 3 行）+ 判定依据（引用 detector 的检测逻辑）+ 数据流路径
+> 3. **⚠️ Impact** — 攻击场景描述 + CVSS 3.1 评分 + 利用条件
+> 4. **🔧 Fix** — Before/After 代码 + 工作量 + 验证方法 + CWE 参考链接
+>
+> SARIF 结果同样要求：`message.markdown` 包含完整四段式，`relatedLocations` 标注 Source → Sink 路径，`fixes` 包含 before/after 替换。
