@@ -8,6 +8,12 @@ tags: [resource, refcount, leak, reference]
 
 # 引用计数误用 (Refcount Misuse)
 
+## Indexer Input
+
+- `symbols.functions`: 在函数名中搜索 `AddRef`/`Release`/`get`/`put`/`ref`/`unref` 定位引用计数操作函数
+- `call_graph.edges`: 追踪引用计数操作是否跨函数配对
+- 执行方式：从符号表筛选匹配函数 → 精准读取 → 配对搜索限制在同函数或调用链上，**不使用通配符全库搜索**
+
 ## 威胁定义
 
 成对引用计数操作（`get`/`put`、`AddRef`/`Release`、`ref`/`unref`）不匹配，导致资源提前释放（count=0 后继续使用）或永不释放（count 永远 > 0，等同于泄漏）。

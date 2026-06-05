@@ -8,6 +8,11 @@ tags: [memory, stack, heap, exploitation]
 
 # 缓冲区溢出 (Buffer Overflow)
 
+## Indexer Input
+
+- `symbols.functions`: 定位包含 `strcpy`/`strcat`/`sprintf`/`gets`/`memcpy` 的函数
+- 执行方式：从符号表筛选含危险 API 的函数 → 精准读取后检查目标缓冲区大小，**不扫描无这些 API 的文件**
+
 ## 威胁定义
 
 程序向缓冲区写入超出其容量的数据，覆盖相邻内存，可能导致代码执行或程序崩溃。主要影响 C/C++，其他语言通过 FFI/cgo 间接影响。

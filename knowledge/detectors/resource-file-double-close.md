@@ -8,6 +8,11 @@ tags: [resource, file, double-close, fd]
 
 # 文件句柄重复关闭 (Double Close)
 
+## Indexer Input
+
+- `symbols.functions`: 定位包含 `fclose()`/`close()` 调用的函数
+- 执行方式：从符号表筛选含 `fclose`/`close` 的函数，精准读取后检查同一 FILE*/fd 是否被 close 两次（含 goto cleanup 路径），**不逐文件全文扫描**
+
 ## 威胁定义
 
 同一 `FILE*`/fd 被关闭两次。多线程场景下，第一次 close 后 fd 被其他线程的 `open()` 复用，第二次 close 会关闭不相关的文件。

@@ -8,6 +8,11 @@ tags: [memory, heap, crash, exploitation]
 
 # 双重释放 (Double Free)
 
+## Indexer Input
+
+- `alloc_free.pairs`: 直接读取预计算的 malloc/calloc/realloc ↔ free/delete 配对（alloc_func, alloc_file, alloc_line, free_sites）
+- 执行方式：遍历 alloc_free.pairs → 检查每个分配点的 free_sites[] 是否有两个 free 指向同一指针（中间无 NULL 赋值），**不再手工搜索 malloc/free**
+
 ## 威胁定义
 
 同一块内存被 `free()`/`delete` 两次，导致堆分配器内部数据结构损坏。攻击者可利用此漏洞实现任意写。自定义释放函数（`xxx_free`/`xxx_destroy`）的重复调用同样危险。

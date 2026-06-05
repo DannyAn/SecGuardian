@@ -13,9 +13,11 @@ topic: [web, concurrency, crypto, system]
 
 ## 执行流程
 
-> **前置条件**: Command 层面已完成 `secguardian-index` 索引器调用，`index.json` 已生成在扫描输出目录下。包含 `symbols.functions`（函数→文件:行号）、`call_graph.edges`（调用关系）、`files`（文件清单）。**请在后续步骤中利用这些结构化数据定位检测目标，而非逐个读取文件。**
+> **前置条件**: Command 层面已完成 `secguardian-index` 索引器调用，`index.json` 已生成在扫描输出目录下。包含 `symbols.functions`（函数→文件:行号）、`call_graph.edges`（调用关系）、`files`（文件清单）。
+>
+> **禁止事项**：❌ 不要启动 clangd 或任何 LSP server（indexer 已提供所有代码结构数据）。❌ 不要用 find/ls/glob 重新遍历文件系统。❌ 不要逐文件全文读取——始终从 indexer 数据出发精准定位。
 
-1. 读取 Command 生成的 `index.json`，获取扫描范围内的完整文件清单、符号表和调用图
+1. 读取 Command 生成的 `index.json`，获取文件清单、符号表和调用图。**从 symbols.functions 构建函数名→{文件:行号} 查找表，检测器按需查表定位目标函数后精准读取，不扫描无关文件。**
 2. 加载 `knowledge/languages/go.md` 获取 Go 危险 API 清单和并发陷阱
 3. 加载 `knowledge/threat-catalog.md` 获取威胁全景，再按需加载 `knowledge/detectors/<name>.md`（每个 detector 自包含威胁定义+检测逻辑+修复指引）
 4. 基于 index.json 的符号表定位检测目标，按以下优先级匹配:

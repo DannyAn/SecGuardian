@@ -8,6 +8,11 @@ tags: [memory, boundary, logic-error]
 
 # Off-by-One 错误
 
+## Indexer Input
+
+- `symbols.functions`: 定位包含 for/while 循环边界检查和 strlen/sizeof 使用的函数
+- 执行方式：从符号表筛选含 `for`/`while`/`strlen`/`sizeof` 的函数，精准读取后检查循环边界（`<=` vs `<`）和字符串分配长度（`strlen+1`），**不逐文件全文扫描**
+
 ## 威胁定义
 
 缓冲区操作中边界计算差一（`<=` 而非 `<`），导致写入刚好一个字节越界。这一字节可覆盖相邻堆块的 size 字段或栈帧的保存 EBP，实现控制流劫持。

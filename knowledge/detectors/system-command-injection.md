@@ -8,6 +8,12 @@ tags: [system, injection, shell]
 
 # 命令注入 (Command Injection)
 
+## Indexer Input
+
+- `symbols.functions`: 定位包含 `system()`/`popen()`/`exec*()` 调用的函数
+- `call_graph.edges`: 从危险函数出发沿调用链向上追溯，检查是否有路径从用户输入函数（argv/getenv/scanf/fgets/recv/read）到达
+- 执行方式：符号表定位危险函数 → 调用图反向追溯入参来源 → 仅读取调用链上的函数，**不读取无关文件**
+
 ## 威胁定义
 
 攻击者通过用户输入拼接系统命令，导致服务器执行恶意的操作系统命令。

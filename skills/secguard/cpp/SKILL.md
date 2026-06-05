@@ -36,14 +36,55 @@ topic: [memory, concurrency, system, crypto]
 
 ### Phase 2: 使用索引器上下文
 
-利用前置生成的 `index.json` 获取符号表和文件清单，定位检测目标。
+> **核心原则：index.json 是唯一的数据源。禁止绕过它直接遍历文件系统或启动外部工具。**
 
-**全量模式**: 基于 index.json 中的 `files` 和 `symbols` 确定扫描对象，**不要重新遍历文件系统。**
+从 Command 层面生成的 `index.json` 中提取以下结构化数据。后续每个检测器执行前，先查对应数据再精准读取目标函数。
 
-**增量模式**:
-1. `git -C <path> diff <ref> --name-only` → 变更文件列表
-2. `git -C <path> diff <ref>` → 解析 @@ 行号范围
-3. 对照 index.json 中的 symbol 位置，仅分析变更行所在的函数。
+#### 2.1 文件清单
+
+从 `files` 数组获取完整扫描文件列表。**不要用 `find`/`ls`/glob 重新遍历文件系统。**
+
+#### 2.2 符号定位表
+
+从 `symbols.functions` 构建查找表：
+
+```
+函数名 → {文件路径, 起始行, 结束行}
+```
+
+**使用方式**：检测器需要找特定 API（如 `pthread_mutex_lock`、`fclose`、`socket`）时，先遍历 symbols.functions 按函数名匹配，得到 `文件:行号` 后精准读取该函数代码。**不要在无关文件中搜索。**
+
+#### 2.3 调用图
+
+读取 `call_graph.edges`（caller → callee 列表），构建反向索引：
+
+```
+被调用函数 → [调用它的函数列表]
+```
+
+**使用方式**：需要跨函数追踪时（如检查 `handle(fd)` 内部是否 close fd），查调用图找到 handle 的实现位置后精准读取。
+
+#### 2.4 分配/释放对
+
+直接读取 `alloc_free.pairs`，每条记录包含：
+- `alloc_func`, `alloc_file`, `alloc_line` — 分配点
+- `free_sites[]` — 所有释放点（file + line）
+
+**使用方式**：内存类检测器（double-free、UAF、memory-leak、mismatched-free）直接从此数据出发，不再手工搜索 malloc/free。
+
+#### 2.5 锁图
+
+直接读取 `lock_graph.mutexes`，每条记录包含：
+- `file`, `lock_line`, `unlock_line` — lock/unlock 位置
+
+**使用方式**：lock-misuse 检测器直接遍历此数据，检查每个 lock 所在函数的所有退出路径。
+
+#### 2.6 禁止事项
+
+- ❌ **不要启动 clangd 或任何 LSP server** — indexer (tree-sitter) 已提供所有代码结构数据
+- ❌ **不要使用 compile_commands.json、bear 或任何编译数据库**
+- ❌ **不要逐文件全文读取** — 始终从 indexer 数据出发，精准定位后按需读取
+- ❌ **不要重新遍历文件系统** — index.json 的 `files` 数组是唯一的文件清单
 
 ### Phase 3: 解析 Filters + 加载检测器
 

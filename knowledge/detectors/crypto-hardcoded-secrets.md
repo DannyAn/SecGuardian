@@ -8,6 +8,11 @@ tags: [crypto, secrets, credentials]
 
 # 硬编码密钥/凭证 (Hardcoded Secrets)
 
+## Indexer Input
+
+- `symbols.variables`: 直接读取变量列表，筛选名称含 `password`/`api_key`/`secret`/`token`/`key` 且值为字符串字面量的变量
+- 执行方式：遍历变量符号表 → 精准读取对应行检查赋值，**不扫描无敏感变量的文件**
+
 ## 威胁定义
 
 API Key、密码、私钥、Token 等敏感凭证硬编码在源代码中，进入版本控制后永久暴露。攻击者可通过源码泄露、供应链分析或反编译获取这些凭证。
