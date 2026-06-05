@@ -1,6 +1,6 @@
 ---
 category: protocol
-version: "1.0"
+version: "1.1"
 standard: "SARIF 2.1.0 (OASIS Standard)"
 ---
 
@@ -17,6 +17,61 @@ SecGuardian 所有命令可选的 SARIF 2.1.0 输出格式。SARIF 是 GitHub Co
 ├── manifest.json
 ├── results.sarif          # SARIF 2.1.0 标准输出
 └── findings/
+```
+
+## v1.1 新增要求
+
+| 字段 | v1.0 状态 | v1.1 要求 | 说明 |
+|------|----------|----------|------|
+| `message.markdown` | 不存在 | **必须** | 完整四段式富文本（📍 Location → 📋 Evidence → ⚠️ Impact → 🔧 Fix） |
+| `relatedLocations[]` | 不存在 | **必须**（如有数据流） | Source → Propagation → Sink 路径标注 |
+| `taxa[]` | 不存在 | 推荐 | CWE 分类引用 |
+| `contextRegion` | 已支持 | 增强（前后 3 行） | 更多代码上下文 |
+| `properties` | 已支持 | 增强 | 增加 `cvss_vector`, `verification` |
+
+### message.markdown 模板
+
+每个 result 的 `message.markdown` 必须包含完整四段式：
+
+```markdown
+## 📍 Location
+| 属性 | 值 |
+|------|-----|
+| **文件** | `src/parser.c:42` |
+| **函数** | `parse_input()` |
+| **检测器** | `memory.buffer-overflow` |
+| **CWE** | [CWE-120](https://cwe.mitre.org/data/definitions/120.html) |
+| **CVSS** | 9.8 (Critical) |
+
+## 📋 Evidence
+判定依据说明...
+
+```c
+char buf[64];
+strcpy(buf, user_input);  // ← 漏洞点
+process(buf);
+```
+
+**数据流**: `argv[1]` → `user_input` → `strcpy(buf, ...)` → 栈溢出
+
+## ⚠️ Impact
+攻击场景描述...
+
+**CVSS 3.1 Vector**: AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H
+
+## 🔧 Fix
+```c
+// ❌ Before
+strcpy(buf, user_input);
+
+// ✅ After
+strncpy(buf, user_input, sizeof(buf) - 1);
+buf[sizeof(buf) - 1] = '\0';
+```
+
+**工作量**: ~5 min | **风险**: 无 | **验证**: 输入 > 64 字节测试
+
+**参考**: [CWE-120](https://cwe.mitre.org/data/definitions/120.html) | [SEI CERT STR31-C](https://wiki.sei.cmu.edu/confluence/x/1dUxBQ)
 ```
 
 ## 严重度映射
@@ -96,7 +151,8 @@ SecGuardian 所有命令可选的 SARIF 2.1.0 输出格式。SARIF 是 GitHub Co
           "ruleIndex": 0,
           "level": "error",
           "message": {
-            "text": "[Critical] 缓冲区溢出: strcpy(buf, user_input) 中 user_input 长度未检查，64 字节栈缓冲区可能溢出。攻击者可覆盖返回地址实现任意代码执行 (RCE)。"
+            "text": "📍 src/parser.c:42 parse_input() [Critical] CWE-120: strcpy(buf, user_input) 缓冲区溢出 — user_input 来自 argv[1]，无长度检查",
+            "markdown": "## 📍 Location\n\n| 属性 | 值 |\n|------|----|\n| **文件** | `src/parser.c:42` |\n| **函数** | `parse_input()` |\n| **CWE** | [CWE-120](https://cwe.mitre.org/data/definitions/120.html) |\n| **CVSS** | 9.8 (Critical) |\n\n## 📋 Evidence\n\n**判定依据**: `strcpy()` 的目标缓冲区 `buf[64]` 是固定大小栈缓冲区，源 `user_input` 来自 `argv[1]`（攻击者完全可控），拷贝无任何长度检查。\n\n```c\nchar buf[64];\nstrcpy(buf, user_input);  // ← 漏洞点\nprocess(buf);\n```\n\n**数据流**: `argv[1]` → `user_input` → `strcpy(buf, ...)` → 栈溢出\n\n## ⚠️ Impact\n\n攻击者可构造超长输入（>64字节）覆盖栈帧返回地址 → **远程代码执行 (RCE)**。\n\n**CVSS 3.1**: 9.8 (AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H)\n\n## 🔧 Fix\n\n```c\n// ❌ Before\nstrcpy(buf, user_input);\n\n// ✅ After\nstrncpy(buf, user_input, sizeof(buf) - 1);\nbuf[sizeof(buf) - 1] = '\\0';\n```\n\n**工作量**: ~5 min | **风险**: 无 | **验证**: 输入 > 64 字节测试 | **参考**: [CWE-120](https://cwe.mitre.org/data/definitions/120.html) | [SEI CERT STR31-C](https://wiki.sei.cmu.edu/confluence/x/1dUxBQ)"
           },
           "locations": [
             {
@@ -122,6 +178,22 @@ SecGuardian 所有命令可选的 SARIF 2.1.0 输出格式。SARIF 是 GitHub Co
                   }
                 }
               }
+            }
+          ],
+          "relatedLocations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/parser.c" },
+                "region": { "startLine": 38, "snippet": { "text": "char buf[64];" } }
+              },
+              "message": { "text": "📋 目标缓冲区: 64字节栈缓冲区 buf" }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/main.c" },
+                "region": { "startLine": 15, "snippet": { "text": "parse_input(argv[1]);" } }
+              },
+              "message": { "text": "⬆️ Source: user_input = argv[1] (攻击者可控)" }
             }
           ],
           "fixes": [
@@ -235,7 +307,7 @@ SecGuardian 所有命令可选的 SARIF 2.1.0 输出格式。SARIF 是 GitHub Co
 |--------------------------|-------------|
 | `id` | `properties.finding_id` |
 | `severity` | `level` (critical/high→error, medium→warning, low→note, info→none) |
-| `title` | `message.text` (前缀 `[{severity}] {title}: {description}`) |
+| `title` | `message.text` (格式: `📍 {FILE}:{LINE} {FUNC}() [{SEVERITY}] {CWE}: {TITLE} — {EVIDENCE_SUMMARY}`，SARIF viewer 主要展示) |
 | `detector.name` | `ruleId` (格式: `SECGUARD-{namespace}-{detector}`) |
 | `detector.cwe` | `driver.rules[].properties.cwe` |
 | `detector.cvss` | `driver.rules[].properties.cvss` |
@@ -295,3 +367,4 @@ secguardian-scan:
 3. **合并多条发现的 message** — 如果同一行有多个相关发现，合并为一条 result，使用多行 message
 4. **置信度字段** — 在每个 result 的 `properties.confidence` 中标识 AI 判断的置信度：`high`（确定）/ `medium`（可能）/ `low`（待确认），方便用户按置信度过滤
 5. **必须包含 `partialFingerprints`** — 使用 `ruleId + file + line + snippet_hash` 生成稳定指纹，支持 GitHub 的结果追踪
+6. **message.markdown 必须包含完整四段式** — 格式见上文 `message.markdown 模板`，不可省略任何一段
