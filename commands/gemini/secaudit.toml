@@ -123,7 +123,7 @@ Skill: secaudit-taint-analysis
 ### Step 1: 建立输出目录
 
 - 生成 `scan_id`（格式: `sec-YYYYMMDD-HHMMSS-xxxx`，其中 `xxxx` 为随机4位字符）。
-- 创建输出目录: `.codeagent/secaudit-secguardian/scans/<scan_id>/findings/`。
+- 创建输出目录: `.codeagent/secaudit-secguardian/scans/<scan_id>/`。
 - 记录审计开始时间戳，用于 Step 4 计算 `duration_ms`。
 
 ### Step 2: 构建语义索引（必须执行，不可跳过）
@@ -138,7 +138,7 @@ INDEXER=""
 for candidate in \
     .opencode/plugins/secguardian/scripts/secguardian-index \
     .gemini/extensions/secguardian/scripts/secguardian-index \
-	    .claude/plugins/secguardian/scripts/secguardian-index \
+        .claude/plugins/secguardian/scripts/secguardian-index \
     .claude/extensions/secaudit-secguardian/scripts/secguardian-index \
     .claude/extensions/secguard-secguardian/scripts/secguardian-index \
     .claude/extensions/secreview-secguardian/scripts/secguardian-index \
@@ -184,7 +184,6 @@ print(f'Index OK: {len(d[\"files\"])} files, {len(d.get(\"symbols\",{}).get(\"fu
 - 如果用户未指定 skill-name，或输入为 `analysis` / `domain` / `list`，列出对应的 skills 列表。
 - 如果指定了具体的 skill-name，精确加载 `../skills/secaudit/{skill-name}/SKILL.md`。
 - 根据 `index.json` 提供的符号表和调用图、`SKILL.md` 的审计规范以及 `../knowledge/detectors/` 中相关检测器的威胁定义进行深度推理审计。
-
 
 ### Step 4: 保存检出并输出摘要
 
