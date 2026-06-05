@@ -1,5 +1,6 @@
 ---
-description:"★ 旗舰产品：AI 深度安全审计 — 17 项专业安全分析，替代传统安全顾问"
+name: secaudit
+description: "★ 旗舰产品：AI 深度安全审计 — 17 项专业安全分析，替代传统安全顾问"
 ---
 
 # /secaudit - 安全专项审计

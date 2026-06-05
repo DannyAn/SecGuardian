@@ -1,5 +1,6 @@
 ---
-description:"安全加固项排查 — 67 个检测器覆盖 memory/concurrency/system/resource/crypto/web/error 7 大安全分类"
+name: secguard
+description: "安全加固项排查 — 67 个检测器覆盖 memory/concurrency/system/resource/crypto/web/error 7 大安全分类"
 ---
 
 # /secguard - 安全加固项排查

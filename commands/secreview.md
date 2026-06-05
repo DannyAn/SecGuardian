@@ -1,5 +1,6 @@
 ---
-description:"安全编码规范检视 — 5 语言反模式检测矩阵 + 最佳实践合规审查"
+name: secreview
+description: "安全编码规范检视 — 5 语言反模式检测矩阵 + 最佳实践合规审查"
 ---
 
 # /secreview - 通用安全规范检视

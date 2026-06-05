@@ -66,8 +66,8 @@ for md_file in "$CMD_SRC"/*.md; do
     toml_file="$TOML_OUT/${name}.toml"
 
     # 提取 description: 从 YAML frontmatter 的 description 字段
-    # 格式: description:"文本"
-    desc=$(sed -n '/^---$/,/^---$/p' "$md_file" | grep "^description:" | head -1 | sed 's/^description:"//; s/"$//')
+    # 格式: description: "文本" 或 description:"文本"
+    desc=$(sed -n '/^---$/,/^---$/p' "$md_file" | grep "^description:" | head -1 | sed 's/^description:[[:space:]]*"//; s/"$//')
     if [ -z "$desc" ]; then
         # Fallback: 从第一个 # 标题提取
         desc=$(head -1 "$md_file" | sed 's/^# //; s/^\/.* - //')
