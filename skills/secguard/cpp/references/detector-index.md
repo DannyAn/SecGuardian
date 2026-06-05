@@ -61,6 +61,7 @@ SecGuard 60 个检测器（+1 个 secrets-detection 跨命名空间），按 **6
 | 22 | `system.symlink-attack` | CWE-61 | Medium | c, cpp | active |
 | 23 | `system.privilege-escalation` | CWE-269 | High | c, cpp | active |
 | 24 | `system.insecure-permissions` | CWE-276 | Medium | c, cpp, java, python, go | active |
+| 25 | `system.secrets-detection` | CWE-798 | High | c, cpp, java, python, go, js | active |
 
 ### crypto — 加密安全 (9 个)
 
