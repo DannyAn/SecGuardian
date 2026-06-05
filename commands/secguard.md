@@ -98,7 +98,7 @@ Filters: memory.*, system.*
 
 在执行任何扫描步骤之前，必须逐项确认以下所有条件。**任一项未通过，扫描不得开始，向用户报告具体错误。**
 
-- [ ] 定位索引器 wrapper：检查 `.opencode/plugins/secguardian/scripts/secguardian-index`、`.gemini/extensions/secguardian/scripts/secguardian-index`、`.claude/plugins/secguardian/scripts/secguardian-index`、`.claude/extensions/*/scripts/secguardian-index`，或 `scripts/secguardian-index`（至少一个存在且可执行）
+- [ ] 定位索引器 wrapper：优先查找项目级路径，其次用户级（`~/.config/opencode/`、`~/.gemini/`、`~/.claude/`），最后回退到 `scripts/secguardian-index` 或 `internal/secguardian-index`（至少一个存在且可执行）
 - [ ] 执行 `{indexer} --health` 通过（输出必须包含 `HEALTH:OK` 或 `HEALTH:WARN`，不接受 `HEALTH:FAIL`）
 - [ ] 目标路径 `<path>` 存在且包含至少一个源码文件
 
@@ -119,27 +119,30 @@ Filters: memory.*, system.*
 **2a. 执行索引器（阻塞等待完成）：**
 
 ```bash
-# 定位 wrapper（按优先级尝试）
-INDEXER=""
-for candidate in \
-    .opencode/plugins/secguardian/scripts/secguardian-index \
-    .gemini/extensions/secguardian/scripts/secguardian-index \
-        .claude/plugins/secguardian/scripts/secguardian-index \
-    .claude/extensions/secguard-secguardian/scripts/secguardian-index \
-    .claude/extensions/secaudit-secguardian/scripts/secguardian-index \
-    .claude/extensions/secreview-secguardian/scripts/secguardian-index \
-    scripts/secguardian-index \
-    internal/secguardian-index; do
-    if [ -x "$candidate" ] && [ -f "$candidate" ]; then
-        INDEXER="$candidate"
-        break
-    fi
-done
-
-if [ -z "$INDEXER" ]; then
-    echo "FATAL: secguardian-index not found" && exit 1
-fi
-
+# 定位 indexer wrapper — 项目级 + 用户级全覆盖
+find_indexer() {
+    INDEXER=""
+    # Base directories × relative paths — covers project-level + user-level
+    for base in "." "$HOME"; do
+        for path in \
+            ".opencode/plugins/secguardian/scripts/secguardian-index" \
+            ".config/opencode/plugins/secguardian/scripts/secguardian-index" \
+            ".gemini/extensions/secguardian/scripts/secguardian-index" \
+            ".claude/plugins/secguardian/scripts/secguardian-index"; do
+            candidate="$base/$path"
+            [ -x "$candidate" ] && [ -f "$candidate" ] && INDEXER="$candidate" && break 3
+        done
+    done
+    # Legacy fallbacks (pre-plugin-format deploys)
+    for candidate in \
+        scripts/secguardian-index \
+        internal/secguardian-index; do
+        [ -x "$candidate" ] && [ -f "$candidate" ] && INDEXER="$candidate" && break
+    done
+    [ -z "$INDEXER" ] && echo "FATAL: secguardian-index not found (checked project + user paths)" && exit 1
+    echo "Using: $INDEXER"
+}
+find_indexer
 $INDEXER --path <path> --output .codeagent/secguard-secguardian/scans/<scan_id>/index.json
 ```
 
