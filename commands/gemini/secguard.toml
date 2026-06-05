@@ -1,4 +1,4 @@
-description = "安全加固项排查"
+description = "安全加固项排查 — 67 个检测器覆盖 memory/concurrency/system/resource/crypto/web/error 7 大安全分类"
 
 prompt = """
 你是 SecGuardian 安全守卫的 AI 安全分析专家。
@@ -7,6 +7,8 @@ prompt = """
 
 ---
 
+
+# /secguard - 安全加固项排查
 
 对源码执行安全加固扫描。支持全量扫描和 Git diff 增量扫描，支持命名空间过滤和逗号组合。
 
@@ -21,7 +23,7 @@ prompt = """
   /secguard ./src *                                  # 全部检测器（通配符）
   /secguard ./src memory.*                           # 内存检测器
   /secguard ./src memory.null-dereference            # 单个检测器
-  /secguard ./src memory.*,system.*,crypto.*         # 多过滤器组合
+  /secguard ./src memory.*,system.*,crypto.*         # 多过滤器组合（逗号分隔）
 
 增量扫描:
   /secguard ./src git diff                           # 工作区变更
@@ -91,12 +93,13 @@ Filters: memory.*, system.*
 |-----------|---------|---------|
 | `memory` | 内存安全 + 内存管理 | 13 |
 | `concurrency` | 并发安全 | 4 |
-| `system` | 系统安全 | 7 |
+| `system` | 系统安全 | 8 |
+| `resource` | 资源生命周期 | 6 |
 | `crypto` | 加密与密钥 | 9 |
 | `web` | Web + 应用安全 | 22 |
 | `error` | 错误处理 + 信息泄露 | 6 |
 | `critical` | 所有 Critical 严重度 | 跨 namespace |
-| `*` (默认) | 全部 | 60 |
+| `*` (默认) | 全部 | 67 |
 
 ## 派发规则与执行步骤
 
@@ -108,7 +111,7 @@ Filters: memory.*, system.*
 
 在执行任何扫描步骤之前，必须逐项确认以下所有条件。**任一项未通过，扫描不得开始，向用户报告具体错误。**
 
-- [ ] 定位索引器 wrapper：检查 `.opencode/plugins/secguardian/`（项目级）→ `~/.config/opencode/plugins/secguardian/`（用户级）→ `.gemini/` → `.claude/` → `scripts/` 回退（至少一个存在且可执行）
+- [ ] 定位索引器 wrapper：优先查找项目级路径，其次用户级（`~/.config/opencode/`、`~/.gemini/`、`~/.claude/`），最后回退到 `scripts/secguardian-index` 或 `internal/secguardian-index`（至少一个存在且可执行）
 - [ ] 执行 `{indexer} --health` 通过（输出必须包含 `HEALTH:OK` 或 `HEALTH:WARN`，不接受 `HEALTH:FAIL`）
 - [ ] 目标路径 `<path>` 存在且包含至少一个源码文件
 
@@ -132,6 +135,7 @@ Filters: memory.*, system.*
 # 定位 indexer wrapper — 项目级 + 用户级全覆盖
 find_indexer() {
     INDEXER=""
+    # Base directories × relative paths — covers project-level + user-level
     for base in "." "$HOME"; do
         for path in \
             ".opencode/plugins/secguardian/scripts/secguardian-index" \
@@ -142,7 +146,10 @@ find_indexer() {
             [ -x "$candidate" ] && [ -f "$candidate" ] && INDEXER="$candidate" && break 3
         done
     done
-    for candidate in scripts/secguardian-index internal/secguardian-index; do
+    # Legacy fallbacks (pre-plugin-format deploys)
+    for candidate in \
+        scripts/secguardian-index \
+        internal/secguardian-index; do
         [ -x "$candidate" ] && [ -f "$candidate" ] && INDEXER="$candidate" && break
     done
     [ -z "$INDEXER" ] && echo "FATAL: secguardian-index not found (checked project + user paths)" && exit 1
@@ -177,10 +184,14 @@ print(f'Index OK: {len(d[\"files\"])} files, {len(d.get(\"symbols\",{}).get(\"fu
 ### Step 3: 语言与检测器匹配
 
 - 通过 `index.json` 中的文件扩展名分布自动检测目标语言。
-- 读取 `skills/secguard/cpp/references/detector-index.md`，根据命名空间过滤 active 状态的检测器。
-- 按 Critical → High → Medium 排序执行。
-- 对每一个匹配到的检测器，加载 `../knowledge/detectors/<name>.md` 中的检测逻辑。
-
+- 读取 `skills/secguard/cpp/references/detector-index.md`，获取全部 60 个 active 检测器清单。
+- **过滤规则**：
+  - 无 filter 或 `all` 或 `*` → 加载全部 60 个检测器
+  - `namespace.*`（如 `memory.*`）→ 加载该命名空间下所有检测器
+  - `namespace.name`（如 `memory.null-dereference`）→ 加载单个检测器
+  - 逗号分隔（如 `memory.*,system.*`）→ 取并集
+  - 检测器文件名：将 `namespace.name` 转换为 `../knowledge/detectors/namespace-name.md`
+- 按 Critical → High → Medium → Low → Info 排序执行。
 - **利用 index.json 中的符号表和调用图定位检测目标**，而非逐文件遍历。
 - 增量模式（`git diff`）下，仅分析由 diff 识别的变更行。
 
