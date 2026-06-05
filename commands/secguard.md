@@ -155,31 +155,93 @@ find_indexer
 $INDEXER --path <path> --output .codeagent/secguard-secguardian/scans/<scan_id>/index.json
 ```
 
-**2b. 验证索引完整性（必须通过）：**
+**2b. 验证索引完整性 + 生成结构化摘要（必须通过）：**
+
+执行以下脚本。若返回非 0，**立即终止扫描**并向用户报告索引生成出错。
+若成功，直接读取输出的 JSON 摘要作为后续所有步骤的上下文，**禁止自己写 Python 去探测索引结构**。
 
 ```bash
-python3 -c "
-import json, sys
-d = json.load(open('.codeagent/secguard-secguardian/scans/<scan_id>/index.json'))
+INDEX_FILE=.codeagent/secguard-secguardian/scans/<scan_id>/index.json
+python3 << 'PYEOF'
+import json, sys, os
+from collections import Counter
+
+with open(os.environ['INDEX_FILE']) as f:
+    d = json.load(f)
+
+# ── 校验 ──
 assert len(d.get('files',[])) > 0, 'FATAL: index contains no files'
 assert 'symbols' in d, 'FATAL: index missing symbols'
-print(f'Index OK: {len(d[\"files\"])} files, {len(d.get(\"symbols\",{}).get(\"functions\",[]))} functions, {len(d.get(\"call_graph\",{}).get(\"edges\",[]))} call edges')
-"
+assert 'call_graph' in d, 'FATAL: index missing call_graph'
+
+# ── 语言检测（健壮扩展名映射） ──
+EXT_MAP = {
+    'c': 'cpp', 'h': 'cpp', 'cpp': 'cpp', 'cc': 'cpp', 'cxx': 'cpp', 'hpp': 'cpp', 'hh': 'cpp', 'hxx': 'cpp',
+    'java': 'java',
+    'py': 'python', 'pyw': 'python',
+    'go': 'go',
+    'js': 'javascript', 'jsx': 'javascript', 'ts': 'javascript', 'tsx': 'javascript', 'mjs': 'javascript', 'cjs': 'javascript',
+    'rs': 'rust', 'swift': 'swift', 'kt': 'kotlin', 'kts': 'kotlin', 'scala': 'scala',
+    'rb': 'ruby', 'php': 'php', 'cs': 'csharp', 'fs': 'fsharp',
+    'sh': 'shell', 'bash': 'shell', 'zsh': 'shell',
+    'cmake': 'cmake', 'mk': 'makefile',
+}
+def detect_lang(filepath):
+    base = os.path.basename(filepath)
+    # 跳过隐藏文件和常见非源码
+    if base.startswith('.'):
+        return None
+    if '.' not in base:
+        return None
+    # 取最后一个点后的扩展名，小写
+    ext = base.rsplit('.', 1)[-1].lower()
+    return EXT_MAP.get(ext)
+
+langs = Counter()
+for f in d['files']:
+    lang = detect_lang(f)
+    if lang:
+        langs[lang] += 1
+
+# ── 确定主语言 ──
+primary_lang = langs.most_common(1)[0][0] if langs else 'unknown'
+
+# ── 输出 JSON 摘要（所有后续步骤只读这个摘要，不要再自己探测） ──
+summary = {
+    'scan_id': os.environ.get('SCAN_ID', ''),
+    'file_count': len(d['files']),
+    'function_count': len(d['symbols']['functions']),
+    'call_edge_count': len(d['call_graph']['edges']),
+    'primary_language': primary_lang,
+    'language_distribution': dict(langs.most_common()),
+    'index_path': os.environ['INDEX_FILE'],
+}
+json.dump(summary, sys.stdout, indent=2, ensure_ascii=False)
+PYEOF
 ```
 
-若验证失败（返回非 0），**立即终止扫描**并向用户报告索引生成出错。
+> **关键约束**：此脚本输出 JSON 到 stdout。读取该 JSON 获取 `file_count`、`function_count`、`primary_language` 等，**严禁**自行编写 Python 或 shell 去重新解析 index.json。
 
-**2c. 将 index.json 加载为上下文：**
-
-读取生成的 `index.json`，理解以下结构化信息并在后续所有检测步骤中使用：
-- `symbols.functions` — 函数名→文件:行号映射（精确定位目标）
-- `call_graph.edges` — caller→callee 关系（追踪数据流和影响范围）
-- `alloc_free.pairs` — malloc/free 配对（内存管理分析）
-- `files` — 源码文件清单（确定扫描对象）
+```
+read .codeagent/secguard-secguardian/scans/<scan_id>/index.json
+```
+INDEX_FILE 输出示例:
+```json
+{
+  "scan_id": "...",
+  "file_count": 12,
+  "function_count": 85,
+  "call_edge_count": 210,
+  "primary_language": "cpp",
+  "language_distribution": {
+    "cpp": 12
+  }
+}
+```
 
 ### Step 3: 语言与检测器匹配
 
-- 通过 `index.json` 中的文件扩展名分布自动检测目标语言。
+- 从摘要中的 `primary_language` 获取目标语言。
 - 读取 `skills/secguard/cpp/references/detector-index.md`，获取全部 60 个 active 检测器清单。
 - **过滤规则**：
   - 无 filter 或 `all` 或 `*` → 加载全部 60 个检测器
@@ -196,3 +258,33 @@ print(f'Index OK: {len(d[\"files\"])} files, {len(d.get(\"symbols\",{}).get(\"fu
 - 按照 `knowledge/protocols/scan-output.md` (v2.0) 写入 `report.md`（人读）+ `results.sarif`（机读）+ `manifest.json` + `summary.json` + `status.json`。
 - `manifest.json` 中的 `duration_ms` 必须使用 **实际 wall-clock 耗时**（结束时间戳 − 开始时间戳），不得编造。
 - 向用户输出 Markdown 格式的扫描摘要，包含：scan_id、检出总数、按严重度分组、Top 5 key findings。
+
+### Step 4b: 输出前质量检查（必须执行，不可跳过）
+
+在写入 report.md 和 results.sarif 之前，逐项验证每个检出的完整性。**任一 ❌ → 补充缺失内容 → 重新检查，最多 3 次。**
+
+#### report.md 质量门禁
+
+- [ ] §3 检出清单每个条目包含：ID | 严重度 | CWE | 文件:行 | 标题
+- [ ] §4 每个检出包含 **📍 Location** 小节（文件路径 + 行号 + 函数名 + 具体代码行）
+- [ ] §4 每个检出包含 **📋 Evidence** 小节（代码上下文 3+ 行 + 判定依据 + 数据流路径）
+- [ ] §4 每个检出包含 **⚠️ Impact** 小节（攻击场景描述 + CVSS 3.1 评分 + 利用条件）
+- [ ] §4 每个检出包含 **🔧 Fix** 小节（before/after 代码 + 工作量 + 验证方法）
+- [ ] §4 每个检出引用对应 detector 的修复指引（来自 `knowledge/detectors/<name>.md` 的 `## 修复指引` 节）
+- [ ] §4 每个检出包含 CWE 参考链接
+- [ ] §5 修复路线图包含 Phase 1-4 完整四个阶段（含预估工时）
+
+#### SARIF 质量门禁
+
+- [ ] 每个 result 的 `message.text` 以 📍 开头，一句话包含：文件:行 函数名 [严重度] CWE-ID: 标题 — 判定摘要
+- [ ] 每个 result 包含 `message.markdown`（完整四段式富文本：📍 Location → 📋 Evidence → ⚠️ Impact → 🔧 Fix）
+- [ ] 每个 result 包含 `relatedLocations[]`（标注 Source → Propagation → Sink 数据流路径，如适用）
+- [ ] 每个 result 包含 `fixes[]`（before/after 代码替换，含 description）
+- [ ] 每个 result 包含 `partialFingerprints`（`primary` 指纹用于去重）
+- [ ] 每个 result 的 `properties` 包含：`confidence`, `cvss`, `cvss_vector`, `impact`, `effort`, `risk_of_fix`, `verification`, `detector_namespace`
+- [ ] `driver.rules[]` 每个 rule 包含 CWE 分类信息
+
+#### 未通过处理
+
+任一 ❌ → 定位缺失的 finding → 从 `knowledge/detectors/<name>.md` 的对应章节获取内容补充 → 重新检查。
+3 次后仍未通过 → 在 report.md 开头标注 "⚠️ 以下发现的完整性未完全达标: <ID列表>"
