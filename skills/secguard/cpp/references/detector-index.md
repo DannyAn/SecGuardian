@@ -12,12 +12,13 @@ SecGuard 60 个检测器（+1 个 secrets-detection 跨命名空间），按 **6
 ```
 /secguard ./src memory.*              # 内存安全全部 (13 个)
 /secguard ./src concurrency           # 并发安全全部 (4 个)
-/secguard ./src system                # 系统安全全部 (7 个)
+/secguard ./src system                # 系统安全全部 (8 个)
+/secguard ./src resource              # 资源生命周期全部 (4 个)
 /secguard ./src crypto                # 加密安全全部 (9 个)
 /secguard ./src web                   # Web + 应用安全全部 (21 个)
 /secguard ./src error                 # 错误处理全部 (6 个)
 /secguard ./src critical              # 所有 Critical 严重度检测器
-/secguard ./src *                     # 全部 60 个检测器
+/secguard ./src *                     # 全部 65 个检测器
 /secguard ./src                       # 默认 = * (全部)
 ```
 
@@ -50,7 +51,7 @@ SecGuard 60 个检测器（+1 个 secrets-detection 跨命名空间），按 **6
 | 16 | `concurrency.data-race` | CWE-366 | High | c, cpp | active |
 | 17 | `concurrency.thread-unsafe-signal` | CWE-479 | Medium | c, cpp | active |
 
-### system — 系统安全 (7 个)
+### system — 系统安全 (8 个)
 
 | # | 命名空间路径 | CWE | 严重度 | 语言 | 状态 |
 |---|------------|-----|--------|------|------|
@@ -62,6 +63,15 @@ SecGuard 60 个检测器（+1 个 secrets-detection 跨命名空间），按 **6
 | 23 | `system.privilege-escalation` | CWE-269 | High | c, cpp | active |
 | 24 | `system.insecure-permissions` | CWE-276 | Medium | c, cpp, java, python, go | active |
 | 25 | `system.secrets-detection` | CWE-798 | High | c, cpp, java, python, go, js | active |
+
+### resource — 资源生命周期安全 (4 个) ⭐
+
+| # | 命名空间路径 | CWE | 严重度 | 语言 | 状态 |
+|---|------------|-----|--------|------|------|
+| 26 | `resource.file-leak` | CWE-775 | High | c, cpp | active |
+| 27 | `resource.file-use-after-close` | CWE-672 | High | c, cpp | active |
+| 28 | `resource.file-double-close` | CWE-675 | High | c, cpp | active |
+| 29 | `resource.socket-leak` | CWE-772 | Medium | c, cpp | active |
 
 ### crypto — 加密安全 (9 个)
 
