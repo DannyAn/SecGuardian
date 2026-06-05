@@ -364,20 +364,6 @@ deploy_opencode() {
              "$knowledge_dir/languages" "$knowledge_dir/detectors" \
              "$knowledge_dir/protocols" "$knowledge_dir/standards"
 
-    # Remove legacy plugin.json (replaced by codeagent-extension.json)
-    rm -f "$plugin_dir/plugin.json" 2>/dev/null || true
-
-    # Write codeagent-extension.json (OpenCode official manifest)
-    cat > "$plugin_dir/codeagent-extension.json" << JSON
-{
-  "name": "$brand",
-  "version": "0.5.4",
-  "description": "SecGuardian XuanWu — 企业级白盒安全 AI Agent 辅助解决方案。60 检测器、17 审计技能、5 语言安全检视。",
-  "author": { "name": "SecGuardian", "url": "https://gitee.com/jonyan/secguardian" },
-  "keywords": ["security", "sast", "audit", "code-review", "vulnerability"]
-}
-JSON
-
     local cmd_n=0 skill_n=0
     for d in "$DIST"/*/; do
         # Commands: .md files are OpenCode slash commands
