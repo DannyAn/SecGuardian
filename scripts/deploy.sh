@@ -357,8 +357,11 @@ deploy_opencode() {
              "$knowledge_dir/languages" "$knowledge_dir/detectors" \
              "$knowledge_dir/protocols" "$knowledge_dir/standards"
 
-    # Write plugin.json
-    cat > "$plugin_dir/plugin.json" << JSON
+    # Remove legacy plugin.json (replaced by codeagent-extension.json)
+    rm -f "$plugin_dir/plugin.json" 2>/dev/null || true
+
+    # Write codeagent-extension.json (OpenCode official manifest)
+    cat > "$plugin_dir/codeagent-extension.json" << JSON
 {
   "name": "$brand",
   "version": "0.5.3",
@@ -390,6 +393,20 @@ JSON
         done
     done
     log_done "$cmd_n commands (.md), $skill_n skills"
+
+    # Write commands.yaml — OpenCode command registry
+    cat > "$plugin_dir/commands.yaml" << YAML
+commands:
+  - name: secguard
+    description: 安全加固项排查 — 60 个检测器覆盖 6 类安全 topic (memory/concurrency/system/crypto/web/error)
+    file: commands/secguard.md
+  - name: secaudit
+    description: 安全专项审计 — 17 项纵深分析（5 分析 + 12 领域）
+    file: commands/secaudit.md
+  - name: secreview
+    description: 安全编码规范检视 — 反模式识别 + 最佳实践合规 + 检测矩阵
+    file: commands/secreview.md
+YAML
 
     # Copy project-level knowledge (v2.0)
     [ -f "$PROJECT_ROOT/knowledge/threat-catalog.md" ] && cp "$PROJECT_ROOT/knowledge/threat-catalog.md" "$knowledge_dir/"
