@@ -1,3 +1,7 @@
+---
+description:"安全加固项排查 — 67 个检测器覆盖 memory/concurrency/system/resource/crypto/web/error 7 大安全分类"
+---
+
 # /secguard - 安全加固项排查
 
 对源码执行安全加固扫描。支持全量扫描和 Git diff 增量扫描，支持命名空间过滤和逗号组合。
