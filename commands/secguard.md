@@ -76,10 +76,10 @@ Filters: memory.*, system.*
 📋 索引: `.codeagent/secguard-secguardian/scans/sc-20260531-143000-a1b2/manifest.json`
 
 💡 **如何使用扫描结果？**
-- **快速看汇总** → 打开 `manifest.json`（JSON 索引，列出所有检出 ID/严重度/文件）
-- **看详情 + 改代码** → 打开 `report.md`（每个检出含证据链 + before/after 修复代码）
+- **快速看汇总** → 打开 `manifest.json`（JSON 索引，列出所有检出 ID/严重度/文件/行号）
+- **★ 人读检视报告** → 打开 `report.md`（每个检出含完整四段式：📍 Location → 📋 Evidence → ⚠️ Impact → 🔧 Fix）
 - **CI/CD 集成** → 消费 `results.sarif`（GitHub Code Scanning / GitLab SAST / Azure DevOps）
-- **AI Agent 修复** → 告诉 AI：`读取 report.md，按修复方案修改代码`（修复方案来自 detector 的 FIX 指引，可直接执行）
+- **AI Agent 修复** → 告诉 AI：`读取 report.md §4，按每个发现的 🔧 Fix 方案修改代码`
 ```
 
 ## 命名空间

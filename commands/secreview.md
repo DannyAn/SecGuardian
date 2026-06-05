@@ -63,9 +63,9 @@ Language: Java (auto-detected)
 
 💡 **如何使用检视结果？**
 - **快速看汇总** → 打开 `manifest.json`
-- **看详情 + 改代码** → 打开 `report.md`（每个不合规项含证据 + 修复指引）
+- **★ 人读检视报告** → 打开 `report.md`（每个不合规项含完整四段式：📍 Location → 📋 Evidence → ⚠️ Impact → 🔧 Fix）
 - **CI/CD 集成** → 消费 `results.sarif`
-- **AI Agent 修复** → 告诉 AI：`读取 report.md，按修复指引修改代码`
+- **AI Agent 修复** → 告诉 AI：`读取 report.md §4，按每个发现的 🔧 Fix 方案修改代码`
 ```
 
 ## 与 /secguard 的区别
