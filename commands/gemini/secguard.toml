@@ -16,7 +16,9 @@ prompt = """
 /secguard <path> [mode] [filters]
 
 全量扫描:
-  /secguard ./src                                    # 全部检测器
+  /secguard ./src                                    # 全部检测器（默认）
+  /secguard ./src all                                # 全部检测器（显式）
+  /secguard ./src *                                  # 全部检测器（通配符）
   /secguard ./src memory.*                           # 内存检测器
   /secguard ./src memory.null-dereference            # 单个检测器
   /secguard ./src memory.*,system.*,crypto.*         # 多过滤器组合

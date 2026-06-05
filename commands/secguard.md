@@ -8,10 +8,12 @@
 /secguard <path> [mode] [filters]
 
 全量扫描:
-  /secguard ./src                                    # 全部检测器
+  /secguard ./src                                    # 全部检测器（默认）
+  /secguard ./src all                                # 全部检测器（显式）
+  /secguard ./src *                                  # 全部检测器（通配符）
   /secguard ./src memory.*                           # 内存检测器
   /secguard ./src memory.null-dereference            # 单个检测器
-  /secguard ./src memory.*,system.*,crypto.*         # 多过滤器组合
+  /secguard ./src memory.*,system.*,crypto.*         # 多过滤器组合（逗号分隔）
 
 增量扫描:
   /secguard ./src git diff                           # 工作区变更
@@ -171,10 +173,14 @@ print(f'Index OK: {len(d[\"files\"])} files, {len(d.get(\"symbols\",{}).get(\"fu
 ### Step 3: 语言与检测器匹配
 
 - 通过 `index.json` 中的文件扩展名分布自动检测目标语言。
-- 读取 `skills/secguard/cpp/references/detector-index.md`，根据命名空间过滤 active 状态的检测器。
-- 按 Critical → High → Medium 排序执行。
-- 对每一个匹配到的检测器，加载 `../knowledge/detectors/<name>.md` 中的检测逻辑。
-
+- 读取 `skills/secguard/cpp/references/detector-index.md`，获取全部 60 个 active 检测器清单。
+- **过滤规则**：
+  - 无 filter 或 `all` 或 `*` → 加载全部 60 个检测器
+  - `namespace.*`（如 `memory.*`）→ 加载该命名空间下所有检测器
+  - `namespace.name`（如 `memory.null-dereference`）→ 加载单个检测器
+  - 逗号分隔（如 `memory.*,system.*`）→ 取并集
+  - 检测器文件名：将 `namespace.name` 转换为 `../knowledge/detectors/namespace-name.md`
+- 按 Critical → High → Medium → Low → Info 排序执行。
 - **利用 index.json 中的符号表和调用图定位检测目标**，而非逐文件遍历。
 - 增量模式（`git diff`）下，仅分析由 diff 识别的变更行。
 
