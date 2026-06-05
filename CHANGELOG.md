@@ -5,6 +5,45 @@ All notable changes to SecGuardian will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.4] - 2026-06-05
+
+### Added
+
+- **Cross-platform release automation** (`.github/workflows/release.yml`): 5-platform
+  native builds with tree-sitter — linux-amd64 (tree-sitter), linux-arm64 (regex),
+  darwin-amd64 (tree-sitter), darwin-arm64 (tree-sitter), windows-amd64 (tree-sitter).
+  Triggered by `v*` tag push, publishes to GitHub Release + Gitee.
+- **Markdown linting CI**: 150 source markdown files linted with markdownlint-cli2.
+  Config at `.markdownlint.jsonc`, CI job in `ci.yml`.
+- **Go test coverage**: 48 test cases across 5 files. Parser 80.6% (regex) / 75.7%
+  (tree-sitter), indexer 68.0%. CI test job with ubuntu+macos × CGO=0/1 matrix.
+- **SKIP_GO_BUILD flag** in `scripts/package.sh`: Allows release workflow to use
+  pre-built binaries from native runners.
+
+### Fixed
+
+- **CI build verification steps**: Removed broken `detectors`/`scan`/`audit` subcommand
+  calls (removed in v0.5.3). Replaced with valid `--version`/`--health`/`--path` flags.
+- **`secrets-detection.md`**: Added missing YAML frontmatter (CWE-798).
+- **4 anti-pattern files**: Escaped regex pipe characters in markdown tables preventing
+  column count errors (go, java, js, cpp).
+- **`secaudit-secguardian` extension.json**: Added `javascript` to language list.
+- **Detector index**: Fixed web namespace count (22→21), clarified 60-detector total.
+- **3 commands**: Updated `findings/` references to current output structure.
+
+### Changed
+
+- **README.md**: Updated version badge (0.5.4), detector count (60), CLI usage,
+  output structure, product table.
+- **DEVELOPER.md**: Replaced stale `knowledge/concepts/` references with
+  `knowledge/threat-catalog.md`, protocol version 1.0→2.0.
+- **`action.yml`**: Fixed SARIF path pattern.
+
+### Removed
+
+- **`scripts/secguardian.sh`**: Standalone CLI wrapper (broken since v0.5.3), superseded
+  by `secguardian-index` + AI commands.
+
 ## [0.5.3] - 2026-06-03
 
 ### Added

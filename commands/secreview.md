@@ -93,7 +93,7 @@ Language: Java (auto-detected)
 ### Step 1: 建立输出目录
 
 - 生成 `scan_id`（格式: `rv-YYYYMMDD-HHMMSS-xxxx`，其中 `xxxx` 为随机4位字符）。
-- 创建输出目录: `.codeagent/secreview-secguardian/scans/<scan_id>/findings/`。
+- 创建输出目录: `.codeagent/secreview-secguardian/scans/<scan_id>/`。
 - 记录检视开始时间戳，用于 Step 4 计算 `duration_ms`。
 
 ### Step 2: 构建语义索引（必须执行，不可跳过）

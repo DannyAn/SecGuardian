@@ -1,6 +1,6 @@
 # SecGuardian 检测器索引
 
-SecGuard 60 个检测器完整清单，按 **6 个统一 topic** 组织。每个检测器对应 `knowledge/detectors/<name>.md`。
+SecGuard 60 个检测器（+1 个 secrets-detection 跨命名空间），按 **6 个统一 topic** 组织。每个检测器对应 `knowledge/detectors/<name>.md`。
 
 > 6 个 topic 同时作为 `/secguard` namespace、`/secaudit` 审计领域、`/secreview` 语言 profile 的共享分类。
 > 语言过滤由 frontmatter 中的 `language` 字段标记，不在 namespace 中体现。
@@ -14,10 +14,10 @@ SecGuard 60 个检测器完整清单，按 **6 个统一 topic** 组织。每个
 /secguard ./src concurrency           # 并发安全全部 (4 个)
 /secguard ./src system                # 系统安全全部 (7 个)
 /secguard ./src crypto                # 加密安全全部 (9 个)
-/secguard ./src web                   # Web + 应用安全全部 (22 个)
+/secguard ./src web                   # Web + 应用安全全部 (21 个)
 /secguard ./src error                 # 错误处理全部 (6 个)
 /secguard ./src critical              # 所有 Critical 严重度检测器
-/secguard ./src *                     # 全部 61 个检测器
+/secguard ./src *                     # 全部 60 个检测器
 /secguard ./src                       # 默认 = * (全部)
 ```
 
@@ -76,7 +76,7 @@ SecGuard 60 个检测器完整清单，按 **6 个统一 topic** 组织。每个
 | 32 | `crypto.password-storage` | CWE-916 | Critical | java, python, go, js | active |
 | 33 | `crypto.hardcoded-iv` | CWE-329 | High | c, cpp, java, python, go, js | active |
 
-### web — Web + 应用安全 (22 个)
+### web — Web + 应用安全 (21 个)
 
 | # | 命名空间路径 | CWE | 严重度 | 语言 | 状态 |
 |---|------------|-----|--------|------|------|
@@ -126,11 +126,11 @@ memory.oob*         → 匹配 memory 下以 oob 开头的 detector
 concurrency         → namespace = concurrency (4)
 system              → namespace = system (7)
 crypto              → namespace = crypto (9)
-web                 → namespace = web (22)
+web                 → namespace = web (21)
 error               → namespace = error (6)
 web.sql*            → 匹配 web 下以 sql 开头的 detector
 critical            → severity = Critical (跨 namespace)
-* 或 空             → 全部 60 个
+* 或 空             → 全部 60 个（不含 secrets-detection 跨命名空间检测器）
 xss\|sqli\|ssrf       → 模糊搜索所有 namespace 下的 detector 名
 ```
 
@@ -142,7 +142,7 @@ xss\|sqli\|ssrf       → 模糊搜索所有 namespace 下的 detector 名
 | `concurrency` | 4 | state-machine-analysis | cpp, go |
 | `system` | 7 | secrets-management, infra-hardening, secure-transport, data-protection, dependency-security, logging-and-monitoring, trust-boundary-analysis | cpp, python |
 | `crypto` | 9 | cryptography, secrets-management, secure-transport | cpp, java, python, go, js |
-| `web` | 22 | auth-and-session, authorization, input-validation, output-encoding, http-security-headers, attack-surface-analysis, trust-boundary-analysis | java, python, go, js |
+| `web` | 21 | auth-and-session, authorization, input-validation, output-encoding, http-security-headers, attack-surface-analysis, trust-boundary-analysis | java, python, go, js |
 | `error` ⭐ | 6 | logging-and-monitoring, trust-boundary-analysis | 全部 5 语 |
 
 ## 添加新检测器
@@ -163,7 +163,7 @@ xss\|sqli\|ssrf       → 模糊搜索所有 namespace 下的 detector 名
 | concurrency | 4 | 4 | 100% |
 | system | 7 | 7 | 100% |
 | crypto | 9 | 9 | 100% |
-| web | 22 | 22 | 100% |
+| web | 21 | 21 | 100% |
 | error ⭐ | 6 | 6 | 100% |
 
 ## CWE Top 25 全覆盖明细

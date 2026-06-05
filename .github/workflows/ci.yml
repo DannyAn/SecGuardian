@@ -26,21 +26,17 @@ jobs:
         working-directory: internal
         run: go build -o secguardian-index${{ matrix.os == 'windows' && '.exe' || '' }} .
 
-      - name: Verify binary
+      - name: Verify version
         working-directory: internal
-        run: ./secguardian-index${{ matrix.os == 'windows' && '.exe' || '' }} version
+        run: ./secguardian-index${{ matrix.os == 'windows' && '.exe' || '' }} --version
 
-      - name: List detectors
+      - name: Verify health
         working-directory: internal
-        run: ./secguardian-index${{ matrix.os == 'windows' && '.exe' || '' }} detectors
+        run: ./secguardian-index${{ matrix.os == 'windows' && '.exe' || '' }} --health
 
-      - name: Verify scan filter
+      - name: Verify indexing
         working-directory: internal
-        run: ./secguardian-index${{ matrix.os == 'windows' && '.exe' || '' }} scan --path ../examples/cpp-vuln-demo/src --filters memory.*
-
-      - name: Verify audit
-        working-directory: internal
-        run: ./secguardian-index${{ matrix.os == 'windows' && '.exe' || '' }} audit --skill list
+        run: ./secguardian-index${{ matrix.os == 'windows' && '.exe' || '' }} --path ../examples/cpp-vuln-demo/src
 
   test:
     name: Test (${{ matrix.os }}, CGO=${{ matrix.cgo }})

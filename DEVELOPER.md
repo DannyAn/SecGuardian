@@ -82,7 +82,7 @@ examples/          ← 验证层：各语言漏洞示例代码
 
 ```
 knowledge/
-├── protocols/scan-output.md    ← 输出协议 1.0：manifest + finding JSON schema
+├── protocols/scan-output.md    ← 输出协议 1.0 → 2.0: 人读/机读分离 — report.md + results.sarif + summary.json
 ├── concepts/                   ← 安全概念（10 个）：漏洞原理、检测策略、修复指南
 ├── languages/                  ← 语言画像（4 个）：危险 API 列表、框架安全说明
 └── detectors/                  ← 检测规则（6 active + 20 planned）：详细检测逻辑
@@ -106,7 +106,7 @@ Active detectors（全部针对 C/C++ 内存安全）：
 
 ### 输出协议
 
-所有扫描结果遵循 Scan Output Protocol 1.0，输出到：
+所有扫描结果遵循 Scan Output Protocol 2.0，输出到：
 
 ```
 .codeagent/<extension-name>/scans/<scan-id>/
@@ -167,7 +167,7 @@ bash scripts/release.sh 0.4.0
 
 | 修改位置 | 影响范围 | 需要重新部署 |
 |----------|---------|------------|
-| `knowledge/concepts/*.md` | 所有 3 个 extension | `dev-deploy.sh` |
+| `knowledge/threat-catalog.md*.md` | 所有 3 个 extension | `dev-deploy.sh` |
 | `knowledge/languages/*.md` | 所有 3 个 extension | `dev-deploy.sh` |
 | `knowledge/detectors/*.md` | 仅 secguard | `dev-deploy.sh` |
 | `knowledge/protocols/*.md` | 所有 3 个 extension | `dev-deploy.sh` |
@@ -205,7 +205,7 @@ secguardian/                      ← 项目根目录
 
 **修改安全概念的检测策略**：
 
-编辑 `knowledge/concepts/<concept>.md`，调整 Detection Strategy 部分：
+编辑 `knowledge/threat-catalog.md<concept>.md`，调整 Detection Strategy 部分：
 
 ```markdown
 ## Detection Strategy
@@ -294,7 +294,7 @@ secguardian/                      ← 项目根目录
 
 ### 添加新安全概念
 
-1. 编写 `knowledge/concepts/<new-concept>.md`（参考已有概念格式）
+1. 编写 `knowledge/threat-catalog.md<new-concept>.md`（参考已有概念格式）
 2. 在 `manifest.json` 的 `knowledge.concepts` 中添加
 3. 更新使用该概念的 extension 的 `extension.json` 中的 `knowledge.concepts`
 4. 重新部署
@@ -381,7 +381,7 @@ bash scripts/sync-version.sh 0.5.0
 - [ ] 所有版本号一致（运行 `bash scripts/ci-check.sh` 验证）
 - [ ] 用 examples/ 验证 3 个命令均能正常输出
 - [ ] 运行 `bash scripts/dev-deploy.sh` 确认构建和部署无报错
-- [ ] 检查 `.codeagent/` 下的输出符合 Scan Output Protocol 1.0
+- [ ] 检查 `.codeagent/` 下的输出符合 Scan Output Protocol 2.0
 
 ### 构建发布产物并发布到 Gitee
 
@@ -630,7 +630,7 @@ examples/
 
 ```
 1. 编写 knowledge/languages/rust.md（危险 API 列表 + 框架安全说明）
-2. 编写 knowledge/concepts/ 中 Rust 特有安全概念（如需要）
+2. 编写 knowledge/threat-catalog.md 中 Rust 特有安全概念（如需要）
 3. 编写 skills/secguard-rust/SKILL.md（扫描提示词）
 4. 编写 skills/secreview-rust/SKILL.md（审查提示词，可选）
 5. 在 extensions/secguard-secguardian/extension.json 中注册
@@ -724,7 +724,7 @@ Manifest 的结构：
 
 ### 误报过多
 
-1. 在对应 `knowledge/concepts/<concept>.md` 中加强 `False Positive Exclusion` 规则
+1. 在对应 `knowledge/threat-catalog.md<concept>.md` 中加强 `False Positive Exclusion` 规则
 2. 在对应 detector 的 knowledge 文件中添加 FP 排除条件
 3. 在对应 skill 中增加验证步骤（如要求 AI 确认上下文后才报告）
 
