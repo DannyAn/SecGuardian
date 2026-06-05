@@ -76,3 +76,15 @@ topic: [memory, concurrency, system, crypto]
 - `references/cpp-security-cheatsheet.md` — C/C++ 安全速查表
 - `knowledge/standards/sei-cert-c.md` — SEI CERT C 编码标准映射
 - `knowledge/standards/sei-cert-cpp.md` — SEI CERT C++ 编码标准映射
+
+## 输出完整性要求
+
+> **输出协议**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
+>
+> Command 层 Step 4b 质量门禁强制检查每个检出的四段式完整性：
+> 1. **📍 Location** — 文件路径 + 行号 + 函数名 + 违规代码行
+> 2. **📋 Evidence** — 代码上下文（前后 3 行）+ 判定依据（指出违反的安全编码规范条款）
+> 3. **⚠️ Impact** — 不合规可能导致的安全风险 + 适用攻击场景
+> 4. **🔧 Fix** — Before/After 代码 + 工作量 + 验证方法 + SEI CERT/OWASP 参考链接
+>
+> SARIF 结果同样要求：`message.markdown` 包含完整四段式，`relatedLocations` 标注关联代码位置，`fixes` 包含 before/after 替换。
