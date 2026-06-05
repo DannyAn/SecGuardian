@@ -31,7 +31,7 @@ SecAudit 是 SecGuardian 的旗舰产品——AI 深度安全审计。它替代�
 
 ## 输出
 
-遵循 [Scan Output Protocol 2.0](../knowledge/protocols/scan-output.md)。人读/机读分离。
+遵循 [Scan Output Protocol 3.0](../knowledge/protocols/scan-output.md)。人读/机读分离。
 
 ```
 .codeagent/secaudit-secguardian/scans/<scan-id>/
@@ -225,7 +225,7 @@ PYEOF
 
 ### Step 4: 保存检出并输出摘要
 
-- 按照 `knowledge/protocols/scan-output.md` (v2.0) 写入 `report.md`（人读）+ `results.sarif`（机读）+ `manifest.json` + `summary.json` + `status.json`。
+- 按照 `knowledge/protocols/scan-output.md` (v3.0) 写入 `report.md`（人读）+ `results.sarif`（机读）+ `manifest.json` + `summary.json` + `status.json`。
 - `manifest.json` 中的 `duration_ms` 必须使用 **实际 wall-clock 耗时**（结束时间戳 − 开始时间戳），不得编造。
 - 向用户展示审计发现和审计摘要。
 

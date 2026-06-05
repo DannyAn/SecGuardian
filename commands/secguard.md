@@ -34,7 +34,7 @@ SARIF 输出 (CI/CD 集成):
 
 ## 输出
 
-遵循 [Scan Output Protocol 2.0](../knowledge/protocols/scan-output.md)。人读/机读分离。
+遵循 [Scan Output Protocol 3.0](../knowledge/protocols/scan-output.md)。人读/机读分离。
 
 ```
 .codeagent/secguard-secguardian/scans/<scan-id>/
@@ -255,7 +255,7 @@ INDEX_FILE 输出示例:
 
 ### Step 4: 保存检出并输出摘要
 
-- 按照 `knowledge/protocols/scan-output.md` (v2.0) 写入 `report.md`（人读）+ `results.sarif`（机读）+ `manifest.json` + `summary.json` + `status.json`。
+- 按照 `knowledge/protocols/scan-output.md` (v3.0) 写入 `report.md`（人读）+ `results.sarif`（机读）+ `manifest.json` + `summary.json` + `status.json`。
 - `manifest.json` 中的 `duration_ms` 必须使用 **实际 wall-clock 耗时**（结束时间戳 − 开始时间戳），不得编造。
 - 向用户输出 Markdown 格式的扫描摘要，包含：scan_id、检出总数、按严重度分组、Top 5 key findings。
 
