@@ -401,18 +401,18 @@ JSON
     done
     log_done "$cmd_n commands (.md), $skill_n skills"
 
-    # Write commands.yaml — OpenCode command registry
-    cat > "$plugin_dir/commands.yaml" << YAML
+    # Write commands.yaml — OpenCode command registry (must be in commands/)
+    cat > "$cmd_dir/commands.yaml" << YAML
 commands:
   - name: secguard
     description: 安全加固项排查 — 60 个检测器覆盖 6 类安全 topic (memory/concurrency/system/crypto/web/error)
-    file: commands/secguard.md
+    file: secguard.md
   - name: secaudit
     description: 安全专项审计 — 17 项纵深分析（5 分析 + 12 领域）
-    file: commands/secaudit.md
+    file: secaudit.md
   - name: secreview
     description: 安全编码规范检视 — 反模式识别 + 最佳实践合规 + 检测矩阵
-    file: commands/secreview.md
+    file: secreview.md
 YAML
 
     # Copy project-level knowledge (v2.0)
