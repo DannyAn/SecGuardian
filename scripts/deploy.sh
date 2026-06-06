@@ -29,7 +29,7 @@ SecGuardian — 部署脚本
 平台:
   all      三平台全部 (默认)
   cc       Claude Code    → .claude/plugins/secguardian/
-  nga      OpenCode       → .opencode/ (project) / ~/.config/opencode/extensions/ (user)
+  nga      OpenCode       → .opencode/plugins/ + extensions/ (project) / ~/.config/opencode/plugins/ + extensions/ (user)
   cac      Gemini CLI     → .gemini/extensions/secguardian/ (project) / ~/.gemini/extensions/secguardian/ (user)
 
 选项:
@@ -212,6 +212,16 @@ JSON
     done
     log_done "$total_cmds commands, $total_skills skills"
 
+    # ── Namespace commands: prevent collision with other plugins ──
+    # Creates commands/secguardian/ subdirectory so commands are also
+    # available as /secguardian:secguard etc. — safe even if another
+    # plugin also registers /secguard /secaudit /secreview.
+    mkdir -p "$plugin_dir/commands/secguardian"
+    for f in "$plugin_dir/commands"/*.md; do
+        [ -f "$f" ] && cp "$f" "$plugin_dir/commands/secguardian/$(basename "$f")"
+    done
+    log_done "namespace commands: /secguardian:secguard, /secguardian:secaudit, /secguardian:secreview"
+
     # Copy project-level knowledge (v2.0)
     [ -f "$PROJECT_ROOT/knowledge/threat-catalog.md" ] && cp "$PROJECT_ROOT/knowledge/threat-catalog.md" "$plugin_dir/knowledge/"
     [ -f "$PROJECT_ROOT/knowledge/report-template.md" ] && cp "$PROJECT_ROOT/knowledge/report-template.md" "$plugin_dir/knowledge/"
@@ -227,6 +237,12 @@ JSON
     done
     deploy_indexer_binary "$plugin_dir/scripts/bin"
 
+    # ── Register plugin with Claude Code ──────────────
+    # Claude Code v2.1.x requires plugins to be installed via marketplace.
+    # We set up a local marketplace that points to the plugin directory,
+    # then register it so the plugin auto-discovers on next session.
+    register_claude_plugin "$plugin_dir"
+
     echo ""
     log_info "Claude Code 命令（重启后生效）:"
     echo "    /secguard <path> [mode] [filters]"
@@ -234,18 +250,177 @@ JSON
     echo "    /secreview <path> [language]"
 }
 
+# ── Register plugin in Claude Code's plugin registry ─
+# Sets up a local marketplace and installs the plugin via CLI,
+# with JSON fallback if the CLI is unavailable.
+register_claude_plugin() {
+    local plugin_dir="$1"
+    local plugin_version
+    plugin_version=$(grep -m1 '"version"' "$plugin_dir/.claude-plugin/plugin.json" | sed 's/.*: *"\([^"]*\)".*/\1/')
+    local marketplace_name="secguardian-local"
+    local marketplace_dir="$HOME/.claude/plugins/marketplaces/$marketplace_name"
+    local settings_file="$HOME/.claude/settings.json"
+    local installed_file="$HOME/.claude/plugins/installed_plugins.json"
+    local known_marketplaces_file="$HOME/.claude/plugins/known_marketplaces.json"
+
+    # Create marketplace structure
+    mkdir -p "$marketplace_dir/.claude-plugin" "$marketplace_dir/plugins"
+
+    # Remove old flat marketplace.json (legacy)
+    rm -f "$marketplace_dir/marketplace.json"
+
+    # Symlink plugin into marketplace
+    ln -sfn "$plugin_dir" "$marketplace_dir/plugins/secguardian"
+
+    # Write marketplace manifest
+    cat > "$marketplace_dir/.claude-plugin/marketplace.json" << JSON
+{
+  "name": "$marketplace_name",
+  "description": "SecGuardian XuanWu — 企业级白盒安全 AI Agent 辅助解决方案。60 检测器、17 审计技能、5 语言安全检视。",
+  "owner": { "name": "SecGuardian" },
+  "plugins": [
+    {
+      "name": "secguardian",
+      "description": "Security scan/audit/review commands — /secguard, /secaudit, /secreview",
+      "version": "$plugin_version",
+      "source": "./plugins/secguardian",
+      "category": "security",
+      "homepage": "https://gitee.com/jonyan/secguardian",
+      "author": { "name": "SecGuardian" },
+      "keywords": ["security", "sast", "audit", "code-review", "vulnerability"]
+    }
+  ]
+}
+JSON
+
+    # Try CLI-based install first
+    if command -v claude &>/dev/null; then
+        # Register marketplace
+        claude plugin marketplace add "$marketplace_dir" 2>/dev/null || true
+        # Install/update plugin (idempotent — CLI handles upgrades)
+        claude plugin install "secguardian@$marketplace_name" 2>/dev/null && {
+            log_done "plugin registered via claude CLI"
+            return 0
+        }
+    fi
+
+    # Fallback: manual JSON manipulation
+    log_info "claude CLI unavailable — registering via JSON"
+
+    # Register marketplace in known_marketplaces.json
+    if [ -f "$known_marketplaces_file" ]; then
+        python3 -c "
+import json, sys
+with open('$known_marketplaces_file') as f:
+    data = json.load(f)
+data['$marketplace_name'] = {
+    'source': {'source': 'directory', 'path': '$marketplace_dir'},
+    'installLocation': '$marketplace_dir',
+    'lastUpdated': '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
+}
+with open('$known_marketplaces_file', 'w') as f:
+    json.dump(data, f, indent=2)
+" 2>/dev/null || true
+    fi
+
+    # Register in installed_plugins.json
+    if [ -f "$installed_file" ]; then
+        python3 -c "
+import json
+with open('$installed_file') as f:
+    data = json.load(f)
+key = 'secguardian@$marketplace_name'
+entry = {
+    'scope': 'user',
+    'installPath': '$HOME/.claude/plugins/cache/$marketplace_name/secguardian/$plugin_version',
+    'version': '$plugin_version',
+    'installedAt': '$(date -u +%Y-%m-%dT%H:%M:%SZ)',
+    'lastUpdated': '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
+}
+data['plugins'][key] = [entry]
+with open('$installed_file', 'w') as f:
+    json.dump(data, f, indent=2)
+" 2>/dev/null || true
+    fi
+
+    # Enable in settings.json
+    if [ -f "$settings_file" ]; then
+        python3 -c "
+import json
+with open('$settings_file') as f:
+    data = json.load(f)
+if 'enabledPlugins' not in data:
+    data['enabledPlugins'] = {}
+data['enabledPlugins']['secguardian@$marketplace_name'] = True
+with open('$settings_file', 'w') as f:
+    json.dump(data, f, indent=2)
+" 2>/dev/null || true
+    fi
+
+    # Cache the plugin files for the CLI-install path (mirrors what claude plugin install does)
+    local cache_dir="$HOME/.claude/plugins/cache/$marketplace_name/secguardian/$plugin_version"
+    if [ ! -d "$cache_dir" ]; then
+        mkdir -p "$(dirname "$cache_dir")"
+        cp -r "$plugin_dir" "$cache_dir"
+    fi
+
+    log_done "plugin registered via JSON fallback"
+}
+
 # ── 卸载 ──────────────────────────────────────
 uninstall_claude() {
     local plugin_dir="$TARGET_ROOT/.claude/plugins/secguardian"
+    local marketplace_name="secguardian-local"
+    local marketplace_dir="$HOME/.claude/plugins/marketplaces/$marketplace_name"
+    local cache_dir="$HOME/.claude/plugins/cache/$marketplace_name"
     local legacy_ext="$TARGET_ROOT/.claude/extensions"
+
+    # Try CLI uninstall first
+    if command -v claude &>/dev/null; then
+        claude plugin uninstall "secguardian@$marketplace_name" 2>/dev/null || true
+        claude plugin marketplace remove "$marketplace_name" 2>/dev/null || true
+    fi
+
+    # Clean marketplace structure
+    [ -d "$marketplace_dir" ] && rm -rf "$marketplace_dir"
+    [ -d "$cache_dir" ] && rm -rf "$cache_dir"
+
+    # Clean plugin directory
     if [ -d "$plugin_dir" ]; then
         rm -rf "$plugin_dir"
         log_done "已移除: $plugin_dir"
     fi
+
     # Clean legacy extension-format plugins
     for name in secguard-secguardian secaudit-secguardian secreview-secguardian; do
         [ -d "$legacy_ext/$name" ] && rm -rf "$legacy_ext/$name"
     done
+
+    # Clean JSON registrations (manual cleanup in case CLI missed them)
+    local settings_file="$HOME/.claude/settings.json"
+    local installed_file="$HOME/.claude/plugins/installed_plugins.json"
+    local known_file="$HOME/.claude/plugins/known_marketplaces.json"
+
+    for f in "$settings_file" "$installed_file" "$known_file"; do
+        [ -f "$f" ] && python3 -c "
+import json, sys
+with open('$f') as fh:
+    data = json.load(fh)
+# Remove secguardian entries
+if 'enabledPlugins' in data:
+    data['enabledPlugins'].pop('secguardian@$marketplace_name', None)
+    data['enabledPlugins'].pop('secguardian', None)
+if 'extraKnownMarketplaces' in data:
+    data['extraKnownMarketplaces'].pop('$marketplace_name', None)
+if 'plugins' in data:
+    data['plugins'].pop('secguardian@$marketplace_name', None)
+    data['plugins'].pop('secguardian', None)
+data.pop('$marketplace_name', None)
+with open('$f', 'w') as fh:
+    json.dump(data, fh, indent=2)
+" 2>/dev/null || true
+    done
+
     # NOTE: Do NOT delete scripts/secguardian-index — it is a source file, not a deployment artifact.
 }
 
@@ -254,15 +429,20 @@ uninstall_opencode() {
     local oc_dir="$TARGET_ROOT/.opencode"
     local oc_user_dir="$HOME/.config/opencode"
     for base in "$oc_dir" "$oc_user_dir"; do
-        local plugin_dir="$base/extensions/$brand"
-        if [ -d "$plugin_dir" ]; then
-            rm -rf "$plugin_dir"
-            log_done "已移除: $plugin_dir"
+        # Remove extension dir
+        local ext_dir="$base/extensions/$brand"
+        if [ -d "$ext_dir" ]; then
+            rm -rf "$ext_dir"
+            log_done "已移除: $ext_dir"
+        fi
+        # Remove plugin
+        if [ -f "$base/plugins/secguardian.js" ]; then
+            rm -f "$base/plugins/secguardian.js"
+            log_done "已移除插件: $base/plugins/secguardian.js"
         fi
         # Clean legacy flat deployment if present
         for sub in commands skills knowledge scripts; do
             if [ -d "$base/$sub" ]; then
-                # Only remove if it was our deployment
                 if [ -f "$base/$sub/secaudit.md" ] || \
                    [ -f "$base/$sub/secguard.md" ] || \
                    [ -d "$base/$sub/secaudit-attack-surface-analysis" ]; then
@@ -323,31 +503,30 @@ do_uninstall() {
     log_done "卸载完成"
 }
 
-# ── OpenCode ────────────────────────────────────
+# ── OpenCode (Plugin + Extension) ──────────────
 # Ref: https://opencode.ai/docs/plugins
-# OpenCode discovers plugins from: ~/.config/opencode/extensions/ (user) and .opencode/extensions/ (project)
-# Project-level plugins go under .opencode/extensions/<brand-name>/
-# Top-level .opencode/commands/ and .opencode/skills/ are for handwritten files only
+# OpenCode discovers plugins from ~/.config/opencode/plugins/ (user) or .opencode/plugins/ (project)
+# The plugin registers secguard/secaudit/secreview commands + skills.paths at startup
+# Extension assets live under extensions/secguardian/, discovered by plugin via relative path
 deploy_opencode() {
     local brand="secguardian"
     if $DEPLOY_USER; then
         local opencode_dir="$HOME/.config/opencode"
-        log_step "OpenCode → ~/.config/opencode/extensions/$brand/ (用户级)"
+        log_step "OpenCode → plugins/secguardian.js + extensions/$brand/ (用户级)"
     else
         local opencode_dir="$TARGET_ROOT/.opencode"
-        log_step "OpenCode → .opencode/extensions/$brand/ (项目级)"
+        log_step "OpenCode → plugins/secguardian.js + extensions/$brand/ (项目级)"
     fi
-    local plugin_dir="$opencode_dir/extensions/$brand"
-    local cmd_dir="$plugin_dir/commands"
-    local skills_dir="$plugin_dir/skills"
-    local knowledge_dir="$plugin_dir/knowledge"
-    local scripts_dir="$plugin_dir/scripts"
+    local ext_dir="$opencode_dir/extensions/$brand"
+    local skills_dir="$ext_dir/skills"
+    local knowledge_dir="$ext_dir/knowledge"
+    local scripts_dir="$ext_dir/scripts"
 
-    # Clean old: remove legacy flat deployment AND old plugin dir
-    # (legacy: .opencode/commands/, .opencode/skills/, .opencode/knowledge/, .opencode/scripts/)
+    # Clean old: remove stale extension dir, stale plugin, legacy flat deployment
+    rm -rf "$ext_dir"
+    rm -f "$opencode_dir/plugins/secguardian.js"
     for legacy_sub in commands skills knowledge scripts; do
         if [ -d "$opencode_dir/$legacy_sub" ]; then
-            # Only remove if it was our deployment (detect by presence of our files)
             if [ -f "$opencode_dir/$legacy_sub/secaudit.md" ] || \
                [ -f "$opencode_dir/$legacy_sub/secguard.md" ] || \
                [ -d "$opencode_dir/$legacy_sub/secaudit-attack-surface-analysis" ] || \
@@ -358,15 +537,14 @@ deploy_opencode() {
             fi
         fi
     done
-    rm -rf "$plugin_dir"
 
-    mkdir -p "$cmd_dir" "$skills_dir" "$scripts_dir/bin" \
+    mkdir -p "$ext_dir/commands" "$skills_dir" "$scripts_dir/bin" \
              "$knowledge_dir/languages" "$knowledge_dir/detectors" \
-             "$knowledge_dir/protocols" "$knowledge_dir/standards"
+             "$knowledge_dir/protocols" "$knowledge_dir/standards" \
+             "$opencode_dir/plugins"
 
-    # Write codeagent-extension.json — OpenCode extension manifest
-    # Only name/version/description are recognized; author/keywords cause parse failure
-    cat > "$plugin_dir/codeagent-extension.json" << JSON
+    # Write codeagent-extension.json (informational manifest)
+    cat > "$ext_dir/codeagent-extension.json" << JSON
 {
   "name": "$brand",
   "version": "0.5.5",
@@ -374,36 +552,47 @@ deploy_opencode() {
 }
 JSON
 
+    # ── Deploy plugin ────────────────────────────
+    if [ -f "$PROJECT_ROOT/scripts/opencode-plugin.js" ]; then
+        cp "$PROJECT_ROOT/scripts/opencode-plugin.js" "$opencode_dir/plugins/secguardian.js"
+        log_done "opencode plugin: plugins/secguardian.js"
+    fi
+
+    # ── Deploy command templates ─────────────────
     local cmd_n=0 skill_n=0
     for d in "$DIST"/*/; do
-        # Commands: .md files are OpenCode slash commands
         if [ -d "$d/commands" ]; then
             for f in "$d/commands"/*.md; do
-                [ -f "$f" ] && cp "$f" "$cmd_dir/" && cmd_n=$((cmd_n + 1))
+                [ -f "$f" ] && cp "$f" "$ext_dir/commands/" && cmd_n=$((cmd_n + 1))
             done
         fi
-        # Skills: deploy under brand namespace
+    done
+
+    # ── Deploy skills ────────────────────────────
+    for d in "$DIST"/*/; do
         if [ -d "$d/skills" ]; then
             for sd in "$d/skills"/*/; do
                 [ -d "$sd" ] && cp -r "$sd" "$skills_dir/$(basename "$d" | sed 's/-secguardian//')-$(basename "$sd")" && skill_n=$((skill_n + 1))
             done
         fi
-        # Knowledge: merge across all extensions
-        for cat in languages detectors protocols; do
+    done
+
+    # ── Deploy knowledge ─────────────────────────
+    for cat in languages detectors protocols; do
+        for d in "$DIST"/*/; do
             if [ -d "$d/knowledge/$cat" ]; then
                 find "$d/knowledge/$cat" -name '*.md' -exec cp {} "$knowledge_dir/$cat/" \;
             fi
         done
     done
-    log_done "$cmd_n commands (.md), $skill_n skills"
-
-    # Copy project-level knowledge (v2.0)
     [ -f "$PROJECT_ROOT/knowledge/threat-catalog.md" ] && cp "$PROJECT_ROOT/knowledge/threat-catalog.md" "$knowledge_dir/"
     [ -f "$PROJECT_ROOT/knowledge/report-template.md" ] && cp "$PROJECT_ROOT/knowledge/report-template.md" "$knowledge_dir/"
     [ -f "$PROJECT_ROOT/SECURITY.md" ] && cp "$PROJECT_ROOT/SECURITY.md" "$knowledge_dir/"
     [ -d "$PROJECT_ROOT/knowledge/standards" ] && cp -r "$PROJECT_ROOT/knowledge/standards/"* "$knowledge_dir/standards/" 2>/dev/null || true
 
-    # Copy wrapper scripts and binaries
+    log_done "$cmd_n commands, $skill_n skills, knowledge/ + scripts/"
+
+    # ── Deploy scripts + indexer ─────────────────
     for wrapper in secguardian-index secguardian-index.ps1; do
         if [ -f "$PROJECT_ROOT/scripts/$wrapper" ]; then
             cp "$PROJECT_ROOT/scripts/$wrapper" "$scripts_dir/$wrapper"
@@ -414,9 +603,9 @@ JSON
 
     echo ""
     log_info "OpenCode 使用方式（重启后生效）:"
-    echo "    /secaudit (command from .md file)"
-    echo "    /secguard (command from .md file)"
-    echo "    /secreview (command from .md file)"
+    echo "    /secguard <path> [filters]"
+    echo "    /secaudit <skill-name> [path]"
+    echo "    /secreview <path> [language]"
 }
 
 # ── Gemini CLI (Official Extension Format) ──────
@@ -556,12 +745,18 @@ do_zip() {
         log_done "cc-${name}.zip"
     done
 
-    # OpenCode: 完整布局 (commands/ + skills/ + knowledge/ + scripts/)
-    if [ -d "$TARGET_ROOT/.opencode/commands" ]; then
-        local nga_zip="$archive_dir/nga-secguardian.zip"
-        (cd "$TARGET_ROOT/.opencode" && zip -rq "$nga_zip" commands/ skills/ knowledge/ scripts/ 2>/dev/null || \
-         zip -rq "$nga_zip" commands/)
-        log_done "nga-secguardian.zip"
+    # OpenCode: 官方插件结构 (plugins/secguardian.js + extensions/secguardian/)
+    local opencode_root
+    if [ -d "$HOME/.config/opencode/plugins" ]; then
+        opencode_root="$HOME/.config/opencode"
+    elif [ -d "$PROJECT_ROOT/.opencode/plugins" ]; then
+        opencode_root="$PROJECT_ROOT/.opencode"
+    fi
+    if [ -n "${opencode_root:-}" ]; then
+        local ver="$(grep -m1 '"version"' "$PROJECT_ROOT/extensions/secguard-secguardian/extension.json" | sed 's/.*: *"\([^"]*\)".*/\1/')"
+        local nga_zip="$archive_dir/secguardian-nga-v${ver}.zip"
+        (cd "$opencode_root" && zip -rq "$nga_zip" plugins/secguardian.js extensions/secguardian/)
+        log_done "$(basename "$nga_zip")"
     fi
 
     # Gemini CLI: 完整布局 (skills/ + knowledge/ + commands/ + scripts/ + GEMINI.md)
