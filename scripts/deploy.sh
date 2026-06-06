@@ -228,8 +228,8 @@ JSON
     [ -f "$PROJECT_ROOT/SECURITY.md" ] && cp "$PROJECT_ROOT/SECURITY.md" "$plugin_dir/knowledge/"
     [ -d "$PROJECT_ROOT/knowledge/standards" ] && cp -r "$PROJECT_ROOT/knowledge/standards/"* "$plugin_dir/knowledge/standards/" 2>/dev/null || true
 
-    # Copy wrapper scripts and binaries into plugin
-    for wrapper in secguardian-index secguardian-index.ps1; do
+    # Copy wrapper scripts, renderer, and binaries into plugin
+    for wrapper in secguardian-index secguardian-index.ps1 render-report.py; do
         if [ -f "$PROJECT_ROOT/scripts/$wrapper" ]; then
             cp "$PROJECT_ROOT/scripts/$wrapper" "$plugin_dir/scripts/$wrapper"
             chmod +x "$plugin_dir/scripts/$wrapper" 2>/dev/null || true
@@ -593,7 +593,7 @@ JSON
     log_done "$cmd_n commands, $skill_n skills, knowledge/ + scripts/"
 
     # ── Deploy scripts + indexer ─────────────────
-    for wrapper in secguardian-index secguardian-index.ps1; do
+    for wrapper in secguardian-index secguardian-index.ps1 render-report.py; do
         if [ -f "$PROJECT_ROOT/scripts/$wrapper" ]; then
             cp "$PROJECT_ROOT/scripts/$wrapper" "$scripts_dir/$wrapper"
             chmod +x "$scripts_dir/$wrapper" 2>/dev/null || true
@@ -677,7 +677,7 @@ JSON
     fi
 
     # Wrapper scripts and binaries
-    for wrapper in secguardian-index secguardian-index.ps1; do
+    for wrapper in secguardian-index secguardian-index.ps1 render-report.py; do
         [ -f "$PROJECT_ROOT/scripts/$wrapper" ] && cp "$PROJECT_ROOT/scripts/$wrapper" "$ext_dir/scripts/"
     done
     chmod +x "$ext_dir/scripts/"* 2>/dev/null || true
