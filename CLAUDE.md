@@ -125,6 +125,30 @@ secguardian/
 
 遵循 Scan Output Protocol (`knowledge/protocols/scan-output.md`)。
 
+### AI/Renderer 分离架构 (v4.0+)
+
+扫描性能优化：AI 只输出结构化 `findings.json`（遵循 `knowledge/protocols/findings-schema.json`），
+由 `scripts/render-report.py` 渲染生成 report.md + results.sarif + summary.json + manifest.json + status.json + delta.json。
+
+```bash
+# 渲染器使用
+python3 scripts/render-report.py \
+  --findings .codeagent/<ns>/scans/<id>/findings.json \
+  --index .codeagent/<ns>/scans/<id>/index.json \
+  --output .codeagent/<ns>/scans/<id>/
+
+# CI 模式（设置 exit_code）
+python3 scripts/render-report.py --ci \
+  --findings findings.json --output ./output/
+
+# 只生成特定文件
+python3 scripts/render-report.py --format sarif \
+  --findings findings.json --output ./output/
+```
+
+**AI 职责**: 语义分析 → 输出 findings.json（每个 finding 含完整四段式数据）
+**Renderer 职责**: 模板渲染 → 安全评分计算 → CI 门禁 → 所有格式化输出
+
 ## 添加新 Skill / Detector
 
 参见 manifest.json 中的 knowledge 和 extensions 字段，修改后重新运行 dev-deploy.sh。

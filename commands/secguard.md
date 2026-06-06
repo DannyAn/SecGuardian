@@ -253,38 +253,64 @@ INDEX_FILE 输出示例:
 - **利用 index.json 中的符号表和调用图定位检测目标**，而非逐文件遍历。
 - 增量模式（`git diff`）下，仅分析由 diff 识别的变更行。
 
-### Step 4: 保存检出并输出摘要
+### Step 4: 输出结构化 findings（遵循 Findings Protocol v1.0）
 
-- 按照 `knowledge/protocols/scan-output.md` (v3.0) 写入 `report.md`（人读）+ `results.sarif`（机读）+ `manifest.json` + `summary.json` + `status.json`。
-- `manifest.json` 中的 `duration_ms` 必须使用 **实际 wall-clock 耗时**（结束时间戳 − 开始时间戳），不得编造。
+> ⚠️ **关键变更**: AI **只输出一个文件** `findings.json`，符合 `knowledge/protocols/findings-schema.json` 协议。**禁止直接写 report.md / results.sarif / 任何其他输出文件** — 这些由渲染器生成。
+
+**4a. 构建 findings.json：**
+
+每个检出必须包含完整的四段式数据（协议中的 `location` + `evidence` + `impact` + `fix` 字段）。具体 schema 见 `knowledge/protocols/findings-schema.json`。
+
+关键字段要求：
+- `location.snippet` — 3+ 行代码上下文
+- `evidence.code_context` + `evidence.judgment_rationale` + `evidence.data_flow_path`（Source→Propagation→Sink）
+- `impact.attack_scenario` + `impact.cvss_score` + `impact.cvss_vector`
+- `fix.before_code` + `fix.after_code` + `fix.effort_hours` + `fix.verification_method`
+- `sarif_specific.confidence` + `sarif_specific.risk_of_fix` + `sarif_specific.detector_namespace`
+
+**4b. 自检完整性（必须执行）：**
+
+在保存 `findings.json` 之前，检查每个 finding 的四段式字段是否齐全。**任一 ❌ → 补充缺失内容 → 重新检查，最多 3 次。**
+
+| 段落 | 必须字段 |
+|------|---------|
+| 📍 Location | `location.file_path`, `location.start_line`, `location.function_name`, `location.snippet` |
+| 📋 Evidence | `evidence.code_context`, `evidence.judgment_rationale`, `evidence.data_flow_path` |
+| ⚠️ Impact | `impact.attack_scenario`, `impact.cvss_score`, `impact.cvss_vector`, `impact.exploit_conditions` |
+| 🔧 Fix | `fix.description`, `fix.before_code`, `fix.after_code`, `fix.effort_hours`, `fix.verification_method` |
+
+3 次后仍未通过 → 在 findings.json 的顶层添加 `"quality_gate_warning": "<不完整的 finding ID 列表>"`，渲染器会在 report.md 中标记。
+
+**4c. 写入 findings.json → 渲染器生成所有输出：**
+
+```bash
+# 定位渲染器（与索引器相同查找策略）
+RENDERER=""
+for base in "." "$HOME"; do
+    for path in \
+        ".opencode/extensions/secguardian/scripts/render-report.py" \
+        ".config/opencode/extensions/secguardian/scripts/render-report.py" \
+        ".gemini/extensions/secguardian/scripts/render-report.py" \
+        ".claude/plugins/secguardian/scripts/render-report.py"; do
+        candidate="$base/$path"
+        [ -f "$candidate" ] && RENDERER="$candidate" && break 3
+    done
+done
+# Fallback: project source
+[ -z "$RENDERER" ] && [ -f "scripts/render-report.py" ] && RENDERER="scripts/render-report.py"
+
+python3 "$RENDERER" \
+    --findings .codeagent/secguard-secguardian/scans/<scan_id>/findings.json \
+    --index .codeagent/secguard-secguardian/scans/<scan_id>/index.json \
+    --output .codeagent/secguard-secguardian/scans/<scan_id>/
+```
+
+渲染器自动生成: `report.md` + `results.sarif` + `summary.json` + `manifest.json` + `status.json` + `delta.json`。
+
+> ⚠️ 如果渲染器不存在或执行失败，打印警告：`"Renderer unavailable — findings saved to findings.json only. Run: python3 scripts/render-report.py --findings <path>/findings.json --index <path>/index.json --output <path>/"`
+
+### Step 5: 输出摘要
+
+- 渲染器执行完毕后，读取 `manifest.json` 获取扫描统计。
 - 向用户输出 Markdown 格式的扫描摘要，包含：scan_id、检出总数、按严重度分组、Top 5 key findings。
-
-### Step 4b: 输出前质量检查（必须执行，不可跳过）
-
-在写入 report.md 和 results.sarif 之前，逐项验证每个检出的完整性。**任一 ❌ → 补充缺失内容 → 重新检查，最多 3 次。**
-
-#### report.md 质量门禁
-
-- [ ] §3 检出清单每个条目包含：ID | 严重度 | CWE | 文件:行 | 标题
-- [ ] §4 每个检出包含 **📍 Location** 小节（文件路径 + 行号 + 函数名 + 具体代码行）
-- [ ] §4 每个检出包含 **📋 Evidence** 小节（代码上下文 3+ 行 + 判定依据 + 数据流路径）
-- [ ] §4 每个检出包含 **⚠️ Impact** 小节（攻击场景描述 + CVSS 3.1 评分 + 利用条件）
-- [ ] §4 每个检出包含 **🔧 Fix** 小节（before/after 代码 + 工作量 + 验证方法）
-- [ ] §4 每个检出引用对应 detector 的修复指引（来自 `knowledge/detectors/<name>.md` 的 `## 修复指引` 节）
-- [ ] §4 每个检出包含 CWE 参考链接
-- [ ] §5 修复路线图包含 Phase 1-4 完整四个阶段（含预估工时）
-
-#### SARIF 质量门禁
-
-- [ ] 每个 result 的 `message.text` 以 📍 开头，一句话包含：文件:行 函数名 [严重度] CWE-ID: 标题 — 判定摘要
-- [ ] 每个 result 包含 `message.markdown`（完整四段式富文本：📍 Location → 📋 Evidence → ⚠️ Impact → 🔧 Fix）
-- [ ] 每个 result 包含 `relatedLocations[]`（标注 Source → Propagation → Sink 数据流路径，如适用）
-- [ ] 每个 result 包含 `fixes[]`（before/after 代码替换，含 description）
-- [ ] 每个 result 包含 `partialFingerprints`（`primary` 指纹用于去重）
-- [ ] 每个 result 的 `properties` 包含：`confidence`, `cvss`, `cvss_vector`, `impact`, `effort`, `risk_of_fix`, `verification`, `detector_namespace`
-- [ ] `driver.rules[]` 每个 rule 包含 CWE 分类信息
-
-#### 未通过处理
-
-任一 ❌ → 定位缺失的 finding → 从 `knowledge/detectors/<name>.md` 的对应章节获取内容补充 → 重新检查。
-3 次后仍未通过 → 在 report.md 开头标注 "⚠️ 以下发现的完整性未完全达标: <ID列表>"
+- `duration_ms` 由渲染器根据 `findings.json` 中的时间戳自动计算。

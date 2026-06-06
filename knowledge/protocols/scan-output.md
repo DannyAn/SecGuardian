@@ -19,6 +19,7 @@ version: "3.0"
 | `delta.json` | 趋势分析 | JSON | 与上一次扫描的增量对比 |
 
 > **v3.0 变更 (2026-06-05)**: report.md §4 详细发现改为强制四段式结构（📍 Location → 📋 Evidence → ⚠️ Impact → 🔧 Fix）。增加输出前质量门禁（Step 4b）。SARIF 增加 `message.markdown` 和 `relatedLocations` 要求。
+> **v4.0 变更 (2026-06-06)**: 引入 AI/Renderer 分离架构。AI 仅输出 `findings.json`（遵循 `findings-schema.json`），由 `scripts/render-report.py` 渲染生成全部 6 个输出文件。参见 CodePlan: hashed-juggling-sutherland。
 
 ## 目录结构
 

@@ -203,38 +203,76 @@ PYEOF
 
 - **利用 index.json 中的符号表定位检视目标**，而非逐文件遍历。
 
-### Step 4: 保存检出并输出摘要
+### Step 4: 输出结构化 findings（遵循 Findings Protocol v1.0）
 
-- 按照 `knowledge/protocols/scan-output.md` (v3.0) 写入 `report.md`（人读）+ `results.sarif`（机读）+ `manifest.json` + `summary.json` + `status.json`。
-- `manifest.json` 中的 `duration_ms` 必须使用 **实际 wall-clock 耗时**（结束时间戳 − 开始时间戳），不得编造。
-- 向用户展示检视发现和检视摘要。
+> ⚠️ **关键变更**: AI **只输出一个文件** `findings.json`，符合 `knowledge/protocols/findings-schema.json` 协议。**禁止直接写 report.md / results.sarif / 任何其他输出文件** — 这些由渲染器生成。
 
-### Step 4b: 输出前质量检查（必须执行，不可跳过）
+**4a. 构建 findings.json（含 secreview 扩展字段）：**
 
-在写入 report.md 和 results.sarif 之前，逐项验证每个检出的完整性。**任一 ❌ → 补充缺失内容 → 重新检查，最多 3 次。**
+每个检出必须包含完整的四段式数据（`location` + `evidence` + `impact` + `fix`），以及 `secreview_specific` 扩展字段：
 
-#### report.md 质量门禁
+```json
+{
+  "secreview_specific": {
+    "review_type": "full",
+    "review_focus": ["security", "code-quality"]
+  },
+  "findings": [
+    {
+      "severity": "High",
+      "cwe": "CWE-390",
+      "detector": "error.exception-swallow",
+      "evidence": {
+        "judgment_rationale": "空 catch 块吞掉异常 — 违反了 SEI CERT ERR00-J"
+      }
+    }
+  ]
+}
+```
 
-- [ ] §3 检出清单每个条目包含：ID | 严重度 | 类别 | 文件:行 | 标题
-- [ ] §4 每个检出包含 **📍 Location** 小节（文件路径 + 行号 + 函数名 + 具体代码行）
-- [ ] §4 每个检出包含 **📋 Evidence** 小节（代码上下文 3+ 行 + 判定依据 — 指出违反了哪条安全编码规范）
-- [ ] §4 每个检出包含 **⚠️ Impact** 小节（不合规可能导致的潜在安全风险 + 适用场景）
-- [ ] §4 每个检出包含 **🔧 Fix** 小节（before/after 代码 + 工作量 + 验证方法）
-- [ ] §4 每个检出包含对应语言的反模式检测矩阵引用和修复指引
-- [ ] §4 每个检出包含参考链接（SEI CERT / OWASP / 语言安全指南）
-- [ ] §5 修复路线图包含 Phase 1-4 完整四个阶段（含预估工时）
+关键要求：
+- `evidence.judgment_rationale` — 必须引用对应语言的安全编码规范（SEI CERT Oracle / SEI CERT C / OWASP / Go Security Guidelines）
+- `secreview_specific.review_focus` — 本次检视的焦点领域
 
-#### SARIF 质量门禁
+**4b. 自检完整性（必须执行）：**
 
-- [ ] 每个 result 的 `message.text` 以 📍 开头，一句话包含：文件:行 函数名 [严重度] 类别: 标题 — 判定摘要
-- [ ] 每个 result 包含 `message.markdown`（完整四段式富文本：📍 Location → 📋 Evidence → ⚠️ Impact → 🔧 Fix）
-- [ ] 每个 result 包含 `relatedLocations[]`（如涉及多处代码上下文）
-- [ ] 每个 result 包含 `fixes[]`（before/after 代码替换，含 description）
-- [ ] 每个 result 包含 `partialFingerprints`（`primary` 指纹用于去重）
-- [ ] 每个 result 的 `properties` 包含：`confidence`, `impact`, `effort`, `risk_of_fix`, `verification`, `category`
-- [ ] `driver.rules[]` 每个 rule 包含 SEI CERT / OWASP 分类引用
+在保存 `findings.json` 之前，检查每个 finding 的四段式字段是否齐全。**任一 ❌ → 补充缺失内容 → 重新检查，最多 3 次。**
 
-#### 未通过处理
+| 段落 | 必须字段 | Secreview 额外要求 |
+|------|---------|------------------|
+| 📍 Location | `location.file_path`, `location.start_line`, `location.function_name`, `location.snippet` | — |
+| 📋 Evidence | `evidence.code_context`, `evidence.judgment_rationale` | judgment_rationale 需引用违反的安全编码规范 |
+| ⚠️ Impact | `impact.attack_scenario` | 说明不合规的潜在安全风险 |
+| 🔧 Fix | `fix.description`, `fix.before_code`, `fix.after_code`, `fix.effort_hours`, `fix.verification_method` | — |
 
-任一 ❌ → 定位缺失的 finding → 补充对应内容 → 重新检查。
-3 次后仍未通过 → 在 report.md 开头标注 "⚠️ 以下发现的完整性未完全达标: <ID列表>"
+3 次后仍未通过 → 在 findings.json 顶层添加 `"quality_gate_warning": "<ID列表>"`。
+
+**4c. 写入 findings.json → 渲染器生成所有输出：**
+
+```bash
+# 定位渲染器
+RENDERER=""
+for base in "." "$HOME"; do
+    for path in \
+        ".opencode/extensions/secguardian/scripts/render-report.py" \
+        ".config/opencode/extensions/secguardian/scripts/render-report.py" \
+        ".gemini/extensions/secguardian/scripts/render-report.py" \
+        ".claude/plugins/secguardian/scripts/render-report.py"; do
+        candidate="$base/$path"
+        [ -f "$candidate" ] && RENDERER="$candidate" && break 3
+    done
+done
+[ -z "$RENDERER" ] && [ -f "scripts/render-report.py" ] && RENDERER="scripts/render-report.py"
+
+python3 "$RENDERER" \
+    --findings .codeagent/secreview-secguardian/scans/<scan_id>/findings.json \
+    --index .codeagent/secreview-secguardian/scans/<scan_id>/index.json \
+    --output .codeagent/secreview-secguardian/scans/<scan_id>/
+```
+
+> ⚠️ 如果渲染器不存在或执行失败，打印警告：`"Renderer unavailable — findings saved to findings.json only."`
+
+### Step 5: 输出检视摘要
+
+- 渲染器执行完毕后，读取 `manifest.json` 获取检视统计。
+- 向用户输出 Markdown 格式的检视摘要，包含：scan_id、language、检出总数、按严重度/类别分组、Top 5 key findings。

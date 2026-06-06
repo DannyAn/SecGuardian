@@ -223,37 +223,84 @@ PYEOF
 - 如果指定了具体的 skill-name，精确加载 `../skills/secaudit/{skill-name}/SKILL.md`。
 - 根据 `index.json` 提供的符号表和调用图、`SKILL.md` 的审计规范以及 `../knowledge/detectors/` 中相关检测器的威胁定义进行深度推理审计。
 
-### Step 4: 保存检出并输出摘要
+### Step 4: 输出结构化 findings（遵循 Findings Protocol v1.0）
 
-- 按照 `knowledge/protocols/scan-output.md` (v3.0) 写入 `report.md`（人读）+ `results.sarif`（机读）+ `manifest.json` + `summary.json` + `status.json`。
-- `manifest.json` 中的 `duration_ms` 必须使用 **实际 wall-clock 耗时**（结束时间戳 − 开始时间戳），不得编造。
-- 向用户展示审计发现和审计摘要。
+> ⚠️ **关键变更**: AI **只输出一个文件** `findings.json`，符合 `knowledge/protocols/findings-schema.json` 协议。**禁止直接写 report.md / results.sarif / 任何其他输出文件** — 这些由渲染器生成。
 
-### Step 4b: 输出前质量检查（必须执行，不可跳过）
+**4a. 构建 findings.json（含 secaudit 扩展字段）：**
 
-在写入 report.md 和 results.sarif 之前，逐项验证每个检出的完整性。**任一 ❌ → 补充缺失内容 → 重新检查，最多 3 次。**
+每个检出必须包含完整的四段式数据（`location` + `evidence` + `impact` + `fix`），以及 `secaudit_specific` 扩展字段：
 
-#### report.md 质量门禁
+```json
+{
+  "secaudit_specific": {
+    "skill_name": "taint-analysis",
+    "skill_category": "analysis",
+    "analysis_paths": 15,
+    "complete_chains": 4
+  },
+  "findings": [
+    {
+      "evidence": {
+        "data_flow_path": [
+          {"step": "source", "file": "...", "line": 42, "description": "HTTP param"},
+          {"step": "propagation", "file": "...", "line": 56, "description": "Assigned to query"},
+          {"step": "sink", "file": "...", "line": 108, "description": "db.Query()"}
+        ]
+      }
+    }
+  ]
+}
+```
 
-- [ ] §3 检出清单每个条目包含：ID | 严重度 | CWE | 文件:行 | 标题
-- [ ] §4 每个检出包含 **📍 Location** 小节（文件路径 + 行号 + 函数名 + 具体代码行）
-- [ ] §4 每个检出包含 **📋 Evidence** 小节（代码上下文 3+ 行 + 判定依据 + 数据流路径）
-- [ ] §4 每个检出包含 **⚠️ Impact** 小节（攻击场景描述 + CVSS 3.1 评分 + 利用条件）
-- [ ] §4 每个检出包含 **🔧 Fix** 小节（before/after 代码 + 工作量 + 验证方法）
-- [ ] §4 每个检出包含 CWE 参考链接和对应审计 skill 的分析引用
-- [ ] §5 修复路线图包含 Phase 1-4 完整四个阶段（含预估工时）
+关键要求：
+- `evidence.data_flow_path` — secaudit 必须包含完整的 Source → Propagation → Sink 路径（至少 3 个步骤）
+- `secaudit_specific.skill_name` — 本次审计的 skill 名称
+- `secaudit_specific.analysis_paths` — 分析的总数据流路径数
+- `secaudit_specific.complete_chains` — 完整追踪到的链路数（Source → Sink 全部连通的）
 
-#### SARIF 质量门禁
+**4b. 自检完整性（必须执行，严格的 3 次重试）：**
 
-- [ ] 每个 result 的 `message.text` 以 📍 开头，一句话包含：文件:行 函数名 [严重度] CWE-ID: 标题 — 判定摘要
-- [ ] 每个 result 包含 `message.markdown`（完整四段式富文本：📍 Location → 📋 Evidence → ⚠️ Impact → 🔧 Fix）
-- [ ] 每个 result 包含 `relatedLocations[]`（标注 Source → Propagation → Sink 数据流路径）
-- [ ] 每个 result 包含 `fixes[]`（before/after 代码替换，含 description）
-- [ ] 每个 result 包含 `partialFingerprints`（`primary` 指纹用于去重）
-- [ ] 每个 result 的 `properties` 包含：`confidence`, `cvss`, `cvss_vector`, `impact`, `effort`, `risk_of_fix`, `verification`, `detector_namespace`
-- [ ] `driver.rules[]` 每个 rule 包含 CWE 分类信息
+在保存 `findings.json` 之前，检查每个 finding 的四段式字段是否齐全。**任一 ❌ → 补充缺失内容 → 重新检查，最多 3 次。**
 
-#### 未通过处理
+| 段落 | 必须字段 | Secaudit 额外要求 |
+|------|---------|------------------|
+| 📍 Location | `location.file_path`, `location.start_line`, `location.function_name`, `location.snippet` | — |
+| 📋 Evidence | `evidence.code_context`, `evidence.judgment_rationale`, `evidence.data_flow_path` | data_flow_path 至少含 source + sink 两个节点 |
+| ⚠️ Impact | `impact.attack_scenario`, `impact.cvss_score`, `impact.cvss_vector`, `impact.exploit_conditions` | — |
+| 🔧 Fix | `fix.description`, `fix.before_code`, `fix.after_code`, `fix.effort_hours`, `fix.verification_method` | — |
 
-任一 ❌ → 定位缺失的 finding → 补充对应内容 → 重新检查。
-3 次后仍未通过 → 在 report.md 开头标注 "⚠️ 以下发现的完整性未完全达标: <ID列表>"
+3 次后仍未通过 → 在 findings.json 顶层添加 `"quality_gate_warning": "<ID列表>"` + `"quality_gate_retries": 3`。渲染器会在 report.md 头部标注不完整的 finding。
+
+**4c. 写入 findings.json → 渲染器生成所有输出：**
+
+```bash
+# 定位渲染器
+RENDERER=""
+for base in "." "$HOME"; do
+    for path in \
+        ".opencode/extensions/secguardian/scripts/render-report.py" \
+        ".config/opencode/extensions/secguardian/scripts/render-report.py" \
+        ".gemini/extensions/secguardian/scripts/render-report.py" \
+        ".claude/plugins/secguardian/scripts/render-report.py"; do
+        candidate="$base/$path"
+        [ -f "$candidate" ] && RENDERER="$candidate" && break 3
+    done
+done
+[ -z "$RENDERER" ] && [ -f "scripts/render-report.py" ] && RENDERER="scripts/render-report.py"
+
+python3 "$RENDERER" \
+    --findings .codeagent/secaudit-secguardian/scans/<scan_id>/findings.json \
+    --index .codeagent/secaudit-secguardian/scans/<scan_id>/index.json \
+    --output .codeagent/secaudit-secguardian/scans/<scan_id>/
+```
+
+> 渲染器自动执行 secaudit 质量门禁（Step 4b 验证），未通过的 finding 会在 report.md 中标记 ⚠️。
+
+> ⚠️ 如果渲染器不存在或执行失败，打印警告：`"Renderer unavailable — findings saved to findings.json only."`
+
+### Step 5: 输出审计摘要
+
+- 渲染器执行完毕后，读取 `manifest.json` 获取审计统计。
+- 向用户输出 Markdown 格式的审计摘要，包含：scan_id、skill_name、检出总数、按严重度分组、Top 5 key findings。
+- 如果 quality gate 未通过，明确列出不完整的 finding ID。
