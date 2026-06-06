@@ -1,0 +1,774 @@
+#!/usr/bin/env python3
+"""
+SecGuardian Report Rendering Engine v1.0
+
+Takes AI-generated findings.json + index.json and generates all 6 output files:
+  report.md, results.sarif, summary.json, manifest.json, status.json, delta.json
+
+Zero external dependencies — stdlib only.
+Part of the SecGuardian Performance Refactoring (CodePlan: hashed-juggling-sutherland).
+
+Usage:
+  python3 render-report.py \\
+    --findings .codeagent/<ns>/scans/<id>/findings.json \\
+    --index .codeagent/<ns>/scans/<id>/index.json \\
+    --output .codeagent/<ns>/scans/<id>/
+
+CI mode:
+  python3 render-report.py --ci \\
+    --findings findings.json --index index.json --output ./output/
+
+Copyright 2026 SecGuardian. Apache 2.0.
+"""
+
+import argparse
+import json
+import os
+import sys
+import hashlib
+import datetime
+from string import Template
+from collections import Counter
+
+
+# ── Constants ───────────────────────────────────
+
+DETECTOR_RULE_INDEX = {
+    "system.command-injection":        {"index": 0,  "cwe": ["CWE-77", "CWE-94"]},
+    "web.sql-injection":               {"index": 1,  "cwe": ["CWE-89"]},
+    "crypto.hardcoded-secrets":        {"index": 2,  "cwe": ["CWE-798"]},
+    "crypto.weak-crypto-algorithm":    {"index": 3,  "cwe": ["CWE-327"]},
+    "crypto.insufficient-key-length":  {"index": 4,  "cwe": ["CWE-326"]},
+    "web.ssrf":                        {"index": 5,  "cwe": ["CWE-918"]},
+    "system.path-traversal":           {"index": 6,  "cwe": ["CWE-22"]},
+    "web.xss":                         {"index": 7,  "cwe": ["CWE-79"]},
+    "web.jwt-misuse":                  {"index": 8,  "cwe": ["CWE-347"]},
+    "web.csrf":                        {"index": 9,  "cwe": ["CWE-352"]},
+    "web.auth-bypass":                 {"index": 10, "cwe": ["CWE-287"]},
+    "web.idor":                        {"index": 11, "cwe": ["CWE-639"]},
+    "web.xxe":                         {"index": 12, "cwe": ["CWE-611"]},
+    "web.input-validation":            {"index": 13, "cwe": ["CWE-20"]},
+    "web.unrestricted-upload":         {"index": 14, "cwe": ["CWE-434"]},
+    "web.missing-authorization":       {"index": 15, "cwe": ["CWE-862"]},
+    "web.missing-authentication":      {"index": 16, "cwe": ["CWE-306"]},
+    "web.open-redirect":               {"index": 17, "cwe": ["CWE-601"]},
+    "web.resource-exhaustion":         {"index": 18, "cwe": ["CWE-400"]},
+    "web.ssti":                        {"index": 19, "cwe": ["CWE-1336"]},
+    "web.nosql-injection":             {"index": 20, "cwe": ["CWE-943"]},
+    "web.code-injection":              {"index": 21, "cwe": ["CWE-94"]},
+    "web.deserialization":             {"index": 22, "cwe": ["CWE-502"]},
+    "web.excessive-data-exposure":     {"index": 23, "cwe": ["CWE-200"]},
+    "web.mass-assignment":             {"index": 24, "cwe": ["CWE-915"]},
+    "web.prototype-pollution":         {"index": 25, "cwe": ["CWE-1321"]},
+    "crypto.password-storage":         {"index": 26, "cwe": ["CWE-256"]},
+    "crypto.weak-random":              {"index": 27, "cwe": ["CWE-338"]},
+    "crypto.custom-crypto":            {"index": 28, "cwe": ["CWE-327"]},
+    "crypto.tls-version":              {"index": 29, "cwe": ["CWE-326"]},
+    "crypto.aes-ecb-mode":             {"index": 30, "cwe": ["CWE-327"]},
+    "crypto.hardcoded-iv":             {"index": 31, "cwe": ["CWE-329"]},
+    "concurrency.data-race":           {"index": 32, "cwe": ["CWE-362"]},
+    "concurrency.deadlock":            {"index": 33, "cwe": ["CWE-833"]},
+    "concurrency.race-condition":      {"index": 34, "cwe": ["CWE-362"]},
+    "concurrency.thread-unsafe-signal": {"index": 35, "cwe": ["CWE-364"]},
+    "resource.file-leak":              {"index": 36, "cwe": ["CWE-404"]},
+    "resource.socket-leak":            {"index": 37, "cwe": ["CWE-404"]},
+    "resource.memory-leak":            {"index": 38, "cwe": ["CWE-401"]},
+    "resource.lock-misuse":            {"index": 39, "cwe": ["CWE-667"]},
+    "resource.file-double-close":      {"index": 40, "cwe": ["CWE-675"]},
+    "resource.file-use-after-close":    {"index": 41, "cwe": ["CWE-416"]},
+    "resource.refcount-misuse":        {"index": 42, "cwe": ["CWE-911"]},
+    "error.debug-mode-production":     {"index": 43, "cwe": ["CWE-489"]},
+    "error.exception-swallow":         {"index": 44, "cwe": ["CWE-390"]},
+    "error.log-sensitive-data":        {"index": 45, "cwe": ["CWE-532"]},
+    "error.panic-to-client":           {"index": 46, "cwe": ["CWE-209"]},
+    "error.stack-trace-leak":          {"index": 47, "cwe": ["CWE-209"]},
+    "error.unified-error-format":      {"index": 48, "cwe": ["CWE-209"]},
+    "memory.buffer-overflow":          {"index": 49, "cwe": ["CWE-120"]},
+    "memory.heap-buffer-overflow":     {"index": 50, "cwe": ["CWE-122"]},
+    "memory.use-after-free":           {"index": 51, "cwe": ["CWE-416"]},
+    "memory.double-free":              {"index": 52, "cwe": ["CWE-415"]},
+    "memory.null-dereference":         {"index": 53, "cwe": ["CWE-476"]},
+    "memory.memory-leak":              {"index": 54, "cwe": ["CWE-401"]},
+    "memory.integer-overflow":         {"index": 55, "cwe": ["CWE-190"]},
+    "memory.format-string":            {"index": 56, "cwe": ["CWE-134"]},
+    "memory.off-by-one":               {"index": 57, "cwe": ["CWE-193"]},
+    "memory.oob-read":                 {"index": 58, "cwe": ["CWE-125"]},
+    "memory.uninitialized-memory":     {"index": 59, "cwe": ["CWE-457"]},
+    "memory.bad-cast":                 {"index": 60, "cwe": ["CWE-704"]},
+    "memory.mismatched-free":          {"index": 61, "cwe": ["CWE-762"]},
+    "system.insecure-permissions":     {"index": 62, "cwe": ["CWE-732"]},
+    "system.insecure-temp-file":       {"index": 63, "cwe": ["CWE-377"]},
+    "system.privilege-escalation":     {"index": 64, "cwe": ["CWE-269"]},
+    "system.secrets-detection":        {"index": 65, "cwe": ["CWE-798"]},
+    "system.symlink-attack":           {"index": 66, "cwe": ["CWE-61"]},
+    "system.toctou":                   {"index": 67, "cwe": ["CWE-367"]},
+    "web.jwt-misuse":                  {"index": 8,  "cwe": ["CWE-347"]},
+}
+
+
+# ── Helpers ─────────────────────────────────────
+
+def load_json(path):
+    """Load and return JSON file. Exit with message on failure."""
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except FileNotFoundError:
+        print(f"ERROR: File not found: {path}", file=sys.stderr)
+        sys.exit(1)
+    except json.JSONDecodeError as e:
+        print(f"ERROR: Invalid JSON in {path}: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def calc_score(findings):
+    """Calculate security score from findings list."""
+    weights = {"Critical": 25, "High": 10, "Medium": 3, "Low": 1, "Info": 0}
+    penalty = sum(weights.get(f["severity"], 0) for f in findings)
+    return max(0, 100 - penalty)
+
+
+def calc_grade(score):
+    if score >= 90: return "A"
+    if score >= 75: return "B"
+    if score >= 60: return "C"
+    if score >= 40: return "D"
+    return "F"
+
+
+def severity_emoji(severity):
+    return {"Critical": "🔴", "High": "🟠", "Medium": "🟡", "Low": "🔵", "Info": "⚪"}.get(severity, "⚪")
+
+
+def fingerprint(finding):
+    """Generate SARIF partialFingerprints.primary."""
+    raw = f"{finding['file']}:{finding['line']}:{finding['detector']}"
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def indent(text, spaces=4):
+    """Indent multi-line text by spaces."""
+    prefix = " " * spaces
+    return "\n".join(prefix + line if line.strip() else "" for line in text.split("\n"))
+
+
+def now_iso():
+    return datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+# ── Quality Gate (secaudit Step 4b) ─────────────
+
+def validate_finding_4segment(f, max_retries=0):
+    """
+    Validate a single finding against the 4-segment protocol.
+    Returns (is_valid, missing_fields).
+    """
+    missing = []
+
+    # 1. Location
+    loc = f.get("location", {})
+    if not loc.get("file_path"): missing.append("location.file_path")
+    if not loc.get("start_line"): missing.append("location.start_line")
+    if not loc.get("function_name"): missing.append("location.function_name")
+    if not loc.get("snippet"): missing.append("location.snippet")
+
+    # 2. Evidence
+    ev = f.get("evidence", {})
+    if not ev.get("code_context"): missing.append("evidence.code_context")
+    if not ev.get("judgment_rationale"): missing.append("evidence.judgment_rationale")
+
+    # 3. Impact
+    imp = f.get("impact", {})
+    if not imp.get("attack_scenario"): missing.append("impact.attack_scenario")
+    if imp.get("cvss_score") is None: missing.append("impact.cvss_score")
+
+    # 4. Fix
+    fi = f.get("fix", {})
+    if not fi.get("description"): missing.append("fix.description")
+    if not fi.get("before_code"): missing.append("fix.before_code")
+    if not fi.get("after_code"): missing.append("fix.after_code")
+
+    return len(missing) == 0, missing
+
+
+def quality_gate_report(findings):
+    """
+    Run quality gate on all findings. Returns (passed, report_lines).
+    - passed: True if all findings complete
+    - report_lines: list of issue descriptions
+    """
+    issues = []
+    for f in findings:
+        ok, missing = validate_finding_4segment(f)
+        if not ok:
+            issues.append(f"  ❌ {f['id']}: missing {', '.join(missing)}")
+
+    if issues:
+        header = [f"### ⚠️ Quality Gate: {len(issues)} finding(s) incomplete", ""]
+        return False, header + issues
+    return True, ["### ✅ Quality Gate: all findings complete ✓", ""]
+
+
+# ── Report Generators ───────────────────────────
+
+def generate_report_md(findings_data):
+    """Generate complete report.md content."""
+    findings = findings_data.get("findings", [])
+    cmd = findings_data["command"]
+    score = calc_score(findings)
+    grade = calc_grade(score)
+
+    by_sev = Counter(f["severity"] for f in findings)
+    scope = findings_data.get("scope", {})
+    detectors = findings_data.get("detectors", {})
+    lang = findings_data.get("language", "unknown")
+    good = findings_data.get("good_patterns", [])
+
+    # Report header
+    start = findings_data.get("started_at", "unknown")
+    lines = []
+    cmd_title = {"secguard": "Security Scan", "secaudit": "Security Audit", "secreview": "Security Review"}
+
+    lines.append(f"# SecGuardian {cmd_title.get(cmd, 'Security')} Report\n")
+    lines.append(f"> **Scan ID**: `{findings_data['scan_id']}` | **Language**: {lang} | **Date**: {start[:10]}")
+    lines.append(f"> **Path**: `{findings_data.get('path', '')}` | **Mode**: {findings_data.get('mode', 'full')}")
+    lines.append(f"> **Duration**: {findings_data.get('duration_ms', 0)}ms\n")
+    lines.append("---\n")
+
+    # §1 Executive Summary
+    lines.append("## §1 Executive Summary\n")
+    lines.append("| Metric | Value |")
+    lines.append("|--------|-------|")
+    lines.append(f"| Files scanned | {scope.get('files', 'N/A')} |")
+    lines.append(f"| Lines scanned | {scope.get('lines', 'N/A')} |")
+    lines.append(f"| Functions analyzed | {scope.get('functions', 'N/A')} |")
+    lines.append(f"| Detectors executed | {detectors.get('executed', 'N/A')} |")
+    lines.append(f"| Total findings | **{len(findings)}** |")
+    lines.append(f"| Security score | **{score}/100** {severity_emoji('Critical' if score < 40 else 'High' if score < 60 else 'Medium')} (Grade {grade}) |")
+    lines.append("")
+
+    lines.append("### Severity Breakdown\n")
+    lines.append("| Severity | Count |")
+    lines.append("|----------|-------|")
+    for sev in ["Critical", "High", "Medium", "Low", "Info"]:
+        lines.append(f"| {severity_emoji(sev)} {sev} | {by_sev.get(sev, 0)} |")
+    lines.append("")
+
+    # §2 Compliance Dashboard
+    lines.append("---\n")
+    lines.append("## §2 Compliance Dashboard\n")
+    lines.append("| Standard | Controls Checked | Passed | Failed | Status |")
+    lines.append("|----------|-----------------|--------|--------|--------|")
+    lines.append(f"| OWASP Top 10 (2021) | {len(findings)} | {len([f for f in findings if f['severity'] in ('Low','Info')])} | {len([f for f in findings if f['severity'] in ('Critical','High','Medium')])} | {'❌' if by_sev.get('Critical', 0) > 0 else '⚠️'} |")
+    lines.append("")
+
+    # §3 Findings Inventory
+    lines.append("---\n")
+    lines.append("## §3 Findings Inventory\n")
+    lines.append("| Finding ID | Severity | CWE | Detector | File:Line | Fix |")
+    lines.append("|-----------|----------|-----|----------|-----------|-----|")
+    for f in findings:
+        sev_emoji = severity_emoji(f["severity"])
+        lines.append(f"| {f['id']} | {sev_emoji} {f['severity']} | {f['cwe']} | {f['detector']} | {f['file']}:{f['line']} | {f.get('fix_summary', f['title'])} |")
+    lines.append("")
+
+    # §4 Detailed Findings
+    lines.append("---\n")
+    lines.append("## §4 Detailed Findings\n")
+    for i, f in enumerate(findings, 1):
+        sev_emoji = severity_emoji(f["severity"])
+        loc = f.get("location", {})
+        ev = f.get("evidence", {})
+        imp = f.get("impact", {})
+        fix = f.get("fix", {})
+
+        lines.append(f"### {sev_emoji} {f['id']} — {f['title']}\n")
+        lines.append(f"| Field | Detail |")
+        lines.append(f"|-------|--------|")
+        lines.append(f"| **Severity** | {sev_emoji} {f['severity']} |")
+        lines.append(f"| **CWE** | [{f['cwe']}](https://cwe.mitre.org/data/definitions/{f['cwe'].replace('CWE-','')}.html) |")
+        lines.append(f"| **Detector** | `{f['detector']}` |")
+        lines.append(f"| **File** | `{loc.get('file_path', f['file'])}:{loc.get('start_line', f['line'])}` |")
+        lines.append(f"| **Function** | `{loc.get('function_name', f.get('function', 'N/A'))}` |")
+        lines.append("")
+
+        # 📍 Location
+        lines.append("#### 📍 Location\n")
+        snippet = loc.get("snippet", "")
+        if snippet:
+            lines.append("```" + lang)
+            lines.append(snippet)
+            lines.append("```\n")
+
+        # 📋 Evidence
+        lines.append("#### 📋 Evidence\n")
+        lines.append(f"**Code Context:**\n```{lang}\n{ev.get('code_context', 'N/A')}\n```\n")
+        lines.append(f"**Judgment:** {ev.get('judgment_rationale', 'N/A')}\n")
+
+        data_flow = ev.get("data_flow_path", [])
+        if data_flow:
+            lines.append("**Data Flow Path:**")
+            for step in data_flow:
+                step_label = {"source": "SOURCE", "propagation": "→ PROPAGATION", "sink": "→ SINK"}
+                prefix = step_label.get(step.get("step", ""), "  ")
+                lines.append(f"  {prefix}: {step.get('file','')}:{step.get('line','')} — {step.get('description','')}")
+            lines.append("")
+
+        # ⚠️ Impact
+        lines.append("#### ⚠️ Impact\n")
+        lines.append(f"**Attack Scenario:** {imp.get('attack_scenario', 'N/A')}\n")
+        cvss = imp.get("cvss_score")
+        if cvss is not None:
+            lines.append(f"**CVSS 3.1 Score:** {cvss}/10")
+            vec = imp.get("cvss_vector", "")
+            if vec:
+                lines.append(f"**CVSS Vector:** `{vec}`")
+        lines.append(f"**Exploit Conditions:** {imp.get('exploit_conditions', 'N/A')}\n")
+
+        # 🔧 Fix
+        lines.append("#### 🔧 Fix\n")
+        lines.append(f"{fix.get('description', 'N/A')}\n")
+        lines.append("**Before:**\n```" + lang)
+        lines.append(fix.get("before_code", "N/A"))
+        lines.append("```\n")
+        lines.append("**After:**\n```" + lang)
+        lines.append(fix.get("after_code", "N/A"))
+        lines.append("```\n")
+
+        effort = fix.get("effort_hours")
+        if effort is not None:
+            lines.append(f"**Estimated Effort:** {effort} hours | **Verification:** {fix.get('verification_method', 'N/A')}\n")
+
+        lines.append("---\n")
+
+    # §5 Remediation Roadmap
+    lines.append("## §5 Remediation Roadmap\n")
+
+    phases = {"Critical": ("🔴 Immediate (Block Deploy)", []),
+              "High": ("🟠 This Sprint", []),
+              "Medium": ("🟡 Next Sprint", []),
+              "Low": ("🔵 Backlog", []),
+              "Info": ("⚪ Future Consideration", [])}
+
+    for f in findings:
+        phases[f["severity"]][1].append(f)
+
+    for sev, (label, items) in phases.items():
+        if items:
+            lines.append(f"### Phase: {label}\n")
+            for item in items:
+                lines.append(f"- **{item['id']}** — {item.get('fix_summary', item['title'])}")
+            lines.append("")
+
+    # §6 Appendix
+    lines.append("---\n")
+    lines.append("## §6 Appendix\n")
+
+    if good:
+        lines.append("### Good Patterns Found\n")
+        lines.append("| Pattern | Location | Description |")
+        lines.append("|---------|----------|-------------|")
+        for gp in good:
+            lines.append(f"| `{gp['name']}` | `{gp['file']}:{gp['line']}` | {gp['description']} |")
+        lines.append("")
+
+    lines.append("### Detector Coverage\n")
+    lines.append(f"- Matched: {detectors.get('matched', 'N/A')}")
+    lines.append(f"- Executed: {detectors.get('executed', 'N/A')}")
+    if detectors.get("namespaces_used"):
+        lines.append(f"- Namespaces: {', '.join(detectors['namespaces_used'])}")
+    lines.append("")
+
+    commit = findings_data.get("git_commit", "unknown")
+    lines.append(f"\n*Report generated by SecGuardian Renderer v1.0 | Scan ID: {findings_data['scan_id']} | Commit: {commit}*\n")
+
+    return "\n".join(lines)
+
+
+def generate_sarif(findings_data):
+    """Generate SARIF 2.1.0 JSON from findings."""
+    findings = findings_data.get("findings", [])
+    scan_id = findings_data["scan_id"]
+    cmd = findings_data["command"]
+
+    tool_name = {"secguard": "SecGuardian secguard", "secaudit": "SecGuardian secaudit", "secreview": "SecGuardian secreview"}
+
+    # Build rules from detectors used
+    used_detectors = set(f["detector"] for f in findings)
+    rules = []
+    for det in sorted(used_detectors):
+        info = DETECTOR_RULE_INDEX.get(det, {"cwe": ["CWE-000"]})
+        rules.append({
+            "id": det,
+            "name": "".join(part.capitalize() for part in det.split(".")[1].split("-")),
+            "shortDescription": {"text": f"Security finding: {det}"},
+            "helpUri": f"https://cwe.mitre.org/data/definitions/{info['cwe'][0].replace('CWE-','')}.html",
+            "properties": {"cwe": info["cwe"]}
+        })
+
+    results = []
+    for f in findings:
+        loc = f.get("location", {})
+        ev = f.get("evidence", {})
+        imp = f.get("impact", {})
+        fix = f.get("fix", {})
+        sarif = f.get("sarif_specific", {})
+
+        # Build message.text (one-line)
+        msg_text = (f"📍 {f['file']}:{f['line']} {f.get('function', '')} "
+                    f"[{f['severity']}] {f['cwe']}: {f['title']}")
+
+        # Build message.markdown (full 4-segment)
+        msg_md_parts = []
+        if loc.get("snippet"):
+            msg_md_parts.append(f"### 📍 Location\n```\n{loc['snippet']}\n```")
+        if ev.get("judgment_rationale"):
+            msg_md_parts.append(f"### 📋 Evidence\n{ev['judgment_rationale']}")
+        if imp.get("attack_scenario"):
+            msg_md_parts.append(f"### ⚠️ Impact\n{imp['attack_scenario']}\nCVSS: {imp.get('cvss_score', 'N/A')}/10")
+        if fix.get("description"):
+            msg_md_parts.append(f"### 🔧 Fix\n{fix['description']}")
+        msg_md = "\n\n".join(msg_md_parts)
+
+        # Build relatedLocations (data flow)
+        related = []
+        data_flow = ev.get("data_flow_path", [])
+        for step in data_flow:
+            related.append({
+                "physicalLocation": {
+                    "artifactLocation": {"uri": step["file"]},
+                    "region": {"startLine": step["line"]}
+                },
+                "message": {"text": step.get("description", step["step"])}
+            })
+
+        # Build fixes
+        fixes = []
+        if fix.get("before_code") and fix.get("after_code"):
+            fixes.append({
+                "description": {"text": fix.get("description", "Apply security fix")},
+                "fileChanges": [{
+                    "artifactLocation": {"uri": f["file"]},
+                    "replacements": [{
+                        "deletedRegion": {"startLine": loc.get("start_line", f["line"]),
+                                         "endLine": loc.get("end_line", f["line"])},
+                        "insertedContent": {"text": fix["after_code"]}
+                    }]
+                }]
+            })
+
+        result = {
+            "ruleId": f["detector"],
+            "ruleIndex": DETECTOR_RULE_INDEX.get(f["detector"], {}).get("index", 0),
+            "level": "error" if f["severity"] in ("Critical", "High") else "warning" if f["severity"] == "Medium" else "note",
+            "message": {
+                "text": msg_text,
+                "markdown": msg_md
+            },
+            "locations": [{
+                "physicalLocation": {
+                    "artifactLocation": {"uri": f["file"]},
+                    "region": {"startLine": loc.get("start_line", f["line"]),
+                              "endLine": loc.get("end_line", f["line"])}
+                }
+            }],
+            "partialFingerprints": {"primary": fingerprint(f)},
+            "properties": {
+                "findingId": f["id"],
+                "severity": f["severity"],
+                "cwe": f["cwe"],
+                "confidence": sarif.get("confidence", "medium"),
+                "cvss": imp.get("cvss_score", 0),
+                "impact": imp.get("attack_scenario", "")[:200],
+                "effort": fix.get("effort_hours", 0),
+                "risk_of_fix": sarif.get("risk_of_fix", "low"),
+                "verification": fix.get("verification_method", ""),
+                "detector_namespace": sarif.get("detector_namespace", f["detector"])
+            }
+        }
+
+        if related:
+            result["relatedLocations"] = related
+        if fixes:
+            result["fixes"] = fixes
+
+        results.append(result)
+
+    return {
+        "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [{
+            "tool": {
+                "driver": {
+                    "name": tool_name.get(cmd, "SecGuardian"),
+                    "version": "3.0",
+                    "informationUri": "https://github.com/secguardian/secguardian",
+                    "rules": rules
+                }
+            },
+            "results": results,
+            "invocations": [{
+                "startTimeUtc": findings_data.get("started_at", now_iso()),
+                "endTimeUtc": findings_data.get("completed_at", now_iso()),
+                "executionSuccessful": True
+            }]
+        }]
+    }
+
+
+def generate_summary(findings_data):
+    """Generate summary.json."""
+    findings = findings_data.get("findings", [])
+    by_sev = Counter(f["severity"] for f in findings)
+    by_detector = Counter(f["detector"] for f in findings)
+    by_file = Counter(f["file"] for f in findings)
+    scope = findings_data.get("scope", {})
+    detectors = findings_data.get("detectors", {})
+    score = calc_score(findings)
+
+    return {
+        "scan_id": findings_data["scan_id"],
+        "command": findings_data["command"],
+        "path": findings_data.get("path", ""),
+        "mode": findings_data.get("mode", "full"),
+        "language": findings_data.get("language", "unknown"),
+        "timing": {
+            "started": findings_data.get("started_at", ""),
+            "completed": findings_data.get("completed_at", ""),
+            "duration_ms": findings_data.get("duration_ms", 0)
+        },
+        "scope": scope,
+        "findings_by_severity": {k: by_sev.get(k, 0) for k in ["Critical", "High", "Medium", "Low", "Info"]},
+        "total_findings": len(findings),
+        "findings_by_category": dict(by_detector.most_common()),
+        "files_with_issues": {k: v for k, v in by_file.most_common()},
+        "detectors_matched": detectors.get("matched", 0),
+        "detectors_executed": detectors.get("executed", 0),
+        "security_score": score,
+        "score_max": 100,
+        "score_grade": calc_grade(score),
+        "renderer_version": "1.0"
+    }
+
+
+def generate_manifest(findings_data):
+    """Generate manifest.json."""
+    findings = findings_data.get("findings", [])
+    detectors = findings_data.get("detectors", {})
+
+    return {
+        "scan_id": findings_data["scan_id"],
+        "protocol_version": "2.0",
+        "renderer_version": "1.0",
+        "created": findings_data.get("completed_at", now_iso()),
+        "duration_ms": findings_data.get("duration_ms", 0),
+        "path": findings_data.get("path", ""),
+        "mode": findings_data.get("mode", "full"),
+        "filters": findings_data.get("filters", ["all"]),
+        "language": findings_data.get("language", "unknown"),
+        "command": findings_data["command"],
+        "detectors": detectors,
+        "scope": findings_data.get("scope", {}),
+        "findings": [
+            {
+                "id": f["id"],
+                "severity": f["severity"],
+                "cwe": f["cwe"],
+                "detector": f["detector"],
+                "file": f["file"],
+                "line": f["line"]
+            }
+            for f in findings
+        ]
+    }
+
+
+def generate_status(findings_data, ci_mode=False):
+    """Generate status.json with CI gate criteria."""
+    findings = findings_data.get("findings", [])
+    by_sev = Counter(f["severity"] for f in findings)
+    score = calc_score(findings)
+
+    crit = by_sev.get("Critical", 0)
+    high = by_sev.get("High", 0)
+    medium = by_sev.get("Medium", 0)
+
+    gate_criteria = {"max_critical": 0, "max_high": 0, "max_medium": 5}
+    violations = []
+    if crit > 0: violations.append(f"{crit} Critical findings (threshold: 0)")
+    if high > 0: violations.append(f"{high} High findings (threshold: 0)")
+    if medium > gate_criteria["max_medium"]: violations.append(f"{medium} Medium findings (threshold: {gate_criteria['max_medium']})")
+
+    passed = len(violations) == 0
+
+    return {
+        "scan_id": findings_data["scan_id"],
+        "status": "completed",
+        "gate_result": "PASSED" if passed else "FAILED",
+        "gate_criteria": gate_criteria,
+        "gate_violations": violations,
+        "security_score": score,
+        "grade": calc_grade(score),
+        "exit_code": 0 if passed else 1,
+        "recommendation": ("Ready for deployment" if passed else
+                          "Immediate remediation required — fix all Critical and High findings before deployment")
+    }
+
+
+def generate_delta(findings_data, output_dir):
+    """Generate delta.json comparing with previous scan (if latest symlink exists)."""
+    latest_link = os.path.join(os.path.dirname(output_dir.rstrip('/')), "latest")
+    prev = None
+    if os.path.islink(latest_link):
+        prev_dir = os.path.realpath(latest_link)
+        prev_manifest = os.path.join(prev_dir, "manifest.json")
+        if os.path.isfile(prev_manifest):
+            prev = load_json(prev_manifest)
+
+    current_findings = findings_data.get("findings", [])
+
+    if prev and "findings" in prev:
+        prev_ids = {f["id"] for f in prev["findings"]}
+        curr_ids = {f["id"] for f in current_findings}
+
+        new_ids = curr_ids - prev_ids
+        fixed_ids = prev_ids - curr_ids
+        still_open = curr_ids & prev_ids
+
+        return {
+            "scan_id": findings_data["scan_id"],
+            "previous_scan_id": prev.get("scan_id", "unknown"),
+            "comparison": {
+                "new_findings": len(new_ids),
+                "fixed_findings": len(fixed_ids),
+                "still_open": len(still_open),
+                "total_current": len(current_findings),
+                "total_previous": len(prev["findings"])
+            },
+            "new_finding_ids": sorted(new_ids),
+            "fixed_finding_ids": sorted(fixed_ids)
+        }
+    else:
+        return {
+            "scan_id": findings_data["scan_id"],
+            "comparison": {
+                "note": "First scan — no previous data for delta comparison",
+                "total_current": len(current_findings)
+            }
+        }
+
+
+# ── Main ────────────────────────────────────────
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="SecGuardian Report Rendering Engine v1.0",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s --findings findings.json --index index.json --output ./output/
+  %(prog)s --ci --findings findings.json --index index.json --output ./output/
+  %(prog)s --format sarif --findings findings.json --output ./output/
+        """
+    )
+    parser.add_argument("--findings", required=True, help="Path to findings.json (AI output)")
+    parser.add_argument("--index", help="Path to index.json (optional, for scope stats)")
+    parser.add_argument("--output", required=True, help="Output directory for generated files")
+    parser.add_argument("--ci", action="store_true", help="CI mode: set exit_code in status.json")
+    parser.add_argument("--format", choices=["all", "report", "sarif", "summary", "manifest", "status", "delta"],
+                        default="all", help="Generate only specific files (default: all)")
+    parser.add_argument("--quality-gate", action="store_true", default=True,
+                        help="Run 4-segment quality gate validation (default: on)")
+    parser.add_argument("--no-quality-gate", action="store_false", dest="quality_gate",
+                        help="Skip quality gate validation")
+    args = parser.parse_args()
+
+    # Load data
+    findings_data = load_json(args.findings)
+
+    # Merge index.json scope if provided
+    if args.index:
+        index_data = load_json(args.index)
+        if "scope" not in findings_data or not findings_data["scope"]:
+            findings_data["scope"] = {
+                "files": len(index_data.get("files", [])),
+                "lines": 0,  # indexer doesn't count lines
+                "functions": len(index_data.get("symbols", {}).get("functions", [])),
+                "call_edges": len(index_data.get("call_graph", {}).get("edges", []))
+            }
+
+    # Ensure output dir
+    os.makedirs(args.output, exist_ok=True)
+
+    findings = findings_data.get("findings", [])
+
+    # Quality gate (for secaudit)
+    gate_warnings = []
+    if args.quality_gate and findings_data["command"] == "secaudit":
+        passed, gate_warnings = quality_gate_report(findings)
+        if not passed:
+            print(f"⚠️  Quality Gate: {len([w for w in gate_warnings if w.startswith('  ❌')])} findings incomplete")
+
+    files_generated = []
+
+    def write_json(filename, data):
+        path = os.path.join(args.output, filename)
+        with open(path, "w") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        files_generated.append(filename)
+        print(f"  ✓ {filename}")
+
+    # Generate requested files
+    fmt = args.format
+
+    if fmt in ("all", "report"):
+        report = generate_report_md(findings_data)
+        # Prepend quality gate warnings for secaudit
+        if gate_warnings and findings_data["command"] == "secaudit":
+            report = "\n".join(gate_warnings) + "\n\n" + report
+        path = os.path.join(args.output, "report.md")
+        with open(path, "w") as f:
+            f.write(report)
+        files_generated.append("report.md")
+        print(f"  ✓ report.md ({len(report)} bytes)")
+
+    if fmt in ("all", "sarif"):
+        sarif = generate_sarif(findings_data)
+        write_json("results.sarif", sarif)
+
+    if fmt in ("all", "summary"):
+        summary = generate_summary(findings_data)
+        write_json("summary.json", summary)
+
+    if fmt in ("all", "manifest"):
+        manifest = generate_manifest(findings_data)
+        write_json("manifest.json", manifest)
+
+    if fmt in ("all", "status"):
+        status = generate_status(findings_data, ci_mode=args.ci)
+        write_json("status.json", status)
+        if args.ci and status["exit_code"] != 0:
+            print(f"\n  ⚠️  CI Gate FAILED — exit code {status['exit_code']}")
+
+    if fmt in ("all", "delta"):
+        delta = generate_delta(findings_data, args.output)
+        write_json("delta.json", delta)
+
+    # Create latest symlink
+    scans_dir = os.path.dirname(args.output.rstrip('/'))
+    if scans_dir:
+        latest_link = os.path.join(scans_dir, "latest")
+        scan_dir_name = os.path.basename(args.output.rstrip('/'))
+        if os.path.islink(latest_link) or not os.path.exists(latest_link):
+            if os.path.islink(latest_link):
+                os.unlink(latest_link)
+            os.symlink(scan_dir_name, latest_link)
+            print(f"  ✓ latest → {scan_dir_name}")
+
+    print(f"\n✅ Generated {len(files_generated)} files in {args.output}")
+    if gate_warnings and findings_data["command"] == "secaudit":
+        print("⚠️  Quality gate warnings present — see report.md header for details")
+
+
+if __name__ == "__main__":
+    main()
