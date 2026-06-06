@@ -34,6 +34,9 @@ func ParseFile(filePath string, lang string) (*ParseResult, error) {
 		parser.SetLanguage(treesitter.NewLanguage(goL.Language()))
 	case "java":
 		parser.SetLanguage(treesitter.NewLanguage(java.Language()))
+		case "javascript":
+			// JavaScript uses regex parser (no tree-sitter grammar compiled in)
+			return parseJSFile(filePath)
 	default:
 		return nil, fmt.Errorf("unsupported language: %s", lang)
 	}

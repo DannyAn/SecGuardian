@@ -32,7 +32,7 @@ func main() {
 func runIndex(args []string) {
 	fs := flag.NewFlagSet("secguardian-index", flag.ExitOnError)
 	pathFlag := fs.String("path", ".", "Source directory to index")
-	langFlag := fs.String("lang", "auto", "Language: c, cpp, python, java, go, auto")
+	langFlag := fs.String("lang", "auto", "Language: c, cpp, python, java, go, javascript, auto")
 	outputFlag := fs.String("output", ".codeagent/index.json", "Output file path")
 	versionFlag := fs.Bool("version", false, "Print version and exit")
 	healthFlag := fs.Bool("health", false, "Smoke test: can we parse a known file?")
@@ -138,20 +138,21 @@ func runIndex(args []string) {
 func collectFiles(path, lang string) ([]string, error) {
 	var files []string
 	extMap := map[string][]string{
-		"c":      {".c", ".h"},
-		"cpp":    {".c", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".hh"},
-		"python": {".py"},
-		"java":   {".java"},
-		"go":     {".go"},
+		"c":          {".c", ".h"},
+		"cpp":        {".c", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".hh"},
+		"python":     {".py"},
+		"java":       {".java"},
+		"go":         {".go"},
+		"javascript": {".js", ".jsx", ".mjs", ".cjs"},
 	}
 
 	var exts []string
 	if lang == "auto" {
-		exts = []string{".c", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".hh", ".py", ".java", ".go"}
+		exts = []string{".c", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".hh", ".py", ".java", ".go", ".js", ".jsx", ".mjs", ".cjs"}
 	} else if e, ok := extMap[lang]; ok {
 		exts = e
 	} else {
-		return nil, fmt.Errorf("unsupported language: %s (use: c, cpp, python, java, go, auto)", lang)
+		return nil, fmt.Errorf("unsupported language: %s (use: c, cpp, python, java, go, javascript, auto)", lang)
 	}
 
 	err := filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
@@ -192,6 +193,8 @@ func detectLanguage(file, langFlag string) string {
 		return "java"
 	case ".go":
 		return "go"
+	case ".js", ".jsx", ".mjs", ".cjs":
+		return "javascript"
 	}
 	return "c"
 }
