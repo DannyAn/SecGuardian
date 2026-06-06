@@ -121,11 +121,62 @@ kind := child.Kind()
 
 Skill 加载路径歧义: 系统提示中写的是 `.opencode/skills/secguardian/`，但部署到 `.opencode/plugins/secguardian/`。如果 skill 加载 404，检查部署目标。
 
+## 验证流程 (Verification)
+
+对项目做任何修改后，**必须**按以下顺序运行验证，确保没有破坏已有功能。
+
+| 层次 | 命令 | 覆盖范围 | 耗时 | 何时运行 |
+|------|------|---------|------|---------|
+| **L1 设计一致性** | `bash scripts/self-check.sh` | detector ↔ index ↔ manifest 交叉校验、stale references、Go 编译 | ~5s | 每次 commit 前 |
+| **L2 结构完整性** | `bash scripts/ci-check.sh` | JSON 格式、版本一致性、skill 目录完整性、Go 编译+冒烟 | ~15s | push 前 |
+| **L3 部署环境** | `bash scripts/dev-verify.sh` | 二进制文件、indexer health、平台部署结构、扫描输出 | ~10s | 部署后 |
+| **L4 架构端到端** | `bash scripts/e2e-verify.sh` | findings schema 合规、渲染器 6 文件生成、SARIF 2.1.0 结构、4-segment 质量门禁、安全评分计算、CI 门禁 exit code、delta 增量对比、3 命令类型、5 语言索引器 | ~15s | 修改架构层代码后 (**必须**) |
+| **L5 全量** | 以上全部按顺序 | 全覆盖 | ~45s | 发布前 |
+
+### 快速验证 (日常)
+
+```bash
+# 日常修改 (skills/knowledge/commands) — 只跑 L1
+bash scripts/self-check.sh
+
+# 修改了 deploy.sh 或 extension 结构 — L1 + L2
+bash scripts/self-check.sh && bash scripts/ci-check.sh
+
+# 修改了 render-report.py 或 findings-schema.json — L1 + L4
+bash scripts/self-check.sh && bash scripts/e2e-verify.sh
+
+# 修改了 internal/ (Go 索引器) — L1 + L2 + L3 + L4
+bash scripts/self-check.sh && bash scripts/ci-check.sh && bash scripts/dev-verify.sh && bash scripts/e2e-verify.sh
+```
+
+### CI 模式 (非零退出码)
+
+```bash
+bash scripts/e2e-verify.sh --ci   # 失败时 exit 1，适合 CI pipeline
+bash scripts/e2e-verify.sh --quick  # 跳过第 9 节 (多语言索引)，快速反馈
+```
+
+### E2E 验证覆盖矩阵
+
+| # | 验证项 | 验证什么 | 失败意味着 |
+|---|--------|---------|-----------|
+| 1 | Findings Schema | JSON 结构、required 字段、ID pattern | AI 输出的 findings.json 可能无效 |
+| 2 | Renderer 基础 | 6 文件生成、单格式、空 findings | 渲染器核心功能损坏 |
+| 3 | SARIF 2.1.0 | version/driver/rules/results/fingerprints/fixes | CI/CD 集成失效 |
+| 4 | 4-Segment 质量门禁 | 完整/不完整 finding 的差异处理 | secaudit Step 4b 质量检查不可靠 |
+| 5 | 安全评分 | 100 - 25×Crit - 10×High - 3×Med 公式 | summary.json 和 status.json 评分错误 |
+| 6 | CI 门禁 | Critical → FAILED+exit 1; Clean → PASSED+exit 0 | CI pipeline 门禁失效 |
+| 7 | Delta 对比 | new/fixed/still_open 计数 vs 上次扫描 | 趋势分析错误 |
+| 8 | 命令类型 | secguard/secaudit/secreview 分别生成正确标题 | 报告类型混淆 |
+| 9 | 多语言 | 5 语言示例仓库 indexer 解析通过 | 索引器对某语言失效 |
+| 10 | 渲染器性能 | < 5s 完成 1 个 finding 的渲染 | 性能退化 |
+
 ## 注意事项
 
 - `git diff` 中 `HEAD~1` 和 `HEAD~1 --name-only` 的行为不同，增量扫描时注意解析
 - `scripts/secguardian-index` wrapper 查找顺序: canonical name → 平台匹配 → dev fallback，任一找不到就 `exit 1`
 - 扫描后必须创建 `latest → <scan-id>/` 符号链接供 delta.json 增量对比
-- `internal/` 下没有 `go test`，只有一个 `health` 子命令用于冒烟测试
+- `internal/` 下有 `go test ./...` 可运行单元测试，`health` 子命令用于冒烟测试
 - `CLAUDE.md` 中部署路径描述与实际不一致，以 `deploy.sh` 源码为准
 - `scripts/` 下的 `secguardian-index` 是源码文件（git 跟踪），卸载操作不应删除它
+- AI Agent 进入项目后应该 **先跑 `bash scripts/self-check.sh`** 确认环境完整性，再开始工作

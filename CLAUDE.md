@@ -149,6 +149,40 @@ python3 scripts/render-report.py --format sarif \
 **AI 职责**: 语义分析 → 输出 findings.json（每个 finding 含完整四段式数据）
 **Renderer 职责**: 模板渲染 → 安全评分计算 → CI 门禁 → 所有格式化输出
 
+## 验证流程 (修改后必须执行)
+
+每次修改代码后，按修改范围执行对应验证层级：
+
+| 你改了什么 | 执行命令 | 耗时 |
+|-----------|---------|------|
+| skills/knowledge/commands (Markdown) | `bash scripts/self-check.sh` | ~5s |
+| deploy.sh / extension.json / 项目结构 | `bash scripts/self-check.sh && bash scripts/ci-check.sh` | ~20s |
+| render-report.py / findings-schema.json (架构层) | `bash scripts/self-check.sh && bash scripts/e2e-verify.sh` | ~20s |
+| internal/ Go 索引器 | `bash scripts/self-check.sh && bash scripts/ci-check.sh && bash scripts/e2e-verify.sh` | ~35s |
+| 发布前全量验证 | `bash scripts/self-check.sh && bash scripts/ci-check.sh && bash scripts/dev-verify.sh && bash scripts/e2e-verify.sh` | ~45s |
+
+### 四条验证命令
+
+| 脚本 | 范围 | 失败时 |
+|------|------|--------|
+| `self-check.sh` | detector ↔ index ↔ manifest 交叉校验、stale references、Go 编译 | 设计不一致 |
+| `ci-check.sh` | JSON 格式、版本号、skill 目录、Go 编译+冒烟 | CI 会失败 |
+| `dev-verify.sh` | 二进制、indexer health、部署结构 | 部署环境异常 |
+| `e2e-verify.sh` | findings schema、渲染器 6 文件、SARIF 合规、评分、CI gate、delta、3 命令、5 语言 | 架构层损坏 |
+
+### E2E 覆盖矩阵 (10 节, ~37 检查项)
+
+1. Findings Schema 合规 → 4 项 (JSON 有效性、required 字段、4-segment、ID pattern)
+2. Renderer 输出 → 9 项 (6 文件生成、单格式、空 findings 处理)
+3. SARIF 2.1.0 结构 → 1 项聚合 (version/driver/rules/results/fingerprints/fixes/properties)
+4. 4-Segment 质量门禁 → 2 项 (不完整不崩溃、完整全通过)
+5. 安全评分计算 → 1 项 (score = 100 - 25×C - 10×H - 3×M - 1×L)
+6. CI 门禁 → 2 项 (Critical → FAILED+exit 1; Clean → PASSED+exit 0)
+7. Delta 对比 → 1 项 (new/fixed/still_open 计数)
+8. 3 命令类型 → 6 项 (manifest.json + report.md 标题)
+9. 多语言 → 8 项 (5 语言文件+索引器可用性)
+10. 渲染器性能 → 1 项 (单 finding < 5s)
+
 ## 添加新 Skill / Detector
 
 参见 manifest.json 中的 knowledge 和 extensions 字段，修改后重新运行 dev-deploy.sh。

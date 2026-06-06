@@ -92,11 +92,11 @@ else
         jf="extensions/$ext/extension.json"
         cmd=$(jq -r '.command' "$jf")
         for skill in $(jq -r '.skills[]' "$jf"); do
-            sd="skills/${cmd}-${skill}"
+            sd="skills/${cmd}/${skill}"
             if [ -d "$sd" ] && [ -f "$sd/SKILL.md" ]; then
-                pass "${cmd}-${skill}"
+                pass "${cmd}/${skill}"
             else
-                fail "${cmd}-${skill} — 目录或 SKILL.md 缺失"
+                fail "${cmd}/${skill} — 目录或 SKILL.md 缺失 (checked: $sd)"
                 ((ERRORS++))
             fi
         done

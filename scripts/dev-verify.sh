@@ -245,7 +245,29 @@ if [ $QUICK -eq 0 ]; then
 fi
 
 # ═══════════════════════════════════════════
-# Section 5: Clean up temp files
+# Section 5: Architecture E2E (optional, via --e2e flag)
+# ═══════════════════════════════════════════
+E2E_FLAG="${1:-}"
+if [ "$E2E_FLAG" = "--e2e" ] || [ "$E2E_FLAG" = "-e" ]; then
+    echo ""
+    echo -e "${BOLD}5. Architecture E2E Verification${NC}"
+    E2E_SCRIPT="$PROJECT_ROOT/scripts/e2e-verify.sh"
+    if [ -f "$E2E_SCRIPT" ] && [ -x "$E2E_SCRIPT" ]; then
+        if bash "$E2E_SCRIPT" --quick 2>&1 | grep -E "Passed|Failed|✓|✗|⚠" | tail -20; then
+            PASSED=$((PASSED + 1))
+            check "E2E verification suite executed" "true"
+        else
+            FAILED=$((FAILED + 1))
+            check "E2E verification suite executed" "false"
+        fi
+    else
+        printf "  [${WARN}] E2E script not found or not executable: ${E2E_SCRIPT}\n"
+        WARNINGS=$((WARNINGS + 1))
+    fi
+fi
+
+# ═══════════════════════════════════════════
+# Section 6: Clean up temp files
 # ═══════════════════════════════════════════
 rm -f /tmp/secguardian-verify-test.json
 
