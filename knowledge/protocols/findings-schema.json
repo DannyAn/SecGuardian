@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://secguardian.dev/protocols/findings-schema.json",
   "title": "SecGuardian Findings Protocol v1.0",
-  "description": "AI-to-Renderer contract. AI outputs this structured JSON; render-report.py generates all 6 output files from it.",
+  "description": "AI-to-Renderer contract — v5.0 supports both monolithic findings.json (legacy) and single-finding files in directory tree (findings/<ns>/<detector>/<finding-id>.json). See scan-output.md for directory structure.",
   "type": "object",
   "required": ["schema_version", "scan_id", "command", "started_at", "completed_at", "findings"],
   "properties": {
@@ -140,6 +140,64 @@
   },
 
   "$defs": {
+    "SingleFindingFile": {
+      "type": "object",
+      "description": "v5.0 single-finding file format — one file per finding in findings/<namespace>/<detector>/",
+      "required": ["schema_version", "finding"],
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "const": "1.0"
+        },
+        "finding": {
+          "$ref": "#/$defs/Finding"
+        }
+      }
+    },
+    "FindingsIndex": {
+      "type": "object",
+      "description": "v5.0 findings.json — same filename as v4.0, now lightweight index (metadata + finding references only, no 4-segment bodies)",
+      "required": ["scan_id", "findings_index"],
+      "properties": {
+        "scan_id": { "type": "string" },
+        "command": { "type": "string" },
+        "path": { "type": "string" },
+        "mode": { "type": "string" },
+        "language": { "type": "string" },
+        "timing": {
+          "type": "object",
+          "properties": {
+            "started": { "type": "string", "format": "date-time" },
+            "completed": { "type": "string", "format": "date-time" },
+            "duration_ms": { "type": "integer" }
+          }
+        },
+        "scope": { "$ref": "#/properties/scope" },
+        "detectors": { "$ref": "#/properties/detectors" },
+        "security_score": { "$ref": "#/properties/security_score" },
+        "findings_index": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "severity", "detector", "file", "line", "path"],
+            "properties": {
+              "id": { "type": "string" },
+              "severity": { "type": "string" },
+              "cwe": { "type": "string" },
+              "detector": { "type": "string" },
+              "file": { "type": "string" },
+              "line": { "type": "integer" },
+              "function": { "type": "string" },
+              "title": { "type": "string" },
+              "path": {
+                "type": "string",
+                "description": "Relative path to single finding file, e.g. findings/web/sql-injection/H-SQLI-webapp-L47.json"
+              }
+            }
+          }
+        }
+      }
+    },
     "Finding": {
       "type": "object",
       "required": ["id", "severity", "cwe", "detector", "file", "line", "title"],
