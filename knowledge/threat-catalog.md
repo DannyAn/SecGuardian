@@ -1,13 +1,15 @@
 ---
 category: index
-description: 安全威胁目录 — 覆盖所有 60 个检测器对应威胁类型的快速索引
+description: 安全威胁目录 — 覆盖所有 67 个检测器对应威胁类型的快速索引
 cwe_coverage: CWE Top 25 100%
 owasp_coverage: OWASP Top 10 100%
 ---
 
 # 安全威胁目录 (Threat Catalog)
 
-每个威胁对应一个或多个自包含的 detector 文件（`knowledge/detectors/<name>.md`），内含完整威胁定义、检测逻辑、修复指引、误报排除和检测模式。
+每个威胁对应一个自包含的 detector 文件（`knowledge/detectors/<namespace>-<name>.md`），内含完整威胁定义、检测逻辑、修复指引、误报排除和检测模式。
+
+> 完整 detector 清单见 `skills/secguard/cpp/references/detector-index.md`。本文档提供按命名空间分组的人类可读威胁索引。
 
 ## 内存安全 (memory) — 13 个 detectors
 
@@ -36,12 +38,13 @@ owasp_coverage: OWASP Top 10 100%
 | 数据竞态 | CWE-366 | High | `concurrency.data-race` | C/C++ |
 | 信号处理器不安全 | CWE-479 | Medium | `concurrency.thread-unsafe-signal` | C/C++ |
 
-## 系统安全 (system) — 7 个 detectors
+## 系统安全 (system) — 8 个 detectors
 
 | 威胁 | CWE | 严重度 | Detector | 影响语言 |
 |------|-----|--------|----------|---------|
 | 命令注入 | CWE-77 | Critical | `system.command-injection` | 全语言 |
 | 路径遍历 | CWE-22 | High | `system.path-traversal` | 全语言 |
+| 密钥泄露 | CWE-798 | High | `system.secrets-detection` | 全语言 |
 | TOCTOU 竞态 | CWE-367 | High | `system.toctou` | C/C++ |
 | 不安全临时文件 | CWE-377 | Medium | `system.insecure-temp-file` | C/C++ |
 | 符号链接攻击 | CWE-61 | Medium | `system.symlink-attack` | C/C++ |
@@ -62,7 +65,7 @@ owasp_coverage: OWASP Top 10 100%
 | 密码存储不安全 | CWE-916 | Critical | `crypto.password-storage` | Java, Python, Go, JS |
 | 硬编码 IV/Nonce | CWE-329 | High | `crypto.hardcoded-iv` | 全语言 |
 
-## Web + 应用安全 (web) — 22 个 detectors
+## Web + 应用安全 (web) — 21 个 detectors
 
 | 威胁 | CWE | 严重度 | Detector | 影响语言 |
 |------|-----|--------|----------|---------|
@@ -87,6 +90,17 @@ owasp_coverage: OWASP Top 10 100%
 | NoSQL 注入 | CWE-943 | Critical | `web.nosql-injection` | JS (MongoDB) |
 | 原型污染 | CWE-1321 | High | `web.prototype-pollution` | JS |
 | SSTI 模板注入 | CWE-1336 | Critical | `web.ssti` | Java, Python, Go, JS |
+
+## 资源安全 (resource) — 6 个 detectors
+
+| 威胁 | CWE | 严重度 | Detector | 影响语言 |
+|------|-----|--------|----------|---------|
+| 文件句柄泄露 | CWE-404 | Medium | `resource.file-leak` | C/C++ |
+| Socket 泄露 | CWE-404 | Medium | `resource.socket-leak` | C/C++ |
+| 文件重复关闭 | CWE-675 | Low | `resource.file-double-close` | C/C++ |
+| 关闭后使用 | CWE-416 | High | `resource.file-use-after-close` | C/C++ |
+| 锁误用 | CWE-667 | Medium | `resource.lock-misuse` | C/C++ |
+| 引用计数误用 | CWE-911 | Low | `resource.refcount-misuse` | C/C++ |
 
 ## 错误处理安全 (error) — 6 个 detectors
 

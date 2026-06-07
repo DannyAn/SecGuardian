@@ -114,7 +114,48 @@ for stale in "knowledge/concepts" "knowledge/cheatsheets" "knowledge/prompt-temp
 done
 echo ""
 
-# ── 7. Go compilation ──
+# ── 7. threat-catalog consistency vs manifest ──
+echo "7. Threat catalog vs manifest"
+MANIFEST_NS=$(python3 -c "
+import json
+with open('manifest.json') as f:
+    ns = json.load(f)['knowledge']['detectors']['namespaces']
+print(json.dumps(ns))
+")
+CATALOG_NS=$(python3 -c "
+import re, json
+with open('knowledge/threat-catalog.md') as f:
+    content = f.read()
+sections = re.findall(r'## .*?\((\w+)\).*?— (\d+) 个', content)
+ns_counts = {}
+for ns, count in sections:
+    ns_counts[ns] = int(count)
+print(json.dumps(ns_counts))
+")
+MISMATCH=$(python3 -c "
+import json, sys
+manifest = json.loads('''$MANIFEST_NS''')
+catalog = json.loads('''$CATALOG_NS''')
+mismatch = False
+for ns, expected in manifest.items():
+    actual = catalog.get(ns, 0)
+    if actual != expected:
+        print(f'  ❌ {ns}: manifest={expected}, catalog={actual}')
+        mismatch = True
+    else:
+        print(f'  ✅ {ns}: {expected}')
+if not mismatch:
+    print('  ✅ All namespace counts match manifest')
+sys.exit(0 if not mismatch else 1)
+")
+if [ $? -eq 0 ]; then
+    green "threat-catalog.md consistent with manifest.json"
+else
+    red "threat-catalog.md out of sync with manifest.json — update counts and sections"
+fi
+echo ""
+
+# ── 8. Go compilation ──
 echo "7. Go compilation"
 (cd internal && go build -o /dev/null . 2>/dev/null) && green "go build OK" || red "go build FAILED"
 (cd internal && CGO_ENABLED=0 go build -o /dev/null . 2>/dev/null) && green "go build (no-CGO) OK" || red "go build (no-CGO) FAILED"
