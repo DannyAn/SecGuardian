@@ -16,7 +16,8 @@ Usage:
 
 CI mode:
   python3 render-report.py --ci \\
-    --findings findings.json --index index.json --output ./output/
+    --findings findings.json --index index.json --output ./output/   # v4.0 legacy
+    --findings-dir findings/ --index index.json --output ./output/  # v5.0 directory tree
 
 Copyright 2026 SecGuardian. Apache 2.0.
 """
@@ -154,6 +155,36 @@ def indent(text, spaces=4):
 
 def now_iso():
     return datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def load_findings_from_tree(findings_dir):
+    """Load all finding files from a v5.0 directory tree.
+
+    Walks findings/<namespace>/<detector>/<finding-id>.json
+    Returns list of finding dicts (same format as v4.0 findings.json['findings']).
+    """
+    findings = []
+    if not os.path.isdir(findings_dir):
+        print(f"ERROR: Findings directory not found: {findings_dir}", file=sys.stderr)
+        sys.exit(1)
+    for root, dirs, files in sorted(os.walk(findings_dir)):
+        for fname in sorted(files):
+            if fname.endswith('.json'):
+                filepath = os.path.join(root, fname)
+                try:
+                    with open(filepath) as f:
+                        data = json.load(f)
+                except (json.JSONDecodeError, FileNotFoundError) as e:
+                    print(f"WARNING: Skipping invalid finding file {filepath}: {e}", file=sys.stderr)
+                    continue
+                # Support {"finding": {...}} wrapper (v5.0) and bare Finding object
+                if isinstance(data, dict) and 'finding' in data:
+                    findings.append(data['finding'])
+                elif isinstance(data, dict) and 'id' in data:
+                    findings.append(data)
+                else:
+                    print(f"WARNING: Skipping {filepath} — missing 'finding' wrapper or 'id' field", file=sys.stderr)
+    return findings
 
 
 # ── Quality Gate (secaudit Step 4b) ─────────────
@@ -671,7 +702,9 @@ Examples:
   %(prog)s --format sarif --findings findings.json --output ./output/
         """
     )
-    parser.add_argument("--findings", required=True, help="Path to findings.json (AI output)")
+    parser.add_argument("--findings", required=False, help="Path to findings.json (v4.0 monolithic, legacy)")
+    parser.add_argument("--findings-dir",
+                        help="Path to v5.0 findings/ directory tree (overrides --findings)")
     parser.add_argument("--index", help="Path to index.json (optional, for scope stats)")
     parser.add_argument("--output", required=True, help="Output directory for generated files")
     parser.add_argument("--ci", action="store_true", help="CI mode: set exit_code in status.json")
@@ -683,8 +716,37 @@ Examples:
                         help="Skip quality gate validation")
     args = parser.parse_args()
 
-    # Load data
-    findings_data = load_json(args.findings)
+    # Validate: at least one of --findings or --findings-dir must be provided
+    if not args.findings and not args.findings_dir:
+        print("ERROR: Either --findings (v4.0) or --findings-dir (v5.0) must be provided", file=sys.stderr)
+        sys.exit(1)
+
+    # Load findings — support v5.0 directory tree or v4.0 monolithic JSON
+    if args.findings_dir:
+        # v5.0: load from directory tree
+        findings = load_findings_from_tree(args.findings_dir)
+        findings_data = {
+            "schema_version": "1.0",
+            "scan_id": "unknown",
+            "command": "secguard",
+            "started_at": "",
+            "completed_at": "",
+            "findings": findings,
+        }
+        # Try to load scan metadata from findings.json (same name as v4.0, now lightweight index)
+        index_path = os.path.join(args.output, "findings.json")
+        if os.path.isfile(index_path):
+            index_meta = load_json(index_path)
+            for key in ["scan_id", "command", "started_at", "completed_at",
+                         "duration_ms", "path", "mode", "filters", "language",
+                         "scope", "detectors", "security_score"]:
+                if key in index_meta and key not in ("findings_index", "summary"):
+                    findings_data[key] = index_meta[key]
+            if "scope" in index_meta and (not findings_data.get("scope") or findings_data["scope"].get("files", 0) == 0):
+                findings_data["scope"] = index_meta["scope"]
+    else:
+        # v4.0: load monolithic findings.json
+        findings_data = load_json(args.findings)
 
     # Merge index.json scope if provided
     if args.index:
