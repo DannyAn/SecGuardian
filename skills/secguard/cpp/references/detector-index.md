@@ -18,7 +18,7 @@ SecGuard 60 个检测器（+1 个 secrets-detection 跨命名空间），按 **6
 /secguard ./src web                   # Web + 应用安全全部 (21 个)
 /secguard ./src error                 # 错误处理全部 (6 个)
 /secguard ./src critical              # 所有 Critical 严重度检测器
-/secguard ./src *                     # 全部 67 个检测器
+/secguard ./src *                     # 全部 67<!-- @secguardian:detector_count --> 个检测器
 /secguard ./src                       # 默认 = * (全部)
 ```
 

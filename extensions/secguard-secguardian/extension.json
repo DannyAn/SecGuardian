@@ -1,7 +1,7 @@
 {
   "name": "secguard-secguardian",
   "version": "0.5.5",
-  "description": "安全加固项排查 — 67 个检测器覆盖 7 大安全分类",
+  "description": "安全加固项排查 — 67<!-- @secguardian:detector_count --> 个检测器覆盖 7<!-- @secguardian:namespace_count --> 大安全分类",
   "author": "SecGuardian",
   "command": "secguard",
   "protocol": "2.0",

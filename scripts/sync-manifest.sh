@@ -10,9 +10,10 @@
 #   bash scripts/sync-manifest.sh           Update all files in-place
 #   bash scripts/sync-manifest.sh --check   CI mode: verify only, exit 1 on mismatch
 
-set -euo pipefail
+set -eo pipefail
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MANIFEST="$PROJECT_ROOT/manifest.json"
+export MANIFEST_FILE="$MANIFEST"
 
 CHECK=0
 if [ "${1:-}" = "--check" ]; then CHECK=1; fi
@@ -23,35 +24,50 @@ if [ ! -f "$MANIFEST" ]; then
 fi
 
 # ── Read canonical values from manifest.json ──
-eval "$(python3 -c "
-import json, sys
-with open('$MANIFEST') as f:
+TMP_ENV=$(mktemp /tmp/secguardian-tokens.XXXXXX)
+trap "rm -f $TMP_ENV" EXIT
+python3 > "$TMP_ENV" << 'PYEOF'
+import json, os
+with open(os.environ['MANIFEST_FILE']) as f:
     d = json.load(f)
 det = d['knowledge']['detectors']
 ns = det['namespaces']
-print(f'DETECTOR_COUNT={det[\"count\"]}')
+print(f'DETECTOR_COUNT={det["count"]}')
 print(f'NAMESPACE_COUNT={len(ns)}')
 for k, v in ns.items():
     print(f'NAMESPACE_{k.upper()}={v}')
-")"
+PYEOF
+# shellcheck disable=SC1090
+source "$TMP_ENV"
 
-# ── Token definitions ──
-declare -A TOKENS=(
-    ["detector_count"]="$DETECTOR_COUNT"
-    ["namespace_count"]="$NAMESPACE_COUNT"
-    ["namespace:memory"]="$NAMESPACE_MEMORY"
-    ["namespace:concurrency"]="$NAMESPACE_CONCURRENCY"
-    ["namespace:system"]="$NAMESPACE_SYSTEM"
-    ["namespace:crypto"]="$NAMESPACE_CRYPTO"
-    ["namespace:web"]="$NAMESPACE_WEB"
-    ["namespace:error"]="$NAMESPACE_ERROR"
-    ["namespace:resource"]="$NAMESPACE_RESOURCE"
+# ── Token definitions (name:value pairs) ──
+tokens=(
+    "detector_count:$DETECTOR_COUNT"
+    "namespace_count:$NAMESPACE_COUNT"
+    "namespace:memory:$NAMESPACE_MEMORY"
+    "namespace:concurrency:$NAMESPACE_CONCURRENCY"
+    "namespace:system:$NAMESPACE_SYSTEM"
+    "namespace:crypto:$NAMESPACE_CRYPTO"
+    "namespace:web:$NAMESPACE_WEB"
+    "namespace:error:$NAMESPACE_ERROR"
+    "namespace:resource:$NAMESPACE_RESOURCE"
 )
+
+get_token_value() {
+    local name="$1"
+    for pair in "${tokens[@]}"; do
+        if [ "${pair%%:*}" = "$name" ]; then
+            echo "${pair#*:}"
+            return 0
+        fi
+    done
+    return 1
+}
 
 # ── Find all files containing @secguardian tokens ──
 FILES_WITH_TOKENS=$(grep -rl '@secguardian:' "$PROJECT_ROOT" \
     --include="*.md" --include="*.json" --include="*.sh" 2>/dev/null | \
-    grep -v '.codeagent\|node_modules\|dist/\|.git/\|.claude/\|.opencode/\|.gemini/' || true)
+    grep -v '.codeagent\|node_modules\|dist/\|.git/\|.claude/\|.opencode/\|.gemini/\|docs/superpowers/' || true)
 
 if [ -z "$FILES_WITH_TOKENS" ] && [ "$CHECK" -eq 0 ]; then
     echo "No @secguardian token markers found in project. Nothing to sync."
@@ -63,28 +79,30 @@ UPDATED=0
 
 for file in $FILES_WITH_TOKENS; do
     rel="${file#$PROJECT_ROOT/}"
-    for token_name in "${!TOKENS[@]}"; do
-        expected="${TOKENS[$token_name]}"
-        marker="@secguardian:$token_name"
+    for pair in "${tokens[@]}"; do
+        token_name="${pair%%:*}"
+        expected="${pair#*:}"
+        marker="<!-- @secguardian:$token_name -->"
 
-        if grep -q "$marker" "$file" 2>/dev/null; then
-            if [ "$CHECK" -eq 1 ]; then
-                # ── CI mode: verify correctness ──
-                actual=$(grep -oP "[0-9]+(?=<!-- $marker -->)" "$file" 2>/dev/null || echo "")
-                if [ -z "$actual" ]; then
-                    echo "  ❌ $rel: marker '$marker' found but no number before it"
-                    FAIL=$((FAIL + 1))
-                elif [ "$actual" != "$expected" ]; then
+        if grep -qF "$marker" "$file" 2>/dev/null; then
+            # Extract number: digits immediately before the marker, with optional space
+            actual=$(grep -oE "[0-9]+[[:space:]]*<!-- @secguardian:$token_name -->" "$file" 2>/dev/null | \
+                     sed -E 's/[[:space:]]*<!--.*-->//' | head -1 || echo "")
+            if [ -z "$actual" ]; then
+                echo "  ❌ $rel: marker for '$token_name' found but cannot parse number"
+                FAIL=$((FAIL + 1))
+            elif [ "$CHECK" -eq 1 ]; then
+                if [ "$actual" != "$expected" ]; then
                     echo "  ❌ $rel: @secguardian:$token_name = $actual (expected $expected)"
                     FAIL=$((FAIL + 1))
                 else
                     PASS=$((PASS + 1))
                 fi
             else
-                # ── Update mode: replace number before marker ──
-                before=$(grep -o "[0-9]\+<!-- $marker -->" "$file" 2>/dev/null | head -1 || echo "")
-                if [ -n "$before" ]; then
-                    sed -i '' -E "s/[0-9]+<!-- $marker -->/$expected<!-- $marker -->/g" "$file"
+                # ── Update mode ──
+                if [ "$actual" != "$expected" ]; then
+                    sed -i '' -E "s/[0-9]+[[:space:]]*$marker/$expected$marker/g" "$file"
+                    echo "  ✓ $rel: @secguardian:$token_name $actual → $expected"
                     UPDATED=$((UPDATED + 1))
                 fi
             fi

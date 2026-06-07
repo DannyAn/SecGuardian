@@ -1,6 +1,6 @@
 ---
 name: secguard
-description: "安全加固项排查 — 67 个检测器覆盖 memory/concurrency/system/resource/crypto/web/error 7 大安全分类"
+description: "安全加固项排查 — 67<!-- @secguardian:detector_count --> 个检测器覆盖 memory/concurrency/system/resource/crypto/web/error 7<!-- @secguardian:namespace_count --> 大安全分类"
 ---
 
 # /secguard - 安全加固项排查
@@ -86,15 +86,15 @@ Filters: memory.*, system.*
 
 | Namespace | 覆盖范围 | 检测器数 |
 |-----------|---------|---------|
-| `memory` | 内存安全 + 内存管理 | 13 |
-| `concurrency` | 并发安全 | 4 |
-| `system` | 系统安全 | 8 |
-| `resource` | 资源生命周期 | 6 |
-| `crypto` | 加密与密钥 | 9 |
-| `web` | Web + 应用安全 | 22 |
-| `error` | 错误处理 + 信息泄露 | 6 |
+| `memory` | 内存安全 + 内存管理 | 13<!-- @secguardian:namespace:memory --> |
+| `concurrency` | 并发安全 | 4<!-- @secguardian:namespace:concurrency --> |
+| `system` | 系统安全 | 8<!-- @secguardian:namespace:system --> |
+| `resource` | 资源生命周期 | 6<!-- @secguardian:namespace:resource --> |
+| `crypto` | 加密与密钥 | 9<!-- @secguardian:namespace:crypto --> |
+| `web` | Web + 应用安全 | 21<!-- @secguardian:namespace:web --> |
+| `error` | 错误处理 + 信息泄露 | 6<!-- @secguardian:namespace:error --> |
 | `critical` | 所有 Critical 严重度 | 跨 namespace |
-| `*` (默认) | 全部 | 67 |
+| `*` (默认) | 全部 | 67<!-- @secguardian:detector_count --> |
 
 ## 派发规则与执行步骤
 

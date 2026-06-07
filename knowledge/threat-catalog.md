@@ -1,6 +1,6 @@
 ---
 category: index
-description: 安全威胁目录 — 覆盖所有 67 个检测器对应威胁类型的快速索引
+description: 安全威胁目录 — 覆盖所有 67<!-- @secguardian:detector_count --> 个检测器对应威胁类型的快速索引
 cwe_coverage: CWE Top 25 100%
 owasp_coverage: OWASP Top 10 100%
 ---
@@ -11,7 +11,7 @@ owasp_coverage: OWASP Top 10 100%
 
 > 完整 detector 清单见 `skills/secguard/cpp/references/detector-index.md`。本文档提供按命名空间分组的人类可读威胁索引。
 
-## 内存安全 (memory) — 13 个 detectors
+## 内存安全 (memory) — 13<!-- @secguardian:namespace:memory --> 个 detectors
 
 | 威胁 | CWE | 严重度 | Detector | 影响语言 |
 |------|-----|--------|----------|---------|
@@ -29,7 +29,7 @@ owasp_coverage: OWASP Top 10 100%
 | 错误类型转换 | CWE-704 | Medium | `memory.bad-cast` | C/C++ |
 | 越界读取 | CWE-125 | High | `memory.oob-read` | C/C++ |
 
-## 并发安全 (concurrency) — 4 个 detectors
+## 并发安全 (concurrency) — 4<!-- @secguardian:namespace:concurrency --> 个 detectors
 
 | 威胁 | CWE | 严重度 | Detector | 影响语言 |
 |------|-----|--------|----------|---------|
@@ -38,7 +38,7 @@ owasp_coverage: OWASP Top 10 100%
 | 数据竞态 | CWE-366 | High | `concurrency.data-race` | C/C++ |
 | 信号处理器不安全 | CWE-479 | Medium | `concurrency.thread-unsafe-signal` | C/C++ |
 
-## 系统安全 (system) — 8 个 detectors
+## 系统安全 (system) — 8<!-- @secguardian:namespace:system --> 个 detectors
 
 | 威胁 | CWE | 严重度 | Detector | 影响语言 |
 |------|-----|--------|----------|---------|
@@ -51,7 +51,7 @@ owasp_coverage: OWASP Top 10 100%
 | 权限提升 | CWE-269 | High | `system.privilege-escalation` | C/C++ |
 | 不安全权限 | CWE-276 | Medium | `system.insecure-permissions` | C/C++, Java, Python, Go |
 
-## 加密安全 (crypto) — 9 个 detectors
+## 加密安全 (crypto) — 9<!-- @secguardian:namespace:crypto --> 个 detectors
 
 | 威胁 | CWE | 严重度 | Detector | 影响语言 |
 |------|-----|--------|----------|---------|
@@ -65,7 +65,7 @@ owasp_coverage: OWASP Top 10 100%
 | 密码存储不安全 | CWE-916 | Critical | `crypto.password-storage` | Java, Python, Go, JS |
 | 硬编码 IV/Nonce | CWE-329 | High | `crypto.hardcoded-iv` | 全语言 |
 
-## Web + 应用安全 (web) — 21 个 detectors
+## Web + 应用安全 (web) — 21<!-- @secguardian:namespace:web --> 个 detectors
 
 | 威胁 | CWE | 严重度 | Detector | 影响语言 |
 |------|-----|--------|----------|---------|
@@ -91,7 +91,7 @@ owasp_coverage: OWASP Top 10 100%
 | 原型污染 | CWE-1321 | High | `web.prototype-pollution` | JS |
 | SSTI 模板注入 | CWE-1336 | Critical | `web.ssti` | Java, Python, Go, JS |
 
-## 资源安全 (resource) — 6 个 detectors
+## 资源安全 (resource) — 6<!-- @secguardian:namespace:resource --> 个 detectors
 
 | 威胁 | CWE | 严重度 | Detector | 影响语言 |
 |------|-----|--------|----------|---------|
@@ -102,7 +102,7 @@ owasp_coverage: OWASP Top 10 100%
 | 锁误用 | CWE-667 | Medium | `resource.lock-misuse` | C/C++ |
 | 引用计数误用 | CWE-911 | Low | `resource.refcount-misuse` | C/C++ |
 
-## 错误处理安全 (error) — 6 个 detectors
+## 错误处理安全 (error) — 6<!-- @secguardian:namespace:error --> 个 detectors
 
 | 威胁 | CWE | 严重度 | Detector | 影响语言 |
 |------|-----|--------|----------|---------|
