@@ -253,35 +253,149 @@ INDEX_FILE 输出示例:
 - **利用 index.json 中的符号表和调用图定位检测目标**，而非逐文件遍历。
 - 增量模式（`git diff`）下，仅分析由 diff 识别的变更行。
 
-### Step 4: 输出结构化 findings（遵循 Findings Protocol v1.0）
+### Step 4: 输出结构化 findings（遵循 Findings Protocol v5.0）
 
-> ⚠️ **关键变更**: AI **只输出一个文件** `findings.json`，符合 `knowledge/protocols/findings-schema.json` 协议。**禁止直接写 report.md / results.sarif / 任何其他输出文件** — 这些由渲染器生成。
+> ⚠️ **v5.0 关键变更**: AI **不再输出单体 findings.json**。改为按 detector 分类，**每个 finding 输出一个独立文件**到 `findings/` 目录树下。最后输出轻量 `findings.json`（同名升级，不含四段式，仅元数据+索引）。渲染器通过 `--findings-dir` 聚合所有 finding 文件生成报告。**禁止直接写 report.md / results.sarif / 任何其他输出文件** — 这些由渲染器生成。
 
-**4a. 构建 findings.json：**
+**4a. 按 detector 分组，以 finding ID 为文件名逐文件输出（每个文件 2-4KB）：**
 
-每个检出必须包含完整的四段式数据（协议中的 `location` + `evidence` + `impact` + `fix` 字段）。具体 schema 见 `knowledge/protocols/findings-schema.json`。
+每个 finding 写入独立文件，路径格式：
+```
+findings/<namespace>/<detector-name>/<finding-id>.json
+```
 
-关键字段要求：
-- `location.snippet` — 3+ 行代码上下文
-- `evidence.code_context` + `evidence.judgment_rationale` + `evidence.data_flow_path`（Source→Propagation→Sink）
-- `impact.attack_scenario` + `impact.cvss_score` + `impact.cvss_vector`
-- `fix.before_code` + `fix.after_code` + `fix.effort_hours` + `fix.verification_method`
-- `sarif_specific.confidence` + `sarif_specific.risk_of_fix` + `sarif_specific.detector_namespace`
+**文件命名规则：直接使用 finding ID（业界最佳实践，对齐 SARIF/CodeQL/Semgrep）：**
 
-**4b. 自检完整性（必须执行）：**
+finding ID 格式: `<SEVERITY>-<DETECTOR_ABBREV>-<FILE_SLUG>-L<LINE>`
 
-在保存 `findings.json` 之前，检查每个 finding 的四段式字段是否齐全。**任一 ❌ → 补充缺失内容 → 重新检查，最多 3 次。**
+| 组成部分 | 说明 | 唯一性 |
+|---------|------|--------|
+| `SEVERITY` | C/H/M/L/I | 同一行不同 detector = 不同 ID |
+| `DETECTOR_ABBREV` | 3-5 字符缩写（SQLI, SSRF, CRYPTO...） | 不同 detector 不碰撞 |
+| `FILE_SLUG` | 文件名去扩展名，特殊字符 → `_` | 不同文件不碰撞 |
+| `L<LINE>` | 行号（L 前缀 + 数字） | 同行同 detector 只产一个 finding |
 
-| 段落 | 必须字段 |
-|------|---------|
-| 📍 Location | `location.file_path`, `location.start_line`, `location.function_name`, `location.snippet` |
-| 📋 Evidence | `evidence.code_context`, `evidence.judgment_rationale`, `evidence.data_flow_path` |
-| ⚠️ Impact | `impact.attack_scenario`, `impact.cvss_score`, `impact.cvss_vector`, `impact.exploit_conditions` |
-| 🔧 Fix | `fix.description`, `fix.before_code`, `fix.after_code`, `fix.effort_hours`, `fix.verification_method` |
+**为什么不会碰撞？** 同一行代码不会被同一 detector 重复报告。finding ID 天然保证全局唯一。
 
-3 次后仍未通过 → 在 findings.json 的顶层添加 `"quality_gate_warning": "<不完整的 finding ID 列表>"`，渲染器会在 report.md 中标记。
+示例：
+```
+findings/web/sql-injection/H-SQLI-webapp-L47.json
+findings/crypto/password-storage/H-CRYPTO-crypto_utils-L20.json
+```
 
-**4c. 写入 findings.json → 渲染器生成所有输出：**
+**单文件格式（遵循 `findings-schema.json` 中 `SingleFindingFile` schema）：**
+```json
+{
+  "schema_version": "1.0",
+  "finding": {
+    "id": "H-SQLI-webapp-L47",
+    "severity": "High",
+    "cwe": "CWE-89",
+    "detector": "web.sql-injection",
+    "file": "src/webapp.py",
+    "line": 47,
+    "function": "get_user",
+    "title": "SQL injection via f-string query construction",
+    "fix_summary": "使用参数化查询替代 f-string 拼接",
+    "location": { ... },
+    "evidence": { ... },
+    "impact": { ... },
+    "fix": { ... },
+    "sarif_specific": { ... }
+  }
+}
+```
+
+**Critical 优先输出**：按 Critical → High → Medium → Low 顺序输出，确保用户最关心的问题先落盘。
+
+**4b. 输出轻量 `findings.json`（同名升级，不含四段式）：**
+
+所有 finding 输出完毕后，写入轻量索引文件（scan root，与 `index.json` 同级）：
+
+```json
+{
+  "scan_id": "<scan-id>",
+  "command": "secguard",
+  "path": "./src",
+  "mode": "full",
+  "language": "python",
+  "timing": { "started": "<iso>", "completed": "<iso>", "duration_ms": 76000 },
+  "scope": { "files": 3, "lines": 295, "functions": 15, "call_edges": 1 },
+  "detectors": { "matched": 27, "executed": 27, "namespaces_used": [...] },
+  "security_score": 0,
+  "findings_index": [
+    {
+      "id": "H-SQLI-webapp-L47",
+      "severity": "High",
+      "cwe": "CWE-89",
+      "detector": "web.sql-injection",
+      "file": "src/webapp.py",
+      "line": 47,
+      "function": "get_user",
+      "title": "SQL injection via f-string query construction",
+      "path": "findings/web/sql-injection/H-SQLI-webapp-L47.json"
+    }
+  ]
+}
+```
+
+> 索引文件不含四段式详情，仅含导航字段。企业级项目（1000+ finding）索引约 300KB，AI Agent 可直接读取。
+
+**4c. 自检完整性（必须执行）：**
+
+在写入所有文件后，执行以下脚本校验。**任一 ❌ → 补充缺失文件/内容 → 重新检查，最多 3 次。**
+
+```bash
+SCAN_DIR=".codeagent/secguard-secguardian/scans/<scan_id>"
+python3 << 'PYEOF'
+import json, os, sys
+
+index_path = os.path.join(os.environ['SCAN_DIR'], 'findings.json')
+with open(index_path) as f:
+    idx = json.load(f)
+
+expected = len(idx['findings_index'])
+actual = 0
+missing = []
+
+for entry in idx['findings_index']:
+    fpath = os.path.join(os.environ['SCAN_DIR'], entry['path'])
+    if os.path.isfile(fpath):
+        with open(fpath) as f:
+            data = json.load(f)
+        finding = data.get('finding', data)
+        loc = finding.get('location', {})
+        ev = finding.get('evidence', {})
+        imp = finding.get('impact', {})
+        fix = finding.get('fix', {})
+        
+        incomplete = []
+        if not loc.get('file_path'): incomplete.append('location.file_path')
+        if not loc.get('snippet'): incomplete.append('location.snippet')
+        if not ev.get('judgment_rationale'): incomplete.append('evidence.judgment_rationale')
+        if not imp.get('attack_scenario'): incomplete.append('impact.attack_scenario')
+        if not fix.get('before_code'): incomplete.append('fix.before_code')
+        if not fix.get('after_code'): incomplete.append('fix.after_code')
+        
+        if incomplete:
+            missing.append(f"{entry['id']}: missing {', '.join(incomplete)}")
+        else:
+            actual += 1
+    else:
+        missing.append(f"{entry['id']}: file not found at {entry['path']}")
+
+if missing:
+    print(f"❌ {len(missing)} findings incomplete/missing:")
+    for m in missing: print(f"  - {m}")
+    sys.exit(1)
+else:
+    print(f"✅ All {actual}/{expected} findings present and complete")
+PYEOF
+```
+
+3 次后仍未通过 → 在 `findings.json` 顶层添加 `"quality_gate_warning": ["<不完整的 finding ID>"]`。
+
+**4d. 调用渲染器生成所有输出：**
 
 ```bash
 # 定位渲染器（与索引器相同查找策略）
@@ -300,14 +414,14 @@ done
 [ -z "$RENDERER" ] && [ -f "scripts/render-report.py" ] && RENDERER="scripts/render-report.py"
 
 python3 "$RENDERER" \
-    --findings .codeagent/secguard-secguardian/scans/<scan_id>/findings.json \
+    --findings-dir .codeagent/secguard-secguardian/scans/<scan_id>/findings/ \
     --index .codeagent/secguard-secguardian/scans/<scan_id>/index.json \
     --output .codeagent/secguard-secguardian/scans/<scan_id>/
 ```
 
 渲染器自动生成: `report.md` + `results.sarif` + `summary.json` + `manifest.json` + `status.json` + `delta.json`。
 
-> ⚠️ 如果渲染器不存在或执行失败，打印警告：`"Renderer unavailable — findings saved to findings.json only. Run: python3 scripts/render-report.py --findings <path>/findings.json --index <path>/index.json --output <path>/"`
+> ⚠️ 如果渲染器不存在或执行失败，打印警告：`"Renderer unavailable — findings saved to findings/ directory tree only. Run: python3 scripts/render-report.py --findings-dir <path>/findings/ --index <path>/index.json --output <path>/"`
 
 ### Step 5: 输出摘要
 
