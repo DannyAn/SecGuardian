@@ -5,6 +5,44 @@
 
 ---
 
+## 2026-06-07 — Findings 输出架构重构：单体 JSON → 目录树
+
+### 背景
+
+v4.0 单体 `findings.json` 在 3 文件 295 行 demo 扫描中产出 50KB JSON，耗时 ~9 分钟。1000 文件项目预估 25MB JSON，AI Agent 无法读取。用户明确指出："级别低不代表不是问题，所有检出的问题都要用户认可去修正"，不应按 severity 暗示某些问题不重要。
+
+### 讨论要点
+
+- **核心矛盾**：AI 单次 Write 50KB 可行，但后续读取 25MB JSON 直接爆 token
+- **文件命名演进**：`<file>__<func>.json`（两次讨论后否定，同文件同函数同 detector 不同行碰撞）→ `<finding-id>.json`（天然唯一，对齐 SARIF/CodeQL/Semgrep）
+- **`findings.json` 同名升级**：v4.0 单体→v5.0 轻量索引，用户无需学习新概念。早期过渡设计错误引入了 `findings-index.json`（与 indexer 的 `index.json` 产生认知混淆），最终回退到同名升级方案
+- **不按 severity 重复输出**：避免"低严重度=不重要"的暗示，保持每个 finding 的严肃性
+
+### 最终方案
+
+```
+scans/<scan-id>/
+├── index.json       # 索引器输出（不变）
+├── findings.json    # ★ 同名升级：v4.0 单体四段式 → v5.0 轻量索引+元数据（<50KB）
+├── findings/        # ★ 四段式数据按 detector 分文件
+│   ├── web/sql-injection/H-SQLI-webapp-L47.json
+│   ├── crypto/password-storage/H-CRYPTO-crypto_utils-L20.json
+│   └── ...
+├── report.md, results.sarif, ... (渲染器生成)
+```
+
+### 影响范围
+
+- `scripts/render-report.py` — `--findings-dir` + `load_findings_from_tree()`
+- `knowledge/protocols/scan-output.md` — 目录结构 + finding-ID 命名规范
+- `knowledge/protocols/findings-schema.json` — SingleFindingFile + FindingsIndex
+- `commands/secguard.md` — Step 4 逐文件输出流程
+- `commands/secaudit.md`, `commands/secreview.md` — 同步更新
+
+详见: [2026-06-07-findings-directory-tree-design.md](superpowers/specs/2026-06-07-findings-directory-tree-design.md)
+
+---
+
 ## 2026-06-03 — 输出协议升级：商业交付物设计
 
 ### 背景
