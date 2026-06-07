@@ -223,59 +223,43 @@ PYEOF
 - 如果指定了具体的 skill-name，精确加载 `../skills/secaudit/{skill-name}/SKILL.md`。
 - 根据 `index.json` 提供的符号表和调用图、`SKILL.md` 的审计规范以及 `../knowledge/detectors/` 中相关检测器的威胁定义进行深度推理审计。
 
-### Step 4: 输出结构化 findings（遵循 Findings Protocol v1.0）
+### Step 4: 输出结构化 findings（遵循 Findings Protocol v5.0）
 
-> ⚠️ **关键变更**: AI **只输出一个文件** `findings.json`，符合 `knowledge/protocols/findings-schema.json` 协议。**禁止直接写 report.md / results.sarif / 任何其他输出文件** — 这些由渲染器生成。
+> ⚠️ **v5.0 关键变更**: AI **不再输出单体 findings.json**。改为按 detector 分类，**每个 finding 输出一个独立文件**到 `findings/` 目录树下。最后输出轻量 `findings.json`（同名升级，不含四段式，仅元数据+索引）。渲染器通过 `--findings-dir` 聚合所有 finding 文件生成报告。**禁止直接写 report.md / results.sarif / 任何其他输出文件**。
 
-**4a. 构建 findings.json（含 secaudit 扩展字段）：**
+**4a. 按 detector 分组，以 finding ID 为文件名逐文件输出：**
 
-每个检出必须包含完整的四段式数据（`location` + `evidence` + `impact` + `fix`），以及 `secaudit_specific` 扩展字段：
+每个 finding 写入独立文件，路径格式如 secguard Step 4a（见 `commands/secguard.md`），额外包含 `secaudit_specific` 字段：
 
 ```json
 {
-  "secaudit_specific": {
-    "skill_name": "taint-analysis",
-    "skill_category": "analysis",
-    "analysis_paths": 15,
-    "complete_chains": 4
-  },
-  "findings": [
-    {
-      "evidence": {
-        "data_flow_path": [
-          {"step": "source", "file": "...", "line": 42, "description": "HTTP param"},
-          {"step": "propagation", "file": "...", "line": 56, "description": "Assigned to query"},
-          {"step": "sink", "file": "...", "line": 108, "description": "db.Query()"}
-        ]
-      }
+  "schema_version": "1.0",
+  "finding": {
+    "id": "...",
+    "...": "...",
+    "secaudit_specific": {
+      "skill_name": "taint-analysis",
+      "skill_category": "analysis",
+      "analysis_paths": 15,
+      "complete_chains": 4
     }
-  ]
+  }
 }
 ```
 
-关键要求：
-- `evidence.data_flow_path` — secaudit 必须包含完整的 Source → Propagation → Sink 路径（至少 3 个步骤）
+关键要求（secaudit 独有）：
+- `evidence.data_flow_path` 必须包含完整的 Source → Propagation → Sink 路径（至少 3 个步骤）
 - `secaudit_specific.skill_name` — 本次审计的 skill 名称
-- `secaudit_specific.analysis_paths` — 分析的总数据流路径数
-- `secaudit_specific.complete_chains` — 完整追踪到的链路数（Source → Sink 全部连通的）
+- `secaudit_specific.analysis_paths` / `complete_chains` — 数据流分析统计
 
-**4b. 自检完整性（必须执行，严格的 3 次重试）：**
+**4b. 输出轻量 `findings.json` + 自检完整性：**
 
-在保存 `findings.json` 之前，检查每个 finding 的四段式字段是否齐全。**任一 ❌ → 补充缺失内容 → 重新检查，最多 3 次。**
+同 secguard Step 4b-4c（见 `commands/secguard.md`）。路径使用 `secaudit-secguardian`。
 
-| 段落 | 必须字段 | Secaudit 额外要求 |
-|------|---------|------------------|
-| 📍 Location | `location.file_path`, `location.start_line`, `location.function_name`, `location.snippet` | — |
-| 📋 Evidence | `evidence.code_context`, `evidence.judgment_rationale`, `evidence.data_flow_path` | data_flow_path 至少含 source + sink 两个节点 |
-| ⚠️ Impact | `impact.attack_scenario`, `impact.cvss_score`, `impact.cvss_vector`, `impact.exploit_conditions` | — |
-| 🔧 Fix | `fix.description`, `fix.before_code`, `fix.after_code`, `fix.effort_hours`, `fix.verification_method` | — |
-
-3 次后仍未通过 → 在 findings.json 顶层添加 `"quality_gate_warning": "<ID列表>"` + `"quality_gate_retries": 3`。渲染器会在 report.md 头部标注不完整的 finding。
-
-**4c. 写入 findings.json → 渲染器生成所有输出：**
+**4c. 调用渲染器生成所有输出：**
 
 ```bash
-# 定位渲染器
+# 定位渲染器（同 secguard）
 RENDERER=""
 for base in "." "$HOME"; do
     for path in \
@@ -290,14 +274,14 @@ done
 [ -z "$RENDERER" ] && [ -f "scripts/render-report.py" ] && RENDERER="scripts/render-report.py"
 
 python3 "$RENDERER" \
-    --findings .codeagent/secaudit-secguardian/scans/<scan_id>/findings.json \
+    --findings-dir .codeagent/secaudit-secguardian/scans/<scan_id>/findings/ \
     --index .codeagent/secaudit-secguardian/scans/<scan_id>/index.json \
     --output .codeagent/secaudit-secguardian/scans/<scan_id>/
 ```
 
-> 渲染器自动执行 secaudit 质量门禁（Step 4b 验证），未通过的 finding 会在 report.md 中标记 ⚠️。
+> 渲染器自动执行 secaudit 质量门禁，未通过的 finding 会在 report.md 中标记 ⚠️。
 
-> ⚠️ 如果渲染器不存在或执行失败，打印警告：`"Renderer unavailable — findings saved to findings.json only."`
+> ⚠️ 如果渲染器不存在或执行失败，打印警告：`"Renderer unavailable — findings saved to findings/ directory tree only."`
 
 ### Step 5: 输出审计摘要
 

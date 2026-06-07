@@ -203,54 +203,45 @@ PYEOF
 
 - **利用 index.json 中的符号表定位检视目标**，而非逐文件遍历。
 
-### Step 4: 输出结构化 findings（遵循 Findings Protocol v1.0）
+### Step 4: 输出结构化 findings（遵循 Findings Protocol v5.0）
 
-> ⚠️ **关键变更**: AI **只输出一个文件** `findings.json`，符合 `knowledge/protocols/findings-schema.json` 协议。**禁止直接写 report.md / results.sarif / 任何其他输出文件** — 这些由渲染器生成。
+> ⚠️ **v5.0 关键变更**: AI **不再输出单体 findings.json**。改为按 detector 分类，**每个 finding 输出一个独立文件**到 `findings/` 目录树下。最后输出轻量 `findings.json`（同名升级，不含四段式，仅元数据+索引）。渲染器通过 `--findings-dir` 聚合所有 finding 文件生成报告。**禁止直接写 report.md / results.sarif / 任何其他输出文件**。
 
-**4a. 构建 findings.json（含 secreview 扩展字段）：**
+**4a. 按 detector 分组，以 finding ID 为文件名逐文件输出：**
 
-每个检出必须包含完整的四段式数据（`location` + `evidence` + `impact` + `fix`），以及 `secreview_specific` 扩展字段：
+每个 finding 写入独立文件，路径格式如 secguard Step 4a（见 `commands/secguard.md`），额外包含 `secreview_specific` 字段：
 
 ```json
 {
-  "secreview_specific": {
-    "review_type": "full",
-    "review_focus": ["security", "code-quality"]
-  },
-  "findings": [
-    {
-      "severity": "High",
-      "cwe": "CWE-390",
-      "detector": "error.exception-swallow",
-      "evidence": {
-        "judgment_rationale": "空 catch 块吞掉异常 — 违反了 SEI CERT ERR00-J"
-      }
+  "schema_version": "1.0",
+  "finding": {
+    "id": "...",
+    "severity": "High",
+    "cwe": "CWE-390",
+    "detector": "error.exception-swallow",
+    "evidence": {
+      "judgment_rationale": "空 catch 块吞掉异常 — 违反 SEI CERT ERR00-J"
+    },
+    "secreview_specific": {
+      "review_type": "full",
+      "review_focus": ["security", "code-quality"]
     }
-  ]
+  }
 }
 ```
 
-关键要求：
-- `evidence.judgment_rationale` — 必须引用对应语言的安全编码规范（SEI CERT Oracle / SEI CERT C / OWASP / Go Security Guidelines）
+关键要求（secreview 独有）：
+- `evidence.judgment_rationale` 必须引用对应语言的安全编码规范（SEI CERT / OWASP / Go Security Guidelines）
 - `secreview_specific.review_focus` — 本次检视的焦点领域
 
-**4b. 自检完整性（必须执行）：**
+**4b. 输出轻量 `findings.json` + 自检完整性：**
 
-在保存 `findings.json` 之前，检查每个 finding 的四段式字段是否齐全。**任一 ❌ → 补充缺失内容 → 重新检查，最多 3 次。**
+同 secguard Step 4b-4c（见 `commands/secguard.md`）。路径使用 `secreview-secguardian`。
 
-| 段落 | 必须字段 | Secreview 额外要求 |
-|------|---------|------------------|
-| 📍 Location | `location.file_path`, `location.start_line`, `location.function_name`, `location.snippet` | — |
-| 📋 Evidence | `evidence.code_context`, `evidence.judgment_rationale` | judgment_rationale 需引用违反的安全编码规范 |
-| ⚠️ Impact | `impact.attack_scenario` | 说明不合规的潜在安全风险 |
-| 🔧 Fix | `fix.description`, `fix.before_code`, `fix.after_code`, `fix.effort_hours`, `fix.verification_method` | — |
-
-3 次后仍未通过 → 在 findings.json 顶层添加 `"quality_gate_warning": "<ID列表>"`。
-
-**4c. 写入 findings.json → 渲染器生成所有输出：**
+**4c. 调用渲染器生成所有输出：**
 
 ```bash
-# 定位渲染器
+# 定位渲染器（同 secguard）
 RENDERER=""
 for base in "." "$HOME"; do
     for path in \
@@ -265,12 +256,12 @@ done
 [ -z "$RENDERER" ] && [ -f "scripts/render-report.py" ] && RENDERER="scripts/render-report.py"
 
 python3 "$RENDERER" \
-    --findings .codeagent/secreview-secguardian/scans/<scan_id>/findings.json \
+    --findings-dir .codeagent/secreview-secguardian/scans/<scan_id>/findings/ \
     --index .codeagent/secreview-secguardian/scans/<scan_id>/index.json \
     --output .codeagent/secreview-secguardian/scans/<scan_id>/
 ```
 
-> ⚠️ 如果渲染器不存在或执行失败，打印警告：`"Renderer unavailable — findings saved to findings.json only."`
+> ⚠️ 如果渲染器不存在或执行失败，打印警告：`"Renderer unavailable — findings saved to findings/ directory tree only."`
 
 ### Step 5: 输出检视摘要
 
