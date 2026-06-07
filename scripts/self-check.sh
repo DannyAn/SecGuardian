@@ -155,8 +155,22 @@ else
 fi
 echo ""
 
+
+# ── 7.6. Manifest token consistency ──
+echo "7.6. Manifest token consistency"
+if [ -x "$PROJECT_ROOT/scripts/sync-manifest.sh" ]; then
+    bash "$PROJECT_ROOT/scripts/sync-manifest.sh" --check 2>/dev/null
+    if [ $? -eq 0 ]; then
+        green "All @secguardian tokens match manifest.json"
+    else
+        red "Token mismatch — run: bash scripts/sync-manifest.sh"
+    fi
+else
+    echo "  sync-manifest.sh not found — skipping"
+fi
+echo ""
 # ── 8. Go compilation ──
-echo "7. Go compilation"
+echo "8. Go compilation"
 (cd internal && go build -o /dev/null . 2>/dev/null) && green "go build OK" || red "go build FAILED"
 (cd internal && CGO_ENABLED=0 go build -o /dev/null . 2>/dev/null) && green "go build (no-CGO) OK" || red "go build (no-CGO) FAILED"
 echo ""

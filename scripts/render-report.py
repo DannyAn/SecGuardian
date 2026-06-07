@@ -34,7 +34,59 @@ from collections import Counter
 
 # ── Constants ───────────────────────────────────
 
-DETECTOR_RULE_INDEX = {
+def load_detector_index_from_files(detectors_dir=None):
+    """Build detector -> {index, cwe} mapping from knowledge/detectors/*.md files.
+
+    Dynamically reads detector files to avoid hardcoding the DETECTOR_RULE_INDEX.
+    Falls back to builtin DETECTOR_RULE_INDEX_FALLBACK if files are unavailable.
+    """
+    if detectors_dir is None:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        detectors_dir = os.path.join(script_dir, "..", "knowledge", "detectors")
+
+    if not os.path.isdir(detectors_dir):
+        return None  # caller should use fallback
+
+    index = {}
+    detector_files = sorted(f for f in os.listdir(detectors_dir) if f.endswith('.md'))
+
+    for i, fname in enumerate(detector_files):
+        # Convert filename: memory-null-dereference.md -> memory.null-dereference
+        name = fname[:-3]
+        parts = name.split('-', 1)
+        detector_name = f"{parts[0]}.{parts[1]}" if len(parts) == 2 else name
+
+        # Parse CWE from file frontmatter
+        cwe_list = []
+        filepath = os.path.join(detectors_dir, fname)
+        try:
+            with open(filepath) as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith('cwe:') or line.startswith('CWE:'):
+                        cwe_list = [c.strip() for c in line.split(':', 1)[1].split(',')
+                                    if c.strip().startswith('CWE-')]
+                        break
+                    if line == '---' and cwe_list:
+                        break  # past frontmatter
+        except Exception:
+            pass
+
+        if not cwe_list:
+            cwe_list = ["CWE-000"]
+
+        index[detector_name] = {"index": i, "cwe": cwe_list}
+
+    return index if index else None
+
+
+# Try dynamic loading, fall back to builtin
+_DYNAMIC_INDEX = load_detector_index_from_files()
+
+if _DYNAMIC_INDEX:
+    DETECTOR_RULE_INDEX = _DYNAMIC_INDEX
+else:
+    DETECTOR_RULE_INDEX = {
     "system.command-injection":        {"index": 0,  "cwe": ["CWE-77", "CWE-94"]},
     "web.sql-injection":               {"index": 1,  "cwe": ["CWE-89"]},
     "crypto.hardcoded-secrets":        {"index": 2,  "cwe": ["CWE-798"]},
@@ -104,7 +156,7 @@ DETECTOR_RULE_INDEX = {
     "system.symlink-attack":           {"index": 66, "cwe": ["CWE-61"]},
     "system.toctou":                   {"index": 67, "cwe": ["CWE-367"]},
     "web.jwt-misuse":                  {"index": 8,  "cwe": ["CWE-347"]},
-}
+}  # DETECTOR_RULE_INDEX_FALLBACK — used only when detector files unavailable
 
 
 # ── Helpers ─────────────────────────────────────

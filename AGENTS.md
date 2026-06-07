@@ -180,3 +180,8 @@ bash scripts/e2e-verify.sh --quick  # 跳过第 9 节 (多语言索引)，快速
 - `CLAUDE.md` 中部署路径描述与实际不一致，以 `deploy.sh` 源码为准
 - `scripts/` 下的 `secguardian-index` 是源码文件（git 跟踪），卸载操作不应删除它
 - AI Agent 进入项目后应该 **先跑 `bash scripts/self-check.sh`** 确认环境完整性，再开始工作
+
+## Manifest-Driven Tokens（散弹式修改终结者）
+
+修改 detector 数量时，只需改 `manifest.json`。构建时 `scripts/sync-manifest.sh` 自动更新所有文件中的 `NNN<!-- @secguardian:xxx -->` 标记。
+CI 验证：`bash scripts/sync-manifest.sh --check`（已集成到 self-check.sh §7.6）。
