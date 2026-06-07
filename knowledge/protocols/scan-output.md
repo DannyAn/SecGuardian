@@ -20,19 +20,59 @@ version: "3.0"
 
 > **v3.0 变更 (2026-06-05)**: report.md §4 详细发现改为强制四段式结构（📍 Location → 📋 Evidence → ⚠️ Impact → 🔧 Fix）。增加输出前质量门禁（Step 4b）。SARIF 增加 `message.markdown` 和 `relatedLocations` 要求。
 > **v4.0 变更 (2026-06-06)**: 引入 AI/Renderer 分离架构。AI 仅输出 `findings.json`（遵循 `findings-schema.json`），由 `scripts/render-report.py` 渲染生成全部 6 个输出文件。参见 CodePlan: hashed-juggling-sutherland。
+> **v5.0 变更 (2026-06-07)**: 单体 findings.json 重构为按 detector 组织的目录树（`findings/<namespace>/<detector>/<finding-id>.json`，文件名 = finding ID，天然唯一）。`findings.json` 同名升级：从"单体四段式"变为"轻量索引+元数据"（<50KB），四段式数据拆入 `findings/` 目录树。渲染器通过 `--findings-dir` 读取目录树，`--findings` 保持 v4.0 兼容。参见: [2026-06-07-findings-directory-tree-design.md](../../docs/superpowers/specs/2026-06-07-findings-directory-tree-design.md)
 
-## 目录结构
+## 目录结构 (v5.0)
 
 ```
 .codeagent/<extension-name>/scans/<scan-id>/
-├── report.md                # ★ 人读审计报告（主要输出）
-├── results.sarif            # 机读 — SARIF 2.1.0（始终生成）
-├── summary.json             # 仪表盘统计
-├── manifest.json            # 扫描元数据 + 检出索引
-├── status.json              # CI 门禁判定
-├── delta.json               # 增量对比（vs 上一次扫描）
-└── latest → <scan-id>/      # 符号链接 → 最新扫描
+├── index.json                # 索引器输出：符号表+调用图+文件清单（Step 2，只读）
+├── findings.json             # ★ v5.0 轻量化：同名升级，元数据+检出索引（<50KB）
+├── findings/                 # ★ v5.0: finding 目录树（四段式数据按 detector 分文件）
+│   ├── web/
+│   │   ├── sql-injection/
+│   │   │   └── H-SQLI-webapp-L47.json    # 完整四段式，文件名 = finding ID
+│   │   ├── ssrf/
+│   │   │   └── ...
+│   │   └── ...
+│   ├── crypto/
+│   │   └── ...
+│   ├── system/
+│   │   └── ...
+│   └── error/
+│       └── ...
+├── report.md                 # ★ 渲染器生成：人读审计报告
+├── results.sarif             # 机读 — SARIF 2.1.0
+├── summary.json              # 仪表盘统计
+├── manifest.json             # 扫描元数据 + 检出索引
+├── status.json               # CI 门禁
+├── delta.json                # 增量对比
+└── latest → <scan-id>/       # 符号链接 → 最新扫描
 ```
+
+### 文件命名规范
+
+文件名直接使用 finding ID（格式: `<SEVERITY>-<DETECTOR_ABBREV>-<FILE_SLUG>-L<LINE>`），利用其天然唯一性：
+
+| 组成部分 | 说明 | 示例 |
+|---------|------|------|
+| `SEVERITY` | C/H/M/L/I | `H` |
+| `DETECTOR_ABBREV` | 3-5 字符缩写 | `SQLI` |
+| `FILE_SLUG` | 文件名去扩展名，特殊字符 → `_` | `webapp` |
+| `L<LINE>` | 行号 | `L47` |
+| 完整文件名 | — | `H-SQLI-webapp-L47.json` |
+
+**不会碰撞**：同一行代码不会被同一 detector 重复报告。对齐 SARIF (partialFingerprints)、CodeQL (file-hash)、Semgrep (finding-hash) 的 ID-as-key 模式。
+
+### v4.0 兼容模式（遗留）
+
+v4.0 单体格式仍被支持（`--findings` flag），但不推荐用于新扫描：
+
+```
+findings.json               # v4.0: 单体文件（所有 finding 内联，生产环境会超大）
+```
+
+渲染器通过 `--findings` 读取 v4.0 格式，`--findings-dir` 读取 v5.0 目录树。
 
 - `<extension-name>`: `secguard-secguardian` / `secaudit-secguardian` / `secreview-secguardian`
 - `<scan-id>`: `YYYY-MM-DDTHH-mm-ss-<6-char-uuid>`
@@ -43,13 +83,13 @@ version: "3.0"
 
 | 我想做什么 | 打开哪个文件 | 为什么 |
 |-----------|------------|--------|
-| **★ 看整体安全水位（商业决策）** | `report.md` §1-2 | 安全评分 A-F + 合规仪表盘 + 趋势，可直接发给 CTO/客户 |
-| **快速看一眼有什么问题** | `report.md` §3 或 `manifest.json` | Markdown 表格 或 JSON 索引，检出 ID/严重度/文件/行号 |
-| **深入了解某个漏洞 + 改代码** | `report.md` §4 | 证据链（代码上下文）+ before/after 修复方案 |
-| **规划修复工作** | `report.md` §5 | 四阶段修复路线图，按风险 × 成本排序，预估工时 |
-| **交给 AI Agent 批量修复** | `report.md` | 对 AI 说："读取 report.md §4，按每个修复方案修改代码" |
-| **导出 PDF 交付客户** | `report.md` | `pandoc report.md -o report.pdf --pdf-engine=weasyprint` |
-| **接入 CI/CD 流水线** | `results.sarif` | SARIF 2.1.0，GitHub/GitLab/Azure 原生消费，PR 内联注释 |
+| **看全局摘要** | `findings.json`（v5.0 轻量化）| 统计 + 检出 ID/严重度/文件/行号映射 |
+| **按漏洞类型审查** | `findings/web/sql-injection/` 目录 | 查看所有 SQL 注入问题，同类聚合审查 |
+| **看某个具体漏洞详情** | `findings/web/sql-injection/H-SQLI-webapp-L47.json` | 完整四段式（📍 Location → 📋 Evidence → ⚠️ Impact → 🔧 Fix） |
+| **给团队分工** | `findings/crypto/` → 小王，`findings/web/` → 小李 | 按 detector namespace 自然分工 |
+| **AI Agent 批量修复** | 对 AI 说："读取 `findings/crypto/`，按 fix.after_code 修改源码" | 目录树精准定位，无需解析大文件 |
+| **★ 看完整审计报告（商业交付）** | `report.md` | 六章专业报告，可 PDF 导出交付客户 |
+| **接入 CI/CD 流水线** | `results.sarif` | SARIF 2.1.0，GitHub/GitLab/Azure 原生消费 |
 | **查看趋势** | `delta.json` | 与 `latest` 符号链接指向的上次扫描做增量对比 |
 
 ## report.md — 商业交付物（人读审计报告）
