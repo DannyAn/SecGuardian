@@ -126,7 +126,7 @@ CATALOG_NS=$(python3 -c "
 import re, json
 with open('knowledge/threat-catalog.md') as f:
     content = f.read()
-sections = re.findall(r'## .*?\((\w+)\).*?— (\d+) 个', content)
+sections = re.findall(r'## .*?\((\w+)\).*?— (\d+)(?:<!--.*?-->)? 个', content)
 ns_counts = {}
 for ns, count in sections:
     ns_counts[ns] = int(count)
