@@ -284,6 +284,45 @@
                 }
               },
               "description": "Source → Propagation → Sink data flow trace (secguard/secaudit)"
+            },
+            "call_stack": {
+              "type": "array",
+              "description": "📋 Evidence: Call chain from entry function to vulnerability location — for cross-function tracing",
+              "items": {
+                "type": "object",
+                "required": ["function", "file", "line"],
+                "properties": {
+                  "function": {"type": "string", "description": "Function name"},
+                  "file": {"type": "string", "description": "File path"},
+                  "line": {"type": "integer", "description": "Line number in this function"},
+                  "depth": {"type": "integer", "description": "Call depth (0 = entry point)"}
+                }
+              }
+            },
+            "variable_state": {
+              "type": "object",
+              "description": "📋 Evidence: Variable/value snapshot at vulnerability trigger point — for exploitability assessment",
+              "properties": {
+                "variable_name": {"type": "string", "description": "Variable name"},
+                "inferred_value": {"type": "string", "description": "Inferred/possible value at trigger point"},
+                "type": {"type": "string", "description": "Variable type"},
+                "constraints": {"type": "string", "description": "Known constraints on the value"}
+              }
+            },
+            "sanitizer_analysis": {
+              "type": "object",
+              "description": "📋 Evidence: Sanitizer presence and adequacy analysis — for FP elimination gate",
+              "required": ["sanitizer_present", "verdict"],
+              "properties": {
+                "sanitizer_present": {"type": "boolean", "description": "Whether any sanitizer/validator exists on the data path"},
+                "sanitizer_name": {"type": "string", "description": "Name of sanitizer function if present"},
+                "bypass_reason": {"type": "string", "description": "Why the sanitizer is insufficient or can be bypassed"},
+                "verdict": {
+                  "type": "string",
+                  "enum": ["no_sanitizer", "sanitizer_bypassed", "sanitizer_insufficient", "sanitizer_adequate"],
+                  "description": "Final verdict on sanitizer adequacy"
+                }
+              }
             }
           }
         },
