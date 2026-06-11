@@ -1,18 +1,20 @@
 ---
-detector: crypto-aes-ecb-mode
-severity: high
+confidence: dynamic
 cwe: CWE-327
+detector: crypto-aes-ecb-mode
 language: [c, cpp, java, python, go, js]
+precision: very-high
+severity: high
 tags: [crypto, aes, ecb, mode]
 ---
 
 # AES ECB 模式使用 (AES ECB Mode Usage)
 
-## 威胁定义
+## 威胁定义 (Threat Definition)
 
 AES-ECB 模式不提供语义安全——相同明文块产生相同密文块，导致数据模式可被观察。禁止用于任何安全敏感场景。
 
-## 检测逻辑
+## 检测逻辑 (Detection Logic)
 
 ### Step 1: Java — ECB 模式检测
 
@@ -112,31 +114,36 @@ const cipher = crypto.createCipheriv('aes-128-ecb', key, null);
 CryptoJS.AES.encrypt(data, key, { mode: CryptoJS.mode.ECB });
 ```
 
-## 修复指引
+## 修复指引 (Remediation Guide)
 
 1. **首选**：AES-256-GCM（认证加密，提供机密性+完整性+认证）
 2. **次选**：AES-CBC + HMAC-SHA256（Encrypt-then-MAC）
 3. **禁止**：任何 ECB 模式的新代码，遗留系统需制定迁移计划
 
-## 误报排除
+## 误报排除 (False Positive Exclusion)
 
-| 场景 | 原因 |
-|------|------|
-| 数据库加密（RDS/MySQL AES_ECB）兼容遗留系统 | 有文档记录的兼容性需求 |
-| AES-GCM / AES-CCM 模式 | 认证加密，安全 |
-| AES-CBC + HMAC（Encrypt-then-MAC） | 有认证保护 |
-| 仅用于教学/演示代码 | 非生产环境 |
-| 仅加密非敏感数据（公开的 Nonce/索引） | 无安全需求 |
+| 场景 | 排除依据 | 证据要求 |
+|------|---------|---------|
+| 数据库加密（RDS/MySQL AES_ECB）兼容遗留系统 | 有文档记录的兼容性需求 | 确认有明确的遗留系统迁移文档或 issue 跟踪 |
+| AES-GCM / AES-CCM 模式 | 认证加密，安全 | 确认算法字符串包含 GCM 或 CCM 模式标识 |
+| AES-CBC + HMAC（Encrypt-then-MAC） | 有认证保护 | 确认 HMAC 验证在解密之前执行，且密钥独立 |
+| 仅用于教学/演示代码 | 非生产环境 | 确认文件路径匹配 tutorial/demo/example 模式 |
+| 仅加密非敏感数据（公开的 Nonce/索引） | 无安全需求 | 确认注释或文档说明数据为非敏感且无需机密性保证 |
 
-## 检测模式汇总
+## 检测模式汇总 (Detection Patterns)
 
 ```
+# === MATCH (触发检测) ===
+
 # Java
 Cipher\.getInstance\(.*ECB|Cipher\.getInstance\("AES"\)|Cipher\.getInstance\("DES"\)
+→ MUST: code_context (Cipher.getInstance 调用及周边密码学代码)
+→ MUST: judgment_rationale (确认 ECB 模式 vs 安全模式，评估数据敏感度)
 
 # C/C++
 EVP_aes_128_ecb|EVP_aes_256_ecb|mbedtls_aes_crypt_ecb
 AES_encrypt.*AES_encrypt   → 循环中的逐块原始加密 (手动 ECB)
+→ MUST: code_context (加密函数调用及循环上下文)
 
 # Python
 AES\.MODE_ECB|pyaes\.AESModeOfOperationECB
@@ -147,4 +154,11 @@ crypto/des.*NewCipher.*\n.*Encrypt → 逐块加密 (手动 ECB)
 
 # JS
 aes-128-ecb|aes-256-ecb|CryptoJS\.mode\.ECB
+
+# === EXCLUDE (不报告) ===
+
+→ AES/GCM|AES/CCM|AES/CBC.*HMAC                                  # 安全密码学模式
+→ AES_256_GCM|EVP_aes_256_gcm|AES\.MODE_GCM                    # GCM 认证加密
+→ *tutorial*/|*demo*/|*example*/|*test*/                          # 教学/测试代码路径
+→ #define\s+AES_ECB_COMPAT|LEGACY_ECB                             # 遗留系统兼容宏
 ```

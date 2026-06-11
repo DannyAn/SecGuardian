@@ -4,17 +4,19 @@ severity: critical
 cwe: CWE-122
 language: [c, cpp]
 tags: [memory, heap, exploitation]
+precision: high
+confidence: dynamic
 ---
 
 # 堆缓冲区溢出 (Heap Buffer Overflow)
 
-## 威胁定义
+## 威胁定义 (Threat Definition)
 
 堆上分配的缓冲区发生溢出，覆盖相邻堆块的元数据（malloc chunk header）。攻击者可利用堆风水（heap feng shui）技术实现代码执行。
 
 **核心原则：堆上写入操作必须验证其大小不超过分配的堆块容量。关注 memcpy 第三个参数是否来自外部输入。**
 
-## 检测逻辑
+## 检测逻辑 (Detection Logic)
 
 ### Step 1: 搜索堆分配点
 
@@ -69,35 +71,81 @@ for (int i = 0; i < 64; i++)       // 只初始化一半，不溢出但浪费
     buf[i] = 0;
 ```
 
-## 修复指引
+## 修复指引 (Remediation)
 
 1. **首选**：使用 C++ `std::vector`/`std::string` 替代 C 风格堆数组
 2. **C 代码**：使用 `calloc`（清零+防止整数溢出）或显式验证大小
 3. **编译器保护**：启用 `-ftrapv`（GCC/Clang 有符号溢出捕获）和 AddressSanitizer
 4. **堆分配封装**：统一使用 `safe_malloc(size)` 包装函数内置大小校验
 
-## 误报排除
+## 取证证据收集指引 (Evidence Collection Guide)
 
-| 场景 | 原因 |
-|------|------|
-| `calloc` + 边界常量 | 编译期可确定安全 |
-| `std::vector::push_back` | 自动扩容 |
-| `realloc` 为扩大缓冲区 | 旧数据合法 |
-| `alloca` 栈分配 | 栈溢出由 CWE-121 覆盖 |
+### 必须收集 (MUST)
+- [ ] **code_context**：堆分配及越界写入操作
+      → findings.evidence.code_context
+- [ ] **judgment_rationale**：写入大小是否超过分配容量
+      → findings.evidence.judgment_rationale
 
-## 检测模式汇总
+### 建议收集 (SHOULD)
+- [ ] **data_flow_path**：分配点到写入点的数据流
+      → findings.evidence.data_flow_path
+- [ ] **call_stack**：分配函数到写入函数的调用链
+      → findings.evidence.call_stack
+
+### 可选收集 (MAY)
+- [ ] **variable_state**：分配大小/写入大小/索引变量值
+      → findings.evidence.variable_state
+- [ ] **sanitizer_analysis**：是否启用 AddressSanitizer 检测结果
+      → findings.evidence.sanitizer_analysis
+
+## 误报排除 (False Positive Exclusion)
+
+| 场景 (Scenario) | 排除依据 (Exclusion Basis) | 证据要求 (Evidence Required) |
+|------|------|------|
+| `calloc` + 边界常量 | 编译期可确定安全 | 提供 calloc 参数为编译期常量（非运行时变量）的证明 |
+| `std::vector::push_back` | 自动扩容 | 确认使用 std::vector 动态方法（非 operator[] 越界） |
+| `realloc` 为扩大缓冲区 | 旧数据合法 | 提供 realloc 后使用新大小进行写入的代码证据 |
+| `alloca` 栈分配 | 栈溢出由 CWE-121 覆盖 | 确认分配函数为 alloca/_alloca（栈分配） |
+
+## 检测模式汇总 (Detection Pattern Summary)
+
+### 匹配模式 (MATCH)
 
 ```
 # 分配大小 < 写入大小
 malloc|calloc (size_var)
 → memcpy.*> size_var
 → sizeof 使用了错误的对象
+→ evidence: code_context, variable_state
 
 # 分配量与元素类型不匹配
 malloc(n)                    # n 字节
 → array[i] 访问，i 循环到 n  # 少乘 sizeof(element)
+→ evidence: variable_state, judgment_rationale
 
 # off-by-one 写入
 malloc(n)
 → buf[n] = '\0'             # 需要 n+1 字节
+→ evidence: code_context, variable_state
+
+# realloc 后使用旧大小写入
+realloc(ptr, new_size)
+→ 后续写入循环使用 old_size
+→ evidence: variable_state
+```
+
+### 排除模式 (EXCLUDE)
+
+```
+# calloc + 编译期常量边界
+→ evidence: sanitizer_analysis (编译期可验证安全)
+
+# C++ std::vector / std::string 动态扩容
+→ evidence: sanitizer_analysis (自动边界管理)
+
+# realloc 扩大 + 使用新大小
+→ evidence: variable_state (确认新大小覆盖所有写入)
+
+# alloca / _alloca 栈分配
+→ evidence: sanitizer_analysis (栈溢出属 CWE-121 域)
 ```

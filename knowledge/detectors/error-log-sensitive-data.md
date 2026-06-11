@@ -4,15 +4,17 @@ severity: high
 cwe: CWE-532
 language: [c, cpp, java, python, go, js]
 tags: [error, logging, sensitive-data, privacy]
+precision: high
+confidence: dynamic
 ---
 
 # 日志敏感数据泄露 (Log Sensitive Data Exposure)
 
-## 威胁定义
+## 威胁定义 (Threat Definition)
 
 检查日志语句中是否记录了密码、Token、API Key、证书、身份证号等敏感数据。日志系统保护通常较弱，一旦被攻击者获取，后果严重。
 
-## 检测逻辑
+## 检测逻辑 (Detection Logic)
 
 ### Step 1: 敏感字段名识别
 
@@ -148,35 +150,39 @@ syslog(LOG_INFO, user_data);  // 直接使用用户数据
 log.Printf("Input: %s", userInput)  // \r\n 日志污染
 ```
 
-## 修复指引
+## 修复指引 (Remediation Guide)
 
 1. 日志框架配置敏感字段过滤器（Logback `%replace`, Log4j `RegexFilter`）
 2. 使用结构化日志 + 字段级别脱敏（`logger.info("login", {user: username})` 而非 `logger.info(user.toString())`）
 3. 敏感字段命名规范（password/token/secret/key/credential）自动识别并打码
 4. 日志写入前统一脱敏中间件/拦截器
 
-## 误报排除
+## 误报排除 (False Positive Exclusion)
 
-| 场景 | 原因 |
-|------|------|
-| 变量名为 password 但值是脱敏后的（如 `****`） | 已脱敏 |
-| 日志框架已配置敏感字段 RegexFilter | 已配置过滤 |
-| 测试代码/Mock 数据 | 非生产 |
-| 日志输出到安全的审计系统（SIEM）非本地文件 | 有访问控制 |
-| 加密后的数据（`encrypt(password)` 输出为密文字符串） | 已加密 |
-| 仅记录布尔值/长度（`len(password) > 8`） | 非实际值 |
+| 场景 | 排除依据 | 证据要求 |
+|------|---------|---------|
+| 变量名为 password 但值是脱敏后的（如 `****`） | 已脱敏 | 确认脱敏逻辑对敏感字段的有效性 |
+| 日志框架已配置敏感字段 RegexFilter | 已配置过滤 | 确认日志框架配置文件（logback.xml/log4j2.xml）中存在 RegexFilter 规则 |
+| 测试代码/Mock 数据 | 非生产 | 确认文件位于 test/ 目录或包含 @Test 注解 |
+| 日志输出到安全的审计系统（SIEM）非本地文件 | 有访问控制 | 确认日志 appender 指向 SIEM endpoint 而非本地文件 |
+| 加密后的数据（`encrypt(password)` 输出为密文字符串） | 已加密 | 确认加密函数输出为密文（非明文/明文 Hash） |
+| 仅记录布尔值/长度（`len(password) > 8`） | 非实际值 | 确认仅记录长度/布尔/存在性判断，未记录原始值 |
 
-## 检测模式汇总
+## 检测模式汇总 (Detection Patterns)
 
 ```
+# === MATCH (触发检测) ===
+
 # 敏感字段名 + 日志调用
 (log|logger|logging|syslog|printf|console\.log|console\.error|log\.Printf).*
 → (password|passwd|secret|token|apiKey|api_key|privateKey|private_key
    |creditCard|credit_card|ssn|social_security|cvv|pin)
+                                                       # → MUST: code_context (日志语句+敏感字段名)
 
 # 完整对象序列化入日志
 (logger|log)\.(info|debug|warn|error).*\+
 log\.Printf.*%\+v            → 结构体含敏感字段
+                                                       # → MUST: judgment_rationale (序列化对象字段分析)
 
 # CRLF 日志注入
 (logger|syslog|log\.Printf|console\.log).*\+(?!\s*%s)
@@ -185,4 +191,12 @@ log\.Printf.*%\+v            → 结构体含敏感字段
 # 框架特定
 LOGGING.*request\.body       → Django settings
 %msg.*%n                     → logback/log4j pattern 无过滤
+
+# === EXCLUDE (不报告) ===
+→ %replace|RegexFilter|replace.*password               # logback/log4j 已配置脱敏
+→ sanitize|mask|redact                                 # 自定义脱敏函数
+→ substring.*\*{3}|\.substring\(0,\s*\d+\).*\*         # 部分打码模式
+→ test_|_test\.|@Test|_test\.go|test_.*\.py             # 测试代码
+→ SIEM|splunk|elasticsearch|logstash                   # 日志输出到安全审计系统
+→ len\(|\.length\s*[><=]                               # 仅记录长度/布尔判断
 ```

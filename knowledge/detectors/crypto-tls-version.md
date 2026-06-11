@@ -1,18 +1,20 @@
 ---
-detector: crypto-tls-version
-severity: medium
+confidence: dynamic
 cwe: CWE-326
+detector: crypto-tls-version
 language: [c, cpp, java, python, go, js]
+precision: very-high
+severity: medium
 tags: [crypto, tls, ssl, protocol]
 ---
 
 # TLS/SSL 弱版本 (Weak TLS/SSL Version)
 
-## 威胁定义
+## 威胁定义 (Threat Definition)
 
 检测代码中是否使用了已弃用的 SSL/TLS 协议版本（SSLv2/3、TLS 1.0/1.1），这些协议存在已知漏洞（POODLE/BEAST/Lucky13/RC4）。
 
-## 检测逻辑
+## 检测逻辑 (Detection Logic)
 
 ### Step 1: C/C++ — OpenSSL TLS 版本
 
@@ -124,30 +126,34 @@ new https.Agent({ rejectUnauthorized: false });
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 ```
 
-## 修复指引
+## 修复指引 (Remediation Guide)
 
 1. 服务端最低 TLS 1.2，推荐 TLS 1.3
 2. 移除 SSLv2/SSLv3/TLS 1.0/TLS 1.1 协议支持
 3. 使用安全密码套件（TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384）
 4. 定期使用 SSL Labs / testssl.sh 验证配置
 
-## 误报排除
+## 误报排除 (False Positive Exclusion)
 
-| 场景 | 原因 |
-|------|------|
-| `TLSv1_2_method()` 及以上版本 | 安全版本 |
-| `tls.VersionTLS12` / `tls.VersionTLS13` | 安全版本 |
-| `ssl.PROTOCOL_TLS_CLIENT` / `PROTOCOL_TLS_SERVER` | 自动选择安全版本 |
-| 测试代码 (Mock SSL) | 非生产 |
-| 仅作为服务端接收旧版本客户端（向后兼容区） | 有文档说明 |
+| 场景 | 排除依据 | 证据要求 |
+|------|---------|---------|
+| `TLSv1_2_method()` 及以上版本 | 安全版本 | 确认方法名为 TLSv1_2 或 TLSv1_3 系列 |
+| `tls.VersionTLS12` / `tls.VersionTLS13` | 安全版本 | 确认 MinVersion 设置为 VersionTLS12 或 VersionTLS13 |
+| `ssl.PROTOCOL_TLS_CLIENT` / `PROTOCOL_TLS_SERVER` | 自动选择安全版本 | 确认使用 TLS_CLIENT/TLS_SERVER 协议常量（Python 3.6+） |
+| 测试代码 (Mock SSL) | 非生产 | 确认文件路径匹配 test/mock 模式，且非生产配置文件 |
+| 仅作为服务端接收旧版本客户端（向后兼容区） | 有文档说明 | 确认有明确文档或注释说明兼容性需求及安全评估 |
 
-## 检测模式汇总
+## 检测模式汇总 (Detection Patterns)
 
 ```
+# === MATCH (触发检测) ===
+
 # C/C++ OpenSSL
 SSL3_VERSION|TLS1_VERSION\b|TLS1_1_VERSION
 SSLv23_method|TLSv1_method|TLSv1_1_method
 SSL_OP_NO_TLSv1_2  (禁止 TLS 1.2)
+→ MUST: code_context (SSL_CTX 初始化及版本设置的完整代码)
+→ MUST: judgment_rationale (协议版本是否低于 TLS 1.2，是否有安全评估文档)
 
 # Java
 SSLContext\.getInstance\("SSL|SSLContext\.getInstance\("TLSv1"\)|SSLContext\.getInstance\("TLSv1\.1"\)
@@ -164,4 +170,12 @@ VersionTLS10|VersionTLS11|InsecureSkipVerify\s*:\s*true
 secureProtocol.*TLSv1_method|minVersion.*TLSv1[^12]
 rejectUnauthorized\s*:\s*false
 NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*.0.
+
+# === EXCLUDE (不报告) ===
+
+→ TLS1_2_VERSION|TLS1_3_VERSION|TLSv1_2_method|TLSv1_3_method           # 安全协议版本
+→ VersionTLS12|VersionTLS13                                              # Go 安全版本
+→ PROTOCOL_TLS_CLIENT|PROTOCOL_TLS_SERVER|PROTOCOL_TLSv1_2               # Python 安全协议
+→ *test*/|*mock*/                                                        # 测试/Mock 代码
+→ # backward.compat|legacy.support|兼容旧版                               # 有文档说明的向后兼容
 ```

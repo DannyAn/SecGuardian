@@ -4,17 +4,19 @@ severity: critical
 cwe: CWE-306
 language: [java, python, go]
 tags: [web, authentication, access-control]
+precision: very-high
+confidence: dynamic
 ---
 
 # 缺失认证 (Missing Authentication for Critical Function)
 
-## 威胁定义
+## 威胁定义 (Threat Definition)
 
 关键功能端点（管理接口、敏感数据API、用户操作）完全不需要认证即可访问 — 任何人都可调用。对于已部署认证机制的绕过缺陷，参考 `auth-bypass` 检测器。
 
 **核心原则：所有非公开端点必须经过认证中间件/拦截器。框架路由定义时即指定认证要求。**
 
-## 检测逻辑
+## 检测逻辑 (Detection Logic)
 
 ### Step 1: 识别关键功能端点
 
@@ -92,28 +94,52 @@ if (request.getHeader("X-Internal") != null) {
 }
 ```
 
-## 修复指引
+## 取证证据收集指引 (Evidence Collection Guide)
+
+### 必须收集 (MUST)
+- [ ] **code_context**：关键功能端点的完整代码，包含路由映射（@GetMapping/@PostMapping/@app.route/HandleFunc）、方法签名、以及所有认证相关注解/装饰器（@AuthenticationPrincipal/@login_required/@PreAuthorize 等）
+      → findings.evidence.code_context
+- [ ] **judgment_rationale**：分析端点是否被认证机制保护——是否存在认证注解/装饰器、是否有 Session/Token 验证代码（getAttribute("user")/jwt.verify）、请求中携带的凭证是否被实际验证（非仅读取）；特别关注是否存在认证绕过路径（web.ignoring/条件跳过）
+      → findings.evidence.judgment_rationale
+
+### 建议收集 (SHOULD)
+- [ ] **data_flow_path**：请求从 HTTP 入口 → 认证 Filter/Interceptor/Middleware → Handler 的完整数据流，标注认证检查点的位置和覆盖范围
+      → findings.evidence.data_flow_path
+- [ ] **call_stack**：FilterChain/InterceptorChain 的完整顺序，确认 SecurityFilter/AuthenticationFilter 是否覆盖了当前端点
+      → findings.evidence.call_stack
+
+### 可选收集 (MAY)
+- [ ] **variable_state**：Session 中 user 属性的存在性、JWT token 的验证状态、请求中 Authorization header 的值
+      → findings.evidence.variable_state
+- [ ] **sanitizer_analysis**：Spring Security 全局配置是否覆盖所有路由（.anyRequest().authenticated()）、API Gateway 是否有统一的 Token 验证、是否存在 whitelist/ignoring 配置误放行
+      → findings.evidence.sanitizer_analysis
+
+## 修复指引 (Remediation Guide)
 
 1. 全局认证中间件/拦截器覆盖所有路由
 2. 使用框架注解：`@PreAuthorize`/`@Authenticated`/`@UseGuards(AuthGuard)`
 3. 默认拒绝：所有端点默认要求认证，公开端点显式标记白名单
 
-## 误报排除
+## 误报排除 (False Positive Exclusion)
 
-| 场景 | 原因 |
-|------|------|
-| 公开 API 端点（健康检查 /health） | 设计上不需要认证 |
-| OAuth2/OIDC Gateway 层已处理 | 全局认证 |
-| 静态资源（/css/, /js/, /images/） | 公开内容 |
-| Webhook 接收端点（签名验证代替） | 非认证机制 |
+| 场景 | 排除依据 | 证据要求 |
+|------|---------|---------|
+| 公开 API 端点（健康检查 /health） | 设计上不需要认证 | 确认端点路径在公开白名单中（如 spring security permitAll），且端点不返回敏感数据 |
+| OAuth2/OIDC Gateway 层已处理 | 全局认证 | 确认网关配置了 OAuth2 client 验证，所有请求经过网关后带有已验证的 principal |
+| 静态资源（/css/, /js/, /images/） | 公开内容 | 确认路径为静态资源目录，且 web 服务器配置为直接 serve，不经过业务逻辑 |
+| Webhook 接收端点（签名验证代替） | 非认证机制 | 确认使用 HMAC 签名验证（非 session/token 认证），签名密钥安全存储 |
 
-## 检测模式汇总
+## 检测模式汇总 (Detection Patterns)
 
 ```
+# === MATCH (触发检测) ===
+
 # 敏感端点 + 无认证注解/检查
 /api/(profile|orders|transfer|payment|settings)
+                                                       # → MUST: code_context (端点路由+认证相关代码)
 → 无 @AuthenticationPrincipal|@login_required|@PreAuthorize
 → 无 getAttribute.*user|getPrincipal|verifyToken
+                                                       # → MUST: judgment_rationale (认证机制缺失分析)
 
 # API 组前缀无全局认证
 /api/(admin|internal|private|secret)
@@ -122,10 +148,14 @@ if (request.getHeader("X-Internal") != null) {
 # JWT/Token 缺失验证
 Header.*Authorization|Bearer
 → 无 jwt\.verify|parseClaims|parseToken (在同一请求处理中)
+
+# === EXCLUDE (不报告) ===
+→ @AuthenticationPrincipal|@login_required             # 认证注解/装饰器
+→ @PreAuthorize.*authenticated                         # Spring Security 认证
+→ session\.getAttribute.*user|getUserPrincipal         # Session/Token 验证
+→ jwt\.verify|parseClaimsJws|jwt\.parse                 # JWT 验证
+→ \.authenticated\(\)|\.hasRole\(                       # 全局安全配置
+→ \.permitAll\(\)\s*/\*\*health|public                    # 公开白名单
+→ SecurityFilterChain|WebSecurityConfigurerAdapter       # Spring Security 配置
+→ HMAC|hmac_sha256|sign\.verify                          # Webhook 签名验证
 ```
-
-## CWE 映射
-
-- CWE-306: Missing Authentication for Critical Function
-- CWE-862: Missing Authorization（功能级授权）
-- CWE-287: Improper Authentication（认证绕过）

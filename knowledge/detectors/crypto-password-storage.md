@@ -1,18 +1,20 @@
 ---
-detector: crypto-password-storage
-severity: critical
+confidence: dynamic
 cwe: CWE-916
+detector: crypto-password-storage
 language: [java, python, go, js]
+precision: very-high
+severity: critical
 tags: [crypto, password, hashing, storage]
 ---
 
 # 密码存储不安全 (Insecure Password Storage)
 
-## 威胁定义
+## 威胁定义 (Threat Definition)
 
 检测密码存储是否使用了弱哈希（MD5/SHA-1/SHA-256 单次）、可逆加密或明文存储，必须使用 bcrypt/scrypt/Argon2 等专用密码哈希。
 
-## 检测逻辑
+## 检测逻辑 (Detection Logic)
 
 ### Step 1: Java — 弱密码哈希
 
@@ -133,29 +135,33 @@ const hash = await bcrypt.hash(password, 12);
 const match = await bcrypt.compare(password, hash);
 ```
 
-## 修复指引
+## 修复指引 (Remediation Guide)
 
 1. **首选**：Argon2id（OWASP 推荐，抗 GPU/ASIC/侧信道）
-2. **次选**：bcrypt（cost ≥ 12）/ scrypt
-3. **可接受**：PBKDF2-HMAC-SHA256（迭代 ≥ 100,000）
+2. **次选**：bcrypt（cost >= 12）/ scrypt
+3. **可接受**：PBKDF2-HMAC-SHA256（迭代 >= 100,000）
 4. **禁止**：MD5/SHA-1/SHA-256 单次、可逆加密、明文存储
 
-## 误报排除
+## 误报排除 (False Positive Exclusion)
 
-| 场景 | 原因 |
-|------|------|
-| 文件完整性校验（MD5/SHA-1 checksum） | 非密码存储 |
-| 数据去重/分片标识 | 非安全用途 |
-| HMAC-SHA256 认证（非存储） | 消息认证用途 |
-| 测试代码/Mock 数据 | 非生产 |
-| OAuth/SSO token（由第三方生成） | 非本系统生成 |
+| 场景 | 排除依据 | 证据要求 |
+|------|---------|---------|
+| 文件完整性校验（MD5/SHA-1 checksum） | 非密码存储 | 确认上下文为文件校验/下载验证，变量名含 checksum/digest/file_hash |
+| 数据去重/分片标识 | 非安全用途 | 确认哈希用于去重键/分片路由，非用户认证场景 |
+| HMAC-SHA256 认证（非存储） | 消息认证用途 | 确认使用 HMAC 进行消息签名/API 认证，非密码存储 |
+| 测试代码/Mock 数据 | 非生产 | 确认文件路径匹配 test/mock/fixture 模式 |
+| OAuth/SSO token（由第三方生成） | 非本系统生成 | 确认 token 由外部 IDP 签发，本系统仅验证不存储 |
 
-## 检测模式汇总
+## 检测模式汇总 (Detection Patterns)
 
 ```
+# === MATCH (触发检测) ===
+
 # Java
 MessageDigest\.getInstance\("MD5"|"SHA-1"|"SHA-256"\)
 → 上下文含: password|pass|pwd|credential
+→ MUST: code_context (哈希调用及周边认证/注册代码)
+→ MUST: judgment_rationale (MD5/SHA 是否用于密码存储 vs 文件校验/数据去重)
 
 # Python
 hashlib\.(md5|sha1|sha256)\(.*password|pwd|passwd|secret
@@ -169,4 +175,17 @@ hashlib\.(md5|sha1|sha256)\(.*encode\(\)\).*hexdigest\(\)
 # JS/Node
 crypto\.createHash\(.(md5|sha1|sha256).\).*password
 → 上下文含: password|user|auth|login|signup
+
+# 明文比较/存储
+password\s*==\s*stored|password\.equals\(stored\)
+Cipher\.getInstance.*password
+
+# === EXCLUDE (不报告) ===
+
+→ bcrypt|scrypt|Argon2|PBKDF2|argon2id                             # 安全密码哈希算法
+→ checksum|file_hash|digest.*file|download.*hash                     # 文件完整性校验
+→ HMAC|message.*auth|api.*sign|signature.*verify                     # 消息认证用途
+→ *test*/|*mock*/|*fixture*/                                         # 测试/Mock 代码
+→ jwt\.(sign|verify)|oauth|sso|token.*third|idp                       # OAuth/SSO 外部 token
+→ (去重|分片|dedup|shard|partition).*hash                            # 数据去重用途
 ```

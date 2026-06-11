@@ -4,15 +4,17 @@ severity: critical
 cwe: CWE-915
 language: [java, python, go, js]
 tags: [web, api, binding, mass-assignment]
+precision: high
+confidence: dynamic
 ---
 
 # 批量分配 (Mass Assignment)
 
-## 威胁定义
+## 威胁定义 (Threat Definition)
 
 检测 API 端点是否自动将客户端请求的字段绑定到内部数据模型，允许攻击者修改不应访问的属性（如 `role=admin`、`isAdmin=true`）。
 
-## 检测逻辑
+## 检测逻辑 (Detection Logic)
 
 ### Step 1: Java Spring — 自动绑定
 
@@ -155,30 +157,33 @@ app.post('/users', async (req, res) => {
 });
 ```
 
-## 修复指引
+## 修复指引 (Remediation Guide)
 
 1. **首选**：创建专门的 Request DTO，只包含允许用户修改的字段
 2. **次选**：使用字段白名单显式声明允许绑定的字段（`@InitBinder.setAllowedFields` / DRF `fields` 列表）
 3. **禁止**：直接将 `request.body`/`request.form` 绑定到数据库实体
 4. Mongoose Schema 使用 `immutable: true` 标记敏感字段
 
-## 误报排除
+## 误报排除 (False Positive Exclusion)
 
-| 场景 | 原因 |
-|------|------|
-| 使用专用 DTO/Request Schema 隔离 | 已分层保护 |
-| `@InitBinder.setAllowedFields` 显式白名单 | 白名单控制 |
-| Pydantic `model_validate` 使用 Request schema | 字段受限 |
-| GORM `Updates(map)` 显式列名字段白名单 | 白名单 |
-| 管理后台 API（有 RBAC 保护） | 权限受控 |
-| Mongoose Schema `immutable: true` 标记敏感字段 | 字段级保护 |
+| 场景 | 排除依据 | 证据要求 |
+|------|---------|---------|
+| 使用专用 DTO/Request Schema 隔离 | 已分层保护 | 确认存在专用 Request DTO/Schema 且字段不含权限属性 |
+| `@InitBinder.setAllowedFields` 显式白名单 | 白名单控制 | 确认 setAllowedFields 列表仅含安全字段 |
+| Pydantic `model_validate` 使用 Request schema | 字段受限 | 确认 Pydantic model 字段定义不含 role/is_admin 等敏感字段 |
+| GORM `Updates(map)` 显式列名字段白名单 | 白名单 | 确认 map 中仅包含用户可修改的字段名 |
+| 管理后台 API（有 RBAC 保护） | 权限受控 | 确认端点有管理角色检查且审计日志完整 |
+| Mongoose Schema `immutable: true` 标记敏感字段 | 字段级保护 | 确认敏感字段 Schema 定义含 immutable: true |
 
-## 检测模式汇总
+## 检测模式汇总 (Detection Patterns)
 
 ```
+# === MATCH (触发检测) ===
+
 # Java: 实体直接绑定
 (@ModelAttribute|@RequestBody)\s+\w+(User|Account|Profile)\s  # 实体类名
 BeanUtils\.copyProperties.*request|body|input
+                                                       # → MUST: code_context (Controller方法+绑定实体)
 
 # Python: 批量 setattr
 setattr\(.*for.*request\.(POST|form|body)
@@ -193,4 +198,14 @@ c\.(BindJSON|Bind|ShouldBindJSON)\(&(user|account|profile)\)
 new\s+(User|Account)\(req\.body\)
 (User|Account)\.(findOneAndUpdate|update)\([^,]*,\s*req\.body
 (User|Account)\.update\(req\.body
+                                                       # → MUST: judgment_rationale (绑定字段vs允许字段分析)
+
+# === EXCLUDE (不报告) ===
+→ @InitBinder|setAllowedFields                         # Spring 白名单控制
+→ @Valid.*Request|CreateRequest|UpdateRequest          # 专用 Request DTO
+→ UserUpdateRequest|UserCreateRequest|UpdateUserRequest # Pydantic 请求 Schema
+→ \.Updates\(map\[string\]interface\{                  # GORM map 白名单
+→ immutable:\s*true                                     # Mongoose immutable 保护
+→ @PreAuthorize|hasRole|isAdmin|is_staff               # 管理后台权限保护
+→ const\s*\{.*\}\s*=\s*req\.body                       # JS 解构白名单
 ```

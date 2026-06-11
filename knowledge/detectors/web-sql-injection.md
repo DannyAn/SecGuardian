@@ -4,17 +4,19 @@ severity: critical
 cwe: CWE-89
 language: [c, cpp, java, go]
 tags: [web, injection, database, embedded]
+precision: very-high
+confidence: dynamic
 ---
 
 # SQL 注入检测 (C/C++ / Java / Go)
 
-## 威胁定义
+## 威胁定义 (Threat Definition)
 
 攻击者通过构造恶意输入拼接 SQL 语句，导致数据库执行非预期的查询，获取、篡改或删除数据。覆盖 Web 后端 (Java/Go) 和嵌入式/桌面应用 (C/C++ SQLite)。
 
 **核心原则：任何用户输入不得直接拼接到 SQL 语句中。**
 
-## 检测逻辑
+## 检测逻辑 (Detection Logic)
 
 ### Step 1: Java — 搜索危险 API
 
@@ -220,33 +222,56 @@ if !allowed[orderBy] { return errors.New("invalid") }
 db.Order(orderBy).Find(&users)
 ```
 
-## 修复指引
+## 取证证据收集指引 (Evidence Collection Guide)
+
+### 必须收集 (MUST)
+- [ ] **code_context**：SQL 查询构建的完整代码，包含 SQL 字符串的构造路径（拼接方式/来源变量）、数据库执行 API（createStatement/sqlite3_exec/sqlite3_prepare_v2/db.Query）及参数绑定状态
+      → findings.evidence.code_context
+- [ ] **judgment_rationale**：分析 SQL 字符串从构造到执行的完整路径——是否存在参数化绑定（PreparedStatement/sqlite3_bind_*/db.Query args）；若使用拼接，分析是否所有拼接片段均可信（硬编码/内部枚举）；判断拼接操作符、格式化函数与执行 API 之间的数据流是否闭合；对于 sqlite3_mprintf("%q") 仅转义模式，分析是否存在二次拼接或绕过路径
+      → findings.evidence.judgment_rationale
+
+### 建议收集 (SHOULD)
+- [ ] **data_flow_path**：用户输入 → 字符串拼接/格式化（sprintf/fmt.Sprintf/String.format/+）→ SQL 语句 → 执行 API（sqlite3_exec/db.Query/createStatement/executeQuery）的完整数据流，标注每层是否经过了参数化或转义处理
+      → findings.evidence.data_flow_path
+- [ ] **call_stack**：Controller/Handler → Service → DAO/Repository 的完整调用链（Java/Go）；或函数调用链从输入获取到数据库 API 调用（C/C++），确认每一层的 SQL 构建方式及是否使用了参数化查询
+      → findings.evidence.call_stack
+
+### 可选收集 (MAY)
+- [ ] **variable_state**：用户输入值、SQL 字符串最终形态、数据库 API 类型（Statement/PreparedStatement/sqlite3_exec/sqlite3_prepare_v2）、占位符绑定状态、格式化函数说明符（%s/%q/%w）
+      → findings.evidence.variable_state
+- [ ] **sanitizer_analysis**：是否存在 ORM 层安全 API（GORM Where("name = ?")/MyBatis #{}）、输入校验/白名单（ORDER BY 允许字段列表）、WAF 级 SQL 过滤；sqlite3_mprintf 的 %q 转义是否在同一作用域内且无后续二次拼接；FTS5 MATCH 参数是否经过绑定或严格白名单校验
+      → findings.evidence.sanitizer_analysis
+
+## 修复指引 (Remediation Guide)
 
 1. **首选**：使用参数化查询（PreparedStatement / sqlite3_prepare_v2 + sqlite3_bind_*）
 2. **次选**：ORM 安全 API（非原生 SQL 接口）
 3. **不得已时**：输入校验 + 白名单过滤（ORDER BY/GROUP BY 等无法参数化的子句）
 
-## 误报排除
+## 误报排除 (False Positive Exclusion)
 
-| 场景 | 原因 |
-|------|------|
-| `sqlite3_prepare_v2` + `sqlite3_bind_*` (C) | 参数化查询，安全 |
-| `PQexecParams()` / `mysql_stmt_bind_param()` (C) | 参数化，安全 |
-| PreparedStatement + setString (Java) | 参数化，安全 |
-| `db.Query(query, args...)` 占位符 (Go) | 参数化安全 |
-| MyBatis #{} / GORM Where("name = ?") | 参数化，安全 |
-| `sqlite3_mprintf("%q", val)` — 仅转义单引号 | ⚠️ 不视为安全，仍需报告（非参数化） |
-| 静态 SQL 字面量字符串无外部输入 | 无注入路径 |
-| ORDER BY 有白名单校验 | 已验证 |
-| 表名/列名来自内部枚举，非用户输入 | 无注入路径 |
+| 场景 | 排除依据 | 证据要求 |
+|------|---------|---------|
+| `sqlite3_prepare_v2` + `sqlite3_bind_*` (C) | 参数化查询，安全 | 确认 prepare_v2 的 SQL 为静态字符串字面量，且 bind 绑定所有用户输入 |
+| `PQexecParams()` / `mysql_stmt_bind_param()` (C) | 参数化，安全 | 确认使用参数绑定 API 且 SQL 模板不含拼接 |
+| PreparedStatement + setString (Java) | 参数化，安全 | 确认 SQL 模板为静态字符串，所有变量通过 setXxx 绑定 |
+| `db.Query(query, args...)` 占位符 (Go) | 参数化安全 | 确认 query 为静态字符串，args 覆盖所有动态值 |
+| MyBatis #{} / GORM Where("name = ?") | 参数化，安全 | 确认使用 #{} 而非 ${}，Where 使用 ? 占位符 |
+| `sqlite3_mprintf("%q", val)` — 仅转义单引号 | 不视为安全，仍需报告（非参数化） | 确认仅有 %q 转义，无参数化绑定 |
+| 静态 SQL 字面量字符串无外部输入 | 无注入路径 | 确认 SQL 字符串为编译期常量，无任何运行时拼接 |
+| ORDER BY 有白名单校验 | 已验证 | 确认存在白名单集合且字段名来自内部枚举 |
+| 表名/列名来自内部枚举，非用户输入 | 无注入路径 | 确认标识符来源为硬编码映射或内部配置 |
 
-## 检测模式汇总
+## 检测模式汇总 (Detection Patterns)
 
 ```
+# === MATCH (触发检测) ===
+
 # C/C++ SQLite: snprintf/sprintf + sqlite3_exec
 (snprintf|sprintf|strcat|strcpy).*SELECT|INSERT|DELETE|UPDATE
 → sqlite3_exec|sqlite3_prepare_v2 (同一调用链)
 → 排除 sqlite3_bind_text|sqlite3_bind_int|sqlite3_bind_* 在同一作用域
+                                                       # → MUST: code_context (SQL构造链完整代码)
 
 # C/C++ SQLite: sqlite3_mprintf 直接拼接
 sqlite3_mprintf.*SELECT|INSERT|DELETE|UPDATE
@@ -260,6 +285,7 @@ PQexec|mysql_query|SQLExecDirect
 createStatement|executeQuery
 → SQL 字符串中含 + 或 String.format
 → MyBatis \${  (非 #{})
+                                                       # → MUST: judgment_rationale (拼接路径+参数化分析)
 
 # Go: fmt.Sprintf 拼接到 SQL
 fmt\.Sprintf.*SELECT|INSERT|DELETE|UPDATE
@@ -275,4 +301,12 @@ ORDER BY|GROUP BY|LIMIT\s+\+
 # FTS5 MATCH 注入 (C/C++)
 MATCH\s+'.*\+|snprintf.*MATCH
 → 用户输入拼接到 MATCH 表达式中
+
+# === EXCLUDE (不报告) ===
+→ sqlite3_bind_text|sqlite3_bind_int|sqlite3_bind_value  # SQLite 参数绑定
+→ PQexecParams|mysql_stmt_bind_param|SQLBindParameter    # 其他 C API 参数化
+→ PreparedStatement.*setString|\.setInt|\.setLong         # Java PreparedStatement
+→ #\{|Where\(.*\?|Where\(.*\$\d+                         # MyBatis #{} / GORM ? / Go $1
+→ Set\.of\(|ALLOWED.*contains|allowed\[.*\]               # ORDER BY 白名单校验
+→ static final String SQL|const char \*sql = "             # 静态 SQL 字面量
 ```

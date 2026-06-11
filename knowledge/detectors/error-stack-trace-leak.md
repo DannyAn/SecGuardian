@@ -4,15 +4,17 @@ severity: high
 cwe: CWE-209
 language: [c, cpp, java, python, go, js]
 tags: [error, information-leakage, exception, production]
+precision: very-high
+confidence: dynamic
 ---
 
 # 堆栈轨迹泄露 (Stack Trace Leak)
 
-## 威胁定义
+## 威胁定义 (Threat Definition)
 
 检查异常/错误处理代码是否将内部堆栈轨迹、错误详情泄露给终端用户或调用方。生产环境中的详细错误信息会暴露内部架构、文件路径、SQL 语句等敏感信息。
 
-## 检测逻辑
+## 检测逻辑 (Detection Logic)
 
 ### Step 1: Java — 异常信息直接返回
 
@@ -158,30 +160,33 @@ app.use((err, req, res, next) => {
 | Express | `app.set('env', 'development')` | server.js |
 | Go net/http | 无 recover 或 recover 直接写响应 | 代码模式 |
 
-## 修复指引
+## 修复指引 (Remediation Guide)
 
 1. 统一错误响应格式，只返回通用错误码和用户友好消息
 2. 敏感详细信息记录在服务端安全日志（ELK/Splunk）
 3. 生产环境关闭调试模式和详细堆栈输出
 4. 错误监控系统（Sentry/DataDog）确保错误不直接返回客户端
 
-## 误报排除
+## 误报排除 (False Positive Exclusion)
 
-| 场景 | 原因 |
-|------|------|
-| 开发环境 `DEBUG=True` 且有条件编译/环境判断 | 仅开发环境 |
-| 内部 API 间 RPC 调用 | 非对外接口 |
-| 错误日志系统（Sentry/Datadog）正常上报 | 非直接返回给用户 |
-| `debug` 包/模块仅导入但未启用 | 未激活 |
-| 异常消息仅包含用户提供的输入信息 | 无内部信息泄露 |
-| 测试代码 (`*_test.go`, `*Test.java`, `test_*.py`) | 非生产 |
+| 场景 | 排除依据 | 证据要求 |
+|------|---------|---------|
+| 开发环境 `DEBUG=True` 且有条件编译/环境判断 | 仅开发环境 | 确认有环境判断逻辑（如 NODE_ENV/spring.profiles.active） |
+| 内部 API 间 RPC 调用 | 非对外接口 | 确认 API 为内部服务间调用且无外部路由 |
+| 错误日志系统（Sentry/Datadog）正常上报 | 非直接返回给用户 | 确认异常发送到日志系统而非 HTTP 响应体 |
+| `debug` 包/模块仅导入但未启用 | 未激活 | 确认 import 但无实际调用或条件禁用 |
+| 异常消息仅包含用户提供的输入信息 | 无内部信息泄露 | 确认错误消息中无文件路径/表名/内部类名 |
+| 测试代码 (`*_test.go`, `*Test.java`, `test_*.py`) | 非生产 | 确认文件位于 test/ 目录或含测试框架注解 |
 
-## 检测模式汇总
+## 检测模式汇总 (Detection Patterns)
 
 ```
+# === MATCH (触发检测) ===
+
 # Java: 返回异常消息
 catch.*Exception.*\{[^}]*return.*e\.(getMessage|toString|getStackTrace)
 e\.printStackTrace\(\)       → 调用链上下文
+                                                       # → MUST: code_context (catch 块完整代码)
 
 # C/C++: 错误信息包含内部路径
 fprintf.*stderr|printf.*Error → __FILE__|strerror
@@ -198,4 +203,14 @@ http\.Error.*err\.Error\(\)   → 错误详情返回
 # JS/Node: 返回 err.stack
 err\.stack|err\.message       → res\.send|res\.json 调用链
 app\.set\('env',\s*'development'\)  → 生产环境标签
+                                                       # → MUST: judgment_rationale (错误响应内容分析)
+
+# === EXCLUDE (不报告) ===
+→ logger\.error|log\.Printf|logging\.error             # 内部日志（非 HTTP 响应）
+→ sentry|Sentry|datadog|DataDog|newrelic               # 错误监控系统上报
+→ "Internal server error"|"Internal Server Error"       # 通用错误消息
+→ @ExceptionHandler|@ControllerAdvice.*500             # 统一异常处理返回通用消息
+→ spring\.profiles\.active\s*=\s*dev|test               # 非生产 profile
+→ NODE_ENV.*development|development.*NODE_ENV          # 开发环境标记
+→ test_|_test\.|@Test                                   # 测试代码
 ```

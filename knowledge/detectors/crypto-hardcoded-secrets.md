@@ -1,25 +1,22 @@
 ---
-detector: hardcoded-secrets
-severity: high
+confidence: dynamic
 cwe: CWE-798
+detector: hardcoded-secrets
 language: [c, cpp, java, python, go, js]
+precision: very-high
+severity: high
 tags: [crypto, secrets, credentials]
 ---
 
 # 硬编码密钥/凭证 (Hardcoded Secrets)
 
-## Indexer Input
-
-- `symbols.variables`: 直接读取变量列表，筛选名称含 `password`/`api_key`/`secret`/`token`/`key` 且值为字符串字面量的变量
-- 执行方式：遍历变量符号表 → 精准读取对应行检查赋值，**不扫描无敏感变量的文件**
-
-## 威胁定义
+## 威胁定义 (Threat Definition)
 
 API Key、密码、私钥、Token 等敏感凭证硬编码在源代码中，进入版本控制后永久暴露。攻击者可通过源码泄露、供应链分析或反编译获取这些凭证。
 
 **核心原则：代码中不得包含任何形式的敏感凭证。** 检测时要区分"看起来像秘密"和"真的是秘密"——变量命名线索 + 赋值字面量 + 上下文。
 
-## 检测逻辑
+## 检测逻辑 (Detection Logic)
 
 ### Step 1: 变量命名 + 字面量赋值（高置信度）
 
@@ -88,43 +85,51 @@ password.length() > 0                   // 仅检查非空 — 不报告
 ```
 例外：如果测试文件中包含真实生产凭证格式（如有效的 `sk-live-` 前缀），仍报告。
 
-## 修复指引
+## 修复指引 (Remediation Guide)
 
 1. **首选**：密钥管理服务（AWS KMS / HashiCorp Vault / K8s Secrets），运行时注入
 2. **次选**：环境变量（`getenv("DB_PASS")` / `process.env.DB_PASS`），配置文件不入库
 3. **最低要求**：配置文件模板化（`config.template.json` 入仓库，`config.json` 不入仓库）
 4. **补救**：已泄露密钥立即轮换 + Git 历史清除（`git filter-branch` / `BFG Repo-Cleaner`）
 
-## 误报排除
+## 误报排除 (False Positive Exclusion)
 
-| 场景 | 原因 |
-|------|------|
-| `getenv("KEY")` / `System.getenv()` | 运行时读取，非硬编码 |
-| 变量名为配置项 (`password_min_length`, `key_name`) | 非凭证值 |
-| 变量值来自函数返回值 | 非字面量 |
-| `-----BEGIN CERTIFICATE-----` / 公钥 | 公开信息 |
-| 测试代码中的假凭证 (`"test_key_123"`) | 非生产 — 但 `sk-live-` 格式仍报告 |
-| `${API_KEY}` / `{{ secret }}` 模板变量 | 运行时替换 |
-| 仅变量声明无初始化 | 无值不报告 |
-| 0x00... 全零数组 | 占位符，非真实密钥 |
-| Base64 编码的图片/字体/icons | 非机密数据 |
+| 场景 | 排除依据 | 证据要求 |
+|------|---------|---------|
+| `getenv("KEY")` / `System.getenv()` | 运行时读取，非硬编码 | 确认调用的是标准环境变量 API，且变量名在部署文档中有定义 |
+| 变量名为配置项 (`password_min_length`, `key_name`) | 非凭证值 | 确认变量值类型为整数/配置常量，非字符串密码 |
+| 变量值来自函数返回值 | 非字面量 | 确认赋值右侧为函数调用表达式，非字符串字面量 |
+| `-----BEGIN CERTIFICATE-----` / 公钥 | 公开信息 | 确认内容为 X.509 证书或公钥格式（PEM header 匹配） |
+| 测试代码中的假凭证 (`"test_key_123"`) | 非生产 — 但 `sk-live-` 格式仍报告 | 确认文件路径匹配 test/mock/fixture 模式，且凭证值不含生产前缀 |
+| `${API_KEY}` / `{{ secret }}` 模板变量 | 运行时替换 | 确认为模板占位符语法，非实际凭证值 |
+| 仅变量声明无初始化 | 无值不报告 | 确认变量声明语句无赋值表达式 |
+| 0x00... 全零数组 | 占位符，非真实密钥 | 确认所有字节均为 0x00 |
+| Base64 编码的图片/字体/icons | 非机密数据 | 确认上下文为 UI 资源加载（img src、icon font、CSS background） |
 
-## 检测模式汇总
+## 检测模式汇总 (Detection Patterns)
 
 ```
-# === MUST REPORT (高置信度) ===
+# === MATCH (触发检测) ===
 
 # 敏感变量名 + 字符串字面量赋值
 (password|passwd|api_key|api_secret|secret_key|private_key|encryption_key|jwt_secret|admin_pass|master_key)\s*=\s*"[^"]
 → 排除 "$\{|"\{\{|getenv\(|System.getenv\(
 → 排除 *_min_length|*_max_length|*_name|*_type\s*=
+→ MUST: code_context (变量声明行及周边代码)
+→ MUST: judgment_rationale (是否为真实凭证 vs 配置项/占位符)
 
 # 密码字面量比较
 (strcmp|strncmp|\.equals|==)\s*\([^)]*"[^"]{3,}"[^)]*\)
 → 排除 strlen|\.length|\.size
 → 排除 "$\{|"\{\{
+→ MUST: code_context (比较操作的完整上下文)
+→ MUST: judgment_rationale (硬编码密码 vs 格式/长度验证)
 
-# === MUST NOT REPORT (白名单) ===
+# 高熵字符串（需额外上下文确认）
+→ (base64长度≥40 或 hex长度≥32) AND (变量名/注释暗示密钥)
+→ MUST: judgment_rationale (熵分析 + 上下文确认)
+
+# === EXCLUDE (不报告) ===
 
 # 环境变量读取
 getenv\(|System\.getenv\(|os\.environ|process\.env|os\.Getenv\(
@@ -138,4 +143,13 @@ getenv\(|System\.getenv\(|os\.environ|process\.env|os\.Getenv\(
 # 测试文件（路径匹配）
 # — *_test.c, *_test.cpp, Test*.java, test_*.py
 # — *test*/, *mock*/, *fixture*/ 目录
+
+# 配置项变量名（非凭证）
+*_min_length|*_max_length|*_name|*_type\s*=
+
+# 仅声明无初始化或来自函数调用
+^\s*\w+\s+\*?\w+\s*;|=\s*\w+\(
+
+# 全零占位数组
+0x00,\s*0x00|=\{0\}
 ```

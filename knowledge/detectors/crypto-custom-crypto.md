@@ -1,18 +1,20 @@
 ---
-detector: crypto-custom-crypto
-severity: critical
+confidence: dynamic
 cwe: CWE-327
+detector: crypto-custom-crypto
 language: [c, cpp, java, python, go, js]
+precision: medium
+severity: critical
 tags: [crypto, custom, algorithm, implementation]
 ---
 
 # 自定义加密算法 (Custom Crypto Implementation)
 
-## 威胁定义
+## 威胁定义 (Threat Definition)
 
 检测代码中是否实现了自定义加密/哈希算法或使用 XOR/位运算进行数据"加密"。自定义加密极易产生致命缺陷，应严格禁止。
 
-## 检测逻辑
+## 检测逻辑 (Detection Logic)
 
 ### Step 1: 自定义密码学原语
 
@@ -108,29 +110,33 @@ for (int i = 0; i < 1000; i++) {
 }
 ```
 
-## 修复指引
+## 修复指引 (Remediation Guide)
 
 1. **禁止**：任何形式的自定义加密/XOR/自创哈希用于安全场景
 2. **使用标准库**：AES-256-GCM（加密）、SHA-256（哈希）、HMAC-SHA256（认证）
 3. **密码存储**：Argon2id > bcrypt > scrypt > PBKDF2
 4. **密钥管理**：使用 KMS/Vault/HSM，绝不自行设计
 
-## 误报排除
+## 误报排除 (False Positive Exclusion)
 
-| 场景 | 原因 |
-|------|------|
-| 校验和/CRC（明确为非安全用途） | 有注释说明非安全 |
-| 数据去重使用的非密码学哈希 | 公开数据去重 |
-| 标准库的加解密（AES/RSA/SHA-256） | 标准密码学实现 |
-| 教学/演示代码 | 非生产 |
-| 公开的挑战/响应算法（CTF） | CTF 场景 |
+| 场景 | 排除依据 | 证据要求 |
+|------|---------|---------|
+| 校验和/CRC（明确为非安全用途） | 有注释说明非安全 | 确认注释或变量名明确标注 checksum/crc/parity，上下文为数据完整性校验 |
+| 数据去重使用的非密码学哈希 | 公开数据去重 | 确认哈希用于去重/分片/索引，非安全认证或加密 |
+| 标准库的加解密（AES/RSA/SHA-256） | 标准密码学实现 | 确认调用的是标准密码学库 API，非自定义实现 |
+| 教学/演示代码 | 非生产 | 确认文件路径匹配 tutorial/demo/example/edu 模式 |
+| 公开的挑战/响应算法（CTF） | CTF 场景 | 确认文件路径或注释表明为 CTF 题目 |
 
-## 检测模式汇总
+## 检测模式汇总 (Detection Patterns)
 
 ```
+# === MATCH (触发检测) ===
+
 # XOR "加密" (不在模运算/校验和场景)
 \bxor\b.*encrypt|crypt|secret|key|password
 \bencrypt.*\bxor\b|crypt|cipher
+→ MUST: code_context (XOR 操作的完整上下文)
+→ MUST: judgment_rationale (是否为安全加密场景 vs 校验和/数据混淆)
 
 # 自定义循环位运算加密 (非标准算法)
 for.*\bxor\b.*key|for.*\brotate\b.*key
@@ -150,4 +156,12 @@ func\s+\w*[Ee]ncrypt.*\bxor\b|func\s+\w*[Hh]ash.*key
 
 # JS 自创加密
 function\s+encrypt.*\bxor\b|String\.fromCharCode.*xor|\.charCodeAt.*\^
+
+# === EXCLUDE (不报告) ===
+
+→ checksum|crc|parity|fingerprint                                   # 明确校验和非安全用途
+→ AES|RSA|SHA-256|HMAC|bcrypt|Argon2|scrypt|PBKDF2                 # 标准密码学实现
+→ Cipher\.getInstance|EVP_|crypto\.createCipher|AES\.new             # 标准库调用
+→ *tutorial*/|*demo*/|*example*/|*edu*/|*ctf*/                       # 教学/演示/CTF 代码
+→ (去重|分片|索引|dedup|shard|index).*hash                          # 非安全用途哈希
 ```

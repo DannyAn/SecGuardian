@@ -4,15 +4,17 @@ severity: high
 cwe: CWE-489
 language: [c, cpp, java, python, go, js]
 tags: [error, debug, production, configuration]
+precision: very-high
+confidence: dynamic
 ---
 
 # 生产环境调试模式 (Debug Mode in Production)
 
-## 威胁定义
+## 威胁定义 (Threat Definition)
 
 检测生产环境配置中是否启用了调试模式或保留了调试接口。调试模式会暴露内部错误详情、路由信息、数据库查询、配置参数等敏感信息。
 
-## 检测逻辑
+## 检测逻辑 (Detection Logic)
 
 ### Step 1: Python 框架调试模式
 
@@ -145,30 +147,33 @@ if (process.env.NODE_ENV === 'production') {
 app.use(morgan('combined'));  // 仅访问日志
 ```
 
-## 修复指引
+## 修复指引 (Remediation Guide)
 
 1. 生产环境 `DEBUG=False`（Django）/ `app.run(debug=False)`（Flask）/ `app.set('env', 'production')`（Express）
 2. Actuator 端点配置 Spring Security 权限保护
 3. C/C++ 使用 `-DNDEBUG` 编译标志关闭 assert
 4. 生产环境移除 `pprof` / `inspector` 调试端口
 
-## 误报排除
+## 误报排除 (False Positive Exclusion)
 
-| 场景 | 原因 |
-|------|------|
-| `DEBUG = os.environ.get('DEBUG')` 且有部署文档说明生产为 False | 环境变量控制 |
-| Actuator endpoints 配置了 Spring Security 权限保护 | 有认证保护 |
-| 内部部署/测试环境配置（`application-test.properties`） | 非生产 profile |
-| `assert` 宏在编译时通过 `-DNDEBUG` 关闭 | 编译期移除 |
-| pprof 端口仅监听 localhost 且有防火墙保护 | 内部监控 |
+| 场景 | 排除依据 | 证据要求 |
+|------|---------|---------|
+| `DEBUG = os.environ.get('DEBUG')` 且有部署文档说明生产为 False | 环境变量控制 | 确认环境变量默认值为 False 或有部署文档说明 |
+| Actuator endpoints 配置了 Spring Security 权限保护 | 有认证保护 | 确认 Spring Security 配置保护了 actuator 路径 |
+| 内部部署/测试环境配置（`application-test.properties`） | 非生产 profile | 确认文件名包含 test/dev/local 标识或 spring.profiles.active=test |
+| `assert` 宏在编译时通过 `-DNDEBUG` 关闭 | 编译期移除 | 确认 Makefile/CMakeLists.txt 包含 -DNDEBUG 标志 |
+| pprof 端口仅监听 localhost 且有防火墙保护 | 内部监控 | 确认监听地址为 127.0.0.1 或 ::1 |
 
-## 检测模式汇总
+## 检测模式汇总 (Detection Patterns)
 
 ```
+# === MATCH (触发检测) ===
+
 # Python
 DEBUG\s*=\s*True$
 app\.run\(debug\s*=\s*True\)
 app\.config\[.DEBUG.\]\s*=\s*True
+                                                       # → MUST: code_context (调试配置行+上下文)
 
 # Java properties
 server\.error\.include-stacktrace\s*=\s*always
@@ -188,4 +193,14 @@ gin\.SetMode\(gin\.DebugMode\) → Gin 调试模式
 app\.set\(.env.,\s*.development.\)
 require\(.inspector.\)\.open\(\)
 morgan\(.dev.\) → 开发日志格式
+
+# === EXCLUDE (不报告) ===
+→ DEBUG\s*=\s*False|debug\s*=\s*False                 # 显式关闭
+→ os\.environ\.get\([^,]+,\s*['\"]False['\"]           # 默认 False 安全模式
+→ NODE_ENV.*production|production.*NODE_ENV           # Node.js 生产环境
+→ gin\.ReleaseMode|gin\.TestMode                       # Gin 非 Debug 模式
+→ application-test\.|application-dev\.|application-local\.  # 非生产配置文件
+→ -DNDEBUG|NDEBUG                                     # 编译期 assert 关闭
+→ localhost|127\.0\.0\.1|::1.*pprof                     # pprof 仅监听本地
+→ management\.endpoints\.web\.exposure\.include\s*=\s*health  # Actuator 最小暴露
 ```

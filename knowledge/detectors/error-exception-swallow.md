@@ -1,18 +1,20 @@
 ---
-detector: error-exception-swallow
-severity: medium
+confidence: dynamic
 cwe: CWE-391
+detector: error-exception-swallow
 language: [c, cpp, java, python, go, js]
+precision: very-high
+severity: medium
 tags: [error, exception, silent-failure, debugging]
 ---
 
 # 异常吞掉 (Exception Swallow)
 
-## 威胁定义
+## 威胁定义 (Threat Definition)
 
 检测捕获异常后不做任何处理（空 catch 块）或仅打印而不处理/传播，导致错误被静默忽略。这会造成安全隐患：安全检查失败被跳过、权限降级被忽略、加密操作失败后使用明文等。
 
-## 检测逻辑
+## 检测逻辑 (Detection Logic)
 
 ### Step 1: 空 catch 块
 
@@ -132,31 +134,35 @@ app.get('/api/data', async (req, res, next) => {
 });
 ```
 
-## 修复指引
+## 修复指引 (Remediation Guide)
 
 1. 空 catch 块至少应包含明确的注释说明为什么可以忽略
 2. 安全关键操作（认证、鉴权、加密）的异常必须传播或明确失败
 3. 使用全局异常处理器统一记录和转换异常
 4. Go 中 `if err != nil` 后必须 `return` 零值 + err
 
-## 误报排除
+## 误报排除 (False Positive Exclusion)
 
-| 场景 | 原因 |
-|------|------|
-| `Thread.sleep()` 的 `InterruptedException` catch 有 `Thread.currentThread().interrupt()` | 正确恢复中断状态 |
-| 资源清理 finally 块中的二次异常吞掉 | 有注释说明且不影响主逻辑 |
-| `Optional.ifPresent()` 或类似模式 | 设计如此 |
-| Go 中 `defer` 函数内部错误不影响主流程 | 延迟清理场景 |
-| 重试逻辑中特定异常允许吞掉 | 有重试机制且达到最大次数 |
-| 迭代器/`Closeable` 等框架要求的模式 | 标准模式 |
+| 场景 | 排除依据 | 证据要求 |
+|------|---------|---------|
+| `Thread.sleep()` 的 `InterruptedException` catch 有 `Thread.currentThread().interrupt()` | 正确恢复中断状态 | 确认 catch 块中调用了 `Thread.currentThread().interrupt()` |
+| 资源清理 finally 块中的二次异常吞掉 | 有注释说明且不影响主逻辑 | 确认异常发生在 finally/defer 清理代码中，且主逻辑异常已正常传播 |
+| `Optional.ifPresent()` 或类似模式 | 设计如此 | 确认使用 Optional/Maybe 等函数式容器，空值由容器语义处理 |
+| Go 中 `defer` 函数内部错误不影响主流程 | 延迟清理场景 | 确认错误发生在 defer 块中，主返回值已正确设置 |
+| 重试逻辑中特定异常允许吞掉 | 有重试机制且达到最大次数 | 确认存在明确的重试逻辑（循环 + 计数器），且达到最大重试次数后抛出 |
+| 迭代器/`Closeable` 等框架要求的模式 | 标准模式 | 确认实现的是 Closeable/AutoCloseable/Iterator 等标准库接口 |
 
-## 检测模式汇总
+## 检测模式汇总 (Detection Patterns)
 
 ```
+# === MATCH (触发检测) ===
+
 # Java: 空 catch
 catch\s*\(.*\)\s*\{\s*\}                              → 完全空
 catch\s*\(.*\)\s*\{\s*//.*\s*\}                        → 仅有注释
 catch.*\{[^}]*\.printStackTrace\(\);[^}]*\}             → 仅打印不传播，且无 throw
+→ MUST: code_context (catch 块及外层 try 代码)
+→ MUST: judgment_rationale (捕获的异常类型是否为安全关键异常，吞掉后的安全影响)
 
 # Python: 空 except
 except\s+.*:\s*pass\s*$
@@ -174,4 +180,13 @@ if err != nil \{.*log\.Print.*\n[^}]*\}\s*\n[^r]  # 仅 log 未 return
 # JS: Promise 未 catch / 空 catch
 \.then\([^)]*\)$                                      → 无 .catch
 \.catch\(\s*\(\)\s*=>\s*\{\s*\}\)                      → 空 catch
+
+# === EXCLUDE (不报告) ===
+
+→ Thread\.currentThread\(\)\.interrupt\(\)                                    # 正确恢复中断状态
+→ finally\s*\{|defer\s+func|__exit__                                          # 资源清理 finally/defer
+→ Optional\.ifPresent|\.map\(|\.orElse|\.flatMap\(                              # 函数式容器模式
+→ for.*retry\|retries\+\+\|maxRetries\|retryCount                              # 重试逻辑
+→ (implements|extends)\s+(Closeable|AutoCloseable|Iterator)                    # 标准框架接口
+→ \/\/\s*(intentional|expected|safe to ignore|by design|deliberately)         # 有意忽略的注释
 ```

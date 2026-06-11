@@ -1,18 +1,20 @@
 ---
-detector: web-prototype-pollution
-severity: high
+confidence: dynamic
 cwe: CWE-1321
+detector: web-prototype-pollution
 language: [js]
+precision: medium
+severity: high
 tags: [web, javascript, prototype, pollution]
 ---
 
 # 原型污染 (Prototype Pollution)
 
-## 威胁定义
+## 威胁定义 (Threat Definition)
 
 检测 JavaScript 代码中不可信数据是否可能污染 `Object.prototype`/`__proto__`，导致应用全局对象行为被篡改（权限绕过、XSS、RCE）。
 
-## 检测逻辑
+## 检测逻辑 (Detection Logic)
 
 ### Step 1: 危险合并/克隆操作
 
@@ -110,31 +112,35 @@ const update = { $set: req.body.fields };  // fields 可能含 __proto__
 await User.updateOne({ _id: id }, update);
 ```
 
-## 修复指引
+## 修复指引 (Remediation Guide)
 
 1. **首选**：使用 `Map` 替代普通对象存储键值对
 2. **次选**：合并前过滤 `__proto__`/`constructor`/`prototype` 键名
 3. **最小修复**：`Object.create(null)` 创建无原型对象 / `Object.freeze(Object.prototype)`
-4. **升级**：lodash ≥ 4.17.21 已修复原型污染
+4. **升级**：lodash >= 4.17.21 已修复原型污染
 
-## 误报排除
+## 误报排除 (False Positive Exclusion)
 
-| 场景 | 原因 |
-|------|------|
-| `Object.create(null)` 创建的对象 | 无原型链 |
-| `Map` 数据结构 | 无原型 |
-| `Object.freeze(Object.prototype)` | 原型已冻结 |
-| lodash >= 4.17.21（原型污染已修复） | 版本安全 |
-| 合并前过滤了 `__proto__`/`constructor`/`prototype` | 已防护 |
-| 仅合并内部数据（非用户输入） | 无可信边界 |
-| `JSON.parse(JSON.stringify(obj))` — Lossy 但安全 | 非对象类型丢失但原型不会传播 |
+| 场景 | 排除依据 | 证据要求 |
+|------|---------|---------|
+| `Object.create(null)` 创建的对象 | 无原型链 | 确认对象通过 `Object.create(null)` 创建，原型为 null |
+| `Map` 数据结构 | 无原型 | 确认使用 `new Map()` 替代普通对象 |
+| `Object.freeze(Object.prototype)` | 原型已冻结 | 确认代码中存在 `Object.freeze(Object.prototype)` 调用且早于任何合并操作 |
+| lodash >= 4.17.21（原型污染已修复） | 版本安全 | 确认 package.json 中 lodash 版本 >= 4.17.21 |
+| 合并前过滤了 `__proto__`/`constructor`/`prototype` | 已防护 | 确认合并函数中存在 BLOCKED 键名检查逻辑 |
+| 仅合并内部数据（非用户输入） | 无可信边界 | 确认 source 参数来自内部常量或可信内部调用 |
+| `JSON.parse(JSON.stringify(obj))` — Lossy 但安全 | 非对象类型丢失但原型不会传播 | 确认序列化-反序列化链路完整 |
 
-## 检测模式汇总
+## 检测模式汇总 (Detection Patterns)
 
 ```
+# === MATCH (触发检测) ===
+
 # 递归合并无过滤
 function\s+merge\s*\([^)]*\)\s*\{[^}]*for[^}]*in[^}]*(?!.*__proto__|constructor|prototype)
 for\s*\(.*in\s+source[^}]*\{.*target\[  → 无 BLOCKED 检查
+→ MUST: code_context (合并函数完整代码)
+→ MUST: judgment_rationale (source 是否来自用户输入，是否有键名过滤)
 
 # lodash 危险调用
 _\.merge\([^,]*,\s*req\.(body|query|params)
@@ -148,4 +154,13 @@ qs\.parse\(.*req\.url|qs\.parse\(.*req\.query
 # 深层属性路径赋值
 \.split\(['"]\.['"]\).*req\.  → 用户可控路径
 keys\.split\(['"]\.['"]\)      → 无 __proto__ 过滤
+
+# === EXCLUDE (不报告) ===
+
+→ Object\.create\(null\)                                                      # 无原型对象
+→ new Map\(                                                                   # Map 数据结构
+→ Object\.freeze\(Object\.prototype\)                                          # 原型冻结
+→ BLOCKED\.includes|BLOCKED_LIST|__proto__.*filter|constructor.*filter         # 键名过滤
+→ lodash.*4\.1[7-9]\.\d+|4\.[2-9]\d|package\.json.*lodash.*[\^~]?\s*"[4-9]    # lodash 安全版本
+→ merge\([^,]*,\s*\{|merge\([^,]*,\s*default                                   # source 为内部常量
 ```
