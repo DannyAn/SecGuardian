@@ -16,14 +16,14 @@
 | 文件 | 用途 |
 |------|------|
 | [`competitive-analysis.md`](competitive-analysis.md) | 竞品分析 — Coverity/Snyk/SonarQube/CodeQL 对比 |
-| [`portfolio-for-deepseek.md`](portfolio-for-deepseek.md) | 产品展示 — 面向 DeepSeek 等投资方的介绍材料 |
+| [`portfolio-for-deepseek.md`](portfolio/portfolio-for-deepseek.md) | 产品展示 — 面向 DeepSeek 等投资方的介绍材料 |
 
 ### 工程实践
 
 | 文件 | 用途 |
 |------|------|
-| [`ci-integration-guide.md`](ci-integration-guide.md) | CI 集成指南 — GitHub Actions / GitLab CI / Azure DevOps |
-| [`gitlab-ci-template.md`](gitlab-ci-template.md) | GitLab CI 模板 |
+| [`ci-integration-guide.md`](cicd/ci-integration-guide.md) | CI 集成指南 — GitHub Actions / GitLab CI / Azure DevOps |
+| [`gitlab-ci-template.md`](cicd/gitlab-ci-template.md) | GitLab CI 模板 |
 | [`case-study-template.md`](case-study-template.md) | 案例研究模板 — 客户安全审计报告范例 |
 
 ### 治理

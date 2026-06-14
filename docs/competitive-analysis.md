@@ -3,7 +3,6 @@
 > Based on: 67 active detectors | 17 secaudit skills | 5 language profiles
 > Date: 2026-05-27 (updated 2026-06-06)
 > Status: **Data-verified from file inventory**
-> See also: [Beijing AI Security Companies Job Target Analysis](./beijing-ai-security-companies.md)
 
 ---
 
