@@ -1,7 +1,7 @@
 #!/bin/bash
 # SecGuardian — 统一构建 + 部署 + 打包脚本
 #
-# 用法: bash scripts/build.sh <target> [--zip]
+# 用法: bash build.sh <target> [--zip]
 #
 # 目标:
 #   all      三平台全部 (默认)
@@ -16,7 +16,7 @@
 
 set -euo pipefail
 
-PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
 
 # ── Help ──────────────────────────────────────
 if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] || [ "${1:-}" = "help" ]; then
@@ -24,8 +24,8 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] || [ "${1:-}" = "help" ]; then
 SecGuardian — 统一构建 + 部署 + 打包脚本
 
 用法:
-  bash scripts/build.sh <target> [--zip]
-  bash scripts/build.sh -h
+  bash build.sh <target> [--zip]
+  bash build.sh -h
 
 目标 (target):
   all      构建并部署到全部三个平台 (默认)
@@ -37,10 +37,10 @@ SecGuardian — 统一构建 + 部署 + 打包脚本
   --zip    部署后生成发布压缩包 → dist/archives/
 
 示例:
-  bash scripts/build.sh all              # 构建 + 全平台部署
-  bash scripts/build.sh cc               # 仅构建 + Claude Code 部署
-  bash scripts/build.sh all --zip        # 构建 + 全平台部署 + 打包发布
-  bash scripts/build.sh --zip            # 仅打包 (不部署)
+  bash build.sh all              # 构建 + 全平台部署
+  bash build.sh cc               # 仅构建 + Claude Code 部署
+  bash build.sh all --zip        # 构建 + 全平台部署 + 打包发布
+  bash build.sh --zip            # 仅打包 (不部署)
 
 注意:
   - 构建阶段会尝试跨平台编译 Go 索引器 (darwin-arm64/amd64, linux-amd64, windows-amd64)
@@ -63,7 +63,7 @@ fi
 # 验证目标
 case "$TARGET" in
     all|cc|nga|cac) ;;
-    *) echo "用法: bash scripts/build.sh [all|cc|nga|cac] [--zip]" && exit 1 ;;
+    *) echo "用法: bash build.sh [all|cc|nga|cac] [--zip]" && exit 1 ;;
 esac
 
 echo ""
