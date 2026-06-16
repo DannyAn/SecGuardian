@@ -1,12 +1,15 @@
-# Manifest-Driven Tokens — 实现计划
+# Manifest-Driven Tokens — 实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task.
+> **Feature**: FEATURE-001-manifest-driven-tokens
+> **Epic**: EPIC-002-platform-engineering
+> **状态**: ✅ 已完成
+
 
 **Goal:** 消除 detector 数量变更时的散弹式修改——manifest.json 为单一权威源，sync-manifest.sh 自动传播到所有文件。
 
 **Architecture:** `NNN<!-- @secguardian:token_name -->` 标记格式，`sync-manifest.sh` 读取 manifest.json 更新数字，`package.sh` 构建时调用，`self-check.sh` 的 `--check` 模式验证一致性。
 
-**关联 Spec:** [2026-06-07-manifest-driven-tokens.md](../specs/2026-06-07-manifest-driven-tokens.md)
+**关联 Spec:** [spec.md](../spec.md)
 
 ---
 
@@ -468,4 +471,4 @@ bash scripts/dev-verify.sh && bash scripts/e2e-verify.sh
 
 ---
 
-*关联文档: [2026-06-07-manifest-driven-tokens.md](../specs/2026-06-07-manifest-driven-tokens.md)*
+*关联文档: [spec.md](../spec.md)*

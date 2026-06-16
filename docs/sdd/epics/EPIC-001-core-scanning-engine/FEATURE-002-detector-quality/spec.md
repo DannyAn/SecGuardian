@@ -1,8 +1,12 @@
-# SecGuardian 检测器误报消除 & 取证证据增强 — 设计规格书
+# Detector Quality Enhancement — 检测器误报消除 & 取证证据增强
 
-**日期**: 2026-06-11  
-**状态**: Approved  
-**范围**: 67 个检测器全员覆盖  
+> **Feature**: FEATURE-002-detector-quality
+> **Epic**: EPIC-001-core-scanning-engine
+> **状态**: ✅ 已完成
+> **日期**: 2026-06-11
+> **作者**: JonyAn + Claude Opus 4.8
+> **范围**: 67 个检测器全员覆盖
+
 **目标**: 均衡推进误报消除 (False Positive Elimination) 与取证证据增强 (Forensic Evidence Enhancement)
 
 ---

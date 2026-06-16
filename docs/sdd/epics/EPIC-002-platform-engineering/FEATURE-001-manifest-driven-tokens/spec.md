@@ -1,6 +1,11 @@
-# SecGuardian Manifest-Driven Tokens — 消除散弹式修改
+# Manifest-Driven Tokens — 消除散弹式修改
 
-> **状态**: 待确认 | **日期**: 2026-06-07 | **作者**: JonyAn + Claude Opus 4.8
+> **Feature**: FEATURE-001-manifest-driven-tokens
+> **Epic**: EPIC-002-platform-engineering
+> **状态**: ✅ 已完成
+> **日期**: 2026-06-07
+> **作者**: JonyAn + Claude Opus 4.8
+
 
 ## 1. 问题陈述
 
@@ -17,10 +22,10 @@
 | `skills/.../detector-index.md` | "全部 67 个检测器" | AI 指令过期 |
 | `CLAUDE.md`, `AGENTS.md`, `GEMINI.md` | 多处提及 detector 数量 | AI 入口上下文过期 |
 | `scripts/render-report.py` | DETECTOR_RULE_INDEX (70 行) | 代码硬编码 |
-| `docs/secguardian-interview-ppt.md` | 8+ 处 "67 检测器" | PPT 材料过期 |
+| `docs/reference/interview-ppt.md` | 8+ 处 "67 检测器" | PPT 材料过期 |
 | `docs/competitive-analysis.md` | "67 active detectors" | 竞品分析过期 |
-| `docs/beijing-ai-security-companies.md` | 5+ 处 | 求职材料过期 |
-| `docs/portfolio/` | 5+ 处 | 作品集过期 |
+| `docs/reference/beijing-ai-security-companies.md` | 5+ 处 | 求职材料过期 |
+| `docs/reference/` | 5+ 处 | 作品集过期 |
 
 ### 1.2 根因
 
@@ -81,7 +86,7 @@
 
 | 文件 | Token 使用 |
 |------|-----------|
-| `docs/secguardian-interview-ppt.md` | 多处 "67 检测器" |
+| `docs/reference/interview-ppt.md` | 多处 "67 检测器" |
 | `docs/competitive-analysis.md` | "67 active detectors" |
 
 **不需要 Token 化**（历史记录或代码逻辑）：
@@ -89,7 +94,7 @@
 | 文件 | 原因 |
 |------|------|
 | `manifest.json` | 权威源本身 |
-| `docs/design-journal.md` | 历史决策记录，过时数字反映当时状态 |
+| `docs/sdd/brainstorm-log.md` | 历史决策记录，过时数字反映当时状态 |
 | `scripts/render-report.py` | 改为从 manifest.json 动态加载 DETECTOR_RULE_INDEX |
 
 ### 2.4 `scripts/render-report.py` DETECTOR_RULE_INDEX 改造
@@ -211,4 +216,4 @@ dev-deploy.sh
 
 ---
 
-*关联文档: [[2026-06-07-findings-directory-tree-design]], [[design-journal]]*
+*关联文档: [[2026-06-07-findings-directory-tree-design]], [[brainstorm-log]]*

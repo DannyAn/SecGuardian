@@ -1,6 +1,9 @@
-# Detector FP Elimination & Evidence Enhancement — Implementation Plan
+# Detector Quality Enhancement — 实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Feature**: FEATURE-002-detector-quality
+> **Epic**: EPIC-001-core-scanning-engine
+> **状态**: ✅ 已完成
+
 
 **Goal:** Upgrade all 67 detectors in `knowledge/detectors/` to unified template with precision+confidence metadata, MUST/SHOULD/MAY evidence collection guides, FP exclusion tables with evidence binding, and MATCH/EXCLUDE pattern separation.
 

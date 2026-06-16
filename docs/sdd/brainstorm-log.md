@@ -39,7 +39,7 @@ scans/<scan-id>/
 - `commands/secguard.md` — Step 4 逐文件输出流程
 - `commands/secaudit.md`, `commands/secreview.md` — 同步更新
 
-详见: [2026-06-07-findings-directory-tree-design.md](superpowers/specs/2026-06-07-findings-directory-tree-design.md)
+详见: [FEATURE-001-output-protocol/spec.md §Phase 2](epics/EPIC-001-core-scanning-engine/FEATURE-001-output-protocol/spec.md)
 
 ---
 
