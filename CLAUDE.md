@@ -4,6 +4,45 @@
 
 SecGuardian 是企业级白盒安全 AI Agent 辅助解决方案，为 Claude Code、OpenCode、Gemini CLI 提供 3 个独立 extension。
 
+## 开发守则第一条：SDD 规格驱动开发
+
+> ⚠️ **禁止收到开发需求后直接编码**。SecGuardian 采用 Spec-Driven Development (SDD) 方法论，所有非 trivial 变更必须按七环顺序执行。
+
+### SDD 七环流程
+
+```
+🧠 Brainstorm → 📋 Spec → 📝 ADR → 📐 Plan → 🔨 Task → 📊 Progress → 🔄 Change
+```
+
+| 环节 | 产出物 | 回答什么问题 |
+|------|--------|-------------|
+| 🧠 Brainstorm | `docs/sdd/brainstorm-log.md` | 为什么做？有哪些方案？否决了哪些？ |
+| 📋 Spec | `docs/sdd/epics/EPIC-XXX/FEATURE-XXX/spec.md` | 做什么？做到什么程度？ |
+| 📝 ADR | `docs/sdd/epics/EPIC-XXX/FEATURE-XXX/adr.md` | 关键架构决策及否决方案 |
+| 📐 Plan | `docs/sdd/epics/EPIC-XXX/FEATURE-XXX/plan.md` | 怎么实现？改哪些文件？ |
+| 🔨 Task | `docs/sdd/epics/EPIC-XXX/FEATURE-XXX/tasks/TASK-NNN.md` | 每一步具体做什么 |
+| 📊 Progress | `docs/sdd/epics/EPIC-XXX/FEATURE-XXX/progress.md` | 做到哪了？下一步做什么？ |
+| 🔄 Change | `docs/sdd/epics/EPIC-XXX/FEATURE-XXX/changes/CHANGE-NNN.md` | 需求发生了哪些演进？为什么和最初设计不同？ |
+
+### AI Agent 收到开发需求时的执行流程
+
+1. **先读** [`docs/sdd/README.md`](docs/sdd/README.md) 了解完整方法论
+2. **检查** [`docs/sdd/epics/`](docs/sdd/epics/) 是否已有相关 Feature Package
+3. **如果已有 Feature** → 加载 spec.md / adr.md / plan.md，找到对应 Task 执行
+4. **如果没有 Feature** → 先走 Brainstorm → Spec → ADR → Plan，再编码（不允许跳过环节）
+5. **Task 完成后** → 更新 `progress.md`，标记完成状态
+
+### 什么情况可以跳过 SDD（直接修改）
+
+只有以下情况可以直接动手，不走 SDD 流程：
+- 修复拼写错误 / 格式问题
+- 单行 bug fix（逻辑错误，非设计变更）
+- 更新过期注释或文档中的事实性错误
+
+凡涉及新增功能、变更行为、修改架构或数据模型，**必须先建 Feature Package**。
+
+> 完整方法论见 [`docs/sdd/README.md`](docs/sdd/README.md)
+
 ## 快速开发
 
 ```bash

@@ -44,6 +44,45 @@ secguardian/                # v0.5.3, Go 1.25.3, 无传统测试套件
 
 > **核心认知**: 这不是传统 SAST。只有 Go 索引器是编译代码，其余全部是 Markdown 知识文件，由 AI Agent 在扫描时动态加载。修改任何 `.md` → `dev-deploy.sh` → AI 重启即可生效。
 
+## 开发守则第一条：SDD 规格驱动开发
+
+> ⚠️ **禁止收到开发需求后直接编码**。SecGuardian 采用 Spec-Driven Development (SDD) 方法论。**日常开发不只是跑 `dev-deploy.sh`**——在跑部署命令之前，必须先走 SDD 流程。
+
+### SDD 七环流程
+
+```
+🧠 Brainstorm → 📋 Spec → 📝 ADR → 📐 Plan → 🔨 Task → 📊 Progress → 🔄 Change
+```
+
+| # | 环节 | 产出物（Feature Package 内） | 回答的问题 |
+|---|------|---------------------------|-----------|
+| 1 | 🧠 Brainstorm | `docs/sdd/brainstorm-log.md` | 为什么做？考虑过哪些方案？否决了哪些？ |
+| 2 | 📋 Spec | `FEATURE-XXX/spec.md` | 做什么？做到什么程度？ |
+| 3 | 📝 ADR | `FEATURE-XXX/adr.md` | 关键架构决策是什么？为什么不用方案 B？ |
+| 4 | 📐 Plan | `FEATURE-XXX/plan.md` | 怎么实现？改哪些文件？分几步？ |
+| 5 | 🔨 Task | `FEATURE-XXX/tasks/TASK-NNN.md` | 这一步具体怎么做？验证命令是什么？ |
+| 6 | 📊 Progress | `FEATURE-XXX/progress.md` | 做到哪了？被什么阻塞了？下一步？ |
+| 7 | 🔄 Change | `FEATURE-XXX/changes/CHANGE-NNN.md` | 需求发生了什么变化？为什么和最初设计不同？ |
+
+### AI Agent / 工程师操作守则
+
+1. **收到开发需求 → 先打开** [`docs/sdd/README.md`](docs/sdd/README.md)
+2. **检查** [`docs/sdd/epics/`](docs/sdd/epics/) 是否已有对应 Feature Package
+3. **有 Feature Package → 加载 spec/adr/plan → 执行 Task → 更新 progress**
+4. **无 Feature Package → 先建完整闭环（Brainstorm → Spec → ADR → Plan），再编码**
+5. **七环顺序不可跳过**：不能没有 Spec 就写 Plan，不能没有 ADR 就开始编码
+6. **一个 Task 一次 commit**，粒度细到可独立验证
+
+### 跳过 SDD 的例外
+
+- 拼写/格式修复
+- 单行 bug fix（非设计变更）
+- 过期注释/文档更新
+
+凡涉及新增功能、变更行为、修改架构，**必须先建 Feature Package**。
+
+> 完整方法论见 [`docs/sdd/README.md`](docs/sdd/README.md)
+
 ## 构建与部署
 
 > **日常开发只需要记一条**: `bash scripts/dev-deploy.sh` — 改了什么文件都这个命令重建 + 部署。

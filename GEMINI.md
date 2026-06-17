@@ -2,6 +2,41 @@
 
 > **核心认知**: SecGuardian 不是传统 SAST。只有 Go 索引器是编译代码，其余全部是 Markdown 知识文件，由 AI Agent 在扫描时动态加载。修改任何 `.md` → `bash scripts/dev-deploy.sh` → AI 重启即可生效。
 
+## 开发守则第一条：SDD 规格驱动开发
+
+> ⚠️ **禁止收到开发需求后直接编码**。SecGuardian 采用 Spec-Driven Development (SDD) 方法论。所有非 trivial 变更必须按七环顺序执行，不允许跳过环节。
+
+### SDD 七环流程
+
+```
+🧠 Brainstorm → 📋 Spec → 📝 ADR → 📐 Plan → 🔨 Task → 📊 Progress → 🔄 Change
+```
+
+| # | 环节 | 产出物（Feature Package 内） | 回答的问题 |
+|---|------|---------------------------|-----------|
+| 1 | 🧠 Brainstorm | `docs/sdd/brainstorm-log.md` | 为什么做？考虑过哪些方案？否决了哪些？ |
+| 2 | 📋 Spec | `FEATURE-XXX/spec.md` | 做什么？（WHAT）做到什么程度？ |
+| 3 | 📝 ADR | `FEATURE-XXX/adr.md` | 关键架构决策 + 否决方案（最有长期价值） |
+| 4 | 📐 Plan | `FEATURE-XXX/plan.md` | 怎么实现？（HOW）改哪些文件？ |
+| 5 | 🔨 Task | `FEATURE-XXX/tasks/TASK-NNN.md` | 每一步的详细执行指令 + 验证命令 |
+| 6 | 📊 Progress | `FEATURE-XXX/progress.md` | 做到哪了？中断后 30 秒内恢复上下文 |
+| 7 | 🔄 Change | `FEATURE-XXX/changes/CHANGE-NNN.md` | 需求为什么和最初设计不同？ |
+
+### AI Agent 执行流程
+
+1. **收到开发需求 → 先打开** [`docs/sdd/README.md`](docs/sdd/README.md)
+2. **检查** [`docs/sdd/epics/`](docs/sdd/epics/) 是否已有对应 Feature Package
+3. **有 Feature** → 加载 spec/adr/plan → 按 Task 执行 → 更新 progress
+4. **无 Feature** → 走完整 SDD 流程：Brainstorm → Spec → ADR → Plan → Task
+5. **Task 完成 → commit → 更新 progress.md**
+
+### 跳过条件（缺一不可）
+
+- 仅限：拼写/格式修复、单行 bug fix、过期注释更新
+- 不涉及：新增功能、行为变更、架构修改、数据模型变更
+
+> 完整方法论见 [`docs/sdd/README.md`](docs/sdd/README.md)
+
 ## 构建与部署
 
 | 你做了什么 | 执行命令 | 耗时 |
