@@ -4,6 +4,110 @@
 
 SecGuardian 是企业级白盒安全 AI Agent 辅助解决方案，为 Claude Code、OpenCode、Gemini CLI 提供 3 个独立 extension。
 
+## 核心架构：Tree-sitter 索引器 + AI Agent 扫描
+
+SecGuardian 的架构基础是 **Tree-sitter 语义索引器 → AI Agent 安全扫描** 两级管线。理解这个架构是理解整个项目的前提。
+
+### 整体数据流
+
+```
+项目源码 (C/C++/Go/Java/Python/JS)
+    ↓
+secguardian-index (Go 二进制, 调用 Tree-sitter CGO 解析)
+    ↓
+index.json (AnalysisContext: symbols + call_graph + alloc_free + lock_graph)
+    ↓
+AI Agent (加载 67 个 detector Markdown → 语义分析 → 输出 findings)
+    ↓
+render-report.py (渲染 report.md + SARIF 2.1.0 + CI 门禁)
+```
+
+### Go 索引器 (internal/) — 六阶段管线
+
+索引器是项目中**唯一的原生编译代码**，位于 `internal/`，Go module (`go 1.25.3`)。
+
+```
+阶段 1: Parse All Files   → parser.ParseFile() 遍历 AST，提取函数/变量/类型
+阶段 2: Build Symbol Index → indexer.ExtractSymbols() 聚合全局符号表
+阶段 3: Build Call Graph   → indexer.BuildCallGraph() 文本近似调用图
+阶段 4: Match Alloc/Free   → indexer.MatchAllocFree() malloc/free 配对
+阶段 5: Build Lock Graph   → indexer.BuildLockGraph() 互斥锁使用记录
+阶段 6: Write Context      → context.AnalysisContext 序列化为 JSON
+```
+
+### 双解析器架构 (编译期二选一)
+
+| 解析器 | 文件 | Build Tag | 解析方式 | 平台 |
+|--------|------|-----------|---------|------|
+| Tree-sitter | `parser_ts.go` | `cgo` | Tree-sitter CGO 绑定，真实 AST | 仅 darwin-arm64 原生构建 |
+| Regex Fallback | `parser_re.go` | `!cgo` | 纯 Go 正则近似匹配 | 所有跨平台构建 |
+
+两个文件定义完全相同的类型（`ParseResult`, `FunctionInfo`, `VariableInfo`, `TypeInfo`），Go build tag 在编译期二选一，对外接口一致。
+
+### Tree-sitter 语法覆盖 (5 语言 + JS 正则)
+
+`parser_ts.go` 通过 CGO 链接以下 Tree-sitter 语法库：
+
+| 语言 | Tree-sitter 包 | AST 节点识别 |
+|------|---------------|-------------|
+| C | `github.com/tree-sitter/tree-sitter-c` | `function_definition`, `struct_specifier`, `enum_specifier`, `declaration` |
+| C++ | `github.com/tree-sitter/tree-sitter-cpp` | 同 C + `class_specifier`, `type_definition` |
+| Go | `github.com/tree-sitter/tree-sitter-go` | `function_declaration`, `method_declaration`, `type_declaration` |
+| Java | `github.com/tree-sitter/tree-sitter-java` | `class_declaration`, `method_declaration` (walk into `class_body`) |
+| Python | `github.com/tree-sitter/tree-sitter-python` | `function_definition`, `class_definition` (递归 walk 提取方法) |
+
+JavaScript/TypeScript **始终使用正则解析器**（`parser_javascript.go`），不经过 Tree-sitter（JS 语法未编译进二进制，在 `parser_ts.go:37` 中显式 fallback）。
+
+### index.json 数据结构 (AnalysisContext)
+
+```json
+{
+  "path": "./src",
+  "files": ["src/main.c", ...],
+  "symbols": {
+    "functions": [{"name": "handle_request", "file": "...", "start_line": 42, "end_line": 98}],
+    "variables": [{"name": "g_conn_pool", "file": "...", "line": 15}],
+    "types": [{"name": "RequestCtx", "kind": "struct", "file": "...", "start_line": 7}]
+  },
+  "call_graph": {
+    "edges": [{"caller": "main", "callee": "handle_request", "file": "...", "line": 120}]
+  },
+  "alloc_free": {
+    "pairs": [{"alloc_func": "malloc", "alloc_file": "...", "alloc_line": 88, "free_sites": [...]}]
+  },
+  "lock_graph": {
+    "mutexes": [{"mutex_name": "", "lock_line": 45, "unlock_line": 67, "file": "..."}]
+  }
+}
+```
+
+### 当前索引器能力边界
+
+| 能力 | 状态 | 说明 |
+|------|------|------|
+| Tree-sitter AST 解析 | ✅ 5 语言 | C/C++/Go/Java/Python 用真实 AST，JS 用正则 |
+| 符号表 (函数/变量/类型) | ✅ | 名称 + 文件 + 行号，无类型层次结构 |
+| 调用图 | ✅ 文本近似 | 字符串匹配 `callee_name(`，非 AST 推导，已过滤注释 |
+| Alloc/Free 配对 | ✅ 文本近似 | 同文件内匹配 `malloc`/`free`，不跨文件追踪 |
+| 锁使用记录 | ✅ 文本扫描 | 仅记录 mutex lock/unlock 行号，不构建锁序图 |
+| **控制流图 (CFG)** | ❌ | 未构建，无可达性分析 |
+| **数据流图 (DFG)** | ❌ | 无 Source → Sink 追踪，无污点传播 |
+| **SSA/IR** | ❌ | 无中间表示，无约束求解能力 |
+| **类型继承/接口实现** | ❌ | 仅记录类型名，不构建类型层次 |
+| **精确作用域分析** | ❌ | 不区分全局/局部/块级变量 |
+
+### parser_ts.go nil 守卫约定
+
+Tree-sitter partial parse 时 `node.Child(i)` 即使 `i < node.ChildCount()` 也可能返回 nil。**每个 `node.Child(i)` 调用后必须 nil 检查**，否则调用 `.Kind()` 会 panic。
+
+```go
+child := node.Child(i)
+if child == nil {
+    continue
+}
+kind := child.Kind()
+```
+
 ## 开发守则第一条：SDD 规格驱动开发
 
 > ⚠️ **禁止收到开发需求后直接编码**。SecGuardian 采用 Spec-Driven Development (SDD) 方法论，所有非 trivial 变更必须按七环顺序执行。
