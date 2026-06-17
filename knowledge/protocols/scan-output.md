@@ -1,9 +1,9 @@
 ---
 category: protocol
-version: "3.0"
+version: "6.0"
 ---
 
-# SecGuardian 扫描输出协议 2.0
+# SecGuardian 扫描输出协议 6.0
 
 所有 SecGuardian 命令（secguard、secaudit、secreview）的输出格式。v2.0 重新设计人读/机读分离架构。
 
@@ -11,18 +11,21 @@ version: "3.0"
 
 | 文件 | 受众 | 格式 | 用途 |
 |------|------|------|------|
-| `report.md` | 工程师/审计师 | Markdown | 完整安全审计报告，含执行摘要、发现详情、修复建议 |
+| `report.md` | 工程师/审计师 | Markdown | 完整安全审计报告，含执行摘要、发现详情、修复建议、验证漏斗 |
 | `results.sarif` | CI/CD 系统 | SARIF 2.1.0 | GitHub Code Scanning / GitLab SAST / Azure DevOps |
-| `summary.json` | 仪表盘/统计 | JSON | 轻量统计：按严重度/命名空间/语言的检出数 |
+| `summary.json` | 仪表盘/统计 | JSON | 轻量统计：按严重度/命名空间/语言的检出数 + 验证收敛数据 |
 | `manifest.json` | 程序入口 | JSON | 扫描元数据 + 检出索引（引用 report.md 章节） |
 | `status.json` | CI 门禁 | JSON | pass/fail 判定 + exit_code |
 | `delta.json` | 趋势分析 | JSON | 与上一次扫描的增量对比 |
+| `dismissed.json` | 审计追踪 | JSON | 被验证管道抑制的 Finding + 抑制原因 + 抑制轮次 |
+| `verification-audit.json` | 管道审计 | JSON | 完整验证链 + 每轮收敛统计 |
 
-> **v3.0 变更 (2026-06-05)**: report.md §4 详细发现改为强制四段式结构（📍 Location → 📋 Evidence → ⚠️ Impact → 🔧 Fix）。增加输出前质量门禁（Step 4b）。SARIF 增加 `message.markdown` 和 `relatedLocations` 要求。
-> **v4.0 变更 (2026-06-06)**: 引入 AI/Renderer 分离架构。AI 仅输出 `findings.json`（遵循 `findings-schema.json`），由 `scripts/render-report.py` 渲染生成全部 6 个输出文件。参见 CodePlan: hashed-juggling-sutherland。
-> **v5.0 变更 (2026-06-07)**: 单体 findings.json 重构为按 detector 组织的目录树（`findings/<namespace>/<detector>/<finding-id>.json`，文件名 = finding ID，天然唯一）。`findings.json` 同名升级：从"单体四段式"变为"轻量索引+元数据"（<50KB），四段式数据拆入 `findings/` 目录树。渲染器通过 `--findings-dir` 读取目录树，`--findings` 保持 v4.0 兼容。参见: [2026-06-07-findings-directory-tree-design.md](../../docs/superpowers/specs/2026-06-07-findings-directory-tree-design.md)
+> **v6.0 变更 (2026-06-17)**: 新增三轮验证管道产出（`dismissed.json` + `verification-audit.json`）。`report.md` 增加 "## 验证漏斗" 章节。`summary.json` 增加 `findings_total` 和 `dismissed_by_round` 字段。`results.sarif` 增加 `suppressions` 节点。详见 [verification-protocol.md](verification-protocol.md)。
+> **v5.0 变更 (2026-06-07)**: 单体 findings.json 重构为按 detector 组织的目录树。参见: [2026-06-07-findings-directory-tree-design.md](../../docs/superpowers/specs/2026-06-07-findings-directory-tree-design.md)
+> **v4.0 变更 (2026-06-06)**: 引入 AI/Renderer 分离架构。
+> **v3.0 变更 (2026-06-05)**: report.md §4 强制四段式结构。增加输出前质量门禁。
 
-## 目录结构 (v5.0)
+## 目录结构 (v6.0)
 
 ```
 .codeagent/<extension-name>/scans/<scan-id>/
@@ -41,9 +44,11 @@ version: "3.0"
 │   │   └── ...
 │   └── error/
 │       └── ...
-├── report.md                 # ★ 渲染器生成：人读审计报告
-├── results.sarif             # 机读 — SARIF 2.1.0
-├── summary.json              # 仪表盘统计
+├── dismissed.json            # ★ v6.0: 被验证管道抑制的 Finding + 原因 + 轮次
+├── verification-audit.json   # ★ v6.0: 完整验证链 + 每轮收敛统计
+├── report.md                 # ★ 渲染器生成：人读审计报告（v6.0: 含"验证漏斗"章节）
+├── results.sarif             # 机读 — SARIF 2.1.0（v6.0: 含 suppressions 节点）
+├── summary.json              # 仪表盘统计（v6.0: 含 verification 字段）
 ├── manifest.json             # 扫描元数据 + 检出索引
 ├── status.json               # CI 门禁
 ├── delta.json                # 增量对比
@@ -425,6 +430,51 @@ M-DLK-concurrency_c-L43 ← Medium, DeadLock, concurrency.c:43
 
 ## 协议演进
 
-- **3.0** (当前): report.md §4 强制四段式结构（📍 Location → 📋 Evidence → ⚠️ Impact → 🔧 Fix）。增加质量门禁（Step 4b）。SARIF 要求 `message.markdown` + `relatedLocations`。
-- **2.0**: 人读/机读分离。`findings/*.json` 废弃。`report.md` 为主要人读输出。SARIF 始终生成。
+- **6.0** (当前): 三轮验证管道产出（`dismissed.json` + `verification-audit.json`）。`report.md` 增加"验证漏斗"章节。`summary.json` 增加 `findings_total` 和 `dismissed_by_round`。`results.sarif` 增加 `suppressions` 节点。详见 [verification-protocol.md](verification-protocol.md)。
+- **5.0**: 目录树架构。单体 findings.json → 轻量索引 + findings/ 目录树。
+- **4.0**: AI/Renderer 分离架构。
+- **3.0**: 四段式结构 + 质量门禁。
+- **2.0**: 人读/机读分离。
 - **1.x**: findings/*.json + manifest.json + --sarif 可选
+
+---
+
+## dismissed.json — 验证抑制记录 (v6.0)
+
+```json
+{
+  "scan_id": "sc-20260605-173324-2434534",
+  "dismissed": [
+    {
+      "finding_id": "H-BOF-parser_c-L36",
+      "dismissed_at_round": "P1",
+      "dismiss_reason": "Project SafeCopy wrapper guarantees bounds check at parser.c:30",
+      "original_severity": "High",
+      "original_detector": "memory.buffer-overflow"
+    }
+  ],
+  "summary": {
+    "total_findings": 74,
+    "dismissed_by_p1": 22,
+    "dismissed_by_p2": 17,
+    "dismissed_by_p3": 10,
+    "certified": 25
+  }
+}
+```
+
+## verification-audit.json — 验证审计追踪 (v6.0)
+
+```json
+{
+  "scan_id": "sc-20260605-173324-2434534",
+  "pipeline_version": "1.0",
+  "rounds": {
+    "p1_semantic": {"input_count": 74, "exempted": 18, "no_exemption": 52, "uncertain": 4},
+    "p2_counter_evidence": {"input_count": 56, "counter_evidence_found": 17, "counter_evidence_not_found": 39},
+    "p3_court": {"input_count": 39, "confirmed": 18, "suspected": 10, "dismissed": 11}
+  },
+  "certified_count": 28,
+  "dismissed_count": 46
+}
+```
