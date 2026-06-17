@@ -337,7 +337,34 @@ def generate_report_md(findings_data):
         lines.append(f"| {severity_emoji(sev)} {sev} | {by_sev.get(sev, 0)} |")
     lines.append("")
 
-    # §2 Compliance Dashboard
+    # §1.5 Verification Funnel (v6.0)
+    output_dir = findings_data.get("_output_dir", "")
+    dismissed, audit = _load_verification_files(output_dir)
+    if dismissed and audit:
+        lines.append("---\n")
+        lines.append("## §1.5 Verification Funnel\n")
+        lines.append("")
+        lines.append("| Stage | Input | Dismissed | Survived | Dismiss Reason |")
+        lines.append("|-------|-------|-----------|----------|----------------|")
+        rounds_data = [
+            ("P1: Semantic Verification", audit["rounds"]["p1_semantic"], "Framework-eliminated patterns"),
+            ("P2: Counter-Evidence Hunt", audit["rounds"]["p2_counter_evidence"], "Defense mechanisms found"),
+            ("P3: Adjudication Court", audit["rounds"]["p3_court"], "Court dismissed"),
+        ]
+        for label, rd, reason in rounds_data:
+            inp = rd.get("input_count", 0)
+            survived = rd.get("no_exemption", 0) + rd.get("uncertain", 0) \
+                if "no_exemption" in rd else rd.get("counter_evidence_not_found", 0) \
+                if "counter_evidence_not_found" in rd else rd.get("confirmed", 0) + rd.get("suspected", 0)
+            dismissed_count = inp - survived
+            lines.append(f"| {label} | {inp} | {dismissed_count} | {survived} | {reason} |")
+        cert = audit.get("certified_count", 0)
+        total = dismissed["summary"]["total_findings"]
+        lines.append(f"| **Final** | **{total}** | **{total - cert}** | **{cert}** | **Certified findings** |")
+        lines.append("")
+        lines.append(f"> **Convergence**: {total} initial findings → {cert} certified ({total - cert} dismissed, {(total - cert) / total * 100:.0f}% reduction)")
+        lines.append("")
+
     lines.append("---\n")
     lines.append("## §2 Compliance Dashboard\n")
     lines.append("| Standard | Controls Checked | Passed | Failed | Status |")
@@ -599,6 +626,19 @@ def generate_sarif(findings_data):
     }
 
 
+def _load_verification_files(output_dir):
+    """Load dismissed.json and verification-audit.json if they exist (v6.0+)."""
+    dismissed_path = os.path.join(output_dir, "dismissed.json")
+    audit_path = os.path.join(output_dir, "verification-audit.json")
+    dismissed = None
+    audit = None
+    if os.path.isfile(dismissed_path):
+        dismissed = load_json(dismissed_path)
+    if os.path.isfile(audit_path):
+        audit = load_json(audit_path)
+    return dismissed, audit
+
+
 def generate_summary(findings_data):
     """Generate summary.json."""
     findings = findings_data.get("findings", [])
@@ -608,8 +648,9 @@ def generate_summary(findings_data):
     scope = findings_data.get("scope", {})
     detectors = findings_data.get("detectors", {})
     score = calc_score(findings)
+    output_dir = findings_data.get("_output_dir", "")
 
-    return {
+    summary = {
         "scan_id": findings_data["scan_id"],
         "command": findings_data["command"],
         "path": findings_data.get("path", ""),
@@ -630,8 +671,25 @@ def generate_summary(findings_data):
         "security_score": score,
         "score_max": 100,
         "score_grade": calc_grade(score),
-        "renderer_version": "1.0"
+        "renderer_version": "1.1"
     }
+
+    # v6.0: add verification data if available
+    dismissed, _ = _load_verification_files(output_dir)
+    if dismissed:
+        summary["verification"] = {
+            "dismissed_total": dismissed["summary"]["dismissed_by_p1"]
+                             + dismissed["summary"]["dismissed_by_p2"]
+                             + dismissed["summary"]["dismissed_by_p3"],
+            "certified": dismissed["summary"]["certified"],
+            "dismissed_by_round": {
+                "p1_semantic": dismissed["summary"]["dismissed_by_p1"],
+                "p2_counter_evidence": dismissed["summary"]["dismissed_by_p2"],
+                "p3_court": dismissed["summary"]["dismissed_by_p3"]
+            }
+        }
+
+    return summary
 
 
 def generate_manifest(findings_data):
@@ -667,7 +725,7 @@ def generate_manifest(findings_data):
 
 
 def generate_status(findings_data, ci_mode=False):
-    """Generate status.json with CI gate criteria."""
+    """Generate status.json with CI gate criteria. v6.0: supports confidence-weighted scoring."""
     findings = findings_data.get("findings", [])
     by_sev = Counter(f["severity"] for f in findings)
     score = calc_score(findings)
@@ -684,7 +742,7 @@ def generate_status(findings_data, ci_mode=False):
 
     passed = len(violations) == 0
 
-    return {
+    result = {
         "scan_id": findings_data["scan_id"],
         "status": "completed",
         "gate_result": "PASSED" if passed else "FAILED",
@@ -696,6 +754,21 @@ def generate_status(findings_data, ci_mode=False):
         "recommendation": ("Ready for deployment" if passed else
                           "Immediate remediation required — fix all Critical and High findings before deployment")
     }
+
+    # v6.0: add verification summary if available
+    output_dir = findings_data.get("_output_dir", "")
+    dismissed, _ = _load_verification_files(output_dir)
+    if dismissed:
+        total = dismissed["summary"]["total_findings"]
+        cert = dismissed["summary"]["certified"]
+        result["verification"] = {
+            "findings_total": total,
+            "certified": cert,
+            "dismissed": total - cert,
+            "convergence_rate": f"{(total - cert) / total * 100:.0f}%" if total > 0 else "N/A"
+        }
+
+    return result
 
 
 def generate_delta(findings_data, output_dir):
