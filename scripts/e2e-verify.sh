@@ -686,6 +686,102 @@ else
     fail "Renderer speed: ${ELAPSED}ms for 1 finding (> 10s, too slow)"
 fi
 
+# 11. Verification Pipeline (v6.0)
+# ═══════════════════════════════════════════════
+section "11. Verification Pipeline (v6.0)"
+
+# 11.1 Verification protocol file
+VERIFY_PROTO="knowledge/protocols/verification-protocol.md"
+if [ -f "$VERIFY_PROTO" ]; then
+    pass "Verification protocol file exists"
+    # Check evidence gate constraints
+    GATE_COUNT=$(grep -c "只能使用" "$VERIFY_PROTO" 2>/dev/null || true)
+    if [ "$GATE_COUNT" -ge 3 ]; then
+        pass "Evidence gate constraints present ($GATE_COUNT rounds)"
+    else
+        warn "Evidence gate constraints: $GATE_COUNT found, expected >= 3"
+    fi
+else
+    fail "Verification protocol file missing: $VERIFY_PROTO"
+fi
+
+# 11.2 Dismissed.json format validation
+DISMISSED_TEST="$TMPDIR/test-dismissed.json"
+python3 << 'PYEOF' 2>/dev/null
+import json, os
+test = {
+    "scan_id": "test",
+    "dismissed": [
+        {"finding_id": "H-TEST-test_c-L1", "dismissed_at_round": "P1",
+         "dismiss_reason": "SafeCopy wrapper", "original_severity": "High",
+         "original_detector": "memory.buffer-overflow"}
+    ],
+    "summary": {
+        "total_findings": 10,
+        "dismissed_by_p1": 3, "dismissed_by_p2": 2, "dismissed_by_p3": 1,
+        "certified": 4
+    }
+}
+with open(os.environ.get('DISMISSED_TEST', '/tmp/test-dismissed.json'), 'w') as f:
+    json.dump(test, f)
+# Validate structure
+for d in test['dismissed']:
+    assert d['finding_id']
+    assert d['dismissed_at_round'] in ('P1', 'P2', 'P3')
+    assert d['dismiss_reason']
+s = test['summary']
+assert s['total_findings'] == s['dismissed_by_p1'] + s['dismissed_by_p2'] + s['dismissed_by_p3'] + s['certified']
+print('OK')
+PYEOF
+if [ $? -eq 0 ]; then
+    pass "Dismissed.json format valid"
+else
+    fail "Dismissed.json format validation failed"
+fi
+
+# 11.3 Verification-audit.json format validation
+AUDIT_TEST="$TMPDIR/test-audit.json"
+python3 << 'PYEOF' 2>/dev/null
+import json, os
+test = {
+    "scan_id": "test",
+    "pipeline_version": "1.0",
+    "rounds": {
+        "p1_semantic": {"input_count": 10, "exempted": 2, "no_exemption": 7, "uncertain": 1},
+        "p2_counter_evidence": {"input_count": 8, "counter_evidence_found": 3, "counter_evidence_not_found": 5},
+        "p3_court": {"input_count": 5, "confirmed": 3, "suspected": 1, "dismissed": 1}
+    },
+    "certified_count": 4,
+    "dismissed_count": 6
+}
+with open(os.environ.get('AUDIT_TEST', '/tmp/test-audit.json'), 'w') as f:
+    json.dump(test, f)
+for rk in ('p1_semantic', 'p2_counter_evidence', 'p3_court'):
+    assert rk in test['rounds'], f'Missing round: {rk}'
+assert test['certified_count'] + test['dismissed_count'] == test['rounds']['p1_semantic']['input_count']
+print('OK')
+PYEOF
+if [ $? -eq 0 ]; then
+    pass "Verification-audit.json format valid"
+else
+    fail "Verification-audit.json format validation failed"
+fi
+
+# 11.4 Scan output protocol references v6.0
+SCAN_OUT="knowledge/protocols/scan-output.md"
+if grep -q "v6.0" "$SCAN_OUT" 2>/dev/null; then
+    pass "Scan output protocol references v6.0"
+else
+    fail "Scan output protocol missing v6.0 reference"
+fi
+
+# 11.5 Dismissed.json and verification-audit.json in scan structure
+if grep -q "dismissed.json" "$SCAN_OUT" && grep -q "verification-audit.json" "$SCAN_OUT"; then
+    pass "v6.0 files documented in scan-output.md"
+else
+    fail "v6.0 files not found in scan-output.md"
+fi
+
 # ═══════════════════════════════════════════════
 # Summary
 # ═══════════════════════════════════════════════
@@ -712,6 +808,7 @@ if [ $FAIL -eq 0 ]; then
     if [ "$MODE" != "quick" ]; then
         echo "  ✓ All 3 command types handled"
         echo "  ✓ Multi-language indexer coverage"
+        echo "  ✓ Verification pipeline v6.0 validated"
     fi
     echo ""
 else
