@@ -300,7 +300,8 @@ docs/sdd/
     ├── EPIC-001-core-scanning-engine/
     │   ├── epic.md
     │   ├── FEATURE-001-output-protocol/     # 输出协议 v2→v5 演进
-    │   └── FEATURE-002-detector-quality/    # 67 检测器质量增强
+    │   ├── FEATURE-002-detector-quality/    # 67 检测器质量增强
+    │   └── FEATURE-003-verification-pipeline/ # 五轮验证消减系统
     │
     └── EPIC-002-platform-engineering/
         ├── epic.md

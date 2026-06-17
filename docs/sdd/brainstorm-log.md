@@ -5,6 +5,86 @@
 
 ---
 
+## 2026-06-17 — 五轮→三轮设计修正（端到端数据反推）
+
+### 背景
+
+完成初版五轮设计后，执行了完整的端到端验证（L1 84/84 + L4 33/33 全部通过），并深入分析了 python-vuln-demo 的 17 条真实 Finding 数据。实测发现两个关键事实迫使设计修正。
+
+### 发现
+
+1. **Detector 产出不是"浅层模式匹配"**: 每条 Finding 已包含 `data_flow_path`（source→propagation→sink）、`judgment_rationale`（CWE 映射推理 100-200 字）、`cvss_score`+`cvss_vector`（CVSS 3.1 完整评分）、`before_code`+`after_code`（具体到行的修复代码）、`verification_method`（可执行验证命令）。这不是传统 SAST 的裸 pattern match。
+
+2. **P1/P2 冗余判定**: 原设计的 P1 (Fact Certification) 与 Detector 的 `judgment_rationale` 有 80% 重叠（都是确认代码事实存在）。原 P2 (Flow Certification) 与 Detector 的 `data_flow_path` 有 100% 重叠（都是追踪 source→sink）。这两轮不提供增量价值。
+
+### 修正
+
+```
+五轮 (v1)                    三轮 (v2)
+
+P1: Fact (冗余, 砍掉)       —
+P2: Flow (冗余, 砍掉)       —
+P3: Semantic  ─────────→   P1: Semantic
+P4: Counter   ─────────→   P2: Counter-Evidence
+P5: Court     ─────────→   P3: Adjudication Court
+```
+
+同时修正了原 Claim 设计——Detector 继续产出完整 Finding，不降级为轻量 Claim（ADRR-001）。
+
+### 保留原则
+
+- "Detector 不能最终定罪" — 改为"Detector 是检察官，验证管道是法庭"
+- Evidence-Centric — 三轮都有证据门禁
+- Judge 禁止访问源码 — 保持不变
+- index.json 保持不变 — 保持不变
+
+详见: [FEATURE-003-verification-pipeline/spec.md](epics/EPIC-001-core-scanning-engine/FEATURE-003-verification-pipeline/spec.md) (v2)
+
+---
+
+## 2026-06-17 — 五轮验证消减系统设计
+
+### 背景
+
+生产环境扫描 294 文件产生 74 条告警（28 High + 46 Medium），用户直接崩溃不愿分析。当前 `Detector → Finding` 模式无独立验证环节——检测器既是检察官又是法官。业界 ZeroFalse (F1=0.912-0.955) 和 CodeX-Verify (多 Agent 72.4% vs 单 Agent 32.8%) 提供了证据门禁 + 多 Agent 验证的成熟范式。
+
+### 讨论要点
+
+- **核心矛盾**: Detector 直接产出 Finding 意味着每次模式匹配都是一次不可推翻的判决
+- **ECVA 参考架构**: 来自同行的 Architecture Baseline v1.0 — "Detector 不能产出 Finding，只能产出 Claim。Finding 是法律判决"——作为设计起点
+- **五轮 vs 并行**: 考虑过 CodeX-Verify 式 4 Agent 并行验证，但 FP 消减是渐进收敛过程（74→55→38→28→18→15），后轮依赖前轮产出，顺序管道更适合
+- **index.json 扩展**: 讨论过在 Go 索引器层构建完整 Fact Graph（类型化节点/边、source/sink/sanitizer 标注），但量化分析显示当前 index.json 已满足导航需求，扩展到 Fact Graph 会 3.5x 数据膨胀且 AI Agent 读源码可获得更丰富上下文。决定保持不变
+- **用户标记 vs AI 自精炼**: 实践发现用户标记 FP 几乎不可行（用户面对 74 条告警就崩溃），采用纯 AI 自精炼路线（五轮验证管道），开发者反馈循环作为长期补充途径
+- **Tree-sitter 文档化**: 设计过程中发现 CLAUDE.md/AGENTS.md/GEMINI.md 缺少 Tree-sitter 架构的系统文档，已在三个文件中补全
+
+### 最终方案
+
+```
+Tree-sitter Indexer (不变)
+       ↓
+67 Detector → Claim[] (非 Finding)
+       ↓
+P1: Fact Certification    → 剔除证据不实
+P2: Flow Certification    → 剔除数据流断裂
+P3: Semantic Verification → 剔除框架已消除
+P4: Counter-Evidence Hunt → 剔除有反证
+P5: Adjudication Court    → 三方 Agent 合议
+       ↓
+Certified Finding[] + Dismissed[]
+```
+
+### 影响范围
+
+- 67 个 detector — MATCH 输出类型从 Finding 改为 Claim（检测逻辑不变）
+- `commands/secguard.md` — 新增 Step 3.5 验证管道
+- `scripts/render-report.py` — 适配 certified-findings.json + 验证漏斗
+- `knowledge/protocols/` — 新增 verification-protocol.md + findings-schema.json 扩展
+- `internal/` — 零改动
+
+详见: [FEATURE-003-verification-pipeline](epics/EPIC-001-core-scanning-engine/FEATURE-003-verification-pipeline/)
+
+---
+
 ## 2026-06-07 — Findings 输出架构重构：单体 JSON → 目录树
 
 ### 背景
