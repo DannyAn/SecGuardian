@@ -253,6 +253,79 @@ INDEX_FILE 输出示例:
 - **利用 index.json 中的符号表和调用图定位检测目标**，而非逐文件遍历。
 - 增量模式（`git diff`）下，仅分析由 diff 识别的变更行。
 
+### Step 3.5: 三轮验证管道（误报消减）
+
+> ⚠️ 这是 v6.0 新增的验证步骤。在 Detector 产出 Finding 后、渲染报告前，执行三轮独立验证对每个 Finding 进行证据认证，最大化降低误报。
+> 跳过验证: 在命令末尾加 `--no-verify` flag。
+
+**3.5a. 加载验证协议：**
+
+读取 `knowledge/protocols/verification-protocol.md` 获取完整的三轮 prompt 模板和裁决标准。
+
+**3.5b. 执行 P1: Semantic Verification：**
+
+- 从 index.json 的 `types` 和 `functions` 构建 Project Security Profile（安全包装类/安全工厂方法/校验方法的全局视图）。
+- 对每个 Finding，判断其声称的风险是否已被项目自身的安全框架天然消除。
+- 裁决: `exempted` (抑制) / `no_exemption` (保留) / `uncertain` (保留但标记)。
+- Profile 全局构建一次，所有 Finding 复用。
+
+**3.5c. 执行 P2: Counter-Evidence Hunt：**
+
+- 对 P1 中 `no_exemption` 和 `uncertain` 的 Finding，执行 Defense Agent 搜索。
+- 按 Finding 的 CWE/类型使用对应搜索清单（内存安全→RAII/smart pointer；注入→PreparedStatement/ORM；并发→lock_guard/atomic；加密→高层加密库/KMS）。
+- 搜索范围: Finding 所在文件 + index.json 中同模块文件。
+- 裁决: `counter_evidence_found` (抑制) / `counter_evidence_not_found` (保留)。
+
+**3.5d. 执行 P3: Adjudication Court：**
+
+- 对 P2 中 `counter_evidence_not_found` 的 Finding，构建 Court Record（Finding 摘要 + P1 + P2 verdict）。
+- Prosecutor + Defender 并行发言（基于 Court Record，禁止访问源码）。
+- Judge 最终裁决（禁止访问源码，仅基于 Court Record + 双方陈述）。
+- 裁决: `confirmed` (确认) / `suspected` (可疑，需人工确认) / `dismissed` (抑制)。
+
+**3.5e. 输出验证产物：**
+
+写入两个新文件到 scan root：
+
+```bash
+SCAN_DIR=".codeagent/secguard-secguardian/scans/<scan_id>"
+
+# dismissed.json — 被抑制的 Finding + 原因 + 轮次
+# verification-audit.json — 完整验证链 + 每轮收敛统计
+```
+
+**3.5f. 自检完整性：**
+
+```bash
+python3 << 'PYEOF'
+import json, os, sys
+
+scan_dir = os.environ['SCAN_DIR']
+
+# Check dismissed.json
+with open(os.path.join(scan_dir, 'dismissed.json')) as f:
+    dismissed = json.load(f)
+for d in dismissed['dismissed']:
+    assert d['finding_id'], f"Missing finding_id in dismissed entry"
+    assert d['dismissed_at_round'] in ('P1', 'P2', 'P3'), f"Invalid round: {d['dismissed_at_round']}"
+    assert d['dismiss_reason'], f"Missing dismiss_reason for {d['finding_id']}"
+
+# Check verification-audit.json
+with open(os.path.join(scan_dir, 'verification-audit.json')) as f:
+    audit = json.load(f)
+for round_key in ('p1_semantic', 'p2_counter_evidence', 'p3_court'):
+    assert round_key in audit['rounds'], f"Missing round: {round_key}"
+
+certified = audit['certified_count']
+dismissed_total = audit['dismissed_count']
+findings_total = len(json.load(open(os.path.join(scan_dir, 'findings.json'))).get('findings', []))
+assert certified + dismissed_total == findings_total, \
+    f"Count mismatch: {certified} + {dismissed_total} != {findings_total}"
+
+print(f"✅ Verification audit: {findings_total} findings → {certified} certified, {dismissed_total} dismissed")
+PYEOF
+```
+
 ### Step 4: 输出结构化 findings（遵循 Findings Protocol v5.0）
 
 > ⚠️ **v5.0 关键变更**: AI **不再输出单体 findings.json**。改为按 detector 分类，**每个 finding 输出一个独立文件**到 `findings/` 目录树下。最后输出轻量 `findings.json`（同名升级，不含四段式，仅元数据+索引）。渲染器通过 `--findings-dir` 聚合所有 finding 文件生成报告。**禁止直接写 report.md / results.sarif / 任何其他输出文件** — 这些由渲染器生成。
