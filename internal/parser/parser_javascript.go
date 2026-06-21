@@ -66,7 +66,7 @@ func parseJSFile(filePath string) (*ParseResult, error) {
 	// Extract arrow functions in objects
 	for _, match := range jsArrowInObj.FindAllStringSubmatch(text, -1) {
 		name := match[1]
-		if !seen[name] && name != "if" && name != "for" && name != "while" && name != "switch" {
+		if !seen[name] && name != "if" && name != "do" && name != "for" && name != "try" && name != "while" && name != "switch" {
 			seen[name] = true
 			lineNum := findLine(lines, match[0])
 			result.Functions = append(result.Functions, FunctionInfo{
@@ -81,7 +81,7 @@ func parseJSFile(filePath string) (*ParseResult, error) {
 	// Extract method shorthand in objects
 	for _, match := range jsMethodInObj.FindAllStringSubmatch(text, -1) {
 		name := match[1]
-		if !seen[name] && name != "if" && name != "for" && name != "while" && name != "switch" && name != "catch" {
+		if !seen[name] && name != "if" && name != "do" && name != "for" && name != "try" && name != "while" && name != "switch" && name != "catch" {
 			seen[name] = true
 			lineNum := findLine(lines, match[0])
 			result.Functions = append(result.Functions, FunctionInfo{
