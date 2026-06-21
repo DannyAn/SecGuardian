@@ -1,31 +1,56 @@
 {
   "name": "secaudit-secguardian",
-  "version": "0.1.0",
-  "description": "安全专项审计 - 针对安全专项问题提供深度分析技能",
+  "version": "0.7.0",
+  "description": "★ 旗舰产品：AI 深度安全审计 — 替代传统安全顾问的 17 项纵深分析",
   "author": "SecGuardian",
   "command": "secaudit",
-  "protocol": "1.0",
+  "protocol": "2.0",
   "platforms": {
-    "claude-code": { "entry": "commands/secaudit.md" },
-    "opencode": { "entry": "commands/secaudit.md" },
-    "gemini-cli": { "entry": "commands/secaudit.md" }
+    "claude-code": {
+      "entry": "commands/secaudit.md"
+    },
+    "opencode": {
+      "entry": "commands/secaudit.md"
+    },
+    "gemini-cli": {
+      "entry": "commands/secaudit.md"
+    }
   },
   "skills": [
-    "attack-surface-analysis", "data-flow-analysis", "state-machine-analysis",
-    "taint-analysis", "trust-boundary-analysis", "auth-and-session",
-    "authorization", "cryptography", "data-protection", "dependency-security",
-    "http-security-headers", "infra-hardening", "input-validation",
-    "logging-and-monitoring", "output-encoding", "secrets-management",
+    "attack-surface-analysis",
+    "data-flow-analysis",
+    "state-machine-analysis",
+    "taint-analysis",
+    "trust-boundary-analysis",
+    "auth-and-session",
+    "authorization",
+    "cryptography",
+    "data-protection",
+    "dependency-security",
+    "http-security-headers",
+    "infra-hardening",
+    "input-validation",
+    "logging-and-monitoring",
+    "output-encoding",
+    "secrets-management",
     "secure-transport"
   ],
   "knowledge": {
-    "protocols": ["scan-output", "sarif-output"],
-    "concepts": ["sql-injection", "command-injection", "xss", "path-traversal", "ssrf", "deserialization", "weak-cryptography", "hardcoded-secrets", "toctou", "buffer-overflow"],
-    "languages": ["java", "python", "cpp", "go"]
+    "protocols": [
+      "scan-output",
+      "sarif-output"
+    ],
+    "languages": [
+      "cpp",
+      "java",
+      "python",
+      "go",
+      "javascript"
+    ]
   },
   "output": {
     "base_dir": ".codeagent",
     "scans_dir": "scans",
-    "protocol": "scan-output/1.1"
+    "protocol": "scan-output/2.0"
   }
 }

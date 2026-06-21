@@ -78,6 +78,39 @@ int parse_args(int argc, char **argv) {
     return 0;
 }
 
+/* ── CWE-20: Improper Input Validation ────────────────────── */
+void validate_user_input(const char *user_input) {
+    char buf[64];
+    // VULNERABILITY [CWE-20]: Input validation — no length check
+    strcpy(buf, user_input);
+}
+
+/* ── CWE-125: Out-of-bounds Read ─────────────────────────── */
+void oob_read_example() {
+    int arr[10];
+    int secret = 0;
+    // VULNERABILITY [CWE-125]: Out-of-bounds read past array
+    for (int i = 0; i <= 10; i++) {
+        secret = arr[i];
+    }
+}
+
+/* ── CWE-276: Insecure Permissions ───────────────────────── */
+void create_insecure_file() {
+    // VULNERABILITY [CWE-276]: Insecure default permissions
+    FILE *f = fopen("/etc/app/config.conf", "w");
+    if (f) { fprintf(f, "config=prod"); fclose(f); }
+}
+
+/* ── CWE-400: Resource Exhaustion ────────────────────────── */
+size_t get_user_size() { return 0x7FFFFFFF; }
+void process_large_request() {
+    size_t user_size = get_user_size();
+    // VULNERABILITY [CWE-400]: Uncontrolled memory allocation
+    char *buf = (char *)malloc(user_size);
+    if (buf) { free(buf); }
+}
+
 int main(int argc, char **argv) {
     return parse_args(argc, argv);
 }

@@ -3,12 +3,18 @@
 #
 # 用法: bash scripts/gen-toml.sh
 #
-# 读取 commands/<name>.md 的首个 # 标题作为 description，
-# 将整个 .md 正文作为 prompt body，生成 commands/gemini/<name>.toml。
+# 读取 commands/<name>.md，生成 commands/gemini/<name>.toml。
+#
+# .md 文件格式要求（带 YAML frontmatter）:
+#   ---
+#   description:"命令简述"
+#   ---
+#   # /command - 标题
+#   ...正文...
 #
 # 生成规则:
-#   - description: .md 文件第一行的 # 标题 (去掉 # /)
-#   - prompt: 将 .md 的全部 Markdown 嵌入 TOML multiline string
+#   - description: 从 YAML frontmatter 的 description 字段提取
+#   - prompt: 跳过 frontmatter，将正文嵌入 TOML multiline string
 #   - {{args}} 占位符: 自动插入在 prompt 开头
 
 set -euo pipefail
@@ -24,9 +30,16 @@ SecGuardian — Gemini TOML 命令生成器
   bash scripts/gen-toml.sh       # 生成全部 TOML
   bash scripts/gen-toml.sh -h    # 显示此帮助
 
+.md 文件格式要求（带 YAML frontmatter）:
+  ---
+  description:"命令简述"
+  ---
+  # /command - 标题
+  ...正文...
+
 生成规则:
-  - description: .md 文件第一行的 # 标题
-  - prompt: 将 .md 全文 + {{args}} 占位符嵌入 TOML multiline string
+  - description: 从 YAML frontmatter 的 description 字段提取
+  - prompt: 跳过 frontmatter，将正文 + {{args}} 嵌入 TOML multiline string
 
 何时使用:
   修改 commands/<name>.md 后运行此脚本，确保 Gemini CLI 的 TOML 文件与
@@ -52,8 +65,28 @@ for md_file in "$CMD_SRC"/*.md; do
     name=$(basename "$md_file" .md)
     toml_file="$TOML_OUT/${name}.toml"
 
-    # 提取第一行 # 标题作为 description
-    desc=$(head -1 "$md_file" | sed 's/^# //; s/^\/.* - //')
+    # 提取 description: 从 YAML frontmatter 的 description 字段
+    # 格式: description: "文本" 或 description:"文本"
+    desc=$(sed -n '/^---$/,/^---$/p' "$md_file" | grep "^description:" | head -1 | sed 's/^description:[[:space:]]*"//; s/"$//')
+    if [ -z "$desc" ]; then
+        # Fallback: 从第一个 # 标题提取
+        desc=$(head -1 "$md_file" | sed 's/^# //; s/^\/.* - //')
+        echo "  [WARN] ${name}.md: 未找到 YAML description 字段，从标题回退: $desc"
+    fi
+
+    # 找到第二个 ---（frontmatter 结束行号），跳过整个 frontmatter
+    # 如果文件以 --- 开头，则跳过 frontmatter；否则跳过第一行标题
+    first_line=$(head -1 "$md_file")
+    if [ "$first_line" = "---" ]; then
+        # 有 YAML frontmatter: 找到结束的 --- 行号
+        body_start=$(awk '/^---$/ { count++; if (count==2) { print NR+1; exit } }' "$md_file")
+        if [ -z "$body_start" ]; then
+            body_start=2
+        fi
+    else
+        # 无 frontmatter (旧格式): 跳过第一行标题
+        body_start=2
+    fi
 
     # 生成 TOML
     {
@@ -66,12 +99,12 @@ for md_file in "$CMD_SRC"/*.md; do
         echo ""
         echo "---"
         echo ""
-        # 跳过第一行标题行，嵌入剩余内容
-        tail -n +2 "$md_file"
+        # 从 frontmatter 之后开始嵌入正文
+        tail -n "+${body_start}" "$md_file"
         echo "\"\"\""
     } > "$toml_file"
 
-    echo "  + commands/gemini/${name}.toml"
+    echo "  + commands/gemini/${name}.toml (desc: $desc)"
     gen_count=$((gen_count + 1))
 done
 

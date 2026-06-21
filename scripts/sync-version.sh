@@ -73,6 +73,16 @@ for f in "${FILES[@]}"; do
     echo "  ✓ $f"
 done
 
+# 同步 internal/main.go 中的版本常量
+MAIN_GO="$PROJECT_ROOT/internal/main.go"
+if [ -f "$MAIN_GO" ]; then
+    sed -i.bak "s/const version = \".*\"/const version = \"$NEW_VERSION\"/" "$MAIN_GO"
+    rm -f "${MAIN_GO}.bak"
+    echo "  ✓ $MAIN_GO"
+else
+    echo "  [SKIP] internal/main.go — 文件不存在"
+fi
+
 echo ""
 echo "版本同步完成: $NEW_VERSION"
 echo "提示: 还需要更新 README.md 和 CHANGELOG 中的版本引用（如有）。"

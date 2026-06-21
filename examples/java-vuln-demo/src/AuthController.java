@@ -1,75 +1,122 @@
 /**
- * AuthController.java — Authentication and session handling
+ * AuthController.java — Authentication & web security vulnerability examples
  *
  * VULNERABILITIES:
- *   - CWE-327: SHA-256 for password hashing (line 35)
- *   - CWE-798: Hardcoded JWT secret (line 18)
- *   - CWE-384: Session fixation — no session ID rotation after login (line 47)
+ *   - CWE-287: Auth bypass — missing authentication (line 22)
+ *   - CWE-79:  XSS — output without escaping (line 35)
+ *   - CWE-918: SSRF — user-controlled URL (line 48)
+ *   - CWE-352: CSRF — no anti-CSRF token (line 60)
+ *   - CWE-347: JWT misuse — weak secret (line 74)
+ *   - CWE-601: Open redirect — user-controlled redirect (line 89)
+ *   - CWE-94:  Code injection — Runtime.exec with user input (line 103)
  */
 
-package com.example.demo.controller;
-
-import java.security.MessageDigest;
-import java.util.HashMap;
-import java.util.Map;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpSession;
-
 import org.springframework.web.bind.annotation.*;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.*;
 
 @RestController
-@RequestMapping("/api/auth")
 public class AuthController {
 
-    // VULNERABILITY [CWE-798]: Hardcoded JWT secret
-    private static final String JWT_SECRET = "my-jwt-secret-key-2024";
-    private Map<String, String> userStore = new HashMap<>();
+    // CWE-287: Auth Bypass — no authentication check
+    @GetMapping("/api/admin/users")
+    // VULNERABILITY [CWE-287]: Auth bypass — missing @PreAuthorize or auth check
+    public String listAllUsers() {
+        // No authentication check — any user can access admin API
+        return "All users: [alice, bob, charlie]";
+    }
 
-    @PostMapping("/register")
-    public String register(@RequestParam String username,
-                           @RequestParam String password) {
-        // VULNERABILITY [CWE-327]: SHA-256 without salt for password storage
+    // CWE-79: XSS
+    @GetMapping("/search")
+    // VULNERABILITY [CWE-79]: XSS — reflecting user input without escaping
+    public String search(@RequestParam("q") String query) {
+        // BAD: directly reflecting user input in HTML
+        return "<html><body>Search results for: " + query + "</body></html>";
+    }
+
+    // CWE-918: SSRF
+    @GetMapping("/fetch")
+    // VULNERABILITY [CWE-918]: SSRF — user-controlled URL fetch
+    public String fetchUrl(@RequestParam("url") String url) {
         try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] hash = md.digest(password.getBytes());
-            String hashedPassword = bytesToHex(hash);
-            userStore.put(username, hashedPassword);
-            return "User registered: " + username;
+            // BAD: no URL validation — attacker can access internal services
+            java.net.URL target = new java.net.URL(url);
+            BufferedReader in = new BufferedReader(new InputStreamReader(target.openStream()));
+            return in.readLine();
         } catch (Exception e) {
             return "Error: " + e.getMessage();
         }
     }
 
-    @PostMapping("/login")
-    public String login(@RequestParam String username,
-                        @RequestParam String password,
-                        HttpServletRequest request) {
-        String stored = userStore.get(username);
-        if (stored == null) return "User not found";
-
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            String inputHash = bytesToHex(md.digest(password.getBytes()));
-
-            if (stored.equals(inputHash)) {
-                // VULNERABILITY [CWE-384]: Session fixation
-                // Session ID is not rotated after successful login
-                HttpSession session = request.getSession();
-                session.setAttribute("user", username);
-                return "Login successful";
-            }
-        } catch (Exception e) {
-            // VULNERABILITY [CWE-209]: Verbose error message leaks stack trace
-            return "Error: " + e.toString();
-        }
-        return "Invalid password";
+    // CWE-352: CSRF
+    @PostMapping("/api/transfer")
+    // VULNERABILITY [CWE-352]: CSRF — no CSRF token validation
+    public String transferMoney(@RequestParam("amount") String amount) {
+        // BAD: no anti-CSRF token check on state-changing operation
+        return "Transferred $" + amount;
     }
 
-    private static String bytesToHex(byte[] bytes) {
-        StringBuilder sb = new StringBuilder();
-        for (byte b : bytes) {
-            sb.append(String.format("%02x", b));
+    // CWE-347: JWT Weak Secret
+    @PostMapping("/api/login")
+    // VULNERABILITY [CWE-347]: JWT with weak hardcoded secret
+    public String login(@RequestParam("username") String username) {
+        // BAD: hardcoded weak secret "secret" that's easily guessable
+        String token = io.jsonwebtoken.Jwts.builder()
+            .setSubject(username)
+            .claim("role", "admin")
+            .signWith(io.jsonwebtoken.SignatureAlgorithm.HS256, "secret")
+            .compact();
+        return "{\"token\":\"" + token + "\"}";
+    }
+
+    // CWE-434: Unrestricted File Upload
+    @PostMapping("/api/upload")
+    // VULNERABILITY [CWE-434]: No type/size validation on upload
+    public String upload(@RequestParam("file") MultipartFile file) {
+        // BAD: no content-type or size check
+        file.transferTo(new File("/uploads/" + file.getOriginalFilename()));
+        return "uploaded";
+    }
+
+    // CWE-862: Missing Authorization
+    @GetMapping("/api/admin/settings")
+    // VULNERABILITY [CWE-862]: No authorization check
+    public String adminSettings() {
+        // BAD: no @PreAuthorize("hasRole('ADMIN')")
+        return "Sensitive settings";
+    }
+
+    // CWE-306: Missing Authentication
+    @GetMapping("/api/profile")
+    // VULNERABILITY [CWE-306]: No authentication required
+    public String userProfile() {
+        // BAD: no @AuthenticationPrincipal
+        return "{\"email\":\"user@example.com\"}";
+    }
+
+    // CWE-601: Open Redirect
+    @GetMapping("/redirect")
+    // VULNERABILITY [CWE-601]: Open redirect — user controls redirect target
+    public String redirect(@RequestParam("url") String url,
+                           HttpServletResponse response) {
+        // BAD: no validation of redirect target — attacker sends user to evil.com
+        response.setStatus(302);
+        response.setHeader("Location", url);
+        return null;
+    }
+
+    // CWE-94: Code Injection
+    @GetMapping("/exec")
+    // VULNERABILITY [CWE-94]: Command injection — Runtime.exec with user input
+    public String execute(@RequestParam("cmd") String cmd) {
+        try {
+            // BAD: user input passed directly to Runtime.exec
+            Process p = Runtime.getRuntime().exec(cmd);
+            BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()));
+            return reader.readLine();
+        } catch (Exception e) {
+            return "Error: " + e.getMessage();
         }
-        return sb.toString();
     }
 }

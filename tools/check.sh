@@ -91,10 +91,6 @@ echo "5. Knowledge 文件检查"
 for ext in "${EXTS[@]}"; do
     jf="$PROJECT_ROOT/extensions/$ext/extension.json"
     echo "  [$ext]"
-    for concept in $(jq -r '.knowledge.concepts[]' "$jf"); do
-        cf="$PROJECT_ROOT/knowledge/concepts/${concept}.md"
-        [ -f "$cf" ] && pass "concept: $concept" || { fail "concept: $concept"; ((ERRORS++)); }
-    done
     for lang in $(jq -r '.knowledge.languages[]' "$jf"); do
         lf="$PROJECT_ROOT/knowledge/languages/${lang}.md"
         [ -f "$lf" ] && pass "language: $lang" || { fail "language: $lang"; ((ERRORS++)); }
@@ -118,7 +114,6 @@ echo ""
 
 # ── 7. 文件统计 ──────────────────────────────────
 echo "7. 文件统计"
-echo "  Knowledge concepts: $(ls "$PROJECT_ROOT/knowledge/concepts/"*.md 2>/dev/null | wc -l | tr -d ' ')"
 echo "  Knowledge languages: $(ls "$PROJECT_ROOT/knowledge/languages/"*.md 2>/dev/null | wc -l | tr -d ' ')"
 echo "  Knowledge detectors: $(ls "$PROJECT_ROOT/knowledge/detectors/"*.md 2>/dev/null | wc -l | tr -d ' ')"
 echo "  Skills: $(find "$PROJECT_ROOT/skills" -name SKILL.md -maxdepth 2 | wc -l | tr -d ' ')"

@@ -1,101 +1,345 @@
 {
   "project": "secguardian",
-  "version": "0.1.0",
-  "protocol": "1.1",
-  "description": "企业级白盒安全 AI Agent 辅助解决方案 — 以 AI 深度审计为核心的旗舰产品",
-
+  "version": "0.7.0",
+  "protocol": "1.3",
+  "description": "企业级白盒安全 AI Agent 辅助解决方案 — 以 AI 深度审计为核心的旗舰产品，67 个检测器覆盖 7 大安全分类",
   "product_positioning": {
     "flagship": "secaudit — AI 深度安全审计（企业年省 $50K+ 审计费用）",
     "detection": "secguard — AI 引导的代码漏洞发现",
     "review": "secreview — 安全编码规范与反模式审查"
   },
-
   "extensions": {
     "secaudit-secguardian": {
       "command": "secaudit",
       "description": "★ 旗舰产品：AI 深度安全审计 — 替代传统安全顾问的 17 项纵深分析",
-      "platforms": ["claude-code", "opencode", "gemini-cli", "github-actions"],
+      "platforms": [
+        "claude-code",
+        "opencode",
+        "gemini-cli",
+        "github-actions"
+      ],
       "skills": {
-        "attack-surface-analysis":  { "category": "analysis", "status": "active", "desc": "攻击面分析 — 识别所有暴露入口点" },
-        "data-flow-analysis":       { "category": "analysis", "status": "active", "desc": "数据流分析 — 追踪敏感数据完整流向" },
-        "state-machine-analysis":   { "category": "analysis", "status": "active", "desc": "状态机分析 — 检测非法状态跃迁" },
-        "taint-analysis":           { "category": "analysis", "status": "active", "desc": "污点分析 — Source→Sink 传播链追踪" },
-        "trust-boundary-analysis":  { "category": "analysis", "status": "active", "desc": "信任边界分析 — 跨边界安全控制审计" },
-        "auth-and-session":         { "category": "domain",   "status": "active", "desc": "认证与会话管理 — OWASP ASVS 标准" },
-        "authorization":            { "category": "domain",   "status": "active", "desc": "授权与访问控制 — 越权/IDOR 检测" },
-        "cryptography":             { "category": "domain",   "status": "active", "desc": "密码学安全 — 算法/密钥/随机数审计" },
-        "input-validation":         { "category": "domain",   "status": "active", "desc": "输入验证 — OWASP Top 10 注入防御审计" },
-        "data-protection":          { "category": "domain",   "status": "active", "desc": "数据保护 — 敏感数据全生命周期审计" },
-        "secrets-management":       { "category": "domain",   "status": "active", "desc": "密钥管理 — 凭证存储/轮换/泄露检测" },
-        "secure-transport":         { "category": "domain",   "status": "active", "desc": "安全传输 — TLS/证书/协议配置审计" },
-        "http-security-headers":    { "category": "domain",   "status": "active", "desc": "HTTP 安全头 — CSP/HSTS/X-Frame 审计" },
-        "output-encoding":          { "category": "domain",   "status": "active", "desc": "输出编码 — XSS/注入跨上下文防护" },
-        "logging-and-monitoring":   { "category": "domain",   "status": "active", "desc": "日志与监控 — 安全事件可追溯性审计" },
-        "dependency-security":      { "category": "domain",   "status": "active", "desc": "依赖安全 — 已知漏洞/供应链风险审计" },
-        "infra-hardening":          { "category": "domain",   "status": "active", "desc": "基础设施加固 — 容器/K8s/云资源审计" }
+        "attack-surface-analysis": {
+          "category": "analysis",
+          "status": "active",
+          "desc": "攻击面分析 — 识别所有暴露入口点"
+        },
+        "data-flow-analysis": {
+          "category": "analysis",
+          "status": "active",
+          "desc": "数据流分析 — 追踪敏感数据完整流向"
+        },
+        "state-machine-analysis": {
+          "category": "analysis",
+          "status": "active",
+          "desc": "状态机分析 — 检测非法状态跃迁"
+        },
+        "taint-analysis": {
+          "category": "analysis",
+          "status": "active",
+          "desc": "污点分析 — Source→Sink 传播链追踪"
+        },
+        "trust-boundary-analysis": {
+          "category": "analysis",
+          "status": "active",
+          "desc": "信任边界分析 — 跨边界安全控制审计"
+        },
+        "auth-and-session": {
+          "category": "domain",
+          "status": "active",
+          "desc": "认证与会话管理 — OWASP ASVS 标准"
+        },
+        "authorization": {
+          "category": "domain",
+          "status": "active",
+          "desc": "授权与访问控制 — 越权/IDOR 检测"
+        },
+        "cryptography": {
+          "category": "domain",
+          "status": "active",
+          "desc": "密码学安全 — 算法/密钥/随机数审计"
+        },
+        "input-validation": {
+          "category": "domain",
+          "status": "active",
+          "desc": "输入验证 — OWASP Top 10 注入防御审计"
+        },
+        "data-protection": {
+          "category": "domain",
+          "status": "active",
+          "desc": "数据保护 — 敏感数据全生命周期审计"
+        },
+        "secrets-management": {
+          "category": "domain",
+          "status": "active",
+          "desc": "密钥管理 — 凭证存储/轮换/泄露检测"
+        },
+        "secure-transport": {
+          "category": "domain",
+          "status": "active",
+          "desc": "安全传输 — TLS/证书/协议配置审计"
+        },
+        "http-security-headers": {
+          "category": "domain",
+          "status": "active",
+          "desc": "HTTP 安全头 — CSP/HSTS/X-Frame 审计"
+        },
+        "output-encoding": {
+          "category": "domain",
+          "status": "active",
+          "desc": "输出编码 — XSS/注入跨上下文防护"
+        },
+        "logging-and-monitoring": {
+          "category": "domain",
+          "status": "active",
+          "desc": "日志与监控 — 安全事件可追溯性审计"
+        },
+        "dependency-security": {
+          "category": "domain",
+          "status": "active",
+          "desc": "依赖安全 — 已知漏洞/供应链风险审计"
+        },
+        "infra-hardening": {
+          "category": "domain",
+          "status": "active",
+          "desc": "基础设施加固 — 容器/K8s/云资源审计"
+        }
       }
     },
     "secguard-secguardian": {
       "command": "secguard",
-      "description": "AI 引导的代码漏洞发现 — 26 个检测器覆盖 4 类安全问题",
-      "platforms": ["claude-code", "opencode", "gemini-cli", "github-actions"],
+      "description": "AI 引导的代码漏洞发现 — 67 个检测器覆盖 7 类安全 topic (memory/concurrency/system/crypto/web/error/resource)",
+      "platforms": [
+        "claude-code",
+        "opencode",
+        "gemini-cli",
+        "github-actions"
+      ],
       "skills": {
-        "cpp":    { "language": "cpp",    "category": "language-specific", "status": "active", "detectors": 30 },
-        "java":   { "language": "java",   "category": "language-specific", "status": "active" },
-        "python": { "language": "python", "category": "language-specific", "status": "active" },
-        "go":     { "language": "go",     "category": "language-specific", "status": "active" }
+        "cpp": {
+          "language": "cpp",
+          "category": "language-specific",
+          "status": "active",
+          "detectors": 61
+        },
+        "java": {
+          "language": "java",
+          "category": "language-specific",
+          "status": "active"
+        },
+        "python": {
+          "language": "python",
+          "category": "language-specific",
+          "status": "active"
+        },
+        "go": {
+          "language": "go",
+          "category": "language-specific",
+          "status": "active"
+        },
+        "javascript": {
+          "language": "javascript",
+          "category": "language-specific",
+          "status": "active",
+          "note": "v0.5.0 新增"
+        }
       }
     },
     "secreview-secguardian": {
       "command": "secreview",
-      "description": "安全编码规范审查 — 反模式识别 + 最佳实践合规",
-      "platforms": ["claude-code", "opencode", "gemini-cli", "github-actions"],
+      "description": "安全编码规范审查 — 反模式识别 + 最佳实践合规 + 检测矩阵",
+      "platforms": [
+        "claude-code",
+        "opencode",
+        "gemini-cli",
+        "github-actions"
+      ],
       "skills": {
-        "cpp":    { "language": "cpp",    "category": "language-specific", "status": "active" },
-        "java":   { "language": "java",   "category": "language-specific", "status": "active" },
-        "python": { "language": "python", "category": "language-specific", "status": "active" },
-        "go":     { "language": "go",     "category": "language-specific", "status": "active" }
+        "cpp": {
+          "language": "cpp",
+          "category": "language-specific",
+          "status": "active"
+        },
+        "java": {
+          "language": "java",
+          "category": "language-specific",
+          "status": "active"
+        },
+        "python": {
+          "language": "python",
+          "category": "language-specific",
+          "status": "active"
+        },
+        "go": {
+          "language": "go",
+          "category": "language-specific",
+          "status": "active"
+        },
+        "javascript": {
+          "language": "javascript",
+          "category": "language-specific",
+          "status": "active",
+          "note": "v0.5.0 新增"
+        }
       }
     }
   },
-
   "knowledge": {
-    "protocols": ["scan-output", "sarif-output"],
-    "concepts": [
-      "sql-injection", "command-injection", "xss", "path-traversal",
-      "ssrf", "deserialization", "weak-cryptography", "hardcoded-secrets",
-      "toctou", "buffer-overflow"
+    "protocols": [
+      "scan-output",
+      "sarif-output"
     ],
-    "languages": ["cpp", "java", "python", "go"],
+    "threat_catalog": "knowledge/threat-catalog.md",
+    "languages": [
+      "cpp",
+      "java",
+      "python",
+      "go",
+      "javascript"
+    ],
+    "standards": [
+      "sei-cert-c",
+      "sei-cert-cpp",
+      "sei-cert-java",
+      "owasp-cheatsheet-mapping"
+    ],
     "detectors": {
-      "note": "Full detector registry in skills/secguard-cpp/references/detector-index.md",
-      "count": 30,
-      "active_count": 30,
+      "note": "Full detector registry in skills/secguard/cpp/references/detector-index.md",
+      "count": 67,
+      "active_count": 67,
       "namespaces": {
-        "memory":      12,
+        "memory": 13,
         "concurrency": 4,
-        "system":      6,
-        "crypto":      4
+        "system": 8,
+        "crypto": 9,
+        "web": 21,
+        "error": 6,
+        "resource": 6
+      }
+    },
+    "coverage": {
+      "cwe_top25_2024": {
+        "covered": 25,
+        "total": 25,
+        "percentage": 100,
+        "key_covered": [
+          "CWE-79:XSS",
+          "CWE-89:SQLI",
+          "CWE-120:BOF",
+          "CWE-22:PTRV",
+          "CWE-77:CMDI",
+          "CWE-287:Auth",
+          "CWE-352:CSRF",
+          "CWE-502:Deser",
+          "CWE-416:UAF",
+          "CWE-415:DFree",
+          "CWE-476:NULL",
+          "CWE-190:IntOvf",
+          "CWE-362:Race",
+          "CWE-798:Secret",
+          "CWE-327:WeakCrypto",
+          "CWE-918:SSRF",
+          "CWE-20:InputVal",
+          "CWE-125:OOBRead",
+          "CWE-276:Perms",
+          "CWE-400:ResourceExh",
+          "CWE-306:MissingAuth",
+          "CWE-434:Upload",
+          "CWE-862:AuthZ",
+          "CWE-200:InfoLeak",
+          "CWE-209:ErrInfoLeak"
+        ],
+        "newly_covered": [
+          "CWE-200:InfoLeak (via web.excessive-data-exposure + error detectors)",
+          "CWE-295:SSL (via crypto.tls-version)",
+          "CWE-310:Crypto (via crypto.custom-crypto + crypto.aes-ecb-mode)",
+          "CWE-863:IncorrectAuthZ (via web.mass-assignment + web.missing-authorization extensions)"
+        ]
+      },
+      "owasp_top10_2021": {
+        "covered": 10,
+        "total": 10,
+        "percentage": 100
+      },
+      "owasp_api_top10_2023": {
+        "covered": 10,
+        "total": 10,
+        "percentage": 100,
+        "note": "v0.5.0 新增完整覆盖"
       }
     }
   },
-
   "output": {
     "base_dir": ".codeagent",
-    "protocol": "scan-output/1.1",
-    "sarif": "sarif-output/1.0",
+    "protocol": "scan-output/2.0",
+    "design": "人读/机读分离",
+    "human_readable": "report.md (Markdown 审计报告)",
+    "machine_readable": "results.sarif (SARIF 2.1.0, 始终生成, CI/CD 标准)",
+    "dashboard": "summary.json (轻量统计)",
     "structure": {
-      "secguard-secguardian":  "scans/<scan-id>/manifest.json + findings/ + results.sarif",
-      "secaudit-secguardian":  "scans/<scan-id>/manifest.json + findings/ + results.sarif",
-      "secreview-secguardian": "scans/<scan-id>/manifest.json + findings/ + results.sarif"
+      "secguard-secguardian": "scans/<scan-id>/report.md + results.sarif + summary.json + manifest.json",
+      "secaudit-secguardian": "scans/<scan-id>/report.md + results.sarif + summary.json + manifest.json",
+      "secreview-secguardian": "scans/<scan-id>/report.md + results.sarif + summary.json + manifest.json"
     }
   },
-
   "integrations": {
     "ci_cd": {
       "github_actions": "action.yml (upload-sarif → GitHub Code Scanning)",
       "gitlab_ci": "artifacts:reports:sast → GitLab SAST Dashboard",
       "azure_devops": "SARIF SAST Scans tab"
+    }
+  },
+  "changelog": {
+    "0.6.0": {
+      "date": "2026-06-07",
+      "changes": [
+        "★ Output Protocol v5.0 — Per-Finding File Directory Tree: 每个 finding 独立文件 + FindingsIndex 索引，增量扫描友好",
+        "★ Output Protocol v3.0/v4.0 — AI/Renderer Pipeline: findings.json (Schema v1.0) → render-report.py 渲染 report.md + results.sarif + summary.json + manifest.json + status.json + delta.json (6 文件)",
+        "★ L1-L5 Layered Verification System: self-check.sh (82+ checks)、ci-check.sh、dev-verify.sh (23 checks)、e2e-verify.sh (37 checks)、cwe-coverage.sh，覆盖设计→结构→部署→架构→全量五层验证",
+        "★ Manifest-Driven Token System: @secguardian 标记扩散 + sync-manifest.sh 自动同步，修改 detector 数量只需改 manifest.json（散弹式修改终结者）",
+        "★ CWE 覆盖率自动化验证: cwe-coverage.sh 自动验证 CWE Top 25 + OWASP Top 10 + OWASP API Top 10 覆盖率",
+        "render-report.py v1.0: --findings-dir 支持 v5.0 目录树（向后兼容），--ci 模式、--format sarif 独立生成",
+        "render-report.py 部署到全部 3 平台 (Claude Code + OpenCode + Gemini CLI)",
+        "Findings Schema v1.0: 四段式 (WHAT/HOW/FIX/VERIFY) 标准化 + SingleFindingFile + FindingsIndex",
+        "SARIF Output v1.1: partialFingerprints 去重 + GitHub/GitLab/Azure 三平台兼容",
+        "17 skills 四段式输出完整性要求 + 输出质量门禁检查清单（Step 4）",
+        "OpenCode: 插件注册自动化 + 命令脚本 + extension.json 格式修复",
+        "JavaScript: 综合漏洞示例代码仓库 (9 个漏洞) + indexer 支持",
+        "5 个 AI 入口文件 (CLAUDE.md/AGENTS.md/CODEBUDDY.md/COPILOT.md/GEMINI.md) L1-L5 验证流程统一",
+        "性能优化: 具体化 indexer 使用指令，消除 brute-force 扫描和 clangd 误用",
+        "修复: threat-catalog 同步 + detector 文件名统一 (67 个 namespace-name.md) + detector 数量动态化 + 版本号修正 (0.5.3→0.5.5)"
+      ]
+    },
+    "0.5.1": {
+      "date": "2026-05-31",
+      "changes": [
+        "★ 输出协议升级 v2.0: 人读/机读分离 — findings/*.json 废弃，改为 report.md + results.sarif + summary.json",
+        "report.md: Markdown 格式安全审计报告，含执行摘要/检出清单/详细发现/修复优先级",
+        "results.sarif: 始终生成（不再需要 --sarif flag），CI/CD 原生输入",
+        "summary.json: 轻量仪表盘统计 — 按严重度/命名空间/语言分组",
+        "manifest.json: 精简为元数据+检出索引，不再内联完整 finding",
+        "SARIF 生成规则: partialFingerprints 去重 + GitHub/GitLab/Azure 兼容"
+      ]
+    },
+    "0.5.0": {
+      "date": "2026-05-31",
+      "changes": [
+        "★ 架构重构: concept+detector 双文件合并为自包含 detector (WHAT+HOW+FIX 一体化)",
+        "删除 knowledge/concepts/ 目录 (17 个零散文件)，替换为 knowledge/threat-catalog.md 单文件索引",
+        "每个 detector 现在自包含: 威胁定义 → 检测逻辑 → 修复指引 → 误报排除 → 模式汇总",
+        "新增 error 命名空间 (6 个检测器): stack-trace-leak, log-sensitive-data, exception-swallow, unified-error-format, debug-mode-production, panic-to-client",
+        "crypto 命名空间扩展 (4→9): 新增 aes-ecb-mode, tls-version, custom-crypto, password-storage, hardcoded-iv",
+        "system.command-injection + path-traversal 全语言扩展 (c,cpp → 全6语)",
+        "crypto.* 全语言扩展 (c,cpp → 全6语)",
+        "web 命名空间扩展 (17→22): 新增 mass-assignment, excessive-data-exposure, nosql-injection, prototype-pollution, ssti",
+        "新增 JavaScript/Node.js 语言支持: knowledge/languages/javascript.md + secguard-js + secreview-js",
+        "新增 4 个 knowledge/standards: SEI CERT C/C++/Java 映射 + OWASP Cheat Sheet 映射",
+        "secreview 反模式检测矩阵深化: 5 个语言全面升级为具体 detection patterns",
+        "CWE Top 25 覆盖率: 88% → 100%",
+        "OWASP API Top 10 覆盖率: 部分 → 100%",
+        "检测器总数: 45 → 60 (+33%)",
+        "多语言 detector 占比: 38% → 69% (+81%)"
+      ]
     }
   }
 }

@@ -1,0 +1,658 @@
+# SecGuardian 设计决策日志
+
+> 记录项目架构演进过程中的关键头脑风暴、设计权衡和最终方案。
+> 按时间倒序排列，最新讨论在前。
+
+---
+
+## 2026-06-21 — 命令接口统一 + SecAudit 工作流旗舰化 + Detector 索引自动生成
+
+### 背景
+
+2026-06-21 对 project-codeguard（CoSAI/OASIS 开源项目）进行全量代码学习。识别出 SecGuardian 三个核心差距：
+
+1. **命令参数歧义**：三个命令各有一套参数格式（secguard=`<path> [mode] [filters]`, secreview=`<path> [language]`, secaudit=`<skill-name> [path]`）。language 有时是第二参数、有时自动检测、有时不存在，AI 解析容易出歧义。
+2. **Detector 索引手工维护**：`skills/secguard/cpp/references/language-index.md` 是手工抄写的 detector 列表，和 61 个 detector 的 frontmatter `language` 字段不同步，必然产生 drift。
+3. **SecAudit 不是工作流**：secaudit 暴露 17 个独立 skill 给用户逐个调用，违背了"旗舰产品是出一份完整审计报告"的原始设计意图。用户需要 `/secaudit ./src python` 一次性跑全部 17 项 + 整合报告，而不是自己一项一项选。
+
+### 讨论要点
+
+#### 1. 命令参数统一方向（方式 A：language 固定为第二位置参数）
+
+- **方案 A (选中)**: `/secguard <path> <language> [filters]` — language 是必需的第二个位置参数。README 示例 `/secguard examples/cpp-vuln-demo/src cpp` 原本就这么写，但 commands/secguard.md 丢失了 language，导致两套格式不一致。选择此方案是因为它消除了解析歧义，AI 不再需要猜第二个参数是 filter 还是 language。
+- **方案 B (否决)**: 用 flag 消除歧义（`--lang python --filter memory.*`）— 太长，不符合 slash command 的简洁直觉。
+- **方案 C (否决)**: AI 自动检测语言（保留现状）— 用户指定 `memory.*` 时 AI 无法判断这是 filter 还是 language。
+
+**secreview 对齐**：从 `/secreview <path> [language]`（language 可选）改为 `/secreview <path> <language>`（language 显式）。向后兼容：如果用户不提供 language，AI 从 index.json 自动检测作为 fallback。
+
+**secaudit 反思**：secaudit 的原始设计是 `/secaudit taint-analysis`（skill 名作为主参数），但用户指出这不符合"旗舰产品出一份完整审计报告"的预期。讨论后决定：
+- 保留 secaudit 的 position 1 为 `path`、position 2 为 `language`，和 secguard/secreview 统一
+- 移除"选 skill 跑"作为默认入口。17 个独立 skill 降级为 workflow 内部的 phase
+- user 可通过 `--focus <skill-name>` 跳过其他 phase（开发中的性能优化选项）
+
+最终三个命令格式统一为：
+
+```
+/secguard  <path> <language> [filters]    # 漏洞发现
+/secreview <path> <language>              # 规范检视
+/secaudit  <path> <language>              # ★ 旗舰：完整审计报告
+```
+
+#### 2. Detector 索引自动化
+
+- **问题**: 61 个 detector 各有 `language` 字段，但 AI 必须全部读取才能知道哪些给 cpp、哪些给 python。`language-index.md` 是手工维持的"索引缓存"，必然 drift。
+- **方案 A (选中)**: 构建时自动生成 `knowledge/guard-rules/language-index.md`。扫描 `knowledge/guard-rules/*.md` 的 frontmatter `language` 字段，按语言归类。AI 一步步读 Markdown（`## cpp` 一行就知道目标位置），不需要解析 JSON。
+- **方案 B (否决)**: `language-index.json` — JSON 的引号/逗号 token 开销比纯 Markdown 大 30-50%，对 LLM 上下文不友好。
+- **方案 C (否决)**: 在 Go indexer 层面加语言过滤（`--lang cpp`）— 做不到，indexer 是 AST 解析器，不做 detector 过滤。
+
+`language-index.md` 在 `language-index.md` 生效后退役，所有引用它的 10+ 个文件统一指向新索引。
+
+#### 3. Gemini .toml 同步
+
+`commands/gemini/*.toml` 是三个 `.md` 的 TOML 副本，人工维护必然 drift。决定在 build 时从 `.md` 自动生成 `.toml`，三份 `.toml` 不再手工编辑。
+
+对 project-codeguard 的 format converter 模式进行了评估。它的 Python 转化管线（`BaseFormat` → 10 个 IDE 子类）对我们过于重量级——我们只有 3 个输出格式（Claude Code 读 `.md`、OpenCode 读 `.md`、Gemini 读 `.toml`），不需要抽象基类体系。一个 shell-level 的 wrapper 函数即可。
+
+#### 4. SecAudit 工作流 skill
+
+**设计反思——第零版（否决）**：最初设想将 17 个独立 SKILL.md 保留在 `skills/secaudit/` 下，全量时 workflow 编排它们，单项时 `--focus` 直接引用。这个方案被否决，原因是：
+
+- 17 个 skill = 17 个调度入口，command 层必须解决并行/串行/依赖管理——这不是 command 该做的事
+- `skills/` 是 workflow 层，不是知识层。17 个 skill 的审计逻辑本质上是**审计知识**，不应嵌在 workflow 层
+- 与 secguard 的架构不一致：secguard 的 60+ detector 放在 `knowledge/guard-rules/`，不是做成 60 个 skill
+
+**正确方案：知识层与 worklow 层分离。**
+
+```
+knowledge/
+  guard-rules/   ← 61 个 API 级规则（已有，改名）
+  audit-rules/          ← ★ 新增：17 个审计领域知识，替代 skills/secaudit/*/SKILL.md
+    input-validation.md   ← 审计 checklist + OWASP 引用 + 检测模式
+    cryptography.md
+    auth-and-session.md
+    attack-surface-analysis.md
+    ...（共 17 个）
+
+skills/
+  secaudit/
+    workflow-secaudit/    ← ★ 唯一 skill：编排审计工作流
+      SKILL.md             ← Phase 1-17 编排 + 路由逻辑
+```
+
+**project-codeguard 的参考**：它的 `security-review` skill 就是一个 SKILL.md，23 个规则全在 `sources/rules/core/`（知识层）。workflow 从知识层加载规则，不依赖子 skill。没有"23 个 skill 怎么调度"的问题——因为根本没有 23 个 skill，只有 1 个。
+
+**对称性**：
+
+| 产品 | Workflow 层（skills/） | 知识层（knowledge/） |
+|------|----------------------|--------------------|
+| secguard | 5 个语言 skill | `guard-rules/` 61 个检测规则 |
+| secaudit | **1 个** workflow skill | `guard-rules/` + `audit-rules/` 17 个审计领域规则 |
+
+两个产品的 workflow 层都保持极薄，真正的逻辑在 knowledge 层。
+
+**全量/单项路由逻辑由唯一 skill 内部处理**，不做 command 层分发：
+
+```
+/secaudit ./src python
+  → workflow-secaudit 加载：
+      - knowledge/guard-rules/ （语言过滤后的检测规则，按 namespace 匹配）
+      - knowledge/audit-rules/ （全部 17 个审计领域）
+  → Phase 1-17 顺序执行，整合报告
+
+/secaudit ./src python --focus input-validation
+  → workflow-secaudit 加载：
+      - knowledge/guard-rules/ （语言过滤后的检测规则，按 namespace 匹配）
+      - knowledge/audit-rules/input-validation.md （仅这个领域）
+  → 只跑 input-validation phase
+```
+
+17 个原始 `skills/secaudit/*/SKILL.md` 迁移到 `knowledge/audit-rules/*.md`，知识内容不变，位置变了。
+
+#### 5. Step 2.5 的职责纠正
+
+之前的误设计：Step 2.5 试图用 index.json 符号表"确认代码是否真的需要跑某些 detector"。这错误的根本原因是 Step 2.5 试图做 detector 选择，而这已经是 language + filter 两层筛完的事了。
+
+修正后：Step 2.5 只做**执行效率优化**。加载了完整的 detector 集合后，读 index.json 给每个 detector 找靶子（alloc_free.pairs → memory.double-free 的检查目标；call_graph → 被调用危险函数的入口）。不跳过任何 detector。
+
+#### 4.5 三个知识库 vs 一个知识库
+
+三个产品对应三个不同的知识粒度，各自有独立的组织方式：
+
+| 产品 | 知识目录 | 粒度 | 组织方式 | 数量 |
+|------|---------|------|---------|------|
+| secguard | `knowledge/guard-rules/` | API/函数调用级 | 按 namespace | 61 |
+| secaudit | `knowledge/audit-rules/` | 架构/领域级 | 按安全领域 | 17 |
+| secreview | `knowledge/review-rules/` | 代码样式/模式级 | 按语言 | 5 |
+
+**命名原则**：统一使用 `{product}-rules/` 模式。不引入 `detectors`、`domains`、`rules` 三个不同后缀，降低认知负担。所有知识都是"规则"，只是服务于不同产品。
+
+**为什么不合并到同一个目录加 type 字段？**
+
+考虑过统一放到 `knowledge/rules/` 下用 `type: guard | audit | review` 区分。
+否决原因：三种知识的粒度不同，AI 消费方式不同。
+
+```
+guard-rules/ 的消费方式：AI 按 language + filter 加载多个独立文件
+audit-rules/ 的消费方式：AI 按 domain 加载一个领域文件，内部引用相关 secguard 规则
+review-rules/ 的消费方式：AI 按语言加载一个语言文件，逐条对照检测
+```
+
+消费方式的差异决定了目录层级是最好的区分方式——AI 不需要读 `type` 字段来判断文件归属，目录名本身就是身份。每个目录的 frontmatter schema 也可以独立演进。
+
+**迁移路径**：
+
+| 当前路径 | 迁移到 |
+|---------|-------|
+| `knowledge/guard-rules/*.md`（61 个） | `knowledge/guard-rules/*.md` |
+| `skills/secaudit/*/SKILL.md`（17 个审计领域） | `knowledge/audit-rules/*.md` |
+| `skills/secreview/*/references/*-anti-patterns.md`（5 个） | `knowledge/review-rules/*.md` |
+
+### 最终方案
+
+本次特性以 EPIC-004 立项，覆盖 6 项改造：
+
+| # | 改造 | 类型 | 文件影响量 |
+|---|------|------|-----------|
+| 1 | 三命令参数统一 `<path> <language>` | 接口 | 3 commands + 3 gemini |
+| 2 | `language-index.md` 自动生成（替换手工 `language-index.md`） | 构建 | 新增 sync 脚本，删除 1 手工文件 |
+| 3 | `commands/gemini/*.toml` 构建时自动生成 | 构建 | 3 个 .toml 变 gitignore |
+| 4 | SecAudit 旗舰工作流（1 workflow skill + `knowledge/audit-rules/` 17 个审计领域规则） | 产品 | 新增 workflow skill + 迁移 17 个 skills → audit-rules |
+| 5 | SecReview 反模式知识迁移（`skills/*/references/*.md` → `knowledge/review-rules/`） | 知识层 | 迁移 5 个反模式文件 |
+| 6 | Step 2.5 职责纠正（只优化，不跳过） | 流程 | 1 commands |
+
+### 不纳入本次特性的
+
+- MCP Server（已有 FEATURE-002-mcp-server 独立追踪，后续第二轮审视）
+- 三轮验证管道（已有 FEATURE-003-verification-pipeline 独立追踪）
+- Detector 内容本身的修改（不改 frontmatter schema，只新增 consumer）
+
+### 待决问题
+
+| # | 问题 | 影响 |
+|---|------|------|
+| Q1 | secaudit 的 `--focus <skill-name>` 是否 v1 就做？还是 v2 再说？ | 接口设计 |
+| Q2 | `language-index.md` 是否应该 git 跟踪？还是 build artifact？ | 开发工作流 |
+| Q3 | secguard 的 git-diff 增量模式参数如何对齐新的 `<path> <language>` 格式？ | 接口设计 |
+
+
+
+## 2026-06-17 — 五轮→三轮设计修正（端到端数据反推）
+
+### 背景
+
+完成初版五轮设计后，执行了完整的端到端验证（L1 84/84 + L4 33/33 全部通过），并深入分析了 python-vuln-demo 的 17 条真实 Finding 数据。实测发现两个关键事实迫使设计修正。
+
+### 发现
+
+1. **Detector 产出不是"浅层模式匹配"**: 每条 Finding 已包含 `data_flow_path`（source→propagation→sink）、`judgment_rationale`（CWE 映射推理 100-200 字）、`cvss_score`+`cvss_vector`（CVSS 3.1 完整评分）、`before_code`+`after_code`（具体到行的修复代码）、`verification_method`（可执行验证命令）。这不是传统 SAST 的裸 pattern match。
+
+2. **P1/P2 冗余判定**: 原设计的 P1 (Fact Certification) 与 Detector 的 `judgment_rationale` 有 80% 重叠（都是确认代码事实存在）。原 P2 (Flow Certification) 与 Detector 的 `data_flow_path` 有 100% 重叠（都是追踪 source→sink）。这两轮不提供增量价值。
+
+### 修正
+
+```
+五轮 (v1)                    三轮 (v2)
+
+P1: Fact (冗余, 砍掉)       —
+P2: Flow (冗余, 砍掉)       —
+P3: Semantic  ─────────→   P1: Semantic
+P4: Counter   ─────────→   P2: Counter-Evidence
+P5: Court     ─────────→   P3: Adjudication Court
+```
+
+同时修正了原 Claim 设计——Detector 继续产出完整 Finding，不降级为轻量 Claim（ADRR-001）。
+
+### 保留原则
+
+- "Detector 不能最终定罪" — 改为"Detector 是检察官，验证管道是法庭"
+- Evidence-Centric — 三轮都有证据门禁
+- Judge 禁止访问源码 — 保持不变
+- index.json 保持不变 — 保持不变
+
+详见: [FEATURE-003-verification-pipeline/spec.md](epics/EPIC-001-core-scanning-engine/FEATURE-003-verification-pipeline/spec.md) (v2)
+
+---
+
+## 2026-06-17 — 五轮验证消减系统设计
+
+### 背景
+
+生产环境扫描 294 文件产生 74 条告警（28 High + 46 Medium），用户直接崩溃不愿分析。当前 `Detector → Finding` 模式无独立验证环节——检测器既是检察官又是法官。业界 ZeroFalse (F1=0.912-0.955) 和 CodeX-Verify (多 Agent 72.4% vs 单 Agent 32.8%) 提供了证据门禁 + 多 Agent 验证的成熟范式。
+
+### 讨论要点
+
+- **核心矛盾**: Detector 直接产出 Finding 意味着每次模式匹配都是一次不可推翻的判决
+- **ECVA 参考架构**: 来自同行的 Architecture Baseline v1.0 — "Detector 不能产出 Finding，只能产出 Claim。Finding 是法律判决"——作为设计起点
+- **五轮 vs 并行**: 考虑过 CodeX-Verify 式 4 Agent 并行验证，但 FP 消减是渐进收敛过程（74→55→38→28→18→15），后轮依赖前轮产出，顺序管道更适合
+- **index.json 扩展**: 讨论过在 Go 索引器层构建完整 Fact Graph（类型化节点/边、source/sink/sanitizer 标注），但量化分析显示当前 index.json 已满足导航需求，扩展到 Fact Graph 会 3.5x 数据膨胀且 AI Agent 读源码可获得更丰富上下文。决定保持不变
+- **用户标记 vs AI 自精炼**: 实践发现用户标记 FP 几乎不可行（用户面对 74 条告警就崩溃），采用纯 AI 自精炼路线（五轮验证管道），开发者反馈循环作为长期补充途径
+- **Tree-sitter 文档化**: 设计过程中发现 CLAUDE.md/AGENTS.md/GEMINI.md 缺少 Tree-sitter 架构的系统文档，已在三个文件中补全
+
+### 最终方案
+
+```
+Tree-sitter Indexer (不变)
+       ↓
+67 Detector → Claim[] (非 Finding)
+       ↓
+P1: Fact Certification    → 剔除证据不实
+P2: Flow Certification    → 剔除数据流断裂
+P3: Semantic Verification → 剔除框架已消除
+P4: Counter-Evidence Hunt → 剔除有反证
+P5: Adjudication Court    → 三方 Agent 合议
+       ↓
+Certified Finding[] + Dismissed[]
+```
+
+### 影响范围
+
+- 67 个 detector — MATCH 输出类型从 Finding 改为 Claim（检测逻辑不变）
+- `commands/secguard.md` — 新增 Step 3.5 验证管道
+- `scripts/render-report.py` — 适配 certified-findings.json + 验证漏斗
+- `knowledge/protocols/` — 新增 verification-protocol.md + findings-schema.json 扩展
+- `internal/` — 零改动
+
+详见: [FEATURE-003-verification-pipeline](epics/EPIC-001-core-scanning-engine/FEATURE-003-verification-pipeline/)
+
+---
+
+## 2026-06-07 — Findings 输出架构重构：单体 JSON → 目录树
+
+### 背景
+
+v4.0 单体 `findings.json` 在 3 文件 295 行 demo 扫描中产出 50KB JSON，耗时 ~9 分钟。1000 文件项目预估 25MB JSON，AI Agent 无法读取。用户明确指出："级别低不代表不是问题，所有检出的问题都要用户认可去修正"，不应按 severity 暗示某些问题不重要。
+
+### 讨论要点
+
+- **核心矛盾**：AI 单次 Write 50KB 可行，但后续读取 25MB JSON 直接爆 token
+- **文件命名演进**：`<file>__<func>.json`（两次讨论后否定，同文件同函数同 detector 不同行碰撞）→ `<finding-id>.json`（天然唯一，对齐 SARIF/CodeQL/Semgrep）
+- **`findings.json` 同名升级**：v4.0 单体→v5.0 轻量索引，用户无需学习新概念。早期过渡设计错误引入了 `findings-index.json`（与 indexer 的 `index.json` 产生认知混淆），最终回退到同名升级方案
+- **不按 severity 重复输出**：避免"低严重度=不重要"的暗示，保持每个 finding 的严肃性
+
+### 最终方案
+
+```
+scans/<scan-id>/
+├── index.json       # 索引器输出（不变）
+├── findings.json    # ★ 同名升级：v4.0 单体四段式 → v5.0 轻量索引+元数据（<50KB）
+├── findings/        # ★ 四段式数据按 detector 分文件
+│   ├── web/sql-injection/H-SQLI-webapp-L47.json
+│   ├── crypto/password-storage/H-CRYPTO-crypto_utils-L20.json
+│   └── ...
+├── report.md, results.sarif, ... (渲染器生成)
+```
+
+### 影响范围
+
+- `scripts/render-report.py` — `--findings-dir` + `load_findings_from_tree()`
+- `knowledge/protocols/scan-output.md` — 目录结构 + finding-ID 命名规范
+- `knowledge/protocols/findings-schema.json` — SingleFindingFile + FindingsIndex
+- `commands/secguard.md` — Step 4 逐文件输出流程
+- `commands/secaudit.md`, `commands/secreview.md` — 同步更新
+
+详见: [FEATURE-001-output-protocol/spec.md §Phase 2](epics/EPIC-001-core-scanning-engine/FEATURE-001-output-protocol/spec.md)
+
+---
+
+## 2026-06-03 — 输出协议升级：商业交付物设计
+
+### 背景
+
+工程师提出灵魂问题：每一次扫描结果要能拿出来展示产品价值，`manifest.json` 只够给工程师看，缺少能给决策者/客户看的商业交付物。
+
+### 讨论要点
+
+- **业界参考**：研究了 Coverity、Snyk、SonarQube、CodeQL 的报告格式
+- **核心洞察**：一份报告同时服务三个角色（决策者、技术负责人、工程师），不应该分散在多个文件中
+- **差异化优势**：Markdown 格式天然支持人 + AI 双重消费，竞品的 HTML/PDF 报告不具备这一特性
+
+### 最终方案
+
+`report.md` 升级为六章结构的专业审计报告：
+
+| 章节 | 受众 | 内容 |
+|------|------|------|
+| §1 执行摘要 | 决策者/客户 | 安全评分 A-F + 趋势 + 关键数字 |
+| §2 合规仪表盘 | 决策者 | OWASP Top 10 + CWE Top 25 覆盖率矩阵 |
+| §3 检出清单 | 技术负责人 | 可排序表格：ID/严重度/CWE/文件/标题 |
+| §4 详细发现 | 工程师/AI | 证据链 + before/after 修复代码 + CWE 参考 |
+| §5 修复路线图 | 技术负责人 | 四阶段优先级排序 + 预估工时 |
+| §6 附录 | 所有人 | 方法论、工具信息、PDF 导出指南 |
+
+**安全评分算法**：`100 - (Critical×25 + High×10 + Medium×3 + Low×1)`，A(90+)~F(0-39)
+
+**与竞品对比**：SecGuardian 是唯一同时提供 A-F 评分 + OWASP/CWE 双覆盖 + AI 可执行 + 免费 PDF 导出的方案。
+
+### 影响范围
+
+- `knowledge/protocols/scan-output.md` — 完全重写 report.md 模板
+- `commands/*.md` — 添加"如何使用扫描结果"指引
+
+---
+
+## 2026-06-03 — 输出协议重构：人读 Markdown + 机读 SARIF
+
+### 背景
+
+原先 Phase 5 叫"生成 Findings"，输出 `findings/<id>.json`。命名不专业，JSON 对人类不友好，缺少机读标准格式。
+
+### 讨论要点
+
+- **业界标准**：SARIF 2.1.0 是 OASIS 国际标准，GitHub Code Scanning / GitLab SAST / Azure DevOps 三家原生支持
+- **人读 vs 机读分离**：Markdown 给人和 AI Agent 消费，SARIF 给 CI/CD 系统消费
+- **GitHub 2025-07 强制要求**：每个 tool/category 独立上传 SARIF，禁止合并多工具结果
+
+### 最终方案
+
+```
+.codeagent/<extension>/scans/<scan-id>/
+├── report.md         ← 人读（Markdown，证据链 + before/after 修复）
+├── results.sarif     ← 机读（SARIF 2.1.0 OASIS 标准）
+├── manifest.json     ← 入口（元数据 + 检出索引）
+├── summary.json      ← 仪表盘（按严重度/命名空间统计）
+├── status.json       ← CI 门禁（pass/fail + 阈值）
+└── delta.json        ← 增量对比（vs 上次扫描）
+```
+
+Phase 命名统一为"持久化输出"，所有 6 个命令和 12 个 skill 的 Output Phase 统一升级。
+
+### 影响范围
+
+- `knowledge/protocols/scan-output.md` — v2.0 协议定义
+- `commands/*.md` + `commands/gemini/*.toml` — Step 4 全部升级
+- `skills/*/*/SKILL.md` — Output Phase 统一引用 v2.0
+- `skills/secguard/cpp/references/examples/output-schemas.md` — 重写为 Markdown + SARIF 示例
+
+---
+
+## 2026-06-03 — 项目瘦身：移除 CLI 死代码和 prompt-templates
+
+### 背景
+
+对项目做全面审视时发现：
+- `internal/` 含 4 个死代码包（prompt, budget, reflection, scheduler），零 import
+- `knowledge/prompt-templates/` 是独立 CLI 的 prompt 拼装，与 AI Agent 主流程无关
+- `main.go` 含 scan/audit/review/detectors 等 CLI 子命令，被 AI Agent 命令完全取代
+
+### 最终方案
+
+**删除内容**：
+- `internal/prompt/` (1 file)
+- `internal/budget/` (1 file)
+- `internal/reflection/` (4 files)
+- `internal/scheduler/` (1 file)
+- `knowledge/prompt-templates/` (4 files)
+- `main.go` CLI 子命令 + 60-entry 检测器注册表
+
+**保留核心**（indexer only）：
+- `parser/` — 双模解析（tree-sitter + 正则回退）
+- `indexer/` — 文件遍历、调用图、alloc/free、锁图
+- `context/` — 分析上下文结构体
+
+### 结果
+
+`internal/`：13 files / 5 packages → 7 files / 3 packages。`main.go`：507 → 193 行 (-62%)
+
+### 影响范围
+
+- `internal/` 全部 Go 源文件
+- `scripts/secguardian.sh` — 移除 prompt-template 引用
+
+---
+
+## 2026-06-03 — Skills 目录重构：27 平铺 → 3 命名空间
+
+### 背景
+
+`skills/` 下 27 个平铺目录（`secaudit-attack-surface-analysis/`），前缀表达归属。随着 skill 增多，维护困难。
+
+### 讨论要点
+
+- 每个 command（secaudit/secguard/secreview）天然对应一个 skills 子目录
+- 目录层级即可表达归属，`SKILL.md` 的 `name` 不再需要前缀
+- 打包脚本 `package.sh` 可以按 command 精准组装
+
+### 最终方案
+
+**源码结构**（干净）：
+```
+skills/
+  secaudit/{17 skills}/
+  secguard/{5 skills}/
+  secreview/{5 skills}/
+```
+
+**部署结构**（防碰撞）：
+```
+.opencode/plugins/secguardian/skills/
+  secaudit-attack-surface-analysis/   ← deploy.sh 自动加回前缀
+  secguard-cpp/
+  secreview-cpp/
+```
+
+### 关键设计
+
+`deploy.sh` 在部署时从 dist 目录名提取 command 前缀（`secaudit-secguardian` → `secaudit`），加到 skill 目录名前面。源码干净，部署无碰撞。
+
+### 影响范围
+
+- `skills/` 全部 27 个目录重命名
+- `scripts/package.sh` — path 拼接 `${cmd}/${name}`
+- `scripts/deploy.sh` — copy 时加前缀
+- `commands/*.md` + `commands/gemini/*.toml` — skill 引用路径更新
+
+---
+
+## 2026-06-03 — 删除 knowledge/cheatsheets
+
+### 背景
+
+上一轮重构新建了 `knowledge/cheatsheets/` 作为 detectors 和 skills 之间的速查层。经审视发现：
+
+### 结论
+
+**过度设计。** 4 个文件里 2 个是 detectors 的摘要复读，1 个分类错误，只有 1 个有增量价值。
+
+| 文件 | 处置 |
+|------|------|
+| `crypto-algorithms.md` | 删除 — 9 个 crypto detectors 已逐个覆盖 |
+| `injection-patterns.md` | 删除 — detectors 已含逐语言检测逻辑 |
+| `secrets-detection.md` | 迁移 → `knowledge/guard-rules/` |
+| `tls-config.md` | 迁移 → `skills/secaudit/secure-transport/references/` |
+
+### 教训
+
+不要在已有完备数据层（detectors）和流程层（skills）之间硬塞中间层。如果新增内容有价值，应该归入 detectors（执行原语）或 skill references（辅助资料）。
+
+### 影响范围
+
+- `knowledge/cheatsheets/` — 整个目录删除
+- 15 个文件中的 cheatsheets 引用全部清理
+
+---
+
+## 2026-06-02 — 跨平台双模 Parser
+
+### 背景
+
+原 `secguardian-index` 依赖 tree-sitter CGO 绑定，只能本地编译（macOS arm64）。Linux/Windows 用户无法使用。
+
+### 讨论要点
+
+- **业界调研**：tree-sitter 纯 Go 实现（gotreesitter）、Python 绑定、Rust 绑定
+- **方案 A**：换用 gotreesitter（纯 Go，零 CGO）— 改动最小
+- **方案 B**：改用 Python tree-sitter — 需完全重写
+- **方案 C**：改用 Rust — 需完全重写
+
+### 最终方案
+
+**方案 A-改**：不换库，而是双模编译：
+
+```
+parser_ts.go   //go:build cgo      → tree-sitter 完整 AST
+parser_re.go   //go:build !cgo     → 纯 Go 正则回退
+```
+
+同一套公开 API（ParseFile、ParseResult 等），根据 CGO 是否可用自动选择。CGO 可用时享受完整 tree-sitter 解析，不可用时正则回退仍能提取函数/类型/变量。
+
+### 结果
+
+- 四平台全部可编译：darwin-arm64(tree-sitter)、darwin-amd64(regex)、linux-amd64(regex)、linux-arm64(regex)、windows-amd64(regex)
+- 正则回退：60 functions vs 60 functions (tree-sitter)，功能等价
+- 二进制大小：tree-sitter 8.4M vs regex 3.3M
+
+### 影响范围
+
+- `internal/parser/parser_ts.go` — CGO 版（原 parser.go）
+- `internal/parser/parser_re.go` — 纯 Go 正则版（新增）
+- `scripts/package.sh` — 五平台并行编译
+
+---
+
+## 2026-06-02 — 品牌扩展名设计：三平台统一
+
+### 背景
+
+OpenCode 项目级部署将 27 个 skill 平铺在 `.opencode/skills/` 下，没有品牌命名空间。用户研究发现 OpenCode 的 `skills/` 和 `commands/` 顶层目录是给项目手写文件用的，扩展应该放在 `plugins/<brand>/` 下。
+
+### 最终方案
+
+三平台统一品牌命名空间：
+
+| 平台 | 路径 |
+|------|------|
+| Claude Code | `.claude/plugins/secguardian/` |
+| OpenCode | `.opencode/plugins/secguardian/` |
+| Gemini CLI | `.gemini/extensions/secguardian/` |
+
+每个平台都包含 `commands/` + `skills/` + `knowledge/` + `scripts/` + plugin manifest。
+
+### 关键设计
+
+- `deploy.sh` 的 `deploy_opencode()` 完全重写
+- 二进制在 zip 内统一命名为 `secguardian-index`（无平台后缀）
+- Shell wrapper 优先查 canonical 名，回退到平台特定名
+- 旧平铺部署自动检测并清理
+
+### 影响范围
+
+- `scripts/deploy.sh` — deploy_opencode 重写, deploy_claude 补全 knowledge+scripts
+- 6 个命令文件 — indexer 搜索路径更新
+
+---
+
+## 2026-06-02 — Knowledge cheatsheets 架构
+
+### 背景（已废弃）
+
+原先 `knowledge/` 下只有 detectors（执行原语）和 languages（语言画像）。审计 skill 的大段检查清单内联在 SKILL.md 中，导致文件过长（150-200 行）。
+
+### 当时方案（后于 2026-06-03 删除）
+
+新建 `knowledge/cheatsheets/` 作为跨 skill 共享速查层，包含 4 个领域聚合表。
+
+### 删除原因
+
+2026-06-03 经审视认定该层为过度设计，所有内容已迁移或删除。详见上方"删除 knowledge/cheatsheets"条目。
+
+### 教训
+
+知识库的层次应该尽量扁平。如果 detectors 已经完备，不要为了"好看"而创建中间层。新增的参考内容如果是对单个 skill 的辅助，放入 `skills/<name>/references/`；如果是对多个 skill 都有价值，应该设计为正规 detector。
+
+---
+
+## 2026-06-02 — Bug 修复：Parser slice bounds panic
+
+### 背景
+
+`secguardian-index` 解析 `crypto.c` 时 panic：`slice bounds out of range [:1382] with capacity 1024`
+
+### 根因
+
+`safeUtf8Text()` 使用固定 1024 字节 buffer 调用 `node.Utf8Text(buf)`。tree-sitter 要求 buffer >= 节点字节数，crypto.c 中某节点 1382 字节超出限制。
+
+### 修复
+
+- 删除 `safeUtf8Text()`
+- `extractTypeName()` 改用 `safeText(content, start, end)` 直接从源文件读取
+- `safeText()` 增加 `start >= len(content)` 和 `start > end` 边界检查
+
+### 影响范围
+
+- `internal/parser/parser.go` — 1 function deleted, 1 hardened
+
+---
+
+## 2026-06-02 — 27 Skills 规范化
+
+### 背景
+
+27 个 `SKILL.md` 存在 frontmatter 不一致、描述缺乏触发引导、secguard-* 缺少 topic 字段、Phase/Step 命名不统一等问题。
+
+### 最终方案
+
+| 改动 | Before | After |
+|------|--------|-------|
+| topic 字段 | 单值/缺失/数组混用 | 统一 YAML 数组 |
+| description | 仅"做什么" | 增加"当用户请求...时使用"触发短语 |
+| H1 标题 | 含英文括号 | 纯中文描述 |
+| Phase 命名 | secguard 用 Step | 统一 Phase |
+| 前置声明 | 格式不统一 | 统一 blockquote |
+| 输出协议 | 仅 secguard 引用 | 23/27 明确引用 |
+
+Secreview 5 个 skill 从 ~45 行扩展到 ~100 行，增加结构化 Phase 1-5 + 检测表 + 代码示例。
+
+### 影响范围
+
+- 全部 27 个 SKILL.md
+
+---
+
+## 设计原则总结
+
+通过本轮（2026-06-02 ~ 2026-06-03）密集重构，沉淀出以下原则：
+
+1. **源码干净，部署隔离** — skills 按 command 分目录，deploy 时自动加前缀
+2. **知识扁平，不做过度抽象** — detectors + languages 两层足够，不要再塞中间层
+3. **核心做小，不要 CLI 包袱** — internal/ 只保留 indexer，AI agent 命令覆盖全部交互
+4. **输出即交付物** — report.md 是一个人+AI 通读的商业报告，不是 JSON dump
+5. **人读/机读分离** — Markdown 给人 + AI，SARIF 给 CI/CD，各司其职
+6. **命名即文档** — Phase 持久化输出 > Phase 生成 Findings
+7. **平台感知，用户无感** — 双模 parser + 五平台二进制 + 品牌扩展名，用户只管下载解压
+
+
+---
+
+## 2026-06-21 — Code Health & Hygiene — 首次 Codex 审计修复
+
+### 背景
+
+首次使用 Codex 对 SecGuardian 项目进行全盘审计，发现 7 项具体问题。这些不涉及架构变更，但影响开发者体验和 CI 可信度。按 SDD 方法论建 Feature Package 系统修复。
+
+### 发现的问题
+
+| # | 问题 | 严重度 | 修复方案 |
+|---|------|--------|---------|
+| 1 | **版本漂移**: manifest.json 已升至 0.6.0，但 main.go + 3 extension.json 仍为 0.5.5 | 🔴 CI 红线 | 4 文件同步到 0.6.0 |
+| 2 | **Go build 假阳性**: Go 1.23+ 缓存 trim 失败返回 exit 1，`2>/dev/null` 不治本 | 🟡 开发者体验 | GOCACHE 指向可写临时目录 |
+| 3 | **AGENTS.md 过时**: 版本号 (0.5.3)、测试套件描述与实际不符 | 🟡 误导 | 刷新文档 |
+| 4 | **JS 解析器漏过滤**: `try`/`do` 关键字被误认为函数名 | 🟡 准确性 | 扩充 dedup 列表 |
+| 5 | **parser_re.go 变量提取局限**: 仅 C/C++ 有声明的变量提取 | 🟡 覆盖率 | 扩展到 Go/Java/Python/JS |
+| 6 | **context/ 包测试盲区**: 核心 JSON 数据模型无单元测试 | 🟡 质量 | 添加基础测试 |
+| 7 | **go.mod 残留**: `mattn/go-pointer` 标记 indirect 但未使用 | 🔵 整洁 | `go mod tidy` |
+
+### 讨论要点
+
+- **为什么不合并到已有 Epic？** EPIC-001（核心引擎）和 EPIC-002（平台工程）聚焦架构级变更，这些是运维和修缮性质，独立 Epic 更清晰
+- **SDD 简化**: 这是纯修复（非新功能），ADR 只记录关键设计决策而非架构方案
+- **测试策略**: `context/` 包测试不追求全覆盖，优先验证 JSON 序列化/反序列化和核心类型正确性
+
+### 影响范围
+
+- `internal/main.go`, `extensions/*/extension.json` (版本号)
+- `scripts/self-check.sh`, `scripts/ci-check.sh` (GOCACHE)
+- `AGENTS.md` (文档)
+- `internal/parser/parser_javascript.go` (JS 过滤)
+- `internal/parser/parser_re.go` (变量提取)
+- `internal/context/` (新测试文件)
+- `internal/go.mod`, `internal/go.sum` (依赖清理)
