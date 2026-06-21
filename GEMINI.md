@@ -273,7 +273,7 @@ kind := child.Kind()
 | 源码 | 部署后 (Gemini CLI) |
 |------|-------------------|
 | `skills/secguard/cpp/SKILL.md` | `.gemini/extensions/secguardian/skills/` |
-| `knowledge/detectors/*.md` | `.gemini/extensions/secguardian/knowledge/detectors/` |
+| `knowledge/guard-rules/*.md` | `.gemini/extensions/secguardian/knowledge/guard-rules/` |
 | `knowledge/protocols/scan-output.md` | `.gemini/extensions/secguardian/knowledge/protocols/` |
 
 ## Manifest-Driven Tokens（散弹式修改终结者）

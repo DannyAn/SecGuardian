@@ -7,9 +7,9 @@ owasp_coverage: OWASP Top 10 100%
 
 # 安全威胁目录 (Threat Catalog)
 
-每个威胁对应一个自包含的 detector 文件（`knowledge/detectors/<namespace>-<name>.md`），内含完整威胁定义、检测逻辑、修复指引、误报排除和检测模式。
+每个威胁对应一个自包含的 detector 文件（`knowledge/guard-rules/<namespace>-<name>.md`），内含完整威胁定义、检测逻辑、修复指引、误报排除和检测模式。
 
-> 完整 detector 清单见 `skills/secguard/cpp/references/detector-index.md`。本文档提供按命名空间分组的人类可读威胁索引。
+> 完整 detector 清单见 `knowledge/language-index.md`。本文档提供按命名空间分组的人类可读威胁索引。
 
 ## 内存安全 (memory) — 13<!-- @secguardian:namespace:memory --> 个 detectors
 

@@ -5,8 +5,8 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue)](https://github.com/secguardian/secguardian)
 [![Version](https://img.shields.io/badge/version-0.5.5-blue)](https://github.com/secguardian/secguardian/blob/develop/CHANGELOG.md)
 [![Go](https://img.shields.io/badge/Go-1.22%2B-00ADD8)](https://go.dev)
-[![Detectors](https://img.shields.io/badge/detectors-60-brightgreen)](https://github.com/secguardian/secguardian/blob/develop/skills/secguard/cpp/references/detector-index.md)
-[![CWE Top 25](https://img.shields.io/badge/CWE_Top_25-100%25-brightgreen)](https://github.com/secguardian/secguardian/blob/develop/skills/secguard/cpp/references/detector-index.md)
+[![Detectors](https://img.shields.io/badge/detectors-60-brightgreen)](https://github.com/secguardian/secguardian/blob/develop/knowledge/language-index.md)
+[![CWE Top 25](https://img.shields.io/badge/CWE_Top_25-100%25-brightgreen)](https://github.com/secguardian/secguardian/blob/develop/knowledge/language-index.md)
 
 SecGuardian 是为 **Claude Code**、**OpenCode**、**Gemini CLI**、**GitHub Actions** 提供的企业级白盒安全 AI 解决方案。支持 **Windows / macOS / Linux** 全平台 CLI。
 
@@ -118,7 +118,7 @@ cd internal && go build -o secguardian-index .
 | web | 21 | Web + 应用安全（XSS、SQLi、SSRF 等） |
 | error | 6 | 错误处理安全（栈追踪泄露、日志敏感数据 等） |
 
-> 详见 [检测器索引](skills/secguard/cpp/references/detector-index.md)。CWE Top 25 100% 覆盖、OWASP Top 10 100% 覆盖。
+> 详见 [检测器索引](knowledge/language-index.md)。CWE Top 25 100% 覆盖、OWASP Top 10 100% 覆盖。
 
 ---
 

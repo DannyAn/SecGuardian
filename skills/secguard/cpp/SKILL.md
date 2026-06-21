@@ -88,7 +88,7 @@ topic: [memory, concurrency, system, crypto]
 
 ### Phase 3: 解析 Filters + 加载检测器
 
-1. 加载 `references/detector-index.md` 获取命名空间映射
+1. 加载 `../../../knowledge/language-index.md` 获取命名空间映射
 2. 逗号分割 filter → 每个 filter 匹配命名空间 → 去重合并
 3. 仅加载 `active` 状态的检测器 (跳过 `planned`)
 
@@ -98,7 +98,7 @@ topic: [memory, concurrency, system, crypto]
 Critical detectors → High detectors → Medium detectors
 ```
 
-每个 detector 读取 `knowledge/detectors/<name>.md`，利用 Phase 2 加载的 index.json 符号表定位检测目标，而非遍历文件。
+每个 detector 读取 `knowledge/guard-rules/<name>.md`，利用 Phase 2 加载的 index.json 符号表定位检测目标，而非遍历文件。
 
 ### Phase 5: 持久化输出
 
@@ -138,4 +138,4 @@ SARIF 格式要求（[GitHub 2025-07 起强制](https://github.blog/changelog/20
 
 ## 可用检测器
 
-完整列表见 [detector-index.md](references/detector-index.md)，26 个（6 active + 20 planned）。
+完整列表见 [language-index.md](../../../knowledge/language-index.md)，26 个（6 active + 20 planned）。

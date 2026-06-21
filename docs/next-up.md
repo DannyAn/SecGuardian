@@ -15,7 +15,7 @@
 **影响**：每次改动靠手工验证，不可持续。
 
 ### 3. Markdown Linting CI
-**现状**：knowledge/detectors/*.md 等 60+ 文件无格式校验。出现过表格格式错误。
+**现状**：knowledge/guard-rules/*.md 等 60+ 文件无格式校验。出现过表格格式错误。
 **目标**：`.github/workflows/lint.yml` 添加 markdownlint 步骤，CI 阻断 PR。
 **影响**：文档质量不可控。
 
@@ -59,4 +59,4 @@
 - [ ] `.gitignore` 含 6 条指向不存在路径的旧规则
 - [ ] v0.3.1 Gitee Release 仍含 11 个重复资产（历史遗留）
 - [ ] `extensions/secaudit-secguardian/extension.json` 仅声明 4 种语言（缺 javascript）
-- [ ] `detector-index.md` 头部说 60 检测器但命名空间计数总和为 61
+- [ ] `language-index.md` 头部说 60 检测器但命名空间计数总和为 61

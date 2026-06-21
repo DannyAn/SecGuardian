@@ -10,7 +10,7 @@ This package contains:
 
 1. **Unsigned native binaries** (`secguardian-index`) — Go-compiled code indexer for AST parsing. Currently ad-hoc signed (linker-signed). We are working on obtaining a code signing certificate.
 
-2. **Security vulnerability descriptions** (`knowledge/detectors/*.md`) — These are educational documents describing known vulnerability patterns (CWE Top 25, OWASP Top 10) for detection purposes. They describe what vulnerabilities look like so AI agents can find them — they do NOT contain functional exploit code.
+2. **Security vulnerability descriptions** (`knowledge/guard-rules/*.md`) — These are educational documents describing known vulnerability patterns (CWE Top 25, OWASP Top 10) for detection purposes. They describe what vulnerabilities look like so AI agents can find them — they do NOT contain functional exploit code.
 
 3. **Shell/PowerShell wrapper scripts** — Cross-platform launchers that detect the OS/architecture and invoke the appropriate binary.
 

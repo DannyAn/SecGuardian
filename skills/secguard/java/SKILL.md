@@ -19,7 +19,7 @@ topic: [web, crypto, system]
 
 1. 读取 Command 生成的 `index.json`，获取文件清单、符号表和调用图。**从 symbols.functions 构建函数名→{文件:行号} 查找表，检测器按需查表定位目标函数后精准读取，不扫描无关文件。**
 2. 加载 `knowledge/languages/java.md` 获取 Java 危险 API 清单
-3. 加载 `knowledge/threat-catalog.md` 获取威胁全景，再按需加载 `knowledge/detectors/<name>.md`（每个 detector 自包含威胁定义+检测逻辑+修复指引）
+3. 加载 `knowledge/threat-catalog.md` 获取威胁全景，再按需加载 `knowledge/guard-rules/<name>.md`（每个 detector 自包含威胁定义+检测逻辑+修复指引）
 4. 基于 index.json 的符号表定位检测目标，按以下优先级匹配:
 
 ### 检查优先级

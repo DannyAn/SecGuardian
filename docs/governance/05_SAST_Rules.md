@@ -205,7 +205,7 @@ SAST 规则引擎
 建议所有规则采用统一 YAML 格式：
 
 ```yaml
-# knowledge/detectors/injection/sql-injection.yaml
+# knowledge/guard-rules/injection/sql-injection.yaml
 id: INJ-001
 name: SQL Injection via string concatenation
 category: injection

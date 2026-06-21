@@ -124,7 +124,7 @@
    | Web Security | 部分 | 🟡 高 — 扩展 |
    | Logging | 无 | 🟢 中 — 后期 |
 
-2. **红线分类目录化** — 在 `knowledge/detectors/` 中建立 10 个分类的子目录
+2. **红线分类目录化** — 在 `knowledge/guard-rules/` 中建立 10 个分类的子目录
 3. **红线输出标记** — `secguard` 扫描结果中标明 `redline: true/false`
 
 ### 5.2 中期

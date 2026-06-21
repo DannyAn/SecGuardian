@@ -169,7 +169,7 @@ bash scripts/release.sh 0.4.0
 |----------|---------|------------|
 | `knowledge/threat-catalog.md*.md` | 所有 3 个 extension | `dev-deploy.sh` |
 | `knowledge/languages/*.md` | 所有 3 个 extension | `dev-deploy.sh` |
-| `knowledge/detectors/*.md` | 仅 secguard | `dev-deploy.sh` |
+| `knowledge/guard-rules/*.md` | 仅 secguard | `dev-deploy.sh` |
 | `knowledge/protocols/*.md` | 所有 3 个 extension | `dev-deploy.sh` |
 | `skills/<cmd>-*/SKILL.md` | 仅对应 extension | `dev-deploy.sh` |
 | `skills/<cmd>-*/references/*.md` | 仅对应 extension | `dev-deploy.sh` |
@@ -241,7 +241,7 @@ secguardian/                      ← 项目根目录
 
 ### 修改 Detector 检测逻辑
 
-编辑 `knowledge/detectors/<detector>.md`。每个 detector 定义了精确的多步检测流程：
+编辑 `knowledge/guard-rules/<detector>.md`。每个 detector 定义了精确的多步检测流程：
 
 ```markdown
 ## Detection Logic
@@ -286,7 +286,7 @@ secguardian/                      ← 项目根目录
 
 ### 启用新 Detector
 
-1. 编写 `knowledge/detectors/<new-detector>.md`（参考已有 detector 格式）
+1. 编写 `knowledge/guard-rules/<new-detector>.md`（参考已有 detector 格式）
 2. 在 `manifest.json` 的 `knowledge.detectors` 中添加条目
 3. 在对应 `extensions/secguard-secguardian/extension.json` 的 `knowledge.detectors` 中添加
 4. 重新部署：`bash scripts/dev-deploy.sh`
@@ -773,7 +773,7 @@ done
 - 项目 README: `README.md`
 - AI 运行时指引: `CLAUDE.md`（开发时 AI 助手会读取）
 - 输出协议: `knowledge/protocols/scan-output.md`
-- 检测器索引: `skills/secguard-cpp/references/detector-index.md`
+- 检测器索引: `knowledge/language-index.md`
 - 各语言速查表: `skills/<cmd>-<lang>/references/<lang>-security-cheatsheet.md`
 - 各语言反模式: `skills/secreview-<lang>/references/<lang>-anti-patterns.md`
 - OWASP ASVS 认证参考: `skills/secaudit-auth-and-session/references/owasp-asvs-auth.md`

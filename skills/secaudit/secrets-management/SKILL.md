@@ -14,7 +14,7 @@ topic: [system]
 
 密钥管理是安全体系中最核心也最容易出问题的环节。审计覆盖：
 
-> **检测规则**: 详细检测逻辑见 [`../../knowledge/detectors/secrets-detection.md`](../../knowledge/detectors/secrets-detection.md)。
+> **检测规则**: 详细检测逻辑见 [`../../knowledge/guard-rules/secrets-detection.md`](../../knowledge/guard-rules/secrets-detection.md)。
 - **硬编码检测**：代码和配置中是否包含明文凭证
 - **存储安全**：密钥的存储方式和访问控制
 - **生命周期管理**：密钥的生成、分发、轮换、撤销

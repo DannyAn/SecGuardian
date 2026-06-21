@@ -246,7 +246,7 @@ kind := child.Kind()
 | 源码 | 部署后 (OpenCode) |
 |------|------------------|
 | `skills/secguard/cpp/SKILL.md` | `.opencode/plugins/secguardian/skills/` |
-| `knowledge/detectors/*.md` | `.opencode/plugins/secguardian/knowledge/detectors/` |
+| `knowledge/guard-rules/*.md` | `.opencode/plugins/secguardian/knowledge/guard-rules/` |
 | `knowledge/protocols/scan-output.md` | `.opencode/plugins/secguardian/knowledge/protocols/` |
 
 Skill 加载路径歧义: 系统提示中写的是 `.opencode/skills/secguardian/`，但部署到 `.opencode/plugins/secguardian/`。如果 skill 加载 404，检查部署目标。
@@ -260,7 +260,7 @@ Skill 加载路径歧义: 系统提示中写的是 `.opencode/skills/secguardian
 | **L1 设计一致性** | `bash scripts/self-check.sh` | detector ↔ index ↔ manifest 交叉校验、stale references、Go 编译 | ~5s | 每次 commit 前 |
 | **L2 结构完整性** | `bash scripts/ci-check.sh` | JSON 格式、版本一致性、skill 目录完整性、Go 编译+冒烟 | ~15s | push 前 |
 | **L3 部署环境** | `bash scripts/dev-verify.sh` | 二进制文件、indexer health、平台部署结构、扫描输出 | ~10s | 部署后 |
-| **L4 架构端到端** | `bash scripts/e2e-verify.sh` | findings schema 合规、渲染器 6 文件生成、SARIF 2.1.0 结构、4-segment 质量门禁、安全评分计算、CI 门禁 exit code、delta 增量对比、3 命令类型、5 语言索引器 | ~15s | 修改架构层代码后 (**必须**) |
+| **L4/L5 端到端** | `bash scripts/e2e-verify.sh` | findings schema 合规、渲染器 6 文件生成、SARIF 2.1.0 结构、4-segment 质量门禁、安全评分计算、CI 门禁 exit code、delta 增量对比、3 命令类型、5 语言索引器、**L5 构建→包→执行管线** | ~20s | 修改架构层代码后 (**必须**) |
 | **L5 全量** | 以上全部按顺序 | 全覆盖 | ~45s | 发布前 |
 
 ### 快速验证 (日常)
@@ -300,6 +300,7 @@ bash scripts/e2e-verify.sh --quick  # 跳过第 9 节 (多语言索引)，快速
 | 8 | 命令类型 | secguard/secaudit/secreview 分别生成正确标题 | 报告类型混淆 |
 | 9 | 多语言 | 5 语言示例仓库 indexer 解析通过 | 索引器对某语言失效 |
 | 10 | 渲染器性能 | < 5s 完成 1 个 finding 的渲染 | 性能退化 |
+| 11 | L5 构建→包→执行 | package.sh 编译 + dist 结构 + indexer 扫描 | 构建/部署管线损坏 |
 
 ## 注意事项
 
