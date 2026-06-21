@@ -3,7 +3,7 @@
 ## 项目解剖
 
 ```
-secguardian/                # v0.5.3, Go 1.25.3, 无传统测试套件
+secguardian/                # v0.6.0, Go 1.25.3, parser + indexer 有 go test 覆盖
 │
 ├── internal/               # ★ 唯一原生代码: Go 索引器 → 产出 secguardian-index 二进制
 │   ├── parser/             #   双解析器: parser_ts.go(cgo) + parser_re.go(!cgo), 编译期二选一
@@ -21,7 +21,7 @@ secguardian/                # v0.5.3, Go 1.25.3, 无传统测试套件
 ├── knowledge/              # 可复用知识库 (全部 Markdown)
 │   ├── detectors/          #   60 个检测规则 (自包含: 定义→检测→修复→白名单)
 │   ├── languages/          #   5 语言画像 (cpp/go/java/python/js)
-│   ├── protocols/          #   输出协议 v2.0: report.md + results.sarif + summary.json
+│   ├── protocols/          #   输出协议 v5.0: report.md + results.sarif + summary.json + manifest.json + status.json + delta.json
 │   ├── standards/          #   SEI CERT C/C++/Java + OWASP Cheat Sheet 映射
 │   └── threat-catalog.md   #   威胁目录索引
 │
@@ -239,7 +239,7 @@ kind := child.Kind()
 3. AI Agent 读取 `index.json` → 加载 `skills/secguard/<lang>/SKILL.md` → 按 detector 执行
 4. 输出到 `.codeagent/secguard-secguardian/scans/<scan-id>/`
 
-输出协议 v2.0 在 `knowledge/protocols/scan-output.md`（CLAUDE.md 中写的是 1.0，已过时）。
+输出协议 v5.0 在 `knowledge/protocols/scan-output.md`（CLAUDE.md 中写的是 1.0，已过时）。
 
 ## Skill 源码 vs 部署位置
 
