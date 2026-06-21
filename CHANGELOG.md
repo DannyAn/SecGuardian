@@ -2,6 +2,54 @@
 
 All notable changes to SecGuardian.
 
+## [0.7.0] — 2026-06-21
+
+### ★ Command Interface Unification
+- 三命令参数统一为 `<path> <language>` 格式
+  - `/secguard  <path> <language> [filters]`
+  - `/secaudit  <path> <language> [--focus <domain>]`
+  - `/secreview <path> <language>`
+- 消除 `<path> <language>` vs `<path> [mode] [filters]` 的解析歧义
+- SecAudit 从 17 个独立 skill 入口改为单一 workflow（`--focus` 保留单项审计能力）
+- Step 2.5 职责纠正：只优化执行效率，不跳过任何检测器
+
+### ★ Knowledge Layer Restructuring
+- `knowledge/detectors/` → `knowledge/guard-rules/` (67 个 API 级检测规则)
+- `knowledge/audit-rules/` (17 个审计领域规则，从 `skills/secaudit/*/SKILL.md` 迁移)
+- `knowledge/review-rules/` (5 个语言反模式规则，从 `skills/secreview/*/references/*.md` 迁移)
+- 统一命名模式：`{command}-rules/`，降低认知负担
+- `knowledge/language-index.md` 构建时自动生成（替换手工维护的 `detector-index.md`）
+
+### ★ SecAudit Workflow
+- 新增 `skills/secaudit/workflow-secaudit/SKILL.md`（17 phase 编排）
+- 全量模式：加载全部 17 个审计领域，产出一份完整审计报告
+- 单项模式：`--focus <domain>` 加载单一领域，用于团队分工/局部验证
+- 17 个原始 SKILL.md 内容不变，从 workflow 层移到 knowledge 层
+
+### ★ Build Automation
+- `scripts/sync-language-index.sh` — 从 guard-rules/audit-rules frontmatter 自动生成 language-index.md
+- `scripts/sync-toml.sh` — `.md` → `.toml` 自动转换（消除 Gemini drift）
+- `commands/gemini/*.toml` 构建时生成，gitignored，不再手工维护
+- `scripts/package.sh` / `scripts/deploy.sh` 同步更新为新知识结构
+
+### ★ L5 Pipeline Verification
+- `e2e-verify.sh` section 12: Build → Package → Execute 完整流水线验证
+- 构建 → 包结构检查 → 部署 → indexer 执行 → index.json 结构验证 → 知识层一致性检查
+- `--quick` 模式跳过 L5（49 项），完整模式包含 L5（50 项）
+
+### ★ Documentation
+- AGENTS.md: 验证矩阵增加 L5 行
+- README.md / DEVELOPER.md / GEMINI.md / SECURITY.md: 更新路径引用
+- EPIC-004 SDD Feature Package: brainstorm / spec / adr / plan / progress 完整记录
+
+### Fixes
+- `self-check.sh` section 1/4 重写为新知识结构格式
+- `package.sh`: 添加 audit-rules/review-rules/language-index.md copy loops
+- `deploy.sh`: 三个平台各添加新知识目录的 cp -r 命令
+- `scripts/dev-verify.sh`, `scripts/ci-check.sh` 同步更新路径
+
+---
+
 ## [0.6.0] — 2026-06-07
 
 ### ★ Output Protocol v5.0 — Per-Finding File Directory Tree

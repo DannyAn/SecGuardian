@@ -302,6 +302,54 @@ bash scripts/e2e-verify.sh --quick  # 跳过第 9 节 (多语言索引)，快速
 | 10 | 渲染器性能 | < 5s 完成 1 个 finding 的渲染 | 性能退化 |
 | 11 | L5 构建→包→执行 | package.sh 编译 + dist 结构 + indexer 扫描 | 构建/部署管线损坏 |
 
+
+## 版本发布流程
+
+> **每次发布版本必须按以下步骤执行**，缺一不可。AI Agent 执行时自动按步骤执行。
+
+### 发布检查清单
+
+```
+1. [ ] 所有验证通过（L1: self-check.sh + L4: e2e-verify.sh）
+2. [ ] 确认版本号已更新（manifest.json + extensions/*/extension.json）
+3. [ ] CHANGELOG.md 已更新（版本号 + 日期 + 完整变更记录）
+4. [ ] 执行 bash scripts/release.sh <version> 构建发布产物
+5. [ ] 执行 bash scripts/gitee-release.sh <version> 发布到 Gitee
+6. [ ] 验证 Gitee Release 页面（https://gitee.com/jonyan/secguardian/releases）
+```
+
+### 构建产物
+
+`bash scripts/release.sh <version>` 生成：
+
+```
+dist/release/<version>/
+├── secguardian-index-<version>-{os}-{arch}          ← 索引器二进制
+├── secguardian-<version>-claude-code-{os}-{arch}.zip ← Claude Code 插件
+├── secguardian-<version>-opencode-{os}-{arch}.zip   ← OpenCode 插件
+├── secguardian-<version>-gemini-cli-{os}-{arch}.zip  ← Gemini CLI 插件
+├── secguardian-<version>-source.tar.gz               ← 源码包
+└── manifest.json                                      ← 发布清单
+```
+
+### Gitee 发布
+
+`bash scripts/gitee-release.sh <version>` 需要 GITEE_TOKEN，从 macOS 钥匙串读取：
+
+```bash
+# 首次设置（可选，自动读取）
+security add-generic-password -a "$USER" -s secguardian-gitee-token -w "your-token-here"
+# Token 生成: https://gitee.com/profile/personal_access_tokens
+
+# 发布
+bash scripts/release.sh 0.7.0       # 构建
+bash scripts/gitee-release.sh 0.7.0  # 发布到 Gitee
+```
+
+> Token 存储在 macOS 钥匙串中，AI Agent 可通过 `security find-generic-password` 读取，无需硬编码。
+>
+> Gitee Release 需要手动验证：打开 https://gitee.com/jonyan/secguardian/releases
+
 ## 注意事项
 
 - `git diff` 中 `HEAD~1` 和 `HEAD~1 --name-only` 的行为不同，增量扫描时注意解析
