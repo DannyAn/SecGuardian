@@ -1,5 +1,5 @@
 ---
-name: js
+name: secreview-js
 description: 对 JavaScript/Node.js 代码进行通用安全规范检视，关注原型安全、异步错误处理和框架反模式。当用户请求JavaScript代码规范检视、Node.js反模式识别、前端安全规范、JS最佳实践审计时使用。
 category: language-specific
 language: javascript

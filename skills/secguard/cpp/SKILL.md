@@ -1,5 +1,5 @@
 ---
-name: cpp
+name: secguard-cpp
 description: 对 C/C++ 代码进行安全加固项排查，支持全量/增量扫描、命名空间过滤，输出符合 Scan Output Protocol 2.0。当用户请求C/C++安全扫描、内存安全检测、缓冲区溢出、C++代码审计、指针安全时使用。
 category: language-specific
 language: cpp

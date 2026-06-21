@@ -1,5 +1,5 @@
 ---
-name: cpp
+name: secreview-cpp
 description: 对 C/C++ 代码进行通用安全规范检视，关注内存安全和未定义行为规范。当用户请求C/C++代码规范检视、C++反模式识别、内存安全规范审查、C++最佳实践审计时使用。
 category: language-specific
 language: cpp

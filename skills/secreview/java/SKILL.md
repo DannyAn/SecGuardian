@@ -1,5 +1,5 @@
 ---
-name: java
+name: secreview-java
 description: 对 Java 代码进行通用安全规范检视，关注危险函数使用和安全编码规范。当用户请求Java代码规范检视、Java反模式识别、Java安全编码规范、Java最佳实践审计时使用。
 category: language-specific
 language: java

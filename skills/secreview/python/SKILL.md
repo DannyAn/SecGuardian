@@ -1,5 +1,5 @@
 ---
-name: python
+name: secreview-python
 description: 对 Python 代码进行通用安全规范检视，关注危险函数使用和安全编码规范。当用户请求Python代码规范检视、Python反模式识别、Python安全编码规范、Django/Flask最佳实践时使用。
 category: language-specific
 language: python

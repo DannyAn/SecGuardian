@@ -1,5 +1,5 @@
 ---
-name: go
+name: secguard-go
 description: 对 Go 代码进行安全加固项排查，检测标准库陷阱和并发安全问题。当用户请求Go安全扫描、Go代码审计、goroutine安全、Go标准库陷阱、Go加密安全时使用。
 category: language-specific
 language: go

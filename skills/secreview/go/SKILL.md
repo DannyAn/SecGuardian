@@ -1,5 +1,5 @@
 ---
-name: go
+name: secreview-go
 description: 对 Go 代码进行通用安全规范检视，关注标准库安全和并发模式规范。当用户请求Go代码规范检视、Go反模式识别、Go并发安全规范、Go标准库最佳实践时使用。
 category: language-specific
 language: go
