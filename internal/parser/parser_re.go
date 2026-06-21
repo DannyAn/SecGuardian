@@ -140,6 +140,77 @@ func ParseFile(filePath string, lang string) (*ParseResult, error) {
 		}
 	}
 
+
+	// Variable extraction for Go
+	if lang == "go" {
+		varDeclPat := regexp.MustCompile(`(?m)^\s*(?:var\s+)?(\w+)\s*(?:=|:=)`)
+		matches := varDeclPat.FindAllStringSubmatch(string(content), -1)
+		for _, m := range matches {
+			name := m[1]
+			if name == "" || isKeyword(name, lang) {
+				continue
+			}
+			pos := strings.Index(string(content), m[0])
+			lineNo := uint(1)
+			if pos >= 0 {
+				lineNo = uint(strings.Count(string(content)[:pos], "
+") + 1)
+			}
+			result.Variables = append(result.Variables, VariableInfo{
+				Name: name,
+				File: filePath,
+				Line: lineNo,
+			})
+		}
+	}
+
+	// Variable extraction for Java (type-prefixed declaration)
+	if lang == "java" {
+		varDeclPat := regexp.MustCompile(`(?m)^\s*(?:\w+\s+)*(?:int|long|double|float|boolean|char|byte|short|String|var|Object)\s+(\w+)\s*(?:=|;)`)
+		matches := varDeclPat.FindAllStringSubmatch(string(content), -1)
+		for _, m := range matches {
+			name := m[1]
+			if name == "" || isKeyword(name, lang) {
+				continue
+			}
+			pos := strings.Index(string(content), m[0])
+			lineNo := uint(1)
+			if pos >= 0 {
+				lineNo = uint(strings.Count(string(content)[:pos], "
+") + 1)
+			}
+			result.Variables = append(result.Variables, VariableInfo{
+				Name: name,
+				File: filePath,
+				Line: lineNo,
+			})
+		}
+	}
+
+	// Variable extraction for Python (line-start assignment)
+	if lang == "python" {
+		varDeclPat := regexp.MustCompile(`(?m)^\s*(\w+)\s*=\s*(?!=)`)
+		matches := varDeclPat.FindAllStringSubmatch(string(content), -1)
+		for _, m := range matches {
+			name := m[1]
+			if name == "" || isKeyword(name, lang) {
+				continue
+			}
+			pos := strings.Index(string(content), m[0])
+			lineNo := uint(1)
+			if pos >= 0 {
+				lineNo = uint(strings.Count(string(content)[:pos], "
+") + 1)
+			}
+			result.Variables = append(result.Variables, VariableInfo{
+				Name: name,
+				File: filePath,
+				Line: lineNo,
+			})
+		}
+	}
+
+
 	return result, nil
 }
 
