@@ -5,7 +5,7 @@
 > **状态**: ✅ 已完成
 
 
-**Goal:** Upgrade all 67 detectors in `knowledge/detectors/` to unified template with precision+confidence metadata, MUST/SHOULD/MAY evidence collection guides, FP exclusion tables with evidence binding, and MATCH/EXCLUDE pattern separation.
+**Goal:** Upgrade all 67 detectors in `knowledge/guard-rules/` to unified template with precision+confidence metadata, MUST/SHOULD/MAY evidence collection guides, FP exclusion tables with evidence binding, and MATCH/EXCLUDE pattern separation.
 
 **Architecture:** 5 phases — schema update first (findings-schema.json), then 4 detector batches by quality/completeness (P0: 6 missing FP + evidence from scratch → P1: 13 content-light detectors <90 lines → P2: 28 medium quality → P3: 20 already well-formed requiring metadata upgrade only), with verification scans after each batch.
 
@@ -121,12 +121,12 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ### Task 1: P0 Batch — Complete Rebuild (6 detectors)
 
 **Files:**
-- Rewrite: `knowledge/detectors/resource-socket-leak.md`
-- Rewrite: `knowledge/detectors/resource-lock-misuse.md`
-- Rewrite: `knowledge/detectors/resource-file-double-close.md`
-- Rewrite: `knowledge/detectors/resource-file-use-after-close.md`
-- Rewrite: `knowledge/detectors/resource-refcount-misuse.md`
-- Rewrite: `knowledge/detectors/system-secrets-detection.md`
+- Rewrite: `knowledge/guard-rules/resource-socket-leak.md`
+- Rewrite: `knowledge/guard-rules/resource-lock-misuse.md`
+- Rewrite: `knowledge/guard-rules/resource-file-double-close.md`
+- Rewrite: `knowledge/guard-rules/resource-file-use-after-close.md`
+- Rewrite: `knowledge/guard-rules/resource-refcount-misuse.md`
+- Rewrite: `knowledge/guard-rules/system-secrets-detection.md`
 
 **Purpose:** These 6 detectors completely lack FP exclusion sections and evidence collection. Rebuild from current content into full unified template.
 
@@ -193,7 +193,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 - [ ] **Step 1: Rebuild resource-socket-leak.md**
 
-Read current `knowledge/detectors/resource-socket-leak.md`, transform to unified template with:
+Read current `knowledge/guard-rules/resource-socket-leak.md`, transform to unified template with:
 - precision: `high`
 - confidence: `dynamic`
 - MUST evidence: code_context (完整函数体 + 退出路径标注), judgment_rationale (具体缺失 close 的路径)
@@ -205,7 +205,7 @@ Read current `knowledge/detectors/resource-socket-leak.md`, transform to unified
 
 ```bash
 # After writing, verify chapter count:
-grep -c "^## " knowledge/detectors/resource-socket-leak.md
+grep -c "^## " knowledge/guard-rules/resource-socket-leak.md
 # Expected: ≥6
 ```
 
@@ -267,11 +267,11 @@ EXCLUDE: BEGIN CERTIFICATE/PUBLIC KEY, base64 image, template ${}, test/mock pat
 # Verify the 6 updated detectors exist and have required chapters
 for f in resource-socket-leak resource-lock-misuse resource-file-double-close resource-file-use-after-close resource-refcount-misuse system-secrets-detection; do
   echo "=== $f ==="
-  echo "Sections: $(grep -c '^## ' knowledge/detectors/$f.md)"
-  echo "FP table: $(grep -c '| 场景 | 排除依据 | 证据要求 |' knowledge/detectors/$f.md)"
-  echo "MUST evidence: $(grep -c '必须收集' knowledge/detectors/$f.md)"
-  echo "MATCH: $(grep -c 'MATCH' knowledge/detectors/$f.md)"
-  echo "EXCLUDE: $(grep -c 'EXCLUDE' knowledge/detectors/$f.md)"
+  echo "Sections: $(grep -c '^## ' knowledge/guard-rules/$f.md)"
+  echo "FP table: $(grep -c '| 场景 | 排除依据 | 证据要求 |' knowledge/guard-rules/$f.md)"
+  echo "MUST evidence: $(grep -c '必须收集' knowledge/guard-rules/$f.md)"
+  echo "MATCH: $(grep -c 'MATCH' knowledge/guard-rules/$f.md)"
+  echo "EXCLUDE: $(grep -c 'EXCLUDE' knowledge/guard-rules/$f.md)"
   echo ""
 done
 ```
@@ -281,12 +281,12 @@ Expected all 6: sections≥6, FP≥1, MUST≥1, MATCH≥1, EXCLUDE≥1
 - [ ] **Step 8: Commit P0 batch**
 
 ```bash
-git add knowledge/detectors/resource-socket-leak.md \
-        knowledge/detectors/resource-lock-misuse.md \
-        knowledge/detectors/resource-file-double-close.md \
-        knowledge/detectors/resource-file-use-after-close.md \
-        knowledge/detectors/resource-refcount-misuse.md \
-        knowledge/detectors/system-secrets-detection.md
+git add knowledge/guard-rules/resource-socket-leak.md \
+        knowledge/guard-rules/resource-lock-misuse.md \
+        knowledge/guard-rules/resource-file-double-close.md \
+        knowledge/guard-rules/resource-file-use-after-close.md \
+        knowledge/guard-rules/resource-refcount-misuse.md \
+        knowledge/guard-rules/system-secrets-detection.md
 git commit -m "feat(detectors): P0 — complete rebuild of 6 detectors with FP + evidence
 
 Rebuilt from scratch per unified template:
@@ -378,7 +378,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ```bash
 # After each sub-group of 3-4, verify and commit:
-git add knowledge/detectors/<updated-files>
+git add knowledge/guard-rules/<updated-files>
 git commit -m "feat(detectors): P1 — enrich <detector-names> with FP evidence binding"
 ```
 
@@ -387,11 +387,11 @@ git commit -m "feat(detectors): P1 — enrich <detector-names> with FP evidence 
 ```bash
 for f in concurrency-thread-unsafe-signal system-toctou concurrency-deadlock memory-uninitialized-memory error-unified-error-format memory-bad-cast web-open-redirect system-insecure-temp-file web-idor web-auth-bypass crypto-weak-crypto-algorithm memory-off-by-one system-command-injection; do
   echo "=== $f ==="
-  echo "Sections: $(grep -c '^## ' knowledge/detectors/$f.md)"
-  echo "precision: $(grep 'precision:' knowledge/detectors/$f.md)"
-  echo "FP evidence col: $(grep -c '证据要求' knowledge/detectors/$f.md)"
-  echo "MUST evidence: $(grep -c '必须收集' knowledge/detectors/$f.md)"
-  echo "MATCH/EXCLUDE: $(grep -c 'MATCH\|EXCLUDE' knowledge/detectors/$f.md)"
+  echo "Sections: $(grep -c '^## ' knowledge/guard-rules/$f.md)"
+  echo "precision: $(grep 'precision:' knowledge/guard-rules/$f.md)"
+  echo "FP evidence col: $(grep -c '证据要求' knowledge/guard-rules/$f.md)"
+  echo "MUST evidence: $(grep -c '必须收集' knowledge/guard-rules/$f.md)"
+  echo "MATCH/EXCLUDE: $(grep -c 'MATCH\|EXCLUDE' knowledge/guard-rules/$f.md)"
   echo ""
 done
 ```
@@ -483,10 +483,10 @@ Process in sub-groups for manageable commits:
 ```bash
 for f in crypto-insufficient-key-length web-csrf web-xxe concurrency-data-race crypto-weak-random web-jwt-misuse memory-heap-buffer-overflow web-code-injection web-ssrf web-deserialization web-xss memory-format-string memory-mismatched-free memory-integer-overflow memory-memory-leak web-unrestricted-upload memory-null-dereference memory-oob-read system-insecure-permissions web-missing-authorization web-input-validation error-panic-to-client memory-use-after-free memory-buffer-overflow web-missing-authentication concurrency-race-condition memory-double-free web-resource-exhaustion; do
   echo "=== $f ==="
-  echo "precision: $(grep -c 'precision:' knowledge/detectors/$f.md)"
-  echo "confidence: $(grep -c 'confidence: dynamic' knowledge/detectors/$f.md)"
-  echo "FP 3-col: $(grep -c '排除依据.*证据要求' knowledge/detectors/$f.md)"
-  echo "Evidence ch: $(grep -c '取证证据收集指引' knowledge/detectors/$f.md)"
+  echo "precision: $(grep -c 'precision:' knowledge/guard-rules/$f.md)"
+  echo "confidence: $(grep -c 'confidence: dynamic' knowledge/guard-rules/$f.md)"
+  echo "FP 3-col: $(grep -c '排除依据.*证据要求' knowledge/guard-rules/$f.md)"
+  echo "Evidence ch: $(grep -c '取证证据收集指引' knowledge/guard-rules/$f.md)"
   echo ""
 done
 # Expected: all 28 show 1 for each check
@@ -495,7 +495,7 @@ done
 - [ ] **Step 30: Commit P2 batch**
 
 ```bash
-git add knowledge/detectors/
+git add knowledge/guard-rules/
 git commit -m "feat(detectors): P2 — standardize 28 medium-quality detectors
 
 Added to all 28:
@@ -711,9 +711,9 @@ resource-file-leak (71):
 ```bash
 for f in crypto-hardcoded-secrets crypto-hardcoded-iv crypto-aes-ecb-mode web-prototype-pollution crypto-custom-crypto web-nosql-injection crypto-tls-version crypto-password-storage error-exception-swallow web-ssti error-log-sensitive-data web-excessive-data-exposure error-debug-mode-production web-mass-assignment error-stack-trace-leak web-sql-injection system-path-traversal system-privilege-escalation system-symlink-attack resource-file-leak; do
   echo "=== $f ==="
-  echo "precision: $(grep -c 'precision:' knowledge/detectors/$f.md)"
-  echo "confidence: $(grep -c 'confidence: dynamic' knowledge/detectors/$f.md)"
-  echo "3-col FP: $(grep -c '排除依据.*证据要求' knowledge/detectors/$f.md)"
+  echo "precision: $(grep -c 'precision:' knowledge/guard-rules/$f.md)"
+  echo "confidence: $(grep -c 'confidence: dynamic' knowledge/guard-rules/$f.md)"
+  echo "3-col FP: $(grep -c '排除依据.*证据要求' knowledge/guard-rules/$f.md)"
   echo ""
 done
 # Expected: all 20 show 1 for precision, 1 for confidence, ≥1 for 3-col FP
@@ -722,7 +722,7 @@ done
 - [ ] **Step 19: Commit P3 batch**
 
 ```bash
-git add knowledge/detectors/
+git add knowledge/guard-rules/
 git commit -m "feat(detectors): P3 — metadata upgrade for 20 well-formed detectors
 
 Added precision + confidence: dynamic to frontmatter for all 20.
@@ -751,7 +751,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 # Comprehensive structural verification
 TOTAL=0; PASS=0; FAIL=0
 echo "=== Detector Structural Verification ==="
-for f in knowledge/detectors/*.md; do
+for f in knowledge/guard-rules/*.md; do
   TOTAL=$((TOTAL+1))
   ERRORS=0
   

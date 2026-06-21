@@ -45,7 +45,7 @@
 - [ ] §4 每个检出包含 **📋 Evidence** 小节（代码上下文 3+ 行 + 判定依据 + 数据流路径）
 - [ ] §4 每个检出包含 **⚠️ Impact** 小节（攻击场景描述 + CVSS 3.1 评分 + 利用条件）
 - [ ] §4 每个检出包含 **🔧 Fix** 小节（before/after 代码 + 工作量 + 验证方法）
-- [ ] §4 每个检出引用对应 detector 的修复指引（来自 `knowledge/detectors/<name>.md` 的 `## 修复指引` 节）
+- [ ] §4 每个检出引用对应 detector 的修复指引（来自 `knowledge/guard-rules/<name>.md` 的 `## 修复指引` 节）
 - [ ] §4 每个检出包含 CWE 参考链接
 - [ ] §5 修复路线图包含 Phase 1-4 完整四个阶段（含预估工时）
 
@@ -61,7 +61,7 @@
 
 #### 未通过处理
 
-任一 ❌ → 定位缺失的 finding → 从 `knowledge/detectors/<name>.md` 的对应章节获取内容补充 → 重新检查。
+任一 ❌ → 定位缺失的 finding → 从 `knowledge/guard-rules/<name>.md` 的对应章节获取内容补充 → 重新检查。
 3 次后仍未通过 → 在 report.md 开头标注 "⚠️ 以下发现的完整性未完全达标: <ID列表>"
 ```
 

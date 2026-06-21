@@ -98,7 +98,7 @@
 | `skills/secaudit/*/SKILL.md` | 同上 | 同上 |
 | `skills/secreview/*/SKILL.md` | 同上 | 同上 |
 
-`knowledge/detectors/*.md` 无需改动——已有完整内容。
+`knowledge/guard-rules/*.md` 无需改动——已有完整内容。
 
 ## 4. Phase 2：输出协议升级
 

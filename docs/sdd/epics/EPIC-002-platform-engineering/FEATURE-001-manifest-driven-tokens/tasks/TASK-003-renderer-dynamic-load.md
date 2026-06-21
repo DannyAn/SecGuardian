@@ -7,12 +7,12 @@
 
 ## Goal
 
-移除 `scripts/render-report.py` 中硬编码的 68 行 `DETECTOR_RULE_INDEX`，改为从 `manifest.json` 或 `knowledge/detectors/` 目录动态构建映射表。
+移除 `scripts/render-report.py` 中硬编码的 68 行 `DETECTOR_RULE_INDEX`，改为从 `manifest.json` 或 `knowledge/guard-rules/` 目录动态构建映射表。
 
 ## Done
 
 - [x] 实现 `load_detector_index()` 函数
-  - [x] 遍历 `knowledge/detectors/` 目录
+  - [x] 遍历 `knowledge/guard-rules/` 目录
   - [x] 解析每个 detector 文件的 yaml frontmatter（cwe + namespace）
   - [x] 构建 `{detector_name: {index, cwe, namespace}}` 映射
 - [x] 替换所有 `DETECTOR_RULE_INDEX[...]` 引用为函数调用

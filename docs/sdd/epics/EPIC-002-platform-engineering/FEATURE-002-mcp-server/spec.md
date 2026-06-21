@@ -202,7 +202,7 @@ triggers:
 
 这个契约结构确保 `triggers` 字段不会无限膨胀——每次新增维度都需要在契约 schema 中显式定义。
 
-**实现方式：** 在构建时 (`go generate` 或 `build.sh`) 扫描 `knowledge/detectors/*.md`，解析每个文件 frontmatter 中的元数据和 triggers，生成 `detectors_index.json`，`embed` 进二进制。
+**实现方式：** 在构建时 (`go generate` 或 `build.sh`) 扫描 `knowledge/guard-rules/*.md`，解析每个文件 frontmatter 中的元数据和 triggers，生成 `detectors_index.json`，`embed` 进二进制。
 
 #### R2: `secguardian://detectors/{name}[?section=how]`
 

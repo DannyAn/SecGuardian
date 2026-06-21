@@ -23,11 +23,11 @@ DETECTOR_RULE_INDEX = {
 | 维度 | 变更前 | 变更后 |
 |------|--------|--------|
 | 新增 detector 需改文件数 | 9+ (含 renderer) | 2 (manifest.json + detector 文件) |
-| SARIF ruleId 映射 | 硬编码 dict | 动态扫描 knowledge/detectors/ |
+| SARIF ruleId 映射 | 硬编码 dict | 动态扫描 knowledge/guard-rules/ |
 | CWE 字段 | 手动维护 | 自动从 detector frontmatter 提取 |
 
 ### 新增需求
-- REQ-011: renderer 从 knowledge/detectors/ 动态构建规则索引
+- REQ-011: renderer 从 knowledge/guard-rules/ 动态构建规则索引
 
 ### 向后兼容
 - SARIF 输出格式不变

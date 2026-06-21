@@ -30,7 +30,7 @@ Detector 继续产出完整 Finding（含 severity + CWE + evidence + fix）。�
 
 ### Consequences
 
-- `knowledge/detectors/*.md` 零改动
+- `knowledge/guard-rules/*.md` 零改动
 - `knowledge/protocols/findings-schema.json` 无需新增 Claim schema
 - 验证管道直接消费现有 Finding 结构
 

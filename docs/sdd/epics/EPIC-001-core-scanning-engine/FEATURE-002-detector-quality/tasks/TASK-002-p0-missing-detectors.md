@@ -41,9 +41,9 @@ bash scripts/self-check.sh
 
 | 文件 | 改动量 |
 |------|--------|
-| `knowledge/detectors/resource-socket-leak.md` | +72 行 |
-| `knowledge/detectors/resource-lock-misuse.md` | +65 行 |
-| `knowledge/detectors/resource-file-double-close.md` | +60 行 |
-| `knowledge/detectors/resource-file-use-after-close.md` | +58 行 |
-| `knowledge/detectors/resource-refcount-misuse.md` | +55 行 |
-| `knowledge/detectors/system-secrets-detection.md` | +50 行 |
+| `knowledge/guard-rules/resource-socket-leak.md` | +72 行 |
+| `knowledge/guard-rules/resource-lock-misuse.md` | +65 行 |
+| `knowledge/guard-rules/resource-file-double-close.md` | +60 行 |
+| `knowledge/guard-rules/resource-file-use-after-close.md` | +58 行 |
+| `knowledge/guard-rules/resource-refcount-misuse.md` | +55 行 |
+| `knowledge/guard-rules/system-secrets-detection.md` | +50 行 |

@@ -74,7 +74,7 @@ Detector 继续产出完整 Finding（含 severity + CWE + evidence + fix）。�
 
 **理由**: 端到端实测证实 Detector 产出已含 data_flow_path、judgment_rationale、CVSS 评分——这些是后续验证轮的输入资产，不应丢弃。
 
-**验证标准**: `knowledge/detectors/*.md` 零改动。
+**验证标准**: `knowledge/guard-rules/*.md` 零改动。
 
 ### REQ-002: 三轮验证管道
 

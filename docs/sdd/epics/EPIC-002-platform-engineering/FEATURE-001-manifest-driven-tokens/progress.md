@@ -26,4 +26,4 @@
 
 ## 影响范围
 
-Token 化文件：12 个（threat-catalog.md, extension.json x3, commands x3, detector-index.md x5, CLAUDE.md/AGENTS.md/GEMINI.md, interview-ppt.md, competitive-analysis.md）
+Token 化文件：12 个（threat-catalog.md, extension.json x3, commands x3, language-index.md x5, CLAUDE.md/AGENTS.md/GEMINI.md, interview-ppt.md, competitive-analysis.md）

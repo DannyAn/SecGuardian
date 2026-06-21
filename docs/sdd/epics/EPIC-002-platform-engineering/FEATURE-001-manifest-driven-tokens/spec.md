@@ -19,7 +19,7 @@
 | `knowledge/threat-catalog.md` | 8 处 namespace 计数 | 每次必须手动同步 |
 | `extensions/.../extension.json` | description 中的 "67 个检测器" | 部署描述过期 |
 | `commands/secguard.md` | description frontmatter | 命令帮助文本过期 |
-| `skills/.../detector-index.md` | "全部 67 个检测器" | AI 指令过期 |
+| `skills/.../language-index.md` | "全部 67 个检测器" | AI 指令过期 |
 | `CLAUDE.md`, `AGENTS.md`, `GEMINI.md` | 多处提及 detector 数量 | AI 入口上下文过期 |
 | `scripts/render-report.py` | DETECTOR_RULE_INDEX (70 行) | 代码硬编码 |
 | `docs/reference/interview-ppt.md` | 8+ 处 "67 检测器" | PPT 材料过期 |
@@ -79,7 +79,7 @@
 | `extensions/secaudit-secguardian/extension.json` | description 字段 |
 | `extensions/secreview-secguardian/extension.json` | description 字段 |
 | `commands/secguard.md` | frontmatter description |
-| `skills/secguard/cpp/references/detector-index.md` | "全部 N 个检测器" |
+| `skills/secguard/cpp/references/language-index.md` | "全部 N 个检测器" |
 | `CLAUDE.md`, `AGENTS.md`, `GEMINI.md` | detector 数量提及 |
 
 **建议 Token 化**（对外展示材料，过期影响信任度）：
@@ -109,7 +109,7 @@ DETECTOR_RULE_INDEX = {
     # ... 68 entries
 }
 
-# After: loaded from manifest or knowledge/detectors/
+# After: loaded from manifest or knowledge/guard-rules/
 def load_detector_index():
     """Build detector → CWE mapping from detector files."""
     index = {}
@@ -189,7 +189,7 @@ dev-deploy.sh
 
 ### Phase 3: render-report.py 动态加载
 - 移除 DETECTOR_RULE_INDEX 硬编码
-- 改为从 knowledge/detectors/ 目录动态构建映射表
+- 改为从 knowledge/guard-rules/ 目录动态构建映射表
 - 验证：SARIF 输出 CWE 字段与之前一致
 
 ### Phase 4: 集成 + 验证

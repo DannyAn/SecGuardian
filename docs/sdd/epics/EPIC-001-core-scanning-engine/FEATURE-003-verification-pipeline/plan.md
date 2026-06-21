@@ -54,7 +54,7 @@
 | 文件 | 原因 |
 |------|------|
 | `internal/` (Go 索引器) | ADR-004: index.json 保持不变 |
-| `knowledge/detectors/*.md` (67 个) | ADR-001: Detector 输出格式不变 |
+| `knowledge/guard-rules/*.md` (67 个) | ADR-001: Detector 输出格式不变 |
 | `knowledge/protocols/findings-schema.json` | ADR-001: 不新增 Claim schema |
 
 ---

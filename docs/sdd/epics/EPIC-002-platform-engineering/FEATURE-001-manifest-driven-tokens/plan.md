@@ -163,7 +163,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - Modify: `extensions/secaudit-secguardian/extension.json`
 - Modify: `extensions/secreview-secguardian/extension.json`
 - Modify: `commands/secguard.md`
-- Modify: `skills/secguard/cpp/references/detector-index.md`
+- Modify: `skills/secguard/cpp/references/language-index.md`
 - Modify: `CLAUDE.md`
 - Modify: `AGENTS.md`
 - Modify: `GEMINI.md`
@@ -208,7 +208,7 @@ description: "安全加固项排查 — 67 个检测器覆盖 memory/concurrency
 description: "安全加固项排查 — 67<!-- @secguardian:detector_count --> 个检测器覆盖 memory/concurrency/system/resource/crypto/web/error 7<!-- @secguardian:namespace_count --> 大安全分类"
 ```
 
-- [ ] **Step 4: skills/secguard/cpp/references/detector-index.md**
+- [ ] **Step 4: skills/secguard/cpp/references/language-index.md**
 
 ```markdown
 # Before:
@@ -233,12 +233,12 @@ bash scripts/sync-manifest.sh --check
 
 ```bash
 git add knowledge/threat-catalog.md extensions/ commands/secguard.md \
-        skills/secguard/cpp/references/detector-index.md CLAUDE.md AGENTS.md GEMINI.md
+        skills/secguard/cpp/references/language-index.md CLAUDE.md AGENTS.md GEMINI.md
 git commit -m "feat: tokenize all system files with @secguardian markers
 
 Replace hardcoded detector counts with NNN<!-- @secguardian:xxx --> tokens.
 Tokenized files: threat-catalog, extension.json x3, secguard.md,
-detector-index.md, CLAUDE.md, AGENTS.md, GEMINI.md.
+language-index.md, CLAUDE.md, AGENTS.md, GEMINI.md.
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ```
@@ -256,12 +256,12 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 ```python
 def load_detector_index_from_files(detectors_dir=None):
-    """Build detector → {index, cwe} mapping from knowledge/detectors/*.md files.
+    """Build detector → {index, cwe} mapping from knowledge/guard-rules/*.md files.
     
     Falls back to builtin DETECTOR_RULE_INDEX if detector files not available.
     """
     if detectors_dir is None:
-        # Find knowledge/detectors/ relative to this script
+        # Find knowledge/guard-rules/ relative to this script
         script_dir = os.path.dirname(os.path.abspath(__file__))
         detectors_dir = os.path.join(script_dir, "..", "knowledge", "detectors")
     
@@ -329,7 +329,7 @@ python3 -c "import json; d=json.load(open('/tmp/test-sarif/results.sarif')); pri
 
 ```bash
 git add scripts/render-report.py
-git commit -m "feat(renderer): dynamic DETECTOR_RULE_INDEX from knowledge/detectors/
+git commit -m "feat(renderer): dynamic DETECTOR_RULE_INDEX from knowledge/guard-rules/
 
 Replace 70-line hardcoded CWE mapping with runtime loading from
 detector file frontmatter. Builtin fallback preserved for when
@@ -417,7 +417,7 @@ echo "---
 cwe: CWE-999
 severity: Medium
 ---
-# Test Detector" > knowledge/detectors/test-new-detector.md
+# Test Detector" > knowledge/guard-rules/test-new-detector.md
 
 # 2. 更新 manifest.json（count +1, namespace +1）
 python3 -c "
@@ -444,7 +444,7 @@ bash scripts/dev-deploy.sh
 # Expected: 部署成功，所有 token 为最新值
 
 # 7. 清理
-rm knowledge/detectors/test-new-detector.md
+rm knowledge/guard-rules/test-new-detector.md
 git checkout manifest.json
 bash scripts/sync-manifest.sh
 ```
