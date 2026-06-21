@@ -10,26 +10,29 @@ description: "安全加固项排查 — 67<!-- @secguardian:detector_count --> �
 ## 使用方式
 
 ```
-/secguard <path> [mode] [filters]
+/secguard <path> <language> [filters] [--sarif]
 
 全量扫描:
-  /secguard ./src                                    # 全部检测器（默认）
-  /secguard ./src all                                # 全部检测器（显式）
-  /secguard ./src *                                  # 全部检测器（通配符）
-  /secguard ./src memory.*                           # 内存检测器
-  /secguard ./src memory.null-dereference            # 单个检测器
-  /secguard ./src memory.*,system.*,crypto.*         # 多过滤器组合（逗号分隔）
+  /secguard ./src cpp                                # C/C++ 全量
+  /secguard ./src python                             # Python 全量
+  /secguard ./src java                               # Java 全量
+
+命名空间过滤:
+  /secguard ./src cpp memory.*                       # 仅内存安全检测器
+  /secguard ./src cpp memory.null-dereference        # 单个检测器
+  /secguard ./src cpp memory.*,system.*,crypto.*     # 多组合（逗号并集）
+  /secguard ./src python web.*                       # 仅 Web 安全检测器
+  /secguard ./src java memory.buffer-overflow, memory.double-free  # 精确匹配
 
 增量扫描:
-  /secguard ./src git diff                           # 工作区变更
-  /secguard ./src git diff HEAD~1                    # 最近一次提交
-  /secguard ./src git diff main                      # 当前分支 vs main
-  /secguard ./src git diff main...feature            # 分支差异
-  /secguard ./src git diff HEAD~1 memory.*           # 增量 + 过滤
+  /secguard ./src cpp git diff                       # 工作区变更
+  /secguard ./src cpp git diff HEAD~1                # 最近一次提交
+  /secguard ./src cpp git diff main                  # 当前分支 vs main
+  /secguard ./src cpp git diff main...feature        # 分支差异
 
 SARIF 输出 (CI/CD 集成):
-  /secguard ./src --sarif                            # 附加 SARIF 2.1.0 输出
-  /secguard ./src memory.*,system.* --sarif          # 过滤 + SARIF
+  /secguard ./src python --sarif                     # 附加 SARIF 2.1.0 输出
+  /secguard ./src cpp memory.* --sarif               # 过滤 + SARIF
 ```
 
 ## 输出
@@ -98,7 +101,7 @@ Filters: memory.*, system.*
 
 ## 派发规则与执行步骤
 
-> **隔离约束**: 本命令只能加载 `skills/` 扩展下的 `secguard-*` 前缀 skill，禁止加载 `secaudit-*` 或 `secreview-*` 前缀的任何文件。知识文件仅从 `knowledge/detectors/` 和 `knowledge/languages/` 加载。
+> **隔离约束**: 本命令只能加载 `skills/` 扩展下的 `secguard-*` 前缀 skill，禁止加载 `secaudit-*` 或 `secreview-*` 前缀的任何文件。知识文件仅从 `knowledge/guard-rules/` 和 `knowledge/languages/` 加载。
 
 你（AI Agent）在接收到 `/secguard` 命令后，必须按以下步骤执行来构建索引并进行安全扫描。
 
@@ -239,19 +242,69 @@ INDEX_FILE 输出示例:
 }
 ```
 
+
+### Step 2.5: 扫描目标定位（仅优化执行效率，不跳过任何检测器）
+
+> **此步骤不做检测器选择**。已加载的检测器集合由接下来的 Step 3（`language` 参数 + `filter` 参数）决定。
+> 此步骤只回答："我知道了要跑哪些检测器，它们在代码的哪个位置？"
+
+#### 2.5a 读取 index.json
+
+从扫描目录读取 index.json，提取以下结构化数据：
+- `symbols.functions` — 代码中所有函数调用
+- `call_graph.edges` — 调用关系
+- `alloc_free.pairs` — 分配/释放对
+- `lock_graph.mutexes` — 锁使用记录
+
+#### 2.5b 构建检测目标映射（为后续执行加速）
+
+预扫描 index.json，建立检测器 → 目标位置的映射。目的：后续 Step 4 执行检测时，AI 带着精确坐标跳转，不盲目遍历文件。
+
+| 检测器类型 | 预查索引数据源 |
+|-----------|--------------|
+| 内存安全（`memory.*`） | `alloc_free.pairs` 中的分配点、`symbols.functions` 中 unsafe 内存操作 |
+| 并发安全（`concurrency.*`） | `lock_graph.mutexes` 中的锁位置、`symbols.variables` 中共享变量 |
+| 加密安全（`crypto.*`） | `symbols.functions` 中加密函数调用点 |
+| Web 安全（`web.*`） | `symbols.functions` + `call_graph.edges` 中的 SQL/模板/用户输入处理 |
+| 系统/资源（`system.*`/`resource.*`） | `symbols.functions` 中系统调用/文件操作 |
+
+> **关键约束**：此步骤构建的映射**仅用于加速执行**，不跳过任何已确定的检测器。
+> 即使某检测器在 index.json 中无直接匹配，AI 仍需执行它（确认代码中是否以其他方式实现了类似功能）。
+
 ### Step 3: 语言与检测器匹配
 
-- 从摘要中的 `primary_language` 获取目标语言。
-- 读取 `skills/secguard/cpp/references/detector-index.md`，获取全部 60 个 active 检测器清单。
-- **过滤规则**：
-  - 无 filter 或 `all` 或 `*` → 加载全部 60 个检测器
-  - `namespace.*`（如 `memory.*`）→ 加载该命名空间下所有检测器
-  - `namespace.name`（如 `memory.null-dereference`）→ 加载单个检测器
-  - 逗号分隔（如 `memory.*,system.*`）→ 取并集
-  - 检测器文件名：将 `namespace.name` 转换为 `../knowledge/detectors/namespace-name.md`
-- 按 Critical → High → Medium → Low → Info 排序执行。
-- **利用 index.json 中的符号表和调用图定位检测目标**，而非逐文件遍历。
-- 增量模式（`git diff`）下，仅分析由 diff 识别的变更行。
+> **原则**: 检测器选择由命令的 `language` 参数 + `filter` 参数决定，**不做额外的自动筛选**。
+> 默认（无 filter）= 该语言适用的**全部**检测器 = 全量安全扫描。
+
+#### 3a 语言确定
+
+- 如果用户在命令中提供了 `language` 参数（如 `/secguard ./src cpp`），直接使用 `cpp`
+- 如果用户未显式提供，从 Step 2b 生成的 index.json 摘要中的 `primary_language` 自动推断
+
+#### 3b 读取语言索引
+
+读取 `knowledge/language-index.md`，直接定位到 `## {language}` 节（如 `## cpp`）。
+
+该文件按语言预分组了所有适用的规则。示例：cpp 节包含 `guard-rules/buffer-overflow`、`audit-rules/cryptography`、`review-rules/cpp` 等。
+
+AI 只需读取 `## cpp` 以下至下一个 `##` 之间的内容即获得完整的语言规则清单——不需解析 JSON，不需遍历全部文件。
+
+#### 3c 应用 filter 裁剪
+
+- 无 filter 或 `all` 或 `*` → 使用该语言下的**全部**规则
+- `namespace.*`（如 `memory.*`）→ 只保留该命名空间的 guard-rules
+- `namespace.name`（如 `memory.null-dereference`）→ 只加载单个检测器
+- 逗号分隔（如 `memory.*,system.*`）→ 取并集
+- 检测器文件路径：`../../knowledge/guard-rules/{namespace-name}.md`
+
+#### 3d 精确加载
+
+从裁剪后的清单中，精确加载每个检测器的 .md 文件（不遍历、不猜测）。
+
+#### 3e 排序与执行
+
+- 按 Critical → High → Medium → Low → Info 排序执行
+- 增量模式（`git diff`）下，仅分析由 diff 识别的变更行
 
 ### Step 3.5: 三轮验证管道（误报消减）
 

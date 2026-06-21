@@ -10,14 +10,15 @@ description: "安全编码规范检视 — 5 语言反模式检测矩阵 + 最�
 ## 使用方式
 
 ```
-/secreview <path> [language]
+/secreview <path> <language>
 
-/secreview ./src                 # 自动检测语言
 /secreview ./src java            # Java 安全规范检视
 /secreview ./src python          # Python 安全规范检视
 /secreview ./src cpp             # C/C++ 安全规范检视
 /secreview ./src go              # Go 安全规范检视
+/secreview ./src javascript      # JavaScript 安全规范检视
 /secreview ./src java --sarif    # 输出 SARIF 格式 (CI/CD)
+/secreview ./src                 # ★ language 省略时 AI 从 index.json 自动检测
 ```
 
 ## 输出

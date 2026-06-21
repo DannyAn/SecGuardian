@@ -17,16 +17,16 @@ SecAudit 是 SecGuardian 的旗舰产品——AI 深度安全审计。它替代�
 ## 使用方式
 
 ```
-/secaudit                                    # 列出所有 17 个 skills
-/secaudit taint-analysis                     # 污点分析 — 追踪不可信数据到危险操作
-/secaudit auth-and-session                   # 认证与会话管理审计
-/secaudit cryptography                       # 密码学完整审计
-/secaudit input-validation                   # 输入验证深度审计
-/secaudit attack-surface-analysis            # 攻击面枚举
-/secaudit analysis                           # 列出 5 个分析方法类 skills
-/secaudit domain                             # 列出 12 个安全领域类 skills
-/secaudit <skill-name> [path]                # 指定审计代码路径
-/secaudit <skill-name> [path] --sarif        # 输出 SARIF 格式（CI/CD 集成）
+/secaudit <path> <language>                         # ★ 旗舰：完整 17 项审计报告
+/secaudit ./src python                              # Python 完整安全审计
+/secaudit ./src java                                # Java 完整安全审计
+/secaudit ./src cpp                                 # C/C++ 完整安全审计
+/secaudit ./src python --focus input-validation     # 单项：仅输入验证审计
+/secaudit ./src python --focus cryptography         # 单项：仅密码学审计
+/secaudit ./src python --focus taint-analysis       # 单项：仅污点分析
+/secaudit ./src python --sarif                      # 输出 SARIF 格式（CI/CD）
+/secaudit ./src python --focus input-validation --sarif  # 单项审计 + SARIF
+/secaudit                                            # 列出所有可用审计领域
 ```
 
 ## 输出
@@ -221,7 +221,7 @@ PYEOF
 
 - 如果用户未指定 skill-name，或输入为 `analysis` / `domain` / `list`，列出对应的 skills 列表。
 - 如果指定了具体的 skill-name，精确加载 `../skills/secaudit/{skill-name}/SKILL.md`。
-- 根据 `index.json` 提供的符号表和调用图、`SKILL.md` 的审计规范以及 `../knowledge/detectors/` 中相关检测器的威胁定义进行深度推理审计。
+- 根据 `index.json` 提供的符号表和调用图、`SKILL.md` 的审计规范以及 `../knowledge/guard-rules/` 中相关检测器的威胁定义进行深度推理审计。
 
 ### Step 4: 输出结构化 findings（遵循 Findings Protocol v5.0）
 
