@@ -116,7 +116,7 @@ else
         warn "Go 未安装，跳过编译测试"
     else
         echo "  编译中..."
-        if (cd internal && go build -o ../scripts/bin/secguardian-index . 2>/dev/null); then
+        if (cd internal && gc=$(mktemp -d) && GOCACHE=$gc go build -o ../scripts/bin/secguardian-index . 2>/dev/null; ec=$?; rm -rf "$gc"; exit $ec); then
             pass "Go 编译成功"
 
             # Version
