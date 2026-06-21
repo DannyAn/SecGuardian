@@ -23,7 +23,7 @@ import (
 	"github.com/secguardian/internal/parser"
 )
 
-const version = "0.5.5"
+const version = "0.6.0"
 
 func main() {
 	runIndex(os.Args[1:])
