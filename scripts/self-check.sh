@@ -16,40 +16,100 @@ echo "  SecGuardian Self-Verification"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-# ── 1. Detector filename ↔ index consistency ──
-echo "1. Detector filename consistency"
-INDEX="skills/secguard/cpp/references/detector-index.md"
-DET_DIR="knowledge/detectors"
 
-# Extract namespace.name from table rows (lines starting with | number |)
-INDEX_ENTRIES=$(grep '^| [0-9]' "$INDEX" | grep -o '\`[a-z][a-z-]*\.[a-z][a-z-]*\`' | tr -d '\`' | grep '\.' | sort -u)
-INDEX_COUNT=$(echo "$INDEX_ENTRIES" | wc -l | tr -d ' ')
+yellow() { echo "  🟡 $1"; }
+# ── 1. Knowledge rules structure ──
+echo "1. Knowledge rules structure"
+GLD_DIR="knowledge/guard-rules"
+AUD_DIR="knowledge/audit-rules"
+REV_DIR="knowledge/review-rules"
+LANG_IDX="knowledge/language-index.md"
 
-while IFS= read -r entry; do
-    [ -z "$entry" ] && continue
-    ns="${entry%%.*}"; name="${entry##*.}"
-    expected="$DET_DIR/${ns}-${name}.md"
-    if [ -f "$expected" ]; then
-        green "$entry -> $expected"
+# 1a Verify each knowledge directory has files
+for dir_name in guard-rules audit-rules review-rules; do
+    dir="knowledge/$dir_name"
+    count=$(ls "$dir"/*.md 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$count" -gt 0 ]; then
+        green "$dir: $count files"
     else
-        red "$entry -> $expected MISSING"
-    fi
-done <<< "$INDEX_ENTRIES"
-
-for f in "$DET_DIR"/*.md; do
-    base=$(basename "$f" .md)
-    ns="${base%%-*}"; name="${base#*-}"
-    ns_dot="${ns}.${name}"
-    if ! echo "$INDEX_ENTRIES" | grep -qxF "$ns_dot"; then
-        red "ORPHAN: $f (no matching index entry for $ns_dot)"
+        red "$dir missing or empty"
     fi
 done
-echo ""
 
+# 1b Verify language-index.md exists with language sections
+if [ -f "$LANG_IDX" ]; then
+    lang_count=$(grep -c '^## ' "$LANG_IDX" 2>/dev/null || echo 0)
+    if [ "$lang_count" -ge 5 ]; then
+        green "$LANG_IDX: $lang_count language sections"
+    else
+        red "$LANG_IDX: only $lang_count language sections (expected >=5)"
+    fi
+else
+    red "$LANG_IDX MISSING"
+fi
+
+# 1c Verify guard-rules filename format: namespace-name.md
+for f in "$GLD_DIR"/*.md; do
+    [ -f "$f" ] || continue
+    base=$(basename "$f" .md)
+    ns="${base%%-*}"
+    case "$ns" in
+        memory|concurrency|system|crypto|web|resource|error)
+            green "guard-rules/$base"
+            ;;
+        *)
+            red "guard-rules/$base — unknown namespace '$ns'"
+            ;;
+    esac
+done
+
+# 1d Verify guard-rules frontmatter language field is parseable
+MISSING_LANG=0
+for f in "$GLD_DIR"/*.md; do
+    [ -f "$f" ] || continue
+    base=$(basename "$f" .md)
+    if grep -q '^language:' "$f" 2>/dev/null; then
+        :
+    else
+        MISSING_LANG=$((MISSING_LANG + 1))
+        red "guard-rules/$base missing language field"
+    fi
+done
+[ "$MISSING_LANG" -eq 0 ] && green "All guard-rules have language field"
+
+# 1e Verify audit-rules structure
+AUD_COUNT=$(ls "$AUD_DIR"/*.md 2>/dev/null | wc -l | tr -d ' ')
+if [ "$AUD_COUNT" -eq 17 ]; then
+    green "audit-rules: 17 files (complete)"
+else
+    yellow "audit-rules: $AUD_COUNT files (expected 17)"
+fi
+
+# 1f Verify review-rules structure
+REV_COUNT=$(ls "$REV_DIR"/*.md 2>/dev/null | wc -l | tr -d ' ')
+for lang in cpp python java go javascript; do
+    rf="$REV_DIR/$lang.md"
+    if [ -f "$rf" ]; then
+        green "review-rules/$lang.md"
+    else
+        red "review-rules/$lang.md MISSING"
+    fi
+done
+
+# 1g Verify .toml files are auto-generated
+TOML_MISSING=0
+for cmd in secguard secaudit secreview; do
+    if [ -f "commands/gemini/$cmd.toml" ]; then
+        green "commands/gemini/$cmd.toml"
+    else
+        red "commands/gemini/$cmd.toml MISSING"
+        TOML_MISSING=$((TOML_MISSING + 1))
+    fi
+done
 # ── 2. Manifest counts vs reality ──
 echo "2. Manifest count consistency"
 MANIFEST_COUNT=$(jq '.knowledge.detectors.count' manifest.json)
-ACTUAL_COUNT=$(ls "$DET_DIR"/*.md | wc -l | tr -d ' ')
+ACTUAL_COUNT=$(ls "knowledge/guard-rules"/*.md | wc -l | tr -d ' ')
 [ "$MANIFEST_COUNT" = "$ACTUAL_COUNT" ] && \
     green "manifest.json count=$MANIFEST_COUNT matches directory count=$ACTUAL_COUNT" || \
     red "manifest.json count=$MANIFEST_COUNT != directory count=$ACTUAL_COUNT"
@@ -63,7 +123,7 @@ echo ""
 # ── 3. Commands reference correct paths ──
 echo "3. Command path consistency"
 for cmd in commands/secguard.md commands/gemini/secguard.toml; do
-    if grep -q "skills/secguard/cpp/references/detector-index.md" "$cmd" 2>/dev/null; then
+    if grep -q "knowledge/language-index.md" "$cmd" 2>/dev/null; then
         green "$cmd references correct detector-index path"
     elif grep -q "skills/secguard-cpp" "$cmd" 2>/dev/null; then
         red "$cmd references OLD path skills/secguard-cpp"
@@ -75,18 +135,17 @@ echo ""
 
 # ── 4. Namespace filter coverage ──
 echo "4. Namespace filter coverage"
-INDEX_NS=$(echo "$INDEX_ENTRIES" | sed 's/\..*//' | sort -u)
-CMD_NS=$(grep "secguard \./src " commands/secguard.md | grep -o '[a-z][a-z]*\.\*' | sed 's/\.\*//' | sort -u)
-for ns in $CMD_NS; do
-    if echo "$INDEX_NS" | grep -qxF "$ns"; then
-        count=$(echo "$INDEX_ENTRIES" | grep -c "^${ns}\." || echo 0)
-        green "filter '$ns.*' -> $count detectors"
+GUARD_DIR="knowledge/guard-rules"
+# Extract namespace prefixes from guard-rules filenames
+KNOWN_NS="memory concurrency system crypto web resource error"
+for ns in $KNOWN_NS; do
+    count=$(ls "$GUARD_DIR/${ns}-"*.md 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$count" -gt 0 ]; then
+        green "namespace $ns -> $count detectors"
     else
-        red "filter '$ns.*' -> NAMESPACE NOT FOUND"
+        red "namespace $ns -> no detectors in $GUARD_DIR"
     fi
 done
-echo ""
-
 # ── 5. Skills structure ──
 echo "5. Skills structure"
 SKILL_COUNT=0

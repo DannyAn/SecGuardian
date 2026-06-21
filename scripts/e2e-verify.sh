@@ -786,6 +786,44 @@ fi
 # Summary
 # ═══════════════════════════════════════════════
 echo ""
+# ── 12. Build → Package → Execute (L5 Pipeline) ──
+if [ "$MODE" != "quick" ]; then
+echo -e "${BOLD}${CYAN}━━━ 12. Build → Package → Execute (L5 Pipeline) ━━━${NC}"
+
+echo "  Preparing..."
+rm -rf dist/
+bash scripts/package.sh >/dev/null 2>&1
+EXT="dist/secguard-secguardian"
+
+[ -d "$EXT" ] && pass "package.sh: dist/secguard-secguardian created" || fail "BUILD FAILED"
+for dir in guard-rules audit-rules review-rules; do
+    c=$(find "$EXT/knowledge/$dir" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
+    [ "$c" -gt 0 ] && pass "knowledge/$dir: $c files" || fail "knowledge/$dir: MISSING"
+done
+[ -f "$EXT/knowledge/language-index.md" ] && pass "knowledge/language-index.md" || fail "language-index.md MISSING"
+for cmd in secguard secaudit secreview; do
+    [ -f "dist/${cmd}-secguardian/commands/${cmd}.md" ] && pass "dist/${cmd}-secguardian/commands/${cmd}.md" || fail "dist/${cmd}-secguardian MISSING"
+done
+[ -f "$EXT/.claude-plugin/plugin.json" ] && pass "plugin.json" || fail "plugin.json MISSING"
+
+tmp=$(mktemp -d)
+OUTPUT="$tmp/index.json"
+"$EXT/scripts/secguardian-index" --path "examples/cpp-vuln-demo/src" --output "$OUTPUT" >/dev/null 2>&1
+[ -f "$OUTPUT" ] && pass "indexer: index.json ($(wc -c < "$OUTPUT" | tr -d ' ') bytes)" || fail "indexer FAILED"
+
+python3 -c "
+import json
+with open('$OUTPUT') as f:
+    d = json.load(f)
+ok = True
+for name, cond in [('path present', 'path' in d),('files>0',len(d['files'])>0),('functions>0',len(d['symbols']['functions'])>0),('edges>0',len(d['call_graph']['edges'])>0)]:
+    print('    %s: %s' % (name, 'OK' if cond else 'FAIL'))
+    ok = ok and cond
+" && pass "index.json structure" || fail "index.json structure FAILED"
+
+rm -rf "$tmp" dist/
+fi
+
 echo -e "${BOLD}╔══════════════════════════════════════════════╗${NC}"
 echo -e "${BOLD}║${NC}  E2E Verification Summary                   ${BOLD}║${NC}"
 echo -e "${BOLD}╚══════════════════════════════════════════════╝${NC}"
@@ -809,6 +847,7 @@ if [ $FAIL -eq 0 ]; then
         echo "  ✓ All 3 command types handled"
         echo "  ✓ Multi-language indexer coverage"
         echo "  ✓ Verification pipeline v6.0 validated"
+        echo "  ✓ L5 build→package→execute pipeline"
     fi
     echo ""
 else

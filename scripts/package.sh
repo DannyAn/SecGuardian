@@ -12,7 +12,8 @@
 #   ├── commands/<cmd>.md
 #   ├── skills/<skill-name>/SKILL.md
 #   ├── knowledge/languages/
-#   ├── knowledge/detectors/
+#   ├── knowledge/guard-rules/
+
 #   ├── knowledge/protocols/
 #   ├── knowledge/standards/
 #   └── scripts/
@@ -27,6 +28,10 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+python3 "$PROJECT_ROOT/scripts/sync-language-index.sh"
+echo ">>> Generating Gemini .toml files..."
+python3 "$PROJECT_ROOT/scripts/sync-toml.sh"
 
 # ── Help ──────────────────────────────────────
 if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] || [ "${1:-}" = "help" ]; then
@@ -116,7 +121,12 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
     rm -rf "$dist_dir"
     mkdir -p "$dist_dir/commands" "$dist_dir/skills" \
              "$dist_dir/knowledge/languages" \
-             "$dist_dir/knowledge/detectors" "$dist_dir/knowledge/protocols" \
+             "$dist_dir/knowledge/guard-rules" \
+             "$dist_dir/knowledge/audit-rules" \
+             "$dist_dir/knowledge/review-rules" \
+             "$dist_dir/knowledge/audit-rules" \
+             "$dist_dir/knowledge/review-rules" \
+             "$dist_dir/knowledge/protocols" \
              "$dist_dir/knowledge/standards" \
              "$dist_dir/scripts/bin"
 
@@ -192,14 +202,33 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
     detector_count=0
     if jq -e '.knowledge.detectors' "$ext_json" > /dev/null 2>&1; then
         for detector in $(jq -r '.knowledge.detectors[]' "$ext_json"); do
-            df="$PROJECT_ROOT/knowledge/detectors/${detector}.md"
+            df="$PROJECT_ROOT/knowledge/guard-rules/${detector}.md"
+
             if [ -f "$df" ]; then
-                cp "$df" "$dist_dir/knowledge/detectors/"
+                cp "$df" "$dist_dir/knowledge/guard-rules/"
+
                 detector_count=$((detector_count + 1))
             fi
         done
     fi
     echo "    detectors: $detector_count"
+
+    # Copy audit-rules (all files for secaudit-* extensions)
+    mkdir -p "$dist_dir/knowledge/audit-rules"
+    for ar in "$PROJECT_ROOT/knowledge/audit-rules/"*.md; do
+        [ -f "$ar" ] && cp "$ar" "$dist_dir/knowledge/audit-rules/" 2>/dev/null || true
+    done
+
+    # Copy review-rules (all files for secreview-* extensions)
+    mkdir -p "$dist_dir/knowledge/review-rules"
+    for rr in "$PROJECT_ROOT/knowledge/review-rules/"*.md; do
+        [ -f "$rr" ] && cp "$rr" "$dist_dir/knowledge/review-rules/" 2>/dev/null || true
+    done
+
+    # Copy language-index.md
+    if [ -f "$PROJECT_ROOT/knowledge/language-index.md" ]; then
+        cp "$PROJECT_ROOT/knowledge/language-index.md" "$dist_dir/knowledge/" 2>/dev/null || true
+    fi
 
     # Copy protocols declared in extension.json (optional field)
     protocol_count=0

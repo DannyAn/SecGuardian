@@ -205,17 +205,17 @@ verify_platform() {
     check "${plat_name} skills: ${skill_count} SKILL.md files (expected 27)" \
         "[ '$skill_count' -eq 27 ]"
 
-    det_count=$(find "$plat_dir/knowledge/detectors" -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
-    # Dynamic expected count: read from extension.json detector list, count how many have files in source knowledge/detectors/
+    det_count=$(find "$plat_dir/knowledge/guard-rules" -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
+    # Dynamic expected count: read from extension.json detector list, count how many have files in source knowledge/guard-rules/
     if [ -f "$PROJECT_ROOT/extensions/secguard-secguardian/extension.json" ]; then
         det_expected=0
         for det in $(jq -r '.knowledge.detectors[]' "$PROJECT_ROOT/extensions/secguard-secguardian/extension.json" 2>/dev/null); do
-            [ -f "$PROJECT_ROOT/knowledge/detectors/${det}.md" ] && det_expected=$((det_expected + 1))
+            [ -f "$PROJECT_ROOT/knowledge/guard-rules/${det}.md" ] && det_expected=$((det_expected + 1))
         done
     else
         det_expected=16  # fallback
     fi
-    check "${plat_name} knowledge/detectors: ${det_count} .md files (expected ${det_expected})" \
+    check "${plat_name} knowledge/guard-rules: ${det_count} .md files (expected ${det_expected})" \
         "[ '$det_count' -ge '$det_expected' ]"
 
     lang_count=$(find "$plat_dir/knowledge/languages" -name '*.md' 2>/dev/null | wc -l | tr -d ' ')

@@ -29,7 +29,7 @@ echo ""
 # ── 1. 项目结构检查 ──────────────────────────
 echo -e "${BOLD}[1/5] 项目结构${NC}"
 echo "  Languages: $(ls knowledge/languages/*.md 2>/dev/null | wc -l | tr -d ' ')"
-echo "  Detectors: $(ls knowledge/detectors/*.md 2>/dev/null | wc -l | tr -d ' ')"
+echo "  Detectors: $(ls knowledge/guard-rules/*.md 2>/dev/null | wc -l | tr -d ' ')"
 echo "  Protocols: $(ls knowledge/protocols/*.md 2>/dev/null | wc -l | tr -d ' ')"
 echo "  Skills:    $(find skills -name SKILL.md -maxdepth 2 | wc -l | tr -d ' ')"
 echo "  Commands:  $(ls commands/*.md 2>/dev/null | wc -l | tr -d ' ')"

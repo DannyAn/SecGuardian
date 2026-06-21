@@ -172,7 +172,7 @@ deploy_claude() {
            "$plugin_dir"
 
     mkdir -p "$plugin_dir/.claude-plugin" "$plugin_dir/commands" "$plugin_dir/skills" \
-             "$plugin_dir/knowledge/languages" "$plugin_dir/knowledge/detectors" \
+             "$plugin_dir/knowledge/languages" "$plugin_dir/knowledge/guard-rules" \
              "$plugin_dir/knowledge/protocols" "$plugin_dir/knowledge/standards" \
              "$plugin_dir/scripts/bin"
 
@@ -226,6 +226,9 @@ JSON
     [ -f "$PROJECT_ROOT/knowledge/threat-catalog.md" ] && cp "$PROJECT_ROOT/knowledge/threat-catalog.md" "$plugin_dir/knowledge/"
     [ -f "$PROJECT_ROOT/SECURITY.md" ] && cp "$PROJECT_ROOT/SECURITY.md" "$plugin_dir/knowledge/"
     [ -d "$PROJECT_ROOT/knowledge/standards" ] && cp -r "$PROJECT_ROOT/knowledge/standards/"* "$plugin_dir/knowledge/standards/" 2>/dev/null || true
+    cp -r "$PROJECT_ROOT/knowledge/audit-rules" "$plugin_dir/knowledge/"
+    cp -r "$PROJECT_ROOT/knowledge/review-rules" "$plugin_dir/knowledge/"
+    cp "$PROJECT_ROOT/knowledge/language-index.md" "$plugin_dir/knowledge/"
 
     # Copy wrapper scripts, renderer, and binaries into plugin
     for wrapper in secguardian-index secguardian-index.ps1 render-report.py; do
@@ -587,6 +590,9 @@ JSON
     [ -f "$PROJECT_ROOT/knowledge/threat-catalog.md" ] && cp "$PROJECT_ROOT/knowledge/threat-catalog.md" "$knowledge_dir/"
     [ -f "$PROJECT_ROOT/SECURITY.md" ] && cp "$PROJECT_ROOT/SECURITY.md" "$knowledge_dir/"
     [ -d "$PROJECT_ROOT/knowledge/standards" ] && cp -r "$PROJECT_ROOT/knowledge/standards/"* "$knowledge_dir/standards/" 2>/dev/null || true
+    cp -r "$PROJECT_ROOT/knowledge/audit-rules" "$knowledge_dir/"
+    cp -r "$PROJECT_ROOT/knowledge/review-rules" "$knowledge_dir/"
+    cp "$PROJECT_ROOT/knowledge/language-index.md" "$knowledge_dir/"
 
     log_done "$cmd_n commands, $skill_n skills, knowledge/ + scripts/"
 
@@ -625,7 +631,7 @@ deploy_gemini() {
            "$ext_dir"
 
     mkdir -p "$ext_dir/commands" "$ext_dir/skills" \
-             "$ext_dir/knowledge/languages" "$ext_dir/knowledge/detectors" \
+             "$ext_dir/knowledge/languages" "$ext_dir/knowledge/guard-rules" \
              "$ext_dir/knowledge/protocols" "$ext_dir/knowledge/standards" \
              "$ext_dir/scripts/bin"
 
@@ -660,6 +666,9 @@ JSON
     [ -f "$PROJECT_ROOT/knowledge/threat-catalog.md" ] && cp "$PROJECT_ROOT/knowledge/threat-catalog.md" "$ext_dir/knowledge/"
     [ -f "$PROJECT_ROOT/SECURITY.md" ] && cp "$PROJECT_ROOT/SECURITY.md" "$ext_dir/knowledge/"
     [ -d "$PROJECT_ROOT/knowledge/standards" ] && cp -r "$PROJECT_ROOT/knowledge/standards/"* "$ext_dir/knowledge/standards/" 2>/dev/null || true
+    cp -r "$PROJECT_ROOT/knowledge/audit-rules" "$ext_dir/knowledge/"
+    cp -r "$PROJECT_ROOT/knowledge/review-rules" "$ext_dir/knowledge/"
+    cp "$PROJECT_ROOT/knowledge/language-index.md" "$ext_dir/knowledge/"
 
     # Generate TOML commands
     log_info "生成 Gemini TOML 命令..."
