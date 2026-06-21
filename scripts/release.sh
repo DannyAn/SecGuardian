@@ -80,6 +80,8 @@ log "    cd internal && go build -o secguardian-index ."
 log "Building extension packages..."
 
 cd "$PROJECT_ROOT"
+python3 scripts/sync-language-index.sh > /dev/null 2>&1
+python3 scripts/sync-toml.sh > /dev/null 2>&1
 bash scripts/package.sh > /dev/null 2>&1
 
 # Claude Code: official plugin format (.claude-plugin/plugin.json)
@@ -223,11 +225,14 @@ cat > "$OUTPUT/manifest.json" << EOF
       "type": "source"
     }
   ],
-  "detectors": 60,
+  "detectors": 67
   "cwe_top25": "25/25 (100%)",
   "owasp_top10": "10/10 (100%)",
-	  "owasp_api_top10": "10/10 (100%)",
-	  "audit_skills": 27
+  "owasp_api_top10": "10/10 (100%)",
+  "guard_rules": 67,
+  "audit_rules": 17,
+  "review_rules": 5,
+  "total_rules": 89
 }
 EOF
 done_msg "manifest.json"

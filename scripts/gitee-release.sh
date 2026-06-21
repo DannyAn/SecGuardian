@@ -152,7 +152,7 @@ log "Creating Gitee release..."
 RELEASE_BODY=$(cat <<'BODY'
 ## SecGuardian vVERSION
 
-AI Native Security Guardian — 60 个检测器，CWE Top 25 100%，OWASP Top 10 100%，27 个审计技能。
+AI Native Security Guardian — 67 个检测规则 + 17 个审计领域 + 5 个语言反模式，CWE Top 25 100%，OWASP Top 10 100%。
 
 ### 安装指南
 
@@ -205,9 +205,9 @@ bash install.sh <项目路径> --opencode
 | Claude Code | `secguardian-VERSION-claude-code.zip` | `~/.claude/extensions/`（用户级）或 `<project>/.claude/extensions/`（项目级） |
 
 安装后重启 AI CLI 即可使用：
-- `/secguard <path> [mode] [filters]` — 安全加固项排查
-- `/secaudit <skill-name> [path]` — 安全专项审计（17 项）
-- `/secreview <path> [language]` — 安全编码规范检视
+- `/secguard <path> <language> [filters]` — 安全加固项排查
+- `/secaudit <path> <language> [--focus <domain>]` — 安全专项审计（17 领域）
+- `/secreview <path> <language>` — 安全编码规范检视
 
 > **优先级说明**: 如果同时存在用户级和项目级安装，项目级优先。这一规则与 Git 配置、npm 依赖等工具的约定一致。建议日常使用用户级安装，需为特定项目定制规则时才使用项目级。
 
