@@ -448,3 +448,40 @@ Secreview 5 个 skill 从 ~45 行扩展到 ~100 行，增加结构化 Phase 1-5 
 5. **人读/机读分离** — Markdown 给人 + AI，SARIF 给 CI/CD，各司其职
 6. **命名即文档** — Phase 持久化输出 > Phase 生成 Findings
 7. **平台感知，用户无感** — 双模 parser + 五平台二进制 + 品牌扩展名，用户只管下载解压
+
+
+---
+
+## 2026-06-21 — Code Health & Hygiene — 首次 Codex 审计修复
+
+### 背景
+
+首次使用 Codex 对 SecGuardian 项目进行全盘审计，发现 7 项具体问题。这些不涉及架构变更，但影响开发者体验和 CI 可信度。按 SDD 方法论建 Feature Package 系统修复。
+
+### 发现的问题
+
+| # | 问题 | 严重度 | 修复方案 |
+|---|------|--------|---------|
+| 1 | **版本漂移**: manifest.json 已升至 0.6.0，但 main.go + 3 extension.json 仍为 0.5.5 | 🔴 CI 红线 | 4 文件同步到 0.6.0 |
+| 2 | **Go build 假阳性**: Go 1.23+ 缓存 trim 失败返回 exit 1，`2>/dev/null` 不治本 | 🟡 开发者体验 | GOCACHE 指向可写临时目录 |
+| 3 | **AGENTS.md 过时**: 版本号 (0.5.3)、测试套件描述与实际不符 | 🟡 误导 | 刷新文档 |
+| 4 | **JS 解析器漏过滤**: `try`/`do` 关键字被误认为函数名 | 🟡 准确性 | 扩充 dedup 列表 |
+| 5 | **parser_re.go 变量提取局限**: 仅 C/C++ 有声明的变量提取 | 🟡 覆盖率 | 扩展到 Go/Java/Python/JS |
+| 6 | **context/ 包测试盲区**: 核心 JSON 数据模型无单元测试 | 🟡 质量 | 添加基础测试 |
+| 7 | **go.mod 残留**: `mattn/go-pointer` 标记 indirect 但未使用 | 🔵 整洁 | `go mod tidy` |
+
+### 讨论要点
+
+- **为什么不合并到已有 Epic？** EPIC-001（核心引擎）和 EPIC-002（平台工程）聚焦架构级变更，这些是运维和修缮性质，独立 Epic 更清晰
+- **SDD 简化**: 这是纯修复（非新功能），ADR 只记录关键设计决策而非架构方案
+- **测试策略**: `context/` 包测试不追求全覆盖，优先验证 JSON 序列化/反序列化和核心类型正确性
+
+### 影响范围
+
+- `internal/main.go`, `extensions/*/extension.json` (版本号)
+- `scripts/self-check.sh`, `scripts/ci-check.sh` (GOCACHE)
+- `AGENTS.md` (文档)
+- `internal/parser/parser_javascript.go` (JS 过滤)
+- `internal/parser/parser_re.go` (变量提取)
+- `internal/context/` (新测试文件)
+- `internal/go.mod`, `internal/go.sum` (依赖清理)
