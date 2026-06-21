@@ -153,8 +153,7 @@ func ParseFile(filePath string, lang string) (*ParseResult, error) {
 			pos := strings.Index(string(content), m[0])
 			lineNo := uint(1)
 			if pos >= 0 {
-				lineNo = uint(strings.Count(string(content)[:pos], "
-") + 1)
+				lineNo = uint(strings.Count(string(content)[:pos], "\n") + 1)
 			}
 			result.Variables = append(result.Variables, VariableInfo{
 				Name: name,
@@ -176,8 +175,7 @@ func ParseFile(filePath string, lang string) (*ParseResult, error) {
 			pos := strings.Index(string(content), m[0])
 			lineNo := uint(1)
 			if pos >= 0 {
-				lineNo = uint(strings.Count(string(content)[:pos], "
-") + 1)
+				lineNo = uint(strings.Count(string(content)[:pos], "\n") + 1)
 			}
 			result.Variables = append(result.Variables, VariableInfo{
 				Name: name,
@@ -199,8 +197,7 @@ func ParseFile(filePath string, lang string) (*ParseResult, error) {
 			pos := strings.Index(string(content), m[0])
 			lineNo := uint(1)
 			if pos >= 0 {
-				lineNo = uint(strings.Count(string(content)[:pos], "
-") + 1)
+				lineNo = uint(strings.Count(string(content)[:pos], "\n") + 1)
 			}
 			result.Variables = append(result.Variables, VariableInfo{
 				Name: name,
