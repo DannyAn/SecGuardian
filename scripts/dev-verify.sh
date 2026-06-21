@@ -228,6 +228,17 @@ verify_platform() {
 
 verify_platform "$PROJECT_ROOT/.claude/plugins/secguardian" "Claude Code"
 verify_platform "$PROJECT_ROOT/.opencode/extensions/secguardian" "OpenCode"
+
+# Verify opencode-plugin.js content (deployed separately from extension)
+OPENCODE_PLUGIN="$PROJECT_ROOT/.opencode/plugins/secguardian.js"
+[ -f "$OPENCODE_PLUGIN" ] && {
+  HAS_K=$(grep -c 'cfg.knowledge' "$OPENCODE_PLUGIN" 2>/dev/null || echo 0)
+  HAS_S=$(grep -c 'cfg.skills' "$OPENCODE_PLUGIN" 2>/dev/null || echo 0)
+  HAS_C=$(grep -c 'cfg.command' "$OPENCODE_PLUGIN" 2>/dev/null || echo 0)
+  [ "$HAS_K" -gt 0 ] && [ "$HAS_S" -gt 0 ] && [ "$HAS_C" -gt 0 ] && 
+    green "opencode-plugin.js: knowledge+skills+commands" || 
+    red "opencode-plugin.js: missing (k=$HAS_K s=$HAS_S c=$HAS_C)"
+} || red "opencode-plugin.js NOT FOUND"
 verify_platform "$PROJECT_ROOT/.gemini/extensions/secguardian" "Gemini CLI"
 
 # ═══════════════════════════════════════════

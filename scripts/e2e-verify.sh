@@ -821,6 +821,17 @@ for name, cond in [('path present', 'path' in d),('files>0',len(d['files'])>0),(
     ok = ok and cond
 " && pass "index.json structure" || fail "index.json structure FAILED"
 
+# Verify opencode-plugin.js source has required registrations
+OPENCODE_PLUGIN_SRC="$PROJECT_ROOT/scripts/opencode-plugin.js"
+if [ -f "$OPENCODE_PLUGIN_SRC" ]; then
+    K=$(grep -c 'cfg.knowledge' "$OPENCODE_PLUGIN_SRC" 2>/dev/null || echo 0)
+    S=$(grep -c 'cfg.skills' "$OPENCODE_PLUGIN_SRC" 2>/dev/null || echo 0)
+    C=$(grep -c 'cfg.command' "$OPENCODE_PLUGIN_SRC" 2>/dev/null || echo 0)
+    [ "$K" -gt 0 ] && [ "$S" -gt 0 ] && [ "$C" -gt 0 ] &&         pass "opencode-plugin.js: knowledge+skills+commands" ||         fail "opencode-plugin.js: missing (k=$K s=$S c=$C)"
+else
+    fail "opencode-plugin.js NOT FOUND at $OPENCODE_PLUGIN_SRC"
+fi
+
 rm -rf "$tmp" dist/
 fi
 
