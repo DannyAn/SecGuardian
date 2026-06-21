@@ -5,6 +5,177 @@
 
 ---
 
+## 2026-06-21 — 命令接口统一 + SecAudit 工作流旗舰化 + Detector 索引自动生成
+
+### 背景
+
+2026-06-21 对 project-codeguard（CoSAI/OASIS 开源项目）进行全量代码学习。识别出 SecGuardian 三个核心差距：
+
+1. **命令参数歧义**：三个命令各有一套参数格式（secguard=`<path> [mode] [filters]`, secreview=`<path> [language]`, secaudit=`<skill-name> [path]`）。language 有时是第二参数、有时自动检测、有时不存在，AI 解析容易出歧义。
+2. **Detector 索引手工维护**：`skills/secguard/cpp/references/language-index.md` 是手工抄写的 detector 列表，和 61 个 detector 的 frontmatter `language` 字段不同步，必然产生 drift。
+3. **SecAudit 不是工作流**：secaudit 暴露 17 个独立 skill 给用户逐个调用，违背了"旗舰产品是出一份完整审计报告"的原始设计意图。用户需要 `/secaudit ./src python` 一次性跑全部 17 项 + 整合报告，而不是自己一项一项选。
+
+### 讨论要点
+
+#### 1. 命令参数统一方向（方式 A：language 固定为第二位置参数）
+
+- **方案 A (选中)**: `/secguard <path> <language> [filters]` — language 是必需的第二个位置参数。README 示例 `/secguard examples/cpp-vuln-demo/src cpp` 原本就这么写，但 commands/secguard.md 丢失了 language，导致两套格式不一致。选择此方案是因为它消除了解析歧义，AI 不再需要猜第二个参数是 filter 还是 language。
+- **方案 B (否决)**: 用 flag 消除歧义（`--lang python --filter memory.*`）— 太长，不符合 slash command 的简洁直觉。
+- **方案 C (否决)**: AI 自动检测语言（保留现状）— 用户指定 `memory.*` 时 AI 无法判断这是 filter 还是 language。
+
+**secreview 对齐**：从 `/secreview <path> [language]`（language 可选）改为 `/secreview <path> <language>`（language 显式）。向后兼容：如果用户不提供 language，AI 从 index.json 自动检测作为 fallback。
+
+**secaudit 反思**：secaudit 的原始设计是 `/secaudit taint-analysis`（skill 名作为主参数），但用户指出这不符合"旗舰产品出一份完整审计报告"的预期。讨论后决定：
+- 保留 secaudit 的 position 1 为 `path`、position 2 为 `language`，和 secguard/secreview 统一
+- 移除"选 skill 跑"作为默认入口。17 个独立 skill 降级为 workflow 内部的 phase
+- user 可通过 `--focus <skill-name>` 跳过其他 phase（开发中的性能优化选项）
+
+最终三个命令格式统一为：
+
+```
+/secguard  <path> <language> [filters]    # 漏洞发现
+/secreview <path> <language>              # 规范检视
+/secaudit  <path> <language>              # ★ 旗舰：完整审计报告
+```
+
+#### 2. Detector 索引自动化
+
+- **问题**: 61 个 detector 各有 `language` 字段，但 AI 必须全部读取才能知道哪些给 cpp、哪些给 python。`language-index.md` 是手工维持的"索引缓存"，必然 drift。
+- **方案 A (选中)**: 构建时自动生成 `knowledge/guard-rules/language-index.md`。扫描 `knowledge/guard-rules/*.md` 的 frontmatter `language` 字段，按语言归类。AI 一步步读 Markdown（`## cpp` 一行就知道目标位置），不需要解析 JSON。
+- **方案 B (否决)**: `language-index.json` — JSON 的引号/逗号 token 开销比纯 Markdown 大 30-50%，对 LLM 上下文不友好。
+- **方案 C (否决)**: 在 Go indexer 层面加语言过滤（`--lang cpp`）— 做不到，indexer 是 AST 解析器，不做 detector 过滤。
+
+`language-index.md` 在 `language-index.md` 生效后退役，所有引用它的 10+ 个文件统一指向新索引。
+
+#### 3. Gemini .toml 同步
+
+`commands/gemini/*.toml` 是三个 `.md` 的 TOML 副本，人工维护必然 drift。决定在 build 时从 `.md` 自动生成 `.toml`，三份 `.toml` 不再手工编辑。
+
+对 project-codeguard 的 format converter 模式进行了评估。它的 Python 转化管线（`BaseFormat` → 10 个 IDE 子类）对我们过于重量级——我们只有 3 个输出格式（Claude Code 读 `.md`、OpenCode 读 `.md`、Gemini 读 `.toml`），不需要抽象基类体系。一个 shell-level 的 wrapper 函数即可。
+
+#### 4. SecAudit 工作流 skill
+
+**设计反思——第零版（否决）**：最初设想将 17 个独立 SKILL.md 保留在 `skills/secaudit/` 下，全量时 workflow 编排它们，单项时 `--focus` 直接引用。这个方案被否决，原因是：
+
+- 17 个 skill = 17 个调度入口，command 层必须解决并行/串行/依赖管理——这不是 command 该做的事
+- `skills/` 是 workflow 层，不是知识层。17 个 skill 的审计逻辑本质上是**审计知识**，不应嵌在 workflow 层
+- 与 secguard 的架构不一致：secguard 的 60+ detector 放在 `knowledge/guard-rules/`，不是做成 60 个 skill
+
+**正确方案：知识层与 worklow 层分离。**
+
+```
+knowledge/
+  guard-rules/   ← 61 个 API 级规则（已有，改名）
+  audit-rules/          ← ★ 新增：17 个审计领域知识，替代 skills/secaudit/*/SKILL.md
+    input-validation.md   ← 审计 checklist + OWASP 引用 + 检测模式
+    cryptography.md
+    auth-and-session.md
+    attack-surface-analysis.md
+    ...（共 17 个）
+
+skills/
+  secaudit/
+    workflow-secaudit/    ← ★ 唯一 skill：编排审计工作流
+      SKILL.md             ← Phase 1-17 编排 + 路由逻辑
+```
+
+**project-codeguard 的参考**：它的 `security-review` skill 就是一个 SKILL.md，23 个规则全在 `sources/rules/core/`（知识层）。workflow 从知识层加载规则，不依赖子 skill。没有"23 个 skill 怎么调度"的问题——因为根本没有 23 个 skill，只有 1 个。
+
+**对称性**：
+
+| 产品 | Workflow 层（skills/） | 知识层（knowledge/） |
+|------|----------------------|--------------------|
+| secguard | 5 个语言 skill | `guard-rules/` 61 个检测规则 |
+| secaudit | **1 个** workflow skill | `guard-rules/` + `audit-rules/` 17 个审计领域规则 |
+
+两个产品的 workflow 层都保持极薄，真正的逻辑在 knowledge 层。
+
+**全量/单项路由逻辑由唯一 skill 内部处理**，不做 command 层分发：
+
+```
+/secaudit ./src python
+  → workflow-secaudit 加载：
+      - knowledge/guard-rules/ （语言过滤后的检测规则，按 namespace 匹配）
+      - knowledge/audit-rules/ （全部 17 个审计领域）
+  → Phase 1-17 顺序执行，整合报告
+
+/secaudit ./src python --focus input-validation
+  → workflow-secaudit 加载：
+      - knowledge/guard-rules/ （语言过滤后的检测规则，按 namespace 匹配）
+      - knowledge/audit-rules/input-validation.md （仅这个领域）
+  → 只跑 input-validation phase
+```
+
+17 个原始 `skills/secaudit/*/SKILL.md` 迁移到 `knowledge/audit-rules/*.md`，知识内容不变，位置变了。
+
+#### 5. Step 2.5 的职责纠正
+
+之前的误设计：Step 2.5 试图用 index.json 符号表"确认代码是否真的需要跑某些 detector"。这错误的根本原因是 Step 2.5 试图做 detector 选择，而这已经是 language + filter 两层筛完的事了。
+
+修正后：Step 2.5 只做**执行效率优化**。加载了完整的 detector 集合后，读 index.json 给每个 detector 找靶子（alloc_free.pairs → memory.double-free 的检查目标；call_graph → 被调用危险函数的入口）。不跳过任何 detector。
+
+#### 4.5 三个知识库 vs 一个知识库
+
+三个产品对应三个不同的知识粒度，各自有独立的组织方式：
+
+| 产品 | 知识目录 | 粒度 | 组织方式 | 数量 |
+|------|---------|------|---------|------|
+| secguard | `knowledge/guard-rules/` | API/函数调用级 | 按 namespace | 61 |
+| secaudit | `knowledge/audit-rules/` | 架构/领域级 | 按安全领域 | 17 |
+| secreview | `knowledge/review-rules/` | 代码样式/模式级 | 按语言 | 5 |
+
+**命名原则**：统一使用 `{product}-rules/` 模式。不引入 `detectors`、`domains`、`rules` 三个不同后缀，降低认知负担。所有知识都是"规则"，只是服务于不同产品。
+
+**为什么不合并到同一个目录加 type 字段？**
+
+考虑过统一放到 `knowledge/rules/` 下用 `type: guard | audit | review` 区分。
+否决原因：三种知识的粒度不同，AI 消费方式不同。
+
+```
+guard-rules/ 的消费方式：AI 按 language + filter 加载多个独立文件
+audit-rules/ 的消费方式：AI 按 domain 加载一个领域文件，内部引用相关 secguard 规则
+review-rules/ 的消费方式：AI 按语言加载一个语言文件，逐条对照检测
+```
+
+消费方式的差异决定了目录层级是最好的区分方式——AI 不需要读 `type` 字段来判断文件归属，目录名本身就是身份。每个目录的 frontmatter schema 也可以独立演进。
+
+**迁移路径**：
+
+| 当前路径 | 迁移到 |
+|---------|-------|
+| `knowledge/guard-rules/*.md`（61 个） | `knowledge/guard-rules/*.md` |
+| `skills/secaudit/*/SKILL.md`（17 个审计领域） | `knowledge/audit-rules/*.md` |
+| `skills/secreview/*/references/*-anti-patterns.md`（5 个） | `knowledge/review-rules/*.md` |
+
+### 最终方案
+
+本次特性以 EPIC-004 立项，覆盖 6 项改造：
+
+| # | 改造 | 类型 | 文件影响量 |
+|---|------|------|-----------|
+| 1 | 三命令参数统一 `<path> <language>` | 接口 | 3 commands + 3 gemini |
+| 2 | `language-index.md` 自动生成（替换手工 `language-index.md`） | 构建 | 新增 sync 脚本，删除 1 手工文件 |
+| 3 | `commands/gemini/*.toml` 构建时自动生成 | 构建 | 3 个 .toml 变 gitignore |
+| 4 | SecAudit 旗舰工作流（1 workflow skill + `knowledge/audit-rules/` 17 个审计领域规则） | 产品 | 新增 workflow skill + 迁移 17 个 skills → audit-rules |
+| 5 | SecReview 反模式知识迁移（`skills/*/references/*.md` → `knowledge/review-rules/`） | 知识层 | 迁移 5 个反模式文件 |
+| 6 | Step 2.5 职责纠正（只优化，不跳过） | 流程 | 1 commands |
+
+### 不纳入本次特性的
+
+- MCP Server（已有 FEATURE-002-mcp-server 独立追踪，后续第二轮审视）
+- 三轮验证管道（已有 FEATURE-003-verification-pipeline 独立追踪）
+- Detector 内容本身的修改（不改 frontmatter schema，只新增 consumer）
+
+### 待决问题
+
+| # | 问题 | 影响 |
+|---|------|------|
+| Q1 | secaudit 的 `--focus <skill-name>` 是否 v1 就做？还是 v2 再说？ | 接口设计 |
+| Q2 | `language-index.md` 是否应该 git 跟踪？还是 build artifact？ | 开发工作流 |
+| Q3 | secguard 的 git-diff 增量模式参数如何对齐新的 `<path> <language>` 格式？ | 接口设计 |
+
+
+
 ## 2026-06-17 — 五轮→三轮设计修正（端到端数据反推）
 
 ### 背景
@@ -286,7 +457,7 @@ skills/
 |------|------|
 | `crypto-algorithms.md` | 删除 — 9 个 crypto detectors 已逐个覆盖 |
 | `injection-patterns.md` | 删除 — detectors 已含逐语言检测逻辑 |
-| `secrets-detection.md` | 迁移 → `knowledge/detectors/` |
+| `secrets-detection.md` | 迁移 → `knowledge/guard-rules/` |
 | `tls-config.md` | 迁移 → `skills/secaudit/secure-transport/references/` |
 
 ### 教训
