@@ -91,6 +91,7 @@ Language: Java (auto-detected)
 - [ ] 定位索引器 wrapper：检查 `.opencode/extensions/secguardian/`（项目级）→ `~/.config/opencode/extensions/secguardian/`（用户级）→ `.gemini/` → `.claude/` → `scripts/` 回退（至少一个存在且可执行）
 - [ ] 执行 `{indexer} --health` 通过（输出必须包含 `HEALTH:OK` 或 `HEALTH:WARN`，不接受 `HEALTH:FAIL`）
 - [ ] 目标路径 `<path>` 存在且包含至少一个源码文件
+- [ ] **语言推断（仅当用户未提供 `language` 参数时）**：检查 `<path>` 下源码文件扩展名 → `*.c/*.cpp/*.h` → `cpp`, `*.py` → `python`, `*.java` → `java`, `*.go` → `go`。无需询问用户，扩展名即可判定。
 - [ ] 确认不会启动 clangd/LSP/compile_commands.json/bear 等外部工具 — indexer (tree-sitter) 已提供符号表+调用图+文件清单，所有代码结构数据从 index.json 获取
 
 > 若未通过，报告具体哪一项失败并终止。不要降级为手工逐文件检视。
@@ -184,6 +185,8 @@ python3 scripts/validate-index.py \
 ```
 
 关键要求（secreview 独有）：
+  - `detector` 字段必须使用 `namespace.name` 格式（如 `error.exception-swallow`），
+    与 guard-rules 命名一致。禁止使用裸名（如 `exception-swallow`）。
 - `evidence.judgment_rationale` 必须引用对应语言的安全编码规范（SEI CERT / OWASP / Go Security Guidelines）
 - `secreview_specific.review_focus` — 本次检视的焦点领域
 
