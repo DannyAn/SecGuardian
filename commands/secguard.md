@@ -188,6 +188,29 @@ INDEX_FILE 输出示例:
 }
 ```
 
+**finding 字段检查清单 — 每个 finding 必须包含以下所有字段，否则 validate-findings.py 将拒绝：**
+
+| 路径 | 必填 | 字段名（注意全用小写 snake_case） |
+|------|------|----------------------------------|
+| `finding.id` | ✅ | 唯一标识 |
+| `finding.severity` | ✅ | Critical/High/Medium/Low/Info |
+| `finding.cwe` | ✅ | CWE 编号，如 CWE-89 |
+| `finding.detector` | ✅ | 必须用 `namespace.name` 格式 |
+| `finding.file` | ✅ | 源码文件路径 |
+| `finding.line` | ✅ | 行号 |
+| `finding.location.file_path` | ✅ | `file_path`，不是 `file` |
+| `finding.location.start_line` | ✅ | 起始行号 |
+| `finding.location.snippet` | ✅ | `snippet`，不是 `code_snippet` |
+| `finding.evidence.code_context` | ✅ | 代码上下文 |
+| `finding.evidence.judgment_rationale` | ✅ | 判断依据 |
+| `finding.impact.attack_scenario` | ✅ | `attack_scenario`，不是 `attack_path` |
+| `finding.impact.cvss_score` | ✅ | CVSS 评分 |
+| `finding.fix.before_code` | ✅ | `before_code`，不是 `code_before` |
+| `finding.fix.after_code` | ✅ | `after_code`，不是 `code_after` |
+
+}
+```
+
 
 ### Step 2.5: 扫描目标定位（仅优化执行效率，不跳过任何检测器）
 
@@ -371,11 +394,28 @@ findings/crypto/password-storage/H-CRYPTO-crypto_utils-L20.json
     "function": "get_user",
     "title": "SQL injection via f-string query construction",
     "fix_summary": "使用参数化查询替代 f-string 拼接",
-    "location": { ... },
-    "evidence": { ... },
-    "impact": { ... },
-    "fix": { ... },
-    "sarif_specific": { ... }
+    "location": {
+      "file_path": "src/webapp.py",
+      "start_line": 47,
+      "function_name": "get_user",
+      "snippet": "cursor.execute(f\"SELECT * FROM users WHERE id = {user_id}\")"
+    },
+    "evidence": {
+      "code_context": "cursor.execute(f\"...{user_id}...\")",
+      "judgment_rationale": "用户输入直接拼接 SQL — 违反 OWASP A03:2021"
+    },
+    "impact": {
+      "attack_scenario": "攻击者通过 SQL 注入窃取所有用户数据",
+      "cvss_score": 9.8
+    },
+    "fix": {
+      "description": "使用参数化查询替代 f-string 拼接",
+      "before_code": "cursor.execute(f\"...{user_id}\")",
+      "after_code": "cursor.execute(\"SELECT * FROM users WHERE id = ?\", (user_id,))"
+    },
+    "sarif_specific": {
+      "fingerprint": "89-sqli-get_user"
+    }
   }
 }
 ```

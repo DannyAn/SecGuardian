@@ -227,6 +227,22 @@ def _ensure_fields(f):
     fi = f.setdefault('fix', {})
     fi.setdefault('before_code', 'N/A')
     fi.setdefault('after_code', 'N/A')
+    # 别名映射: 兼容 agent 可能使用的非标准字段名
+    loc = f.get('location')
+    if isinstance(loc, dict):
+        if 'file' in loc and 'file_path' not in loc:
+            loc['file_path'] = loc['file']
+        if 'code_snippet' in loc and 'snippet' not in loc:
+            loc['snippet'] = loc['code_snippet']
+    ev = f.get('evidence')
+    if isinstance(ev, dict):
+        pass  # evidence names are standard
+    fi = f.get('fix')
+    if isinstance(fi, dict):
+        if 'code_before' in fi and 'before_code' not in fi:
+            fi['before_code'] = fi['code_before']
+        if 'code_after' in fi and 'after_code' not in fi:
+            fi['after_code'] = fi['code_after']
     fi.setdefault('description', f.get('fix_summary', 'N/A'))
 
     return f
