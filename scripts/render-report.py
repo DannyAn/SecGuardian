@@ -235,8 +235,15 @@ def load_findings_from_tree(findings_dir):
                     continue
                 # Support {"finding": {...}} wrapper (v5.0) and bare Finding object
                 if isinstance(data, dict) and 'finding' in data:
-                    findings.append(data['finding'])
+                    f = data['finding']
+                    # Normalize: copy location.file_path to root-level 'file' if missing
+                    if 'file' not in f and 'location' in f and f['location'].get('file_path'):
+                        f['file'] = f['location']['file_path']
+                    findings.append(f)
                 elif isinstance(data, dict) and 'id' in data:
+                    # Same normalization for bare findings
+                    if 'file' not in data and 'location' in data and data['location'].get('file_path'):
+                        data['file'] = data['location']['file_path']
                     findings.append(data)
                 else:
                     print(f"WARNING: Skipping {filepath} — missing 'finding' wrapper or 'id' field", file=sys.stderr)

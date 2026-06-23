@@ -173,8 +173,26 @@ python3 scripts/validate-index.py \
     "severity": "High",
     "cwe": "CWE-390",
     "detector": "error.exception-swallow",
+    "file": "src/UserService.java",
+    "line": 89,
+    "location": {
+      "file_path": "src/UserService.java",
+      "start_line": 89,
+      "end_line": 92,
+      "function_name": "login",
+      "snippet": "try { ... } catch (Exception e) {}"
+    },
     "evidence": {
       "judgment_rationale": "空 catch 块吞掉异常 — 违反 SEI CERT ERR00-J"
+    },
+    "impact": {
+      "attack_scenario": "攻击尝试无法被追踪审计",
+      "cvss_score": 3.3
+    },
+    "fix": {
+      "description": "空 catch 块至少添加错误日志",
+      "before_code": "try { ... } catch (Exception e) {}",
+      "after_code": "try { ... } catch (Exception e) { logger.warn('login failed', e); }"
     },
     "secreview_specific": {
       "review_type": "full",
@@ -189,6 +207,8 @@ python3 scripts/validate-index.py \
     与 guard-rules 命名一致。禁止使用裸名（如 `exception-swallow`）。
 - `evidence.judgment_rationale` 必须引用对应语言的安全编码规范（SEI CERT / OWASP / Go Security Guidelines）
 - `secreview_specific.review_focus` — 本次检视的焦点领域
+- **必须包含** `file`、`line`、`location`、`impact`、`fix` 字段（与 secguard 格式一致）。
+  缺少 `file` 字段会导致渲染器报告 `KeyError`。
 
 **4b. 输出轻量 `findings.json` + 自检完整性：**
 
