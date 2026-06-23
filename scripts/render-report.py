@@ -193,6 +193,45 @@ def calc_grade(score):
     return "F"
 
 
+
+def _ensure_fields(f):
+    """Normalize finding fields: fill in defaults for all renderer-required fields.
+
+    Different command types (secguard/secaudit/secreview) produce findings with
+    different field structures. This function ensures the renderer never crashes
+    with KeyError regardless of what fields the agent includes.
+    """
+    # Root-level required fields with fallbacks
+    if not f.get('file'):
+        loc = f.get('location', {})
+        f['file'] = loc.get('file_path', 'unknown') if isinstance(loc, dict) else 'unknown'
+    if not f.get('line') and f.get('line') != 0:
+        loc = f.get('location', {})
+        f['line'] = loc.get('start_line', 0) if isinstance(loc, dict) else 0
+    f.setdefault('severity', 'Medium')
+    f.setdefault('cwe', 'CWE-000')
+    f.setdefault('detector', 'unknown')
+    f.setdefault('title', f.get('fix_summary', 'Security Finding'))
+    f.setdefault('function', (f.get('location') or {}).get('function_name', 'N/A'))
+
+    # Nested field defaults
+    ev = f.setdefault('evidence', {})
+    ev.setdefault('judgment_rationale', 'N/A')
+    ev.setdefault('code_context', 'N/A')
+
+    imp = f.setdefault('impact', {})
+    imp.setdefault('attack_scenario', 'N/A')
+    if imp.get('cvss_score') is None:
+        imp['cvss_score'] = 0.0
+
+    fi = f.setdefault('fix', {})
+    fi.setdefault('before_code', 'N/A')
+    fi.setdefault('after_code', 'N/A')
+    fi.setdefault('description', f.get('fix_summary', 'N/A'))
+
+    return f
+
+
 def severity_emoji(severity):
     return {"Critical": "🔴", "High": "🟠", "Medium": "🟡", "Low": "🔵", "Info": "⚪"}.get(severity, "⚪")
 
@@ -235,16 +274,9 @@ def load_findings_from_tree(findings_dir):
                     continue
                 # Support {"finding": {...}} wrapper (v5.0) and bare Finding object
                 if isinstance(data, dict) and 'finding' in data:
-                    f = data['finding']
-                    # Normalize: copy location.file_path to root-level 'file' if missing
-                    if 'file' not in f and 'location' in f and f['location'].get('file_path'):
-                        f['file'] = f['location']['file_path']
-                    findings.append(f)
+                    findings.append(_ensure_fields(data['finding']))
                 elif isinstance(data, dict) and 'id' in data:
-                    # Same normalization for bare findings
-                    if 'file' not in data and 'location' in data and data['location'].get('file_path'):
-                        data['file'] = data['location']['file_path']
-                    findings.append(data)
+                    findings.append(_ensure_fields(data))
                 else:
                     print(f"WARNING: Skipping {filepath} — missing 'finding' wrapper or 'id' field", file=sys.stderr)
     return findings
