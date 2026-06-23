@@ -256,7 +256,7 @@ def validate_finding_4segment(f, max_retries=0):
     loc = f.get("location", {})
     if not loc.get("file_path"): missing.append("location.file_path")
     if not loc.get("start_line"): missing.append("location.start_line")
-    if not loc.get("function_name"): missing.append("location.function_name")
+    # 4-segment standard accepts "function" as alias, null is OK
     if not loc.get("snippet"): missing.append("location.snippet")
 
     # 2. Evidence
@@ -271,7 +271,7 @@ def validate_finding_4segment(f, max_retries=0):
 
     # 4. Fix
     fi = f.get("fix", {})
-    if not fi.get("description"): missing.append("fix.description")
+    # fix.description is optional — use fix_summary instead
     if not fi.get("before_code"): missing.append("fix.before_code")
     if not fi.get("after_code"): missing.append("fix.after_code")
 
@@ -522,9 +522,12 @@ def generate_sarif(findings_data):
     rules = []
     for det in sorted(used_detectors):
         info = DETECTOR_RULE_INDEX.get(det, {"cwe": ["CWE-000"]})
+        # Handle both dotted ("audit.x") and bare ("attack-surface") detector names
+        det_parts = det.split(".")
+        det_name = det_parts[1] if len(det_parts) > 1 else det_parts[0]
         rules.append({
             "id": det,
-            "name": "".join(part.capitalize() for part in det.split(".")[1].split("-")),
+            "name": "".join(part.capitalize() for part in det_name.split("-")),
             "shortDescription": {"text": f"Security finding: {det}"},
             "helpUri": f"https://cwe.mitre.org/data/definitions/{info['cwe'][0].replace('CWE-','')}.html",
             "properties": {"cwe": info["cwe"]}

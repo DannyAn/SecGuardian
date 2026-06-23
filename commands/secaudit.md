@@ -181,6 +181,10 @@ python3 scripts/validate-index.py \
 
 **4a. 按 detector 分组，以 finding ID 为文件名逐文件输出：**
 
+> **重要: detector 命名约定** — 每个 finding 的 `detector` 字段必须使用 `audit.{skill-name}` 格式，
+> 例如 `audit.attack-surface-analysis`、`audit.taint-analysis`、`audit.cryptography`。
+> 不得使用裸名 (如 `attack-surface-analysis`)，否则 SARIF 生成器会报 `IndexError`。
+
 每个 finding 写入独立文件，路径格式如 secguard Step 4a（见 `commands/secguard.md`），额外包含 `secaudit_specific` 字段：
 
 ```json
