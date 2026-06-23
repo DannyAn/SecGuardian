@@ -833,6 +833,14 @@ else
 fi
 
 rm -rf "$tmp" dist/
+
+# ── 13. Cross-Language Pipeline Verification ──
+section "13. Cross-Language Pipeline Verification"
+if bash "$PROJECT_ROOT/scripts/verify-lang-pipeline.sh" >/dev/null 2>&1; then
+    pass "All 4 languages pass full pipeline"
+else
+    fail "Cross-language pipeline test FAILED"
+fi
 fi
 
 echo -e "${BOLD}╔══════════════════════════════════════════════╗${NC}"

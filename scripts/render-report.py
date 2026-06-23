@@ -174,6 +174,10 @@ def load_json(path):
         sys.exit(1)
 
 
+def safe_len(obj):
+    """安全获取长度: None -> 0, list -> len(list)"""
+    return len(obj) if isinstance(obj, (list, dict, str)) else 0
+
 def calc_score(findings):
     """Calculate security score from findings list."""
     weights = {"Critical": 25, "High": 10, "Medium": 3, "Low": 1, "Info": 0}
@@ -418,7 +422,17 @@ def generate_report_md(findings_data):
         data_flow = ev.get("data_flow_path", [])
         if data_flow:
             lines.append("**Data Flow Path:**")
+            # data_flow_path 可以是：
+            #   1) [{"step":"source","file":"a.c","line":1,"description":"d"}, ...]  (v4 协议 dict 列表)
+            #   2) "malloc → buf → return → leak"  (v5 协议简化字符串)
+            if isinstance(data_flow, str):
+                lines.append(f"  {data_flow}")
+                lines.append("")
+                continue
             for step in data_flow:
+                if isinstance(step, str):
+                    lines.append(f"  {step}")
+                    continue
                 step_label = {"source": "SOURCE", "propagation": "→ PROPAGATION", "sink": "→ SINK"}
                 prefix = step_label.get(step.get("step", ""), "  ")
                 lines.append(f"  {prefix}: {step.get('file','')}:{step.get('line','')} — {step.get('description','')}")
@@ -543,9 +557,21 @@ def generate_sarif(findings_data):
         # Build relatedLocations (data flow)
         related = []
         data_flow = ev.get("data_flow_path", [])
-        for step in data_flow:
+        if isinstance(data_flow, str):
             related.append({
-                "physicalLocation": {
+                "physicalLocation": {"artifactLocation": {"uri": f["file"]}},
+                "message": {"text": data_flow}
+            })
+        else:
+            for step in data_flow:
+                if isinstance(step, str):
+                    related.append({
+                        "physicalLocation": {"artifactLocation": {"uri": f["file"]}},
+                        "message": {"text": step}
+                    })
+                    continue
+                related.append({
+                    "physicalLocation": {
                     "artifactLocation": {"uri": step["file"]},
                     "region": {"startLine": step["line"]}
                 },
@@ -880,8 +906,8 @@ Examples:
             findings_data["scope"] = {
                 "files": len(index_data.get("files", [])),
                 "lines": 0,  # indexer doesn't count lines
-                "functions": len(index_data.get("symbols", {}).get("functions", [])),
-                "call_edges": len(index_data.get("call_graph", {}).get("edges", []))
+                "functions": safe_len(index_data.get("symbols", {}).get("functions", [])),
+                "call_edges": safe_len(index_data.get("call_graph", {}).get("edges", []))
             }
 
     # Ensure output dir

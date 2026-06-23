@@ -152,70 +152,21 @@ find_indexer() {
 }
 find_indexer
 $INDEXER --path <path> --output .codeagent/secaudit-secguardian/scans/<scan_id>/index.json
+if [ $? -ne 0 ]; then echo "FATAL: Indexer failed — cannot continue"; exit 1; fi
 ```
 
 **2b. 验证索引完整性 + 生成结构化摘要（必须通过）：**
 
 执行以下脚本。若返回非 0，**立即终止审计**并向用户报告索引生成出错。
-若成功，直接读取输出的 JSON 摘要作为后续所有步骤的上下文，**禁止自己写 Python 去探测索引结构**。
+若成功，直接读取输出的 JSON 摘要作为后续所有步骤的上下文，**禁止自己写 Python 或 shell 去重新解析 index.json**。
+
+> ⚠️ 此脚本自动处理不同语言索引器输出差异，对 `None`/`null` 值安全。
 
 ```bash
-INDEX_FILE=.codeagent/secaudit-secguardian/scans/<scan_id>/index.json
-python3 << 'PYEOF'
-import json, sys, os
-from collections import Counter
-
-with open(os.environ['INDEX_FILE']) as f:
-    d = json.load(f)
-
-# ── 校验 ──
-assert len(d.get('files',[])) > 0, 'FATAL: index contains no files'
-assert 'symbols' in d, 'FATAL: index missing symbols'
-assert 'call_graph' in d, 'FATAL: index missing call_graph'
-
-# ── 语言检测（健壮扩展名映射） ──
-EXT_MAP = {
-    'c': 'cpp', 'h': 'cpp', 'cpp': 'cpp', 'cc': 'cpp', 'cxx': 'cpp', 'hpp': 'cpp', 'hh': 'cpp', 'hxx': 'cpp',
-    'java': 'java',
-    'py': 'python', 'pyw': 'python',
-    'go': 'go',
-    'js': 'javascript', 'jsx': 'javascript', 'ts': 'javascript', 'tsx': 'javascript', 'mjs': 'javascript', 'cjs': 'javascript',
-    'rs': 'rust', 'swift': 'swift', 'kt': 'kotlin', 'kts': 'kotlin', 'scala': 'scala',
-    'rb': 'ruby', 'php': 'php', 'cs': 'csharp', 'fs': 'fsharp',
-    'sh': 'shell', 'bash': 'shell', 'zsh': 'shell',
-    'cmake': 'cmake', 'mk': 'makefile',
-}
-def detect_lang(filepath):
-    base = os.path.basename(filepath)
-    if base.startswith('.'):
-        return None
-    if '.' not in base:
-        return None
-    ext = base.rsplit('.', 1)[-1].lower()
-    return EXT_MAP.get(ext)
-
-langs = Counter()
-for f in d['files']:
-    lang = detect_lang(f)
-    if lang:
-        langs[lang] += 1
-
-primary_lang = langs.most_common(1)[0][0] if langs else 'unknown'
-
-summary = {
-    'scan_id': os.environ.get('SCAN_ID', ''),
-    'file_count': len(d['files']),
-    'function_count': len(d['symbols']['functions']),
-    'call_edge_count': len(d['call_graph']['edges']),
-    'primary_language': primary_lang,
-    'language_distribution': dict(langs.most_common()),
-    'index_path': os.environ['INDEX_FILE'],
-}
-json.dump(summary, sys.stdout, indent=2, ensure_ascii=False)
-PYEOF
+python3 scripts/validate-index.py \
+    --index .codeagent/secaudit-secguardian/scans/<scan_id>/index.json \
+    --scan-id <scan_id>
 ```
-
-> **关键约束**：此脚本输出 JSON 到 stdout。读取该 JSON 获取 `file_count`、`function_count`、`primary_language` 等，**严禁**自行编写 Python 或 shell 去重新解析 index.json。
 
 ### Step 3: 路由并应用 Audit Skill
 

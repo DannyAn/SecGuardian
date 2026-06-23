@@ -234,6 +234,41 @@ echo "8. Go compilation"
 (cd internal && gc=$(mktemp -d) && GOCACHE=$gc CGO_ENABLED=0 go build -o /dev/null . 2>/dev/null; ec=$?; rm -rf "$gc"; exit $ec) && green "go build (no-CGO) OK" || red "go build (no-CGO) FAILED"
 echo ""
 
+
+# ── 9. Command template export validation ──
+if [ -f "scripts/check-command-templates.py" ]; then
+    echo "9. Command template export validation"
+    if python3 scripts/check-command-templates.py >/dev/null 2>&1; then
+        green "commands/*.md 共 12 处 os.environ 引用均使用 export，模板健壮"
+    else
+        red "commands/*.md 模板中 bash → Python 环境变量缺失 export"
+        python3 scripts/check-command-templates.py 2>&1 | grep '❌'
+    fi
+    echo ""
+fi
+
+
+# ── 10. validate-index.py cross-language smoke test ──
+if [ -f "scripts/validate-index.py" ] && [ -f "scripts/secguardian-index" ]; then
+    echo "10. validate-index.py cross-language smoke test"
+    ALL_OK=0
+    for repo in cpp-vuln-demo python-vuln-demo java-vuln-demo go-vuln-demo; do
+        idx=$(mktemp /tmp/selfchk-idx-XXXX.json)
+        bash scripts/secguardian-index --path "examples/$repo/src" --output "$idx" >/dev/null 2>&1
+        out=$((cd /tmp && python3 "$PROJECT_ROOT/scripts/validate-index.py" --index "$idx" --scan-id "test-$repo") 2>&1)
+        lang=$(echo "$out" | python3 -c "import json,sys;d=json.load(sys.stdin);print(d['primary_language'])" 2>/dev/null || echo "FAIL")
+        if [ "$lang" != "FAIL" ]; then
+            green "examples/$repo → $lang"
+        else
+            red "examples/$repo → validate-index.py FAILED"
+            ALL_OK=1
+        fi
+        rm -f "$idx"
+    done
+    [ "$ALL_OK" -eq 0 ] && green "All languages pass validate-index.py" || red "Some languages FAILED"
+    echo ""
+fi
+
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 printf "  Passed: %d  Failed: %d\n" "$PASS" "$FAIL"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

@@ -112,6 +112,7 @@ Filters: memory.*, system.*
 - [ ] 定位索引器 wrapper：优先查找项目级路径，其次用户级（`~/.config/opencode/`、`~/.gemini/`、`~/.claude/`），最后回退到 `scripts/secguardian-index` 或 `internal/secguardian-index`（至少一个存在且可执行）
 - [ ] 执行 `{indexer} --health` 通过（输出必须包含 `HEALTH:OK` 或 `HEALTH:WARN`，不接受 `HEALTH:FAIL`）
 - [ ] 目标路径 `<path>` 存在且包含至少一个源码文件
+- [ ] **语言推断（仅当用户未提供 `language` 参数时）**：检查 `<path>` 下源码文件扩展名 → `*.c/*.cpp/*.h` → `cpp`, `*.py` → `python`, `*.java` → `java`, `*.go` → `go`。无需询问用户，扩展名即可判定。
 - [ ] 确认不会启动 clangd/LSP/compile_commands.json/bear 等外部工具 — indexer (tree-sitter) 已提供符号表+调用图+文件清单，所有代码结构数据从 index.json 获取
 
 > 若未通过，报告具体哪一项失败并终止。不要降级为手工逐文件扫描。
@@ -156,78 +157,23 @@ find_indexer() {
 }
 find_indexer
 $INDEXER --path <path> --output .codeagent/secguard-secguardian/scans/<scan_id>/index.json
+if [ $? -ne 0 ]; then echo "FATAL: Indexer failed — cannot continue"; exit 1; fi
 ```
 
 **2b. 验证索引完整性 + 生成结构化摘要（必须通过）：**
 
 执行以下脚本。若返回非 0，**立即终止扫描**并向用户报告索引生成出错。
-若成功，直接读取输出的 JSON 摘要作为后续所有步骤的上下文，**禁止自己写 Python 去探测索引结构**。
+若成功，直接读取输出的 JSON 摘要作为后续所有步骤的上下文，**禁止自己写 Python 或 shell 去重新解析 index.json**。
+
+> ⚠️ 此脚本自动处理不同语言索引器输出差异（如 Java 索引器可能不生成调用图），
+> 对 `None`/`null` 值安全。如果索引文件路径不对，会 exit 1。
 
 ```bash
-INDEX_FILE=.codeagent/secguard-secguardian/scans/<scan_id>/index.json
-python3 << 'PYEOF'
-import json, sys, os
-from collections import Counter
-
-with open(os.environ['INDEX_FILE']) as f:
-    d = json.load(f)
-
-# ── 校验 ──
-assert len(d.get('files',[])) > 0, 'FATAL: index contains no files'
-assert 'symbols' in d, 'FATAL: index missing symbols'
-assert 'call_graph' in d, 'FATAL: index missing call_graph'
-
-# ── 语言检测（健壮扩展名映射） ──
-EXT_MAP = {
-    'c': 'cpp', 'h': 'cpp', 'cpp': 'cpp', 'cc': 'cpp', 'cxx': 'cpp', 'hpp': 'cpp', 'hh': 'cpp', 'hxx': 'cpp',
-    'java': 'java',
-    'py': 'python', 'pyw': 'python',
-    'go': 'go',
-    'js': 'javascript', 'jsx': 'javascript', 'ts': 'javascript', 'tsx': 'javascript', 'mjs': 'javascript', 'cjs': 'javascript',
-    'rs': 'rust', 'swift': 'swift', 'kt': 'kotlin', 'kts': 'kotlin', 'scala': 'scala',
-    'rb': 'ruby', 'php': 'php', 'cs': 'csharp', 'fs': 'fsharp',
-    'sh': 'shell', 'bash': 'shell', 'zsh': 'shell',
-    'cmake': 'cmake', 'mk': 'makefile',
-}
-def detect_lang(filepath):
-    base = os.path.basename(filepath)
-    # 跳过隐藏文件和常见非源码
-    if base.startswith('.'):
-        return None
-    if '.' not in base:
-        return None
-    # 取最后一个点后的扩展名，小写
-    ext = base.rsplit('.', 1)[-1].lower()
-    return EXT_MAP.get(ext)
-
-langs = Counter()
-for f in d['files']:
-    lang = detect_lang(f)
-    if lang:
-        langs[lang] += 1
-
-# ── 确定主语言 ──
-primary_lang = langs.most_common(1)[0][0] if langs else 'unknown'
-
-# ── 输出 JSON 摘要（所有后续步骤只读这个摘要，不要再自己探测） ──
-summary = {
-    'scan_id': os.environ.get('SCAN_ID', ''),
-    'file_count': len(d['files']),
-    'function_count': len(d['symbols']['functions']),
-    'call_edge_count': len(d['call_graph']['edges']),
-    'primary_language': primary_lang,
-    'language_distribution': dict(langs.most_common()),
-    'index_path': os.environ['INDEX_FILE'],
-}
-json.dump(summary, sys.stdout, indent=2, ensure_ascii=False)
-PYEOF
+python3 scripts/validate-index.py \
+    --index .codeagent/secguard-secguardian/scans/<scan_id>/index.json \
+    --scan-id <scan_id>
 ```
 
-> **关键约束**：此脚本输出 JSON 到 stdout。读取该 JSON 获取 `file_count`、`function_count`、`primary_language` 等，**严禁**自行编写 Python 或 shell 去重新解析 index.json。
-
-```
-read .codeagent/secguard-secguardian/scans/<scan_id>/index.json
-```
 INDEX_FILE 输出示例:
 ```json
 {
@@ -350,6 +296,8 @@ SCAN_DIR=".codeagent/secguard-secguardian/scans/<scan_id>"
 **3.5f. 自检完整性：**
 
 ```bash
+SCAN_DIR=".codeagent/secguard-secguardian/scans/<scan_id>"
+export SCAN_DIR
 python3 << 'PYEOF'
 import json, os, sys
 
@@ -472,7 +420,7 @@ findings/crypto/password-storage/H-CRYPTO-crypto_utils-L20.json
 在写入所有文件后，执行以下脚本校验。**任一 ❌ → 补充缺失文件/内容 → 重新检查，最多 3 次。**
 
 ```bash
-SCAN_DIR=".codeagent/secguard-secguardian/scans/<scan_id>"
+export SCAN_DIR=".codeagent/secguard-secguardian/scans/<scan_id>"
 python3 << 'PYEOF'
 import json, os, sys
 
