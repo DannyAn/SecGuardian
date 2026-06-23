@@ -417,57 +417,13 @@ findings/crypto/password-storage/H-CRYPTO-crypto_utils-L20.json
 
 **4c. 自检完整性（必须执行）：**
 
-在写入所有文件后，执行以下脚本校验。**任一 ❌ → 补充缺失文件/内容 → 重新检查，最多 3 次。**
+对所有 finding 执行前置校验。**若任一 finding 缺少必需字段（如 file、location、impact、fix），
+脚本 exit 1 并报告具体缺失。** agent 必须修复 findings 后重新检查，不得提交残缺数据到渲染器。
 
 ```bash
-export SCAN_DIR=".codeagent/secguard-secguardian/scans/<scan_id>"
-python3 << 'PYEOF'
-import json, os, sys
-
-index_path = os.path.join(os.environ['SCAN_DIR'], 'findings.json')
-with open(index_path) as f:
-    idx = json.load(f)
-
-expected = len(idx['findings_index'])
-actual = 0
-missing = []
-
-for entry in idx['findings_index']:
-    fpath = os.path.join(os.environ['SCAN_DIR'], entry['path'])
-    if os.path.isfile(fpath):
-        with open(fpath) as f:
-            data = json.load(f)
-        finding = data.get('finding', data)
-        loc = finding.get('location', {})
-        ev = finding.get('evidence', {})
-        imp = finding.get('impact', {})
-        fix = finding.get('fix', {})
-        
-        incomplete = []
-        if not loc.get('file_path'): incomplete.append('location.file_path')
-        if not loc.get('snippet'): incomplete.append('location.snippet')
-        if not ev.get('judgment_rationale'): incomplete.append('evidence.judgment_rationale')
-        if not imp.get('attack_scenario'): incomplete.append('impact.attack_scenario')
-        if not fix.get('before_code'): incomplete.append('fix.before_code')
-        if not fix.get('after_code'): incomplete.append('fix.after_code')
-        
-        if incomplete:
-            missing.append(f"{entry['id']}: missing {', '.join(incomplete)}")
-        else:
-            actual += 1
-    else:
-        missing.append(f"{entry['id']}: file not found at {entry['path']}")
-
-if missing:
-    print(f"❌ {len(missing)} findings incomplete/missing:")
-    for m in missing: print(f"  - {m}")
-    sys.exit(1)
-else:
-    print(f"✅ All {actual}/{expected} findings present and complete")
-PYEOF
+python3 scripts/validate-findings.py \
+    --findings-dir .codeagent/secguard-secguardian/scans/<scan_id>/findings/
 ```
-
-3 次后仍未通过 → 在 `findings.json` 顶层添加 `"quality_gate_warning": ["<不完整的 finding ID>"]`。
 
 **4d. 调用渲染器生成所有输出：**
 

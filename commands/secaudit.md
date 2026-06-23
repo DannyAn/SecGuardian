@@ -191,8 +191,33 @@ python3 scripts/validate-index.py \
 {
   "schema_version": "1.0",
   "finding": {
-    "id": "...",
-    "...": "...",
+    "id": "TA-001-SQL-injection-flow",
+    "severity": "Critical",
+    "cwe": "CWE-89",
+    "detector": "audit.taint-analysis",
+    "file": "src/webapp.py",
+    "line": 47,
+    "location": {
+      "file_path": "src/webapp.py",
+      "start_line": 47,
+      "end_line": 48,
+      "function_name": "get_user",
+      "snippet": "cursor.execute(f\"SELECT * FROM users WHERE id = {user_id}\")"
+    },
+    "evidence": {
+      "code_context": "cursor.execute(f\"...{user_id}...")",
+      "judgment_rationale": "用户输入直接拼接 SQL — 违反 OWASP Top 10 A03:2021",
+      "data_flow_path": "HTTP param → get_user() → f-string → cursor.execute"
+    },
+    "impact": {
+      "attack_scenario": "攻击者通过 SQL 注入窃取所有用户数据",
+      "cvss_score": 9.8
+    },
+    "fix": {
+      "description": "使用参数化查询替代 f-string",
+      "before_code": "cursor.execute(f\"SELECT * FROM users WHERE id = {user_id}\")",
+      "after_code": "cursor.execute(\"SELECT * FROM users WHERE id = ?\", (user_id,))"
+    },
     "secaudit_specific": {
       "skill_name": "taint-analysis",
       "skill_category": "analysis",
@@ -204,6 +229,8 @@ python3 scripts/validate-index.py \
 ```
 
 关键要求（secaudit 独有）：
+- **必须包含** `file`、`line`、`location`、`evidence`、`impact`、`fix` 字段（与 secguard 格式一致）。
+  仅提供 `secaudit_specific` 会导致渲染器 `KeyError`。
 - `evidence.data_flow_path` 必须包含完整的 Source → Propagation → Sink 路径（至少 3 个步骤）
 - `secaudit_specific.skill_name` — 本次审计的 skill 名称
 - `secaudit_specific.analysis_paths` / `complete_chains` — 数据流分析统计
