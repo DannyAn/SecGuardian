@@ -2,6 +2,38 @@
 
 All notable changes to SecGuardian.
 
+## [0.8.0] — 2026-06-25
+
+### ★ Renderer & Artifact Pipeline Overhaul
+
+- **Finding 规范化层** (**`_ensure_fields`**): location.file_path→file、function→function_name 自动字段适配，消除 KeyError 系统性风险
+- **前置工件验证** (新增 **`scripts/validate-findings.py`**): findings 进入渲染器前必须校验通过，残缺数据拒绝而非填充缺省值
+- **SARIF 生成器健壮性**: 兼容两种 detector 格式，修复 IndexError 崩溃
+- **质量门禁宽松化**: quality_rating/fix 字段非必需时后端容忍
+- **验证脚本抽取**: 命令模板中 50 行内联 Python heredoc 抽为独立 **`scripts/validate-index.py`**
+- **模板检查** (新增 **`scripts/check-command-templates.py`**): 模板常见错误检测
+- **跨语言全管线验证** (新增 **`scripts/verify-lang-pipeline.sh`**): 5 语言索引器→端到端流水线
+
+### ★ SecReview 质量提升
+
+- **前置语言推断**: /secreview 自动推理语言
+- **Detector 命名规范**: Step 4a 要求 **`namespace.name`** 格式
+- **模板例补全**: Step 4a 示例扩展为完整 finding 结构
+
+### ★ OpenCode Plugin 修复
+
+- **Knowledge path 注册**: opencode-plugin.js 补充 **`cfg.knowledge`** 路径注册
+- **验证增强**: dev-verify.sh + e2e-verify.sh 新增插件内容检查
+
+### ★ Scripts & Release
+
+- **release.sh**: 动态规则计数
+- **gitee-release.sh**: 命令格式更新为 `<path> <language> [filters]`
+- **Agent 字段命名对齐**: 三命令模板 Step 4a 标准字段名，消除 120 条验证错误
+
+
+---
+
 ## [0.7.0] — 2026-06-21
 
 ### ★ Command Interface Unification
