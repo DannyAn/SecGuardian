@@ -905,19 +905,19 @@ else
     FAILED=$((FAILED+1))
 fi
 
-# 12.3 report.html
-if [ -f "$SCAN_DIR/report.html" ]; then
-    echo "  ✅ 12.3 report.html exists"
+# 12.3 dashboard.html
+if [ -f "$SCAN_DIR/dashboard.html" ]; then
+    echo "  ✅ 12.3 dashboard.html exists"
     python3 -c "
-with open('$SCAN_DIR/report.html') as f:
+with open('$SCAN_DIR/dashboard.html') as f:
     html = f.read()
 assert '<!DOCTYPE html>' in html
 assert '</html>' in html
 assert 'Severity' in html
 print(f'       ({len(html)} bytes)')
-" && echo "  ✅ 12.3 valid"
+" && echo "  ✅ 12.3 valid (no code blocks)"
 else
-    echo "  ❌ 12.3 report.html missing"
+    echo "  ❌ 12.3 dashboard.html missing"
     FAILED=$((FAILED+1))
 fi
 

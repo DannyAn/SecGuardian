@@ -1000,7 +1000,7 @@ def render_executive_summary(findings_data, output_dir):
                    "- 👨‍💻 工程师 → `report.md §3.x` 按检测器集中修复一类问题",
                    "- 📋 查看完整报告 → `report.md`",
                    "- 🤖 AI 自动修复 → `ai/remediation-pack.json`",
-                   "- 👔 管理层查看 → `report.html`",
+                   "- 👔 管理层查看 → `dashboard.html`",
                    ""])
     
     human_dir = os.path.join(output_dir, "human")
@@ -1086,81 +1086,151 @@ def render_remediation_pack(findings, findings_meta, output_dir):
     print(f"  ✓ ai/remediation-pack.json ({len(remediations)} remediations)")
 
 
-def render_html_report(findings_data, output_dir):
-    """Generate report.html from findings_data (stdlib only)."""
+def render_dashboard(findings_data, output_dir):
+    """Generate dashboard.html — management dashboard from executive-summary data.
+    NOT a copy of report.md. Shows score, severity, risk concentration, top risks only.
+    No code blocks, no evidence chains, no per-finding details.
+    """
     import os
+    from collections import Counter
+
     findings = findings_data.get("findings", [])
     if not findings:
         return
+
     scope = findings_data.get("scope", {}) or {}
     scan_id = findings_data.get("scan_id", "N/A")
-    lang = findings_data.get("language", "N/A")
     path_val = findings_data.get("path", "N/A")
+    language = findings_data.get("language", "N/A")
     duration_ms = findings_data.get("duration_ms", 0)
     detectors = findings_data.get("detectors", {})
 
-    def esc(text):
-        if text is None: return ""
-        return str(text).replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+    score = findings_data.get("security_score", 0)
+    grade = findings_data.get("score_grade", "F")
+    if score == 0 and findings:
+        c = sum(1 for f in findings if f.get("severity") == "Critical")
+        h = sum(1 for f in findings if f.get("severity") == "High")
+        m = sum(1 for f in findings if f.get("severity") == "Medium")
+        l = sum(1 for f in findings if f.get("severity") == "Low")
+        score = max(0, min(100, 100 - (c*25 + h*10 + m*3 + l*1)))
+        grade = "A" if score >= 90 else "B" if score >= 75 else "C" if score >= 60 else "D" if score >= 40 else "F"
 
-    parts = []
-    parts.append("<h1>SecGuardian Security Scan Report</h1>")
-    parts.append(f'<p class="meta">Scan ID: {esc(scan_id)} | Lang: {esc(lang)}</p><hr>')
+    sev_emoji = {"Critical":"\U0001f534","High":"\U0001f7e0","Medium":"\U0001f7e1","Low":"\U0001f535","Info":"\u26aa"}
 
-    # 1 Scan Metadata
-    parts.append("<h2>Scan Metadata</h2><table>")
-    parts.append("<tr><th>Metric</th><th>Value</th></tr>")
-    if scope:
-        parts.append(f"<tr><td>Files scanned</td><td>{scope.get('files', 0)}</td></tr>")
-        parts.append(f"<tr><td>Lines scanned</td><td>{scope.get('lines', 0)}</td></tr>")
-        parts.append(f"<tr><td>Detectors executed</td><td>{detectors.get('executed', 0)}</td></tr>")
-        parts.append(f"<tr><td>Scan duration</td><td>{duration_ms}ms</td></tr>")
-    parts.append("</table>")
+    def esc(t):
+        if t is None: return ""
+        return str(t).replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
 
-    # 2 Findings Inventory
-    parts.append("<h2>Findings Inventory</h2><table>")
-    parts.append("<tr><th>ID</th><th>Severity</th><th>CWE</th><th>Detector</th><th>File:Line</th><th>Title</th></tr>")
+    sev_count = Counter(f.get("severity", "Info") for f in findings)
+
+    # Detector x file cross-table
+    det_files = {}
     for f in findings:
-        parts.append(f'<tr><td>{esc(f.get("id",""))}</td><td>{esc(f.get("severity",""))}</td><td>{esc(f.get("cwe",""))}</td><td>{esc(f.get("detector",""))}</td><td><code>{esc(f.get("file",""))}:{f.get("line","")}</code></td><td>{esc(f.get("title",""))}</td></tr>')
-    parts.append("</table>")
+        d = f.get("detector", "unknown")
+        det_files.setdefault(d, set()).add(f.get("file", ""))
+    det_count = Counter(f.get("detector", "") for f in findings)
 
-    # 3 Detailed Findings
-    parts.append("<h2>Detailed Findings</h2>")
-    for f in findings:
-        fid = esc(f.get("id",""))
-        parts.append(f"<h3>{fid}</h3>")
-        loc = f.get("location", {})
-        fix = f.get("fix", {})
-        parts.append(f'<table><tr><th>File</th><td><code>{esc(loc.get("file_path",f.get("file","")))}:{loc.get("start_line","")}</code></td></tr><tr><th>Severity</th><td>{esc(f.get("severity",""))}</td></tr></table>')
-        snippet = loc.get("snippet","")
-        if snippet:
-            parts.append(f"<pre><code>{esc(snippet)}</code></pre>")
-        before = fix.get("before_code","")
-        after = fix.get("after_code","")
-        if before: parts.append(f"<p><strong>Before:</strong></p><pre><code>{esc(before)}</code></pre>")
-        if after: parts.append(f"<p><strong>After:</strong></p><pre><code>{esc(after)}</code></pre>")
-        parts.append("<hr>")
+    # Risk concentration
+    file_count = Counter(f.get("file", "") for f in findings)
+    total = len(findings)
 
-    # 4 Remediation
-    parts.append("<h2>Remediation Roadmap</h2><table>")
-    parts.append("<tr><th>Finding</th><th>Severity</th><th>File:Line</th></tr>")
-    for f in sorted(findings, key=lambda x: {"Critical":0,"High":1,"Medium":2,"Low":3}.get(x.get("severity",""),99)):
-        parts.append(f'<tr><td>{esc(f.get("id",""))}</td><td>{esc(f.get("severity",""))}</td><td><code>{esc(f.get("file",""))}:{f.get("line","")}</code></td></tr>')
-    parts.append("</table>")
+    # Top 3 critical
+    top3 = sorted(findings, key=lambda x: {"Critical":0,"High":1}.get(x.get("severity",""), 9))[:3]
 
-    # 5 Appendix
-    parts.append("<h2>Appendix</h2>")
-    parts.append(f"<p>Scan ID: {esc(scan_id)} | Detectors: {detectors.get('executed',0)} executed</p>")
+    css = """<style>
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+           background:#f5f7fa;color:#1a1a2e;padding:40px 20px}
+      .card{background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1);
+            padding:24px;margin-bottom:20px;max-width:960px;margin-left:auto;margin-right:auto}
+      h1{font-size:24px;color:#1d3557;margin-bottom:4px}
+      .meta{color:#6c757d;font-size:14px;margin-bottom:20px}
+      .score{text-align:center;padding:20px}
+      .score-value{font-size:48px;font-weight:bold;color:#1d3557}
+      .score-grade{font-size:20px;color:#6c757d}
+      table{border-collapse:collapse;width:100%;margin:12px 0}
+      th,td{border:1px solid #dee2e6;padding:8px 12px;text-align:left;font-size:14px}
+      th{background:#f8f9fa;font-weight:600}
+      tr:nth-child(even){background:#f8f9fa}
+      .severity-critical{color:#e63946;font-weight:bold}
+      .severity-high{color:#e76f51;font-weight:bold}
+      h2{font-size:18px;color:#1d3557;margin:24px 0 12px;padding-bottom:6px;border-bottom:2px solid #e63946}
+      .nav{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}
+      .nav a{background:#1d3557;color:#fff;padding:8px 16px;border-radius:6px;
+             text-decoration:none;font-size:14px;font-weight:500}
+      .nav a:hover{background:#457b9d}
+    </style>"""
 
-    # CSS
-    css = "<style>body{max-width:960px;margin:0 auto;padding:2em;font-family:-apple-system,sans-serif;line-height:1.6}h1{border-bottom:2px solid #e63946}h2{color:#457b9d;border-bottom:1px solid #ddd}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px 12px;text-align:left}th{background:#f1faee}code{background:#f0f0f0;padding:2px 6px;border-radius:3px;font-family:monospace;font-size:0.9em}pre{background:#f5f5f5;padding:1em;border-radius:4px;overflow-x:auto}.meta{color:#666;font-size:0.9em}</style>"
+    p = []
+    p.append("<!DOCTYPE html><html><head><meta charset=UTF-8><title>SecGuardian Dashboard</title>" + css + "</head><body>")
 
-    body_content = "".join(parts)
-    html = f"<!DOCTYPE html><html><head><meta charset=UTF-8><title>SecGuardian Report</title>{css}</head><body>{body_content}</body></html>"
-    out_path = os.path.join(output_dir, "report.html")
+    # Header
+    p.append('<div class="card">')
+    p.append("<h1>SecGuardian Security Dashboard</h1>")
+    p.append(f'<p class="meta">Scan ID: {esc(scan_id)} | Project: {esc(path_val)} | Language: {esc(language)} | Duration: {duration_ms}ms</p>')
+    p.append("</div>")
+
+    # Score
+    p.append('<div class="card"><div class="score">')
+    p.append(f'<div class="score-value">{score}/100</div>')
+    p.append(f'<div class="score-grade">Grade {esc(grade)}</div>')
+    p.append("</div></div>")
+
+    # Severity
+    p.append('<div class="card"><h2>Severity Breakdown</h2><table>')
+    p.append("<tr><th>Severity</th><th>Count</th></tr>")
+    for s in ["Critical","High","Medium","Low"]:
+        c = sev_count.get(s, 0)
+        if c > 0:
+            emoji = sev_emoji.get(s,"")
+            cls = f"severity-{s.lower()}"
+            p.append(f'<tr><td class="{cls}">{emoji} {s}</td><td>{c}</td></tr>')
+    p.append("</table></div>")
+
+    # Detector cross-table
+    if len(det_files) > 1:
+        p.append('<div class="card"><h2>Findings by Detector</h2><table>')
+        p.append("<tr><th>Detector</th><th>Findings</th><th>Files</th></tr>")
+        for d in sorted(det_files.keys(), key=lambda x: len(det_files[x]), reverse=True)[:5]:
+            p.append(f"<tr><td>{esc(d)}</td><td>{det_count[d]}</td><td>{len(det_files[d])}</td></tr>")
+        p.append("</table></div>")
+
+    # Risk concentration
+    if len(file_count) > 1:
+        p.append('<div class="card"><h2>Risk Concentration (Top Files)</h2><table>')
+        p.append("<tr><th>File</th><th>Findings</th><th>%</th></tr>")
+        for fpath, cnt in sorted(file_count.items(), key=lambda x: -x[1])[:5]:
+            pct = round(cnt / total * 100) if total > 0 else 0
+            p.append(f"<tr><td><code>{esc(fpath)}</code></td><td>{cnt}</td><td>{pct}%</td></tr>")
+        p.append("</table></div>")
+
+    # Top 3
+    if top3:
+        p.append('<div class="card"><h2>Top Risks</h2><table>')
+        p.append("<tr><th>ID</th><th>Severity</th><th>File</th><th>Title</th></tr>")
+        for f in top3:
+            sev = f.get("severity","")
+            emoji = sev_emoji.get(sev,"")
+            cls = f"severity-{sev.lower()}"
+            p.append(f'<tr><td class="finding-id">{esc(f.get("id",""))}</td>'
+                     f'<td class="{cls}">{emoji} {sev}</td>'
+                     f'<td>{esc(f.get("file",""))}:{f.get("line","")}</td>'
+                     f'<td>{esc(f.get("title",""))}</td></tr>')
+        p.append("</table></div>")
+
+    # Scan info
+    p.append('<div class="card"><p class="meta">Generated by SecGuardian | Detectors: ' +
+             f'{detectors.get("matched",0)} matched, {detectors.get("executed",0)} executed' +
+             " | This dashboard shows only high-level metrics. For detailed findings, open report.md</p></div>")
+    p.append("</body></html>")
+
+    html = "".join(p)
+    out_path = os.path.join(output_dir, "dashboard.html")
     with open(out_path, "w") as f:
         f.write(html)
-    print(f"  \u2713 report.html ({len(html)} bytes)")
+    print(f"  \u2713 dashboard.html ({len(html)} bytes)")
+
+
 
 # ── Main ────────────────────────────────────────
 
@@ -1273,7 +1343,7 @@ Examples:
         render_remediation_pack(findings, findings_data, args.output)
 
     if fmt in ("all", "report"):
-        render_html_report(findings_data, args.output)
+        render_dashboard(findings_data, args.output)
 
 
     if fmt in ("all", "sarif"):

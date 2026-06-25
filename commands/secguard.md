@@ -47,7 +47,7 @@ SARIF 输出 (CI/CD 集成):
 ├── ai/                       # ★ v7.0: AI 可消费
 │   └── remediation-pack.json  AI 修复包（含关联发现）
 ├── report.md                 # ★ 人读审计报告 (精简 5 节)
-├── report.html               # ★ v7.0: 管理层 HTML 报告
+├── dashboard.html               # ★ v7.0: 管理层 仪表盘
 ├── results.sarif             # 机读: SARIF 2.1.0 (CI/CD)
 ├── summary.json             # 仪表盘统计
 ├── manifest.json            # 扫描元数据 + 检出索引
@@ -82,7 +82,7 @@ Filters: memory.*, system.*
 
 📋 统一入口: `.codeagent/secguard-secguardian/scans/sc-20260531-143000-a1b2/human/executive-summary.md`
 📄 完整报告: `.codeagent/secguard-secguardian/scans/sc-20260531-143000-a1b2/report.md`
-🌐 HTML 报告: `.codeagent/secguard-secguardian/scans/sc-20260531-143000-a1b2/report.html`
+🌐 仪表盘: `.codeagent/secguard-secguardian/scans/sc-20260531-143000-a1b2/dashboard.html`
 🤖 AI 修复包: `.codeagent/secguard-secguardian/scans/sc-20260531-143000-a1b2/ai/remediation-pack.json`
 📊 SARIF: `.codeagent/secguard-secguardian/scans/sc-20260531-143000-a1b2/results.sarif`
 📋 索引: `.codeagent/secguard-secguardian/scans/sc-20260531-143000-a1b2/manifest.json`
@@ -91,7 +91,7 @@ Filters: memory.*, system.*
 - **快速看汇总** → 打开 `manifest.json`（JSON 索引，列出所有检出 ID/严重度/文件/行号）
 - **★ 统一入口** → 打开 `human/executive-summary.md`（一页仪表盘 + 发现分布 + 导航）
 - **👨‍💻 工程师修复** → 按检测器集中修复：`findings/<检测器>/`
-- **🌐 管理层查看** → 打开 `report.html`（浏览器直接打开）
+- **🌐 管理层仪表盘** → 打开 `dashboard.html`（浏览器直接打开）
 - **📄 安全工程师** → 打开 `report.md`（精简 5 节审计报告）
 - **🤖 AI Agent 修复** → 读取 `ai/remediation-pack.json` 自动修复
 - **📊 CI/CD 集成** → 消费 `results.sarif`（GitHub Code Scanning / GitLab SAST / Azure DevOps）

@@ -13,7 +13,7 @@ version: "7.0"
 |------|------|------|------|
 | `human/executive-summary.md` | 所有人（统一入口） | Markdown | 一页仪表盘：评分/发现分布/集中度/导航 |
 | `report.md` | 安全工程师 | Markdown | 精简审计报告（5节） |
-| `report.html` | 管理层/审计 | HTML | 浏览器打开的精美报告 |
+| `dashboard.html` | 管理层/审计 | HTML | 浏览器打开的精美报告 |
 | `ai/remediation-pack.json` | AI Agent | JSON | 结构化修复包（含 finding 关联） |
 | `results.sarif` | CI/CD | SARIF 2.1.0 | GitHub Code Scanning / GitLab SAST |
 | `summary.json` | 仪表盘/程序 | JSON | 机读统计 |
@@ -24,7 +24,7 @@ version: "7.0"
 
 其余文件（index.json / dismissed.json / verification-audit.json）保持 v6.0 设计不变。
 
-> **v7.0 变更 (2026-06-26)**: 消费者导向设计重构。新增 `human/executive-summary.md`（统一入口 + 发现分布交叉表）。新增 `ai/remediation-pack.json`（AI 修复包 + 关联发现）。新增 `report.html`（自动生成 HTML）。`report.md` 精简到 5 节（移除管理层摘要/验证漏斗/合规表）。移除 developer/by-file/ 和 ai/attack-graph.json（概念验证后确认无真实消费者）。findings/<ns>/<detector>/ 目录树保持为工程师核心工作流，不变。
+> **v7.0 变更 (2026-06-26)**: 消费者导向设计重构。新增 `human/executive-summary.md`（统一入口 + 发现分布交叉表）。新增 `ai/remediation-pack.json`（AI 修复包 + 关联发现）。新增 `dashboard.html`（自动生成 HTML）。`report.md` 精简到 5 节（移除管理层摘要/验证漏斗/合规表）。移除 developer/by-file/ 和 ai/attack-graph.json（概念验证后确认无真实消费者）。findings/<ns>/<detector>/ 目录树保持为工程师核心工作流，不变。
 > **v5.0 变更 (2026-06-07)**: 单体 findings.json 重构为按 detector 组织的目录树。参见: [2026-06-07-findings-directory-tree-design.md](../../docs/superpowers/specs/2026-06-07-findings-directory-tree-design.md)
 > **v4.0 变更 (2026-06-06)**: 引入 AI/Renderer 分离架构。
 > **v3.0 变更 (2026-06-05)**: report.md §4 强制四段式结构。增加输出前质量门禁。
@@ -64,7 +64,7 @@ Step 1: ai/remediation-pack.json
 
 ```
 Step 1: human/executive-summary.md  → 一页看安全态势
-Step 2: report.html                 → 浏览器打开精美报告
+Step 2: dashboard.html                 → 浏览器打开精美报告
 ```
 
 ---
@@ -80,7 +80,7 @@ Step 2: report.html                 → 浏览器打开精美报告
 ├── ai/                             # ★ v7.0: AI 可消费输出
 │   └── remediation-pack.json         AI 修复包（含 related_findings 关联发现）
 ├── report.md                       # ★ v7.0: 安全工程师报告（精简 5 节）
-├── report.html                     # ★ v7.0: 管理层/审计 HTML 报告
+├── dashboard.html                     # ★ v7.0: 管理层仪表盘 仪表盘
 ├── findings.json                   # 轻量索引（v5.0）
 ├── results.sarif                   # SARIF 2.1.0 CI/CD（不变）
 ├── summary.json                    # 仪表盘统计（不变）
@@ -130,7 +130,7 @@ findings.json               # v4.0: 单体文件（所有 finding 内联，生�
 | 👨‍💻 工程师（第N次） | `delta.json` 看增量 | `findings/<ns>/<detector>/` 修新增的 |
 | 🔐 安全工程师 | `report.md` 完整报告 | — |
 | 🤖 AI Agent | `ai/remediation-pack.json` 修复包 | 自动修复 |
-| 👔 管理层 | `human/executive-summary.md` 精要 | `report.html` 精美报告 |
+| 👔 管理层 | `human/executive-summary.md` 精要 | `dashboard.html` 精美报告 |
 | 📊 CI/CD | `results.sarif` + `status.json` | — |
 
 
@@ -189,7 +189,7 @@ findings.json               # v4.0: 单体文件（所有 finding 内联，生�
 - 👨‍💻 工程师 → `findings/<检测器>/` 集中修复一类问题
 - 📋 查看完整报告 → `report.md`
 - 🤖 AI 自动修复 → `ai/remediation-pack.json`
-- 👔 管理层查看 → `report.html`
+- 👔 管理层仪表盘 → `dashboard.html`
 ```
 
 ### 数据来源
@@ -217,7 +217,7 @@ findings.json               # v4.0: 单体文件（所有 finding 内联，生�
 
 | 角色 | 阅读内容 | 关注点 |
 |------|---------|--------|
-| 决策者（CTO/客户） | human/executive-summary.md + report.html | 安全评分、风险集中度、HTML 报告 |
+| 决策者（CTO/客户） | human/executive-summary.md + dashboard.html | 安全评分、风险集中度、仪表盘 |
 | 技术负责人 | §2 检出清单 + §4 修复路线图 | 优先级排序、预估工时 |
 | 工程师 | §3 详细发现 | 证据链、修复代码、CWE 参考 |
 
@@ -390,7 +390,7 @@ pandoc report.md -o report.pdf --pdf-engine=weasyprint \
 | 安全评分 | ❌ | ✅ | ✅ | ✅ (A-F 等级) |
 | AI 修复包 | ❌ | ❌ | ❌ | ✅ ai/remediation-pack.json |
 | 工程师工作流（按检测器） | ❌ | ❌ | ❌ | ✅ findings/<ns>/<detector>/ |
-| HTML 报告 | ❌ | ❌ | ❌ | ✅ report.html 自动生成 |
+| 仪表盘 | ❌ | ❌ | ❌ | ✅ dashboard.html 自动生成 |
 | 合规映射 | ✅ CWE | ❌ | ✅ OWASP | ✅ OWASP + CWE |
 | 修复路线图 | 部分 | ❌ | ❌ | ✅ 四阶段 + 预估工时 |
 | AI 可执行 | ❌ | ❌ | ❌ | ✅ remediation-pack → AI Agent |
@@ -507,7 +507,7 @@ M-DLK-concurrency_c-L43 ← Medium, DeadLock, concurrency.c:43
 
 ## 协议演进
 
-- **7.0** (当前): 消费者导向设计。新增 `human/executive-summary.md` 统一入口。新增 `ai/remediation-pack.json` AI 修复包。新增 `report.html`。report.md 精简到 5 节。移除 developer/by-file/ 和 ai/attack-graph.json。
+- **7.0** (当前): 消费者导向设计。新增 `human/executive-summary.md` 统一入口。新增 `ai/remediation-pack.json` AI 修复包。新增 `dashboard.html`。report.md 精简到 5 节。移除 developer/by-file/ 和 ai/attack-graph.json。
 - **6.0**: 三轮验证管道（`dismissed.json` + `verification-audit.json`）。
 - **5.0**: 目录树架构。单体 findings.json → 轻量索引 + findings/ 目录树。
 - **4.0**: AI/Renderer 分离架构。
