@@ -876,3 +876,69 @@ fi
 
 [ "$MODE" = "ci" ] && exit $FAIL
 exit 0
+
+# ── §12: v7.0 Consumer-Centric Output ─────────────────────────────
+echo ""
+echo "=== §12: Consumer-Centric Output ==="
+SCAN_DIR=".codeagent/secguard-secguardian/scans/latest"
+FAILED=0
+
+# 12.1 human/executive-summary.md
+if [ -f "$SCAN_DIR/human/executive-summary.md" ]; then
+    echo "  ✅ 12.1 human/executive-summary.md exists"
+else
+    echo "  ❌ 12.1 human/executive-summary.md missing"
+    FAILED=$((FAILED+1))
+fi
+
+# 12.2 ai/remediation-pack.json
+if [ -f "$SCAN_DIR/ai/remediation-pack.json" ]; then
+    echo "  ✅ 12.2 ai/remediation-pack.json exists"
+    python3 -c "
+import json
+with open('$SCAN_DIR/ai/remediation-pack.json') as f:
+    d = json.load(f)
+assert 'version' in d
+assert 'remediations' in d
+print(f'       ({len(d[\"remediations\"])} remediations)')
+" && echo "  ✅ 12.2 valid"
+else
+    echo "  ❌ 12.2 ai/remediation-pack.json missing"
+    FAILED=$((FAILED+1))
+fi
+
+# 12.3 report.html
+if [ -f "$SCAN_DIR/report.html" ]; then
+    echo "  ✅ 12.3 report.html exists"
+    python3 -c "
+with open('$SCAN_DIR/report.html') as f:
+    html = f.read()
+assert '<!DOCTYPE html>' in html
+assert '</html>' in html
+assert 'Severity' in html
+print(f'       ({len(html)} bytes)')
+" && echo "  ✅ 12.3 valid"
+else
+    echo "  ❌ 12.3 report.html missing"
+    FAILED=$((FAILED+1))
+fi
+
+# 12.4 report.md simplified (no executive/verification/compliance)
+python3 -c "
+with open('$SCAN_DIR/report.md') as f:
+    content = f.read()
+sections_removed = ['Executive Summary', 'Verification Funnel', 'Compliance Dashboard']
+found = [s for s in sections_removed if s in content]
+if found:
+    print(f'  ⚠️  report.md still contains: {found}')
+else:
+    print(f'  ✅ 12.4 report.md simplified')
+"
+
+echo ""
+if [ $FAILED -gt 0 ]; then
+    echo "  ❌ §12: $FAILED checks failed"
+    return 1
+else
+    echo "  ✅ §12: All checks passed"
+fi
