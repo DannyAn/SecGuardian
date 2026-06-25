@@ -898,6 +898,141 @@ def generate_delta(findings_data, output_dir):
         }
 
 
+
+
+def render_executive_summary(findings_data, output_dir):
+    """Generate human/executive-summary.md — unified entry point.
+    
+    One page with: score, severity breakdown, detector×file cross-table,
+    risk concentration (file×count), Top-3 Critical, navigation guide.
+    """
+    from collections import Counter
+    import os
+    
+    findings = findings_data.get("findings", [])
+    if not findings:
+        return
+    
+    score = findings_data.get("security_score", 0)
+    grade = findings_data.get("score_grade", "F")
+    scan_id = findings_data.get("scan_id", "N/A")
+    path_val = findings_data.get("path", "N/A")
+    language = findings_data.get("language", "N/A")
+    scope = findings_data.get("scope", {}) or {}
+    
+    # Calculate severity distribution from raw findings
+    from collections import Counter as _Counter
+    sev_count = _Counter(f.get("severity", "Info") for f in findings)
+    total = len(findings)
+    
+    # Calculate score if not present (same formula as calc_score)
+    if score == 0 and total > 0:
+        c = sev_count.get("Critical", 0)
+        h = sev_count.get("High", 0)
+        m = sev_count.get("Medium", 0)
+        l = sev_count.get("Low", 0)
+        score = max(0, min(100, 100 - (c * 25 + h * 10 + m * 3 + l * 1)))
+        if score >= 90: grade = "A"
+        elif score >= 75: grade = "B"
+        elif score >= 60: grade = "C"
+        elif score >= 40: grade = "D"
+        else: grade = "F"
+    
+    # Detector cross-table: detector → set(file)
+    detector_files = {}
+    detector_count = Counter()
+    for f in findings:
+        det = f.get("detector", "unknown")
+        detector_files.setdefault(det, set()).add(f.get("file", ""))
+        detector_count[det] += 1
+    
+    # Risk concentration: file → count
+    file_count = Counter(f.get("file", "") for f in findings)
+    total_findings = len(findings)
+    
+    # Top-3 Critical/High
+    def severity_sort_key(f):
+        order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "Info": 4}
+        return order.get(f.get("severity", "Info"), 99)
+    sorted_findings = sorted(findings, key=severity_sort_key)
+    top3 = sorted_findings[:3]
+    
+    # Severity emoji
+    sev_emoji = {"Critical": "🔴", "High": "🟠", "Medium": "🟡", "Low": "🔵", "Info": "⚪"}
+    
+    lines = [
+        "# SecGuardian 安全扫描精要",
+        "",
+        f"> **扫描**: `{scan_id}` | **项目**: `{path_val}` | **语言**: {language}",
+        "",
+        "## 安全态势",
+        "",
+        "| 指标 | 值 |",
+        "|------|-----|",
+        f"| 安全评分 | **{score}/100 — {grade}** |",
+        f"| 扫描文件 | {scope.get('files', 0)} 个文件 |",
+        f"| 总发现数 | {total} |",
+        "",
+        "### 严重度分布",
+        "",
+        "| 严重度 | 数量 |",
+        "|--------|------|",
+    ]
+    for s in ["Critical", "High", "Medium", "Low"]:
+        emoji = sev_emoji.get(s, "")
+        count = sev_count.get(s, 0)
+        if count > 0:
+            lines.append(f"| {emoji} {s} | {count} |")
+    
+    # Detector cross-table (Top-5)
+    if len(detector_files) > 1:
+        lines.extend(["", "### 发现分布（检测器 × 文件，Top-5）", "",
+                       "| 检测器 | 发现数 | 涉及文件 |",
+                       "|--------|--------|---------|"])
+        sorted_dets = sorted(detector_files.items(),
+                            key=lambda x: len(x[1]), reverse=True)[:5]
+        for det, files in sorted_dets:
+            lines.append(f"| `{det}` | {detector_count[det]} | {', '.join(sorted(files)[:3])}{'...' if len(files) > 3 else ''} |")
+    
+    # Risk concentration (Top-5)
+    if len(file_count) > 1:
+        lines.extend(["", "### 风险集中度（文件 × 发现数，Top-5）", "",
+                       "| 文件 | 发现数 | 占比 |",
+                       "|------|--------|------|"])
+        top_files = sorted(file_count.items(), key=lambda x: -x[1])[:5]
+        for filepath, count in top_files:
+            pct = round(count / total_findings * 100) if total_findings > 0 else 0
+            lines.append(f"| `{filepath}` | {count} | {pct}% |")
+    
+    # Top-3 Critical/High
+    if top3:
+        lines.extend(["", "### Top 3 风险", "",
+                       "| ID | 文件:行 | 严重度 | 标题 |",
+                       "|----|---------|--------|------|"])
+        for f in top3:
+            sev_label = f.get("severity", "")
+            emoji = sev_emoji.get(sev_label, "")
+            finding_id = f.get("id", "")
+            file_line = f"{f.get('file', '')}:{f.get('line', '')}"
+            title = f.get("title", "")
+            lines.append(f"| {finding_id} | `{file_line}` | {emoji} {sev_label} | {title} |")
+    
+    # Navigation guide
+    lines.extend(["", "---", "",
+                   "**下一步（按角色）：**", "",
+                   "- 👨‍💻 工程师 → `findings/<检测器>/` 集中修复一类问题",
+                   "- 📋 查看完整报告 → `report.md`",
+                   "- 🤖 AI 自动修复 → `ai/remediation-pack.json`",
+                   "- 👔 管理层查看 → `report.html`",
+                   ""])
+    
+    human_dir = os.path.join(output_dir, "human")
+    os.makedirs(human_dir, exist_ok=True)
+    out_path = os.path.join(human_dir, "executive-summary.md")
+    with open(out_path, "w") as f:
+        f.write("\n".join(lines))
+    print(f"  ✓ human/executive-summary.md ({len(lines)} lines)")
+
 # ── Main ────────────────────────────────────────
 
 def main():
@@ -1002,6 +1137,9 @@ Examples:
             f.write(report)
         files_generated.append("report.md")
         print(f"  ✓ report.md ({len(report)} bytes)")
+
+    if fmt in ("all", "report"):
+        render_executive_summary(findings_data, args.output)
 
     if fmt in ("all", "sarif"):
         sarif = generate_sarif(findings_data)
