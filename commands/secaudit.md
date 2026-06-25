@@ -69,7 +69,7 @@ Skill: secaudit-taint-analysis
 - **快速看汇总** → 打开 `manifest.json`
 - **★ 人读审计报告** → 打开 `report.md`（每个发现含完整四段式：📍 Location → 📋 Evidence → ⚠️ Impact → 🔧 Fix）
 - **CI/CD 集成** → 消费 `results.sarif`
-- **AI Agent 修复** → 告诉 AI：`读取 report.md §4，按每个发现的 🔧 Fix 方案修改代码`
+- **🤖 AI Agent 修复** → 读取 `ai/remediation-pack.json` 自动修复：`读取 report.md §4，按每个发现的 🔧 Fix 方案修改代码`
 ```
 
 ## 可用 Skills
