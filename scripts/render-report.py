@@ -394,12 +394,20 @@ def generate_report_md(findings_data):
     # §2 Findings Inventory
     lines.append("---\n")
     lines.append("## §2 Findings Inventory\n")
-    lines.append("| Finding ID | Severity | CWE | Detector | File:Line | Fix |")
-    lines.append("|-----------|----------|-----|----------|-----------|-----|")
+    from collections import defaultdict
+    by_file = defaultdict(list)
     for f in findings:
-        sev_emoji = severity_emoji(f["severity"])
-        lines.append(f"| {f['id']} | {sev_emoji} {f['severity']} | {f['cwe']} | {f['detector']} | {f['file']}:{f['line']} | {f.get('fix_summary', f['title'])} |")
-    lines.append("")
+        by_file[f["file"]].append(f)
+    for filepath in sorted(by_file.keys()):
+        file_findings = by_file[filepath]
+        plural = "s" if len(file_findings) > 1 else ""
+        lines.append(f"### {filepath} ({len(file_findings)} finding{plural})\n")
+        lines.append("| Finding ID | Severity | CWE | Detector | Line | Fix |")
+        lines.append("|-----------|----------|-----|----------|------|-----|")
+        for f in file_findings:
+            sev_emoji = severity_emoji(f["severity"])
+            lines.append(f"| {f['id']} | {sev_emoji} {f['severity']} | {f['cwe']} | {f['detector']} | {f['line']} | {f.get('fix_summary', f['title'])} |")
+        lines.append("")
 
     # §3 Detailed Findings
     lines.append("---\n")
