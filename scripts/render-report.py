@@ -1033,6 +1033,81 @@ def render_executive_summary(findings_data, output_dir):
         f.write("\n".join(lines))
     print(f"  ✓ human/executive-summary.md ({len(lines)} lines)")
 
+
+
+def render_remediation_pack(findings, findings_meta, output_dir):
+    """Generate ai/remediation-pack.json — AI-consumable remediation pack.
+    
+    findings: list of finding dicts
+    findings_meta: dict with scan_id, command, etc.
+    Each remediation entry includes root_cause, fix_strategy, before/after code,
+    and related_findings (AI-tagged + auto-detected same function/file).
+    """
+    from collections import defaultdict
+    import os, json
+    
+    if not findings:
+        return
+    
+    # Build (file, function) index
+    func_index = defaultdict(list)
+    for i, f in enumerate(findings):
+        key = (f.get("file", ""), f.get("function", ""))
+        func_index[key].append(i)
+    
+    remediations = []
+    for i, f in enumerate(findings):
+        finding_id = f.get("id", "")
+        
+        # AI-tagged relationships
+        related = []
+        for rel in f.get("relationships", []):
+            if isinstance(rel, dict):
+                rid = rel.get("finding_id", "")
+            else:
+                rid = str(rel)
+            if rid and rid not in related:
+                related.append(rid)
+        
+        # Auto-detect: same function
+        key = (f.get("file", ""), f.get("function", ""))
+        for j in func_index.get(key, []):
+            if j != i:
+                rid = findings[j].get("id", "")
+                if rid and rid not in related:
+                    related.append(rid)
+        
+        rem = {
+            "finding_id": finding_id,
+            "title": f.get("title", ""),
+            "severity": f.get("severity", ""),
+            "cwe": f.get("cwe", ""),
+            "detector": f.get("detector", ""),
+            "affected_files": [f.get("file", "")],
+            "root_cause": f.get("evidence", {}).get("judgment_rationale", ""),
+            "fix_strategy": f.get("fix", {}).get("description", ""),
+            "safe_patch_guidance": [],
+            "before_code": f.get("fix", {}).get("before_code", ""),
+            "after_code": f.get("fix", {}).get("after_code", ""),
+            "effort_hours": f.get("fix", {}).get("effort_hours", 0),
+            "verification": f.get("fix", {}).get("verification_method", ""),
+            "related_findings": related[:10]
+        }
+        remediations.append(rem)
+    
+    pack = {
+        "version": "1.0",
+        "scan_id": findings_meta.get("scan_id", "N/A"),
+        "remediations": remediations
+    }
+    
+    ai_dir = os.path.join(output_dir, "ai")
+    os.makedirs(ai_dir, exist_ok=True)
+    out_path = os.path.join(ai_dir, "remediation-pack.json")
+    with open(out_path, "w") as f:
+        json.dump(pack, f, indent=2, ensure_ascii=False)
+    print(f"  ✓ ai/remediation-pack.json ({len(remediations)} remediations)")
+
 # ── Main ────────────────────────────────────────
 
 def main():
@@ -1140,6 +1215,8 @@ Examples:
 
     if fmt in ("all", "report"):
         render_executive_summary(findings_data, args.output)
+    if fmt in ("all", "report"):
+        render_remediation_pack(findings, findings_data, args.output)
 
     if fmt in ("all", "sarif"):
         sarif = generate_sarif(findings_data)
