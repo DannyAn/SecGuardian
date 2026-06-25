@@ -2,6 +2,31 @@
 
 All notable changes to SecGuardian.
 
+## [0.9.0] — 2026-06-26
+
+### ★ 输出协议 v7.0 — 消费者导向设计
+
+输出协议从 scanner 内部视角重构为消费者视角。完整设计历程见 FEATURE-004-output-protocol-v7。
+
+#### 新增
+
+- **human/executive-summary.md** — 统一入口仪表盘。评分、发现分布交叉表(检测器×文件数)、风险集中度(文件×发现数占比)、Top 3 Critical、导航引导。
+- **ai/remediation-pack.json** — AI 修复包。每条 finding 含 root_cause、fix_strategy、before/after code、related_findings(同文件/同函数关联)。
+- **report.html** — 自动 HTML 报告（stdlib only），管理层/审计双击打开。
+- **report.md 数据检索** — §2 按文件分组 + §3 按检测器分组，覆盖工程师双检索需求。
+
+#### 精简
+
+- **report.md 7→5 节** — 去掉管理层摘要/验证漏斗/合规表，管理内容归到 executive-summary。
+- **移除 developer/by-file/** — 1000+ 文件项目不可行。
+- **移除 ai/attack-graph.json** — 无真实消费者，relationships 嵌入 remediation-pack。
+
+#### 修复模式变更
+
+- **修复建议动态生成** — AI Agent 根据代码上下文动态组装，不从 detector 知识库拷贝固定模板。
+
+
+
 ## [0.8.0] — 2026-06-25
 
 ### ★ Renderer & Artifact Pipeline Overhaul

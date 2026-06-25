@@ -1,6 +1,6 @@
 {
   "name": "secreview-secguardian",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "安全编码规范审查 — 反模式识别 + 最佳实践合规 + 检测矩阵",
   "author": "SecGuardian",
   "command": "secreview",
