@@ -377,63 +377,23 @@ def generate_report_md(findings_data):
     lines.append(f"> **Duration**: {findings_data.get('duration_ms', 0)}ms\n")
     lines.append("---\n")
 
-    # §1 Executive Summary
-    lines.append("## §1 Executive Summary\n")
-    lines.append("| Metric | Value |")
-    lines.append("|--------|-------|")
-    lines.append(f"| Files scanned | {scope.get('files', 'N/A')} |")
-    lines.append(f"| Lines scanned | {scope.get('lines', 'N/A')} |")
-    lines.append(f"| Functions analyzed | {scope.get('functions', 'N/A')} |")
-    lines.append(f"| Detectors executed | {detectors.get('executed', 'N/A')} |")
-    lines.append(f"| Total findings | **{len(findings)}** |")
-    lines.append(f"| Security score | **{score}/100** {severity_emoji('Critical' if score < 40 else 'High' if score < 60 else 'Medium')} (Grade {grade}) |")
-    lines.append("")
+    # §1 Scan Metadata (simplified)
+    lines.append("## §1 Scan Metadata\n")
+    if scope:
+        duration_ms = findings_data.get('duration_ms', 0)
+        lines.extend([
+            f"| Files scanned | {scope.get('files', 'N/A')} |",
+            f"| Lines scanned | {scope.get('lines', 'N/A')} |",
+            f"| Functions analyzed | {scope.get('functions', 'N/A')} |",
+            f"| Detectors executed | {detectors.get('executed', 'N/A')} |",
+            f"| Scan duration | {duration_ms}ms |",
+        ])
+    lines.append('')
 
-    lines.append("### Severity Breakdown\n")
-    lines.append("| Severity | Count |")
-    lines.append("|----------|-------|")
-    for sev in ["Critical", "High", "Medium", "Low", "Info"]:
-        lines.append(f"| {severity_emoji(sev)} {sev} | {by_sev.get(sev, 0)} |")
-    lines.append("")
 
-    # §1.5 Verification Funnel (v6.0)
-    output_dir = findings_data.get("_output_dir", "")
-    dismissed, audit = _load_verification_files(output_dir)
-    if dismissed and audit:
-        lines.append("---\n")
-        lines.append("## §1.5 Verification Funnel\n")
-        lines.append("")
-        lines.append("| Stage | Input | Dismissed | Survived | Dismiss Reason |")
-        lines.append("|-------|-------|-----------|----------|----------------|")
-        rounds_data = [
-            ("P1: Semantic Verification", audit["rounds"]["p1_semantic"], "Framework-eliminated patterns"),
-            ("P2: Counter-Evidence Hunt", audit["rounds"]["p2_counter_evidence"], "Defense mechanisms found"),
-            ("P3: Adjudication Court", audit["rounds"]["p3_court"], "Court dismissed"),
-        ]
-        for label, rd, reason in rounds_data:
-            inp = rd.get("input_count", 0)
-            survived = rd.get("no_exemption", 0) + rd.get("uncertain", 0) \
-                if "no_exemption" in rd else rd.get("counter_evidence_not_found", 0) \
-                if "counter_evidence_not_found" in rd else rd.get("confirmed", 0) + rd.get("suspected", 0)
-            dismissed_count = inp - survived
-            lines.append(f"| {label} | {inp} | {dismissed_count} | {survived} | {reason} |")
-        cert = audit.get("certified_count", 0)
-        total = dismissed["summary"]["total_findings"]
-        lines.append(f"| **Final** | **{total}** | **{total - cert}** | **{cert}** | **Certified findings** |")
-        lines.append("")
-        lines.append(f"> **Convergence**: {total} initial findings → {cert} certified ({total - cert} dismissed, {(total - cert) / total * 100:.0f}% reduction)")
-        lines.append("")
-
+    # §2 Findings Inventory
     lines.append("---\n")
-    lines.append("## §2 Compliance Dashboard\n")
-    lines.append("| Standard | Controls Checked | Passed | Failed | Status |")
-    lines.append("|----------|-----------------|--------|--------|--------|")
-    lines.append(f"| OWASP Top 10 (2021) | {len(findings)} | {len([f for f in findings if f['severity'] in ('Low','Info')])} | {len([f for f in findings if f['severity'] in ('Critical','High','Medium')])} | {'❌' if by_sev.get('Critical', 0) > 0 else '⚠️'} |")
-    lines.append("")
-
-    # §3 Findings Inventory
-    lines.append("---\n")
-    lines.append("## §3 Findings Inventory\n")
+    lines.append("## §2 Findings Inventory\n")
     lines.append("| Finding ID | Severity | CWE | Detector | File:Line | Fix |")
     lines.append("|-----------|----------|-----|----------|-----------|-----|")
     for f in findings:
@@ -441,9 +401,9 @@ def generate_report_md(findings_data):
         lines.append(f"| {f['id']} | {sev_emoji} {f['severity']} | {f['cwe']} | {f['detector']} | {f['file']}:{f['line']} | {f.get('fix_summary', f['title'])} |")
     lines.append("")
 
-    # §4 Detailed Findings
+    # §3 Detailed Findings
     lines.append("---\n")
-    lines.append("## §4 Detailed Findings\n")
+    lines.append("## §3 Detailed Findings\n")
     for i, f in enumerate(findings, 1):
         sev_emoji = severity_emoji(f["severity"])
         loc = f.get("location", {})
@@ -520,8 +480,8 @@ def generate_report_md(findings_data):
 
         lines.append("---\n")
 
-    # §5 Remediation Roadmap
-    lines.append("## §5 Remediation Roadmap\n")
+    # §4 Remediation Roadmap
+    lines.append("## §4 Remediation Roadmap\n")
 
     phases = {"Critical": ("🔴 Immediate (Block Deploy)", []),
               "High": ("🟠 This Sprint", []),
@@ -539,9 +499,9 @@ def generate_report_md(findings_data):
                 lines.append(f"- **{item['id']}** — {item.get('fix_summary', item['title'])}")
             lines.append("")
 
-    # §6 Appendix
+    # §5 Appendix
     lines.append("---\n")
-    lines.append("## §6 Appendix\n")
+    lines.append("## §5 Appendix\n")
 
     if good:
         lines.append("### Good Patterns Found\n")
