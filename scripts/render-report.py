@@ -404,14 +404,23 @@ def generate_report_md(findings_data):
     # §3 Detailed Findings
     lines.append("---\n")
     lines.append("## §3 Detailed Findings\n")
-    for i, f in enumerate(findings, 1):
-        sev_emoji = severity_emoji(f["severity"])
-        loc = f.get("location", {})
-        ev = f.get("evidence", {})
-        imp = f.get("impact", {})
-        fix = f.get("fix", {})
+    from collections import defaultdict
+    groups = defaultdict(list)
+    for f in findings:
+        groups[f["detector"]].append(f)
 
-        lines.append(f"### {sev_emoji} {f['id']} — {f['title']}\n")
+    group_num = 0
+    for detector in sorted(groups.keys()):
+        group_num += 1
+        lines.append(f"### §3.{group_num} {detector}\n")
+        for f in groups[detector]:
+            sev_emoji = severity_emoji(f["severity"])
+            loc = f.get("location", {})
+            ev = f.get("evidence", {})
+            imp = f.get("impact", {})
+            fix = f.get("fix", {})
+
+            lines.append(f"#### {sev_emoji} {f['id']} — {f['title']}\n")
         lines.append(f"| Field | Detail |")
         lines.append(f"|-------|--------|")
         lines.append(f"| **Severity** | {sev_emoji} {f['severity']} |")
@@ -422,7 +431,7 @@ def generate_report_md(findings_data):
         lines.append("")
 
         # 📍 Location
-        lines.append("#### 📍 Location\n")
+        lines.append("##### 📍 Location\n")
         snippet = loc.get("snippet", "")
         if snippet:
             lines.append("```" + lang)
@@ -430,7 +439,7 @@ def generate_report_md(findings_data):
             lines.append("```\n")
 
         # 📋 Evidence
-        lines.append("#### 📋 Evidence\n")
+        lines.append("##### 📋 Evidence\n")
         lines.append(f"**Code Context:**\n```{lang}\n{ev.get('code_context', 'N/A')}\n```\n")
         lines.append(f"**Judgment:** {ev.get('judgment_rationale', 'N/A')}\n")
 
@@ -454,7 +463,7 @@ def generate_report_md(findings_data):
             lines.append("")
 
         # ⚠️ Impact
-        lines.append("#### ⚠️ Impact\n")
+        lines.append("##### ⚠️ Impact\n")
         lines.append(f"**Attack Scenario:** {imp.get('attack_scenario', 'N/A')}\n")
         cvss = imp.get("cvss_score")
         if cvss is not None:
@@ -465,7 +474,7 @@ def generate_report_md(findings_data):
         lines.append(f"**Exploit Conditions:** {imp.get('exploit_conditions', 'N/A')}\n")
 
         # 🔧 Fix
-        lines.append("#### 🔧 Fix\n")
+        lines.append("##### 🔧 Fix\n")
         lines.append(f"{fix.get('description', 'N/A')}\n")
         lines.append("**Before:**\n```" + lang)
         lines.append(fix.get("before_code", "N/A"))
@@ -980,7 +989,7 @@ def render_executive_summary(findings_data, output_dir):
     # Navigation guide
     lines.extend(["", "---", "",
                    "**下一步（按角色）：**", "",
-                   "- 👨‍💻 工程师 → `findings/<检测器>/` 集中修复一类问题",
+                   "- 👨‍💻 工程师 → `report.md §3.x` 按检测器集中修复一类问题",
                    "- 📋 查看完整报告 → `report.md`",
                    "- 🤖 AI 自动修复 → `ai/remediation-pack.json`",
                    "- 👔 管理层查看 → `report.html`",
