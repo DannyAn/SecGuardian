@@ -656,3 +656,178 @@ Secreview 5 个 skill 从 ~45 行扩展到 ~100 行，增加结构化 Phase 1-5 
 - `internal/parser/parser_re.go` (变量提取)
 - `internal/context/` (新测试文件)
 - `internal/go.mod`, `internal/go.sum` (依赖清理)
+
+
+## 2026-06-25 — 输出协议 v7.0 设计提案：从 Scanner 内部视角转向消费者视角
+
+### 背景
+
+当前输出协议 v6.0 已有 11 个输出文件，经历 6 次迭代（v2.0 人读/机读分离 → v3.0 四段式 → v4.0 AI/Renderer 分离 → v5.0 目录树 → v6.0 验证管道）。在审视外部竞品和 AI Native Architecture 趋势时，发现一个深层结构性问题：
+
+当前输出协议的组织视角是 Scanner 内部实现视角（detector namespace 分类），而非消费者视角。
+
+### 问题分析
+
+1. **消费者视角缺失**：当前 `findings/web/sql-injection/` 组织对 AI Agent 写文件方便，但对消费者不友好。工程师想知道"我的文件有哪些问题"，安全负责人想看攻击链路，AI 修复 Agent 需要机器可读的修复指令。
+
+2. **无 Finding 关系模型**：一个 SQL 注入可能同时涉及 Data Flow、Trust Boundary、PII Exposure 多个维度。当前设计下这些维度是 detector 分类的副产品，而非显式建模。
+
+3. **AI Agent 修复能力未被充分利用**：当前 fix 段是 human-readable 的 before/after 代码。AI Agent 需要的是 root_cause、fix_strategy、framework_specific 等结构化修复指令。
+
+4. **开发者 by-file 视角空白**：工程师拿到扫描结果后的自然反应是"我的文件有哪些问题？"——当前需要在多个 detector 目录间跳跃查找。
+
+### 讨论要点
+
+外部参考提供了一些核心理念：
+
+- **Single Source of Truth + Multiple Renderers**：只有一个权威的 finding 模型，其他全部由渲染器生成
+- **Finding Graph**：一个 SQLi 和一个 PII 泄漏之间可能有攻击链路，孤立 finding 看不见这个
+- **AI Remediation Pack**：给 AI Agent 吃的结构化修复包，不是给人读的文本
+- **Developer By-File**：开发者按文件看问题，不是按 OWASP 类别
+- **Scanner 只做诊断，Agent 做治疗**：不要生成 patch，生成诊断蓝图
+
+### 交叉评估结果
+
+| 建议 | 判定 | 理由 |
+|------|------|------|
+| canonical/findings.json 物理目录 | ❌ 不新增 | 已有 findings-schema.json + findings/ 目录树 |
+| human/report.md + human/findings/ | ❌ 不采纳 | 冗余，report.md + findings/ 已覆盖 |
+| developer/by-file/ | ✅ 采纳 | 工程师刚需 |
+| ai/attack-graph.json | ✅ 采纳 | AI Native 最大亮点 |
+| ai/remediation-pack.json | ✅ 采纳 | AI Agent 直接消费 |
+| ai/taint-graph.json | ⏹ 推迟 | 与 attack-graph.json 合并 |
+| sarif/results.sarif 移动 | ❌ 不移动 | CI/CD 工具链期望固定路径 |
+| fixes/*.md | ❌ 不采纳 | remediation-pack.json 已覆盖 |
+| HTML 标准输出 | ❌ 不采纳 | pandoc 按需导出 |
+
+### 最终方案
+
+**AI Agent 输出不变**，仍只输出 findings/ 目录树。Renderer 新增三个渲染器函数：
+
+1. render_attack_graph() → ai/attack-graph.json
+2. render_remediation_pack() → ai/remediation-pack.json
+3. render_developer_by_file() → developer/by-file/*.md
+
+AI 唯一增量工作：在输出 finding 时可选地标记 relationships 字段。
+
+### 影响范围
+
+- knowledge/protocols/scan-output.md — v7.0：新增 ai/ + developer/ 目录
+- knowledge/protocols/findings-schema.json — v1.1：新增 schema 定义
+- scripts/render-report.py — 新增 3 个渲染函数
+- scripts/e2e-verify.sh — §12 新增输出验证
+- commands/*.md — Step 4d 路径说明更新
+
+详见: FEATURE-004-output-protocol-v7
+
+
+### 消费者覆盖分析（2026-06-25 后续讨论）
+
+用完整 consumer × output 矩阵分析后，发现三个缺口：
+
+| 缺口 | 消费者 | 当前状态 | 判定 |
+|------|--------|---------|------|
+| 无独立精要输出 | 管理层（CTO/VP Eng） | ⚠️ 报告摘要嵌在 6 章技术报告中 | ✅ 新增 `human/executive-summary.md` |
+| 无自动生成 HTML | 管理层/审计/董事会 | ❌ "pandoc 按需导出"每次都要跑命令 | ✅ 新增 `report.html` 自动生成 |
+| 无单件审计证据包 | 审计 | ⚠️ 散在 4 个文件中 | ❌ 砍掉——"多出来的概念都是负担" |
+
+#### 最终 v7.0 目录结构确认
+
+```
+scan-root/
+├── report.md                   人读报告（不变）
+├── results.sarif               CI/CD（不变）
+├── findings.json               轻量索引（不变）
+├── findings/                   canonical 数据源（不变，定位明确化）
+├── summary.json                仪表盘（不变）
+├── manifest.json               元数据（不变）
+├── status.json                 CI 门禁（不变）
+├── delta.json                  增量对比（不变）
+├── dismissed.json              验证管道（不变）
+├── verification-audit.json     验证管道（不变）
+│
+├── ai/                          ★ AI 可消费输出
+│   ├── attack-graph.json        Finding 关系图
+│   └── remediation-pack.json    AI 修复包
+│
+├── developer/                   ★ 开发者视图
+│   └── by-file/*.md
+│
+├── human/                       ★ 管理层视图
+│   └── executive-summary.md     一页精要
+│
+└── report.html                  自动生成的 HTML 报告
+```
+
+
+### 消费者分析复盘与最终设计（2026-06-26）
+
+对最初提案进行了多轮审视和修正：
+
+**推翻的设计决策：**
+
+1. **developer/by-file/ ×** — 1000+ 文件项目里生成 1000+ 个 .md 是灾难。工程师的高频工作流是按检测器集中修完一类再修下一类（findings/web/sql-injection/ → findings/web/xss/），不是按文件跳来跳去。by-file 的轻量替代：executive-summary.md 中的"风险集中度"表（Top-N 文件 + 发现数占比）。
+
+2. **ai/attack-graph.json ×** — 没有真实消费者。finding 之间的关系价值保留，嵌入 remediation-pack.json 的 related_findings 字段。
+
+3. **report.md 7 节 ×** — 管理内容归到 executive-summary，报告简化为 5 节。
+
+**保留并强化的设计：**
+
+4. **findings/<ns>/<detector>/ ✅** — 最初被误判为"scanner 内部视角"，实则是工程师的核心工作流。保持 v5.0 设计不变。
+
+5. **human/executive-summary.md ✅** — 从"管理层精要"升级为统一入口 + 导航中心，包含发现分布交叉表（检测器 × 文件），让工程师一页看到"SQLi 涉及哪几个文件"，然后钻进对应 detector 目录修复。
+
+6. **ai/remediation-pack.json ✅** — 每条 finding 含 related_findings（关联发现 ID）。
+
+**不做什么（最终确认）：**
+
+- ❌ developer/by-file/ — 高频用法是 findings/<ns>/<detector>/
+- ❌ ai/attack-graph.json — 嵌入 remediation-pack
+- ❌ ai/taint-graph.json / trust-boundaries.json — 推迟到后续版本
+- ❌ compliance/audit-report.json — "多出来的概念都是负担"
+- ❌ html/ 子目录 — report.html 在 scan root
+- ❌ human/findings/ — 与 findings/ 目录树冗余
+
+**最终目录结构确认：**
+
+```
+scan-root/
+├── human/
+│   └── executive-summary.md      统一入口: 评分/发现分布(检测器×文件)/风险集中度/导航
+├── findings/                     工程师核心工作流: findings/<ns>/<detector>/<finding-id>.json
+├── ai/
+│   └── remediation-pack.json     AI修复包(含related_findings)
+├── report.md                     安全工程师完整报告(精简5节)
+├── report.html                   管理层/审计HTML
+├── findings.json                 轻量索引
+├── summary.json                  仪表盘机读
+├── results.sarif                 CI/CD
+├── status.json / delta.json / manifest.json / dismissed.json / verification-audit.json
+└── index.json                    索引器
+```
+
+
+### 工程师旅程闭环——report.md §3 按检测器分组（2026-06-26 实施修正）
+
+FEATURE-004 实施中发现一个旅程断裂：executive-summary 导航指向 `findings/<检测器>/`（JSON 数据层，工程师不能直接读），report.md §3 按严重度平铺混合所有检测器。
+
+修复方案：report.md §3 改为按 detector 分组显示，添加子编号 §3.x。导航指向 `report.md §3.x`。
+
+```
+executive-summary → "SQLi 影响 3 个文件" → report.md §3.1 web.sql-injection → 集中修完 → 进入下一类
+```
+
+findings/ 目录保持 JSON 不变（canonical 数据层，Renderer 和 AI Agent 消费）。
+
+### report.md §2 改为按文件分组（2026-06-26 实施修正）
+
+报告复习后发现 §2 检出清单是 flat 列表，既不是按类型也不是按文件。工程师两种检索都需要：
+- 按类型 → §3（已有，按检测器分组）
+- 按文件 → §2（改为按文件分组）
+
+改动后 report.md 完整覆盖双检索：
+```
+§2 检出清单（按文件）     → "parser.c 有哪些问题？"
+§3 详细发现（按检测器）    → "SQLi 有哪些问题？"
+```
