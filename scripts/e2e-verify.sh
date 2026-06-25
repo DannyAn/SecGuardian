@@ -875,8 +875,6 @@ else
 fi
 
 [ "$MODE" = "ci" ] && exit $FAIL
-exit 0
-
 # ── §12: v7.0 Consumer-Centric Output ─────────────────────────────
 echo ""
 echo "=== §12: Consumer-Centric Output ==="
@@ -938,7 +936,7 @@ else:
 echo ""
 if [ $FAILED -gt 0 ]; then
     echo "  ❌ §12: $FAILED checks failed"
-    return 1
+    FAIL=$((FAIL + FAILED))
 else
     echo "  ✅ §12: All checks passed"
 fi
