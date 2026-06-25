@@ -1,9 +1,9 @@
 ---
 category: protocol
-version: "6.0"
+version: "7.0"
 ---
 
-# SecGuardian 扫描输出协议 6.0
+# SecGuardian 扫描输出协议 7.0
 
 所有 SecGuardian 命令（secguard、secaudit、secreview）的输出格式。v2.0 重新设计人读/机读分离架构。
 
@@ -11,48 +11,86 @@ version: "6.0"
 
 | 文件 | 受众 | 格式 | 用途 |
 |------|------|------|------|
-| `report.md` | 工程师/审计师 | Markdown | 完整安全审计报告，含执行摘要、发现详情、修复建议、验证漏斗 |
-| `results.sarif` | CI/CD 系统 | SARIF 2.1.0 | GitHub Code Scanning / GitLab SAST / Azure DevOps |
-| `summary.json` | 仪表盘/统计 | JSON | 轻量统计：按严重度/命名空间/语言的检出数 + 验证收敛数据 |
-| `manifest.json` | 程序入口 | JSON | 扫描元数据 + 检出索引（引用 report.md 章节） |
-| `status.json` | CI 门禁 | JSON | pass/fail 判定 + exit_code |
-| `delta.json` | 趋势分析 | JSON | 与上一次扫描的增量对比 |
-| `dismissed.json` | 审计追踪 | JSON | 被验证管道抑制的 Finding + 抑制原因 + 抑制轮次 |
-| `verification-audit.json` | 管道审计 | JSON | 完整验证链 + 每轮收敛统计 |
+| `human/executive-summary.md` | 所有人（统一入口） | Markdown | 一页仪表盘：评分/发现分布/集中度/导航 |
+| `report.md` | 安全工程师 | Markdown | 精简审计报告（5节） |
+| `report.html` | 管理层/审计 | HTML | 浏览器打开的精美报告 |
+| `ai/remediation-pack.json` | AI Agent | JSON | 结构化修复包（含 finding 关联） |
+| `results.sarif` | CI/CD | SARIF 2.1.0 | GitHub Code Scanning / GitLab SAST |
+| `summary.json` | 仪表盘/程序 | JSON | 机读统计 |
+| `status.json` | CI 门禁 | JSON | pass/fail 判定 |
+| `delta.json` | 趋势分析 | JSON | 增量对比 |
+| `manifest.json` | 元数据 | JSON | 扫描元数据 |
+| `findings.json` | 轻量索引 | JSON | 检出索引 |
 
-> **v6.0 变更 (2026-06-17)**: 新增三轮验证管道产出（`dismissed.json` + `verification-audit.json`）。`report.md` 增加 "## 验证漏斗" 章节。`summary.json` 增加 `findings_total` 和 `dismissed_by_round` 字段。`results.sarif` 增加 `suppressions` 节点。详见 [verification-protocol.md](verification-protocol.md)。
+其余文件（index.json / dismissed.json / verification-audit.json）保持 v6.0 设计不变。
+
+> **v7.0 变更 (2026-06-26)**: 消费者导向设计重构。新增 `human/executive-summary.md`（统一入口 + 发现分布交叉表）。新增 `ai/remediation-pack.json`（AI 修复包 + 关联发现）。新增 `report.html`（自动生成 HTML）。`report.md` 精简到 5 节（移除管理层摘要/验证漏斗/合规表）。移除 developer/by-file/ 和 ai/attack-graph.json（概念验证后确认无真实消费者）。findings/<ns>/<detector>/ 目录树保持为工程师核心工作流，不变。
 > **v5.0 变更 (2026-06-07)**: 单体 findings.json 重构为按 detector 组织的目录树。参见: [2026-06-07-findings-directory-tree-design.md](../../docs/superpowers/specs/2026-06-07-findings-directory-tree-design.md)
 > **v4.0 变更 (2026-06-06)**: 引入 AI/Renderer 分离架构。
 > **v3.0 变更 (2026-06-05)**: report.md §4 强制四段式结构。增加输出前质量门禁。
 
-## 目录结构 (v6.0)
+
+## 用户旅程
+
+扫描输出的 15+ 文件对新用户不友好。按照这个顺序阅读：
+
+### 工程师首次使用
+
+```
+Step 1: human/executive-summary.md
+  → 看发现分布表："SQLi 影响 3 个文件，先修它"
+Step 2: findings/web/sql-injection/
+  → 集中修完一类问题
+Step 3: findings/web/xss/
+  → 再修下一类
+Step 4: 重扫 → human/executive-summary.md 看评分变化
+```
+
+### 工程师第 N 次使用
+
+```
+Step 1: delta.json → 看新增/修复/持续存在
+Step 2: findings/<type>/<detector>/ → 只修新增的
+```
+
+### AI 自动修复
+
+```
+Step 1: ai/remediation-pack.json
+  → 丢给 Claude/Codex: "按 remediation-pack.json 修复"
+```
+
+### 管理层/采购评估
+
+```
+Step 1: human/executive-summary.md  → 一页看安全态势
+Step 2: report.html                 → 浏览器打开精美报告
+```
+
+---
+
+## 目录结构 (v7.0)
 
 ```
 .codeagent/<extension-name>/scans/<scan-id>/
-├── index.json                # 索引器输出：符号表+调用图+文件清单（Step 2，只读）
-├── findings.json             # ★ v5.0 轻量化：同名升级，元数据+检出索引（<50KB）
-├── findings/                 # ★ v5.0: finding 目录树（四段式数据按 detector 分文件）
-│   ├── web/
-│   │   ├── sql-injection/
-│   │   │   └── H-SQLI-webapp-L47.json    # 完整四段式，文件名 = finding ID
-│   │   ├── ssrf/
-│   │   │   └── ...
-│   │   └── ...
-│   ├── crypto/
-│   │   └── ...
-│   ├── system/
-│   │   └── ...
-│   └── error/
-│       └── ...
-├── dismissed.json            # ★ v6.0: 被验证管道抑制的 Finding + 原因 + 轮次
-├── verification-audit.json   # ★ v6.0: 完整验证链 + 每轮收敛统计
-├── report.md                 # ★ 渲染器生成：人读审计报告（v6.0: 含"验证漏斗"章节）
-├── results.sarif             # 机读 — SARIF 2.1.0（v6.0: 含 suppressions 节点）
-├── summary.json              # 仪表盘统计（v6.0: 含 verification 字段）
-├── manifest.json             # 扫描元数据 + 检出索引
-├── status.json               # CI 门禁
-├── delta.json                # 增量对比
-└── latest → <scan-id>/       # 符号链接 → 最新扫描
+├── human/                          # ★ v7.0: 统一入口
+│   └── executive-summary.md         一页仪表盘：评分/发现分布/集中度/导航
+├── findings/                       # ★ 工程师核心工作流（v5.0 不变）
+│   └── <namespace>/<detector>/<finding-id>.json
+├── ai/                             # ★ v7.0: AI 可消费输出
+│   └── remediation-pack.json         AI 修复包（含 related_findings 关联发现）
+├── report.md                       # ★ v7.0: 安全工程师报告（精简 5 节）
+├── report.html                     # ★ v7.0: 管理层/审计 HTML 报告
+├── findings.json                   # 轻量索引（v5.0）
+├── results.sarif                   # SARIF 2.1.0 CI/CD（不变）
+├── summary.json                    # 仪表盘统计（不变）
+├── status.json                     # CI 门禁（不变）
+├── manifest.json                   # 扫描元数据（不变）
+├── delta.json                      # 增量对比（不变）
+├── index.json                      # 索引器输出（不变）
+├── dismissed.json                  # 验证管道（v6.0）
+├── verification-audit.json         # 验证管道（v6.0）
+└── latest → <scan-id>/             # 符号链接（不变）
 ```
 
 ### 文件命名规范
@@ -84,28 +122,104 @@ findings.json               # v4.0: 单体文件（所有 finding 内联，生�
 
 ## 用户使用流程
 
-工程师拿到扫描结果后的典型路径：
+按角色查找你需要的内容：
 
-| 我想做什么 | 打开哪个文件 | 为什么 |
-|-----------|------------|--------|
-| **看全局摘要** | `findings.json`（v5.0 轻量化）| 统计 + 检出 ID/严重度/文件/行号映射 |
-| **按漏洞类型审查** | `findings/web/sql-injection/` 目录 | 查看所有 SQL 注入问题，同类聚合审查 |
-| **看某个具体漏洞详情** | `findings/web/sql-injection/H-SQLI-webapp-L47.json` | 完整四段式（📍 Location → 📋 Evidence → ⚠️ Impact → 🔧 Fix） |
-| **给团队分工** | `findings/crypto/` → 小王，`findings/web/` → 小李 | 按 detector namespace 自然分工 |
-| **AI Agent 批量修复** | 对 AI 说："读取 `findings/crypto/`，按 fix.after_code 修改源码" | 目录树精准定位，无需解析大文件 |
-| **★ 看完整审计报告（商业交付）** | `report.md` | 六章专业报告，可 PDF 导出交付客户 |
-| **接入 CI/CD 流水线** | `results.sarif` | SARIF 2.1.0，GitHub/GitLab/Azure 原生消费 |
-| **查看趋势** | `delta.json` | 与 `latest` 符号链接指向的上次扫描做增量对比 |
+| 角色 | 第一步 | 第二步 |
+|------|--------|--------|
+| 👨‍💻 工程师（首次） | `human/executive-summary.md` 看发现分布 | `findings/<ns>/<detector>/` 集中修复 |
+| 👨‍💻 工程师（第N次） | `delta.json` 看增量 | `findings/<ns>/<detector>/` 修新增的 |
+| 🔐 安全工程师 | `report.md` 完整报告 | — |
+| 🤖 AI Agent | `ai/remediation-pack.json` 修复包 | 自动修复 |
+| 👔 管理层 | `human/executive-summary.md` 精要 | `report.html` 精美报告 |
+| 📊 CI/CD | `results.sarif` + `status.json` | — |
+
+
+
+
+## human/executive-summary.md — 统一入口
+
+所有角色的第一步。Renderer 从 summary.json + findings/ 目录树聚合生成。
+
+### 内容模板
+
+```markdown
+# SecGuardian 安全扫描精要
+
+> 扫描: <scan-id> | 项目: <path> | 语言: <lang>
+
+## 安全态势
+
+| 指标 | 值 |
+|------|-----|
+| 安全评分 | **<score>/100 — <grade>** |
+| 扫描文件 | <files> |
+| 总发现数 | <total> |
+
+### 严重度分布
+
+| 严重度 | 数量 |
+|--------|------|
+| 🔴 Critical | <n> |
+| 🟠 High | <n> |
+| 🟡 Medium | <n> |
+| 🔵 Low | <n> |
+
+### 发现分布（检测器 × 文件，Top-5）
+
+| 检测器 | 发现数 | 涉及文件 |
+|--------|--------|---------|
+| memory.buffer-overflow | 3 | parser.c, network.c |
+| web.sql-injection | 5 | webapp.py, auth.py |
+
+### 风险集中度（文件 × 发现数，Top-5）
+
+| 文件 | 发现数 | 占比 |
+|------|--------|------|
+| webapp.py | 8 | 35% |
+| parser.c | 5 | 22% |
+
+### Top 3 Critical 风险
+
+| ID | 文件:行 | 标题 | CVSS |
+|----|---------|------|------|
+
+---
+
+**下一步：**
+- 👨‍💻 工程师 → `findings/<检测器>/` 集中修复一类问题
+- 📋 查看完整报告 → `report.md`
+- 🤖 AI 自动修复 → `ai/remediation-pack.json`
+- 👔 管理层查看 → `report.html`
+```
+
+### 数据来源
+
+| 字段 | 来源 |
+|------|------|
+| 扫描元数据 | findings.json（轻量索引） |
+| 严重度分布 | summary.json findings_by_severity |
+| 发现分布表 | 遍历 findings 列表，按 detector 聚合 |
+| 风险集中度 | 遍历 findings 列表，按 file 聚合 |
+| Top 3 Critical | findings 列表按 severity 排序 |
+
+### 生成规则
+
+1. 发现分布表只展示 Top-5 检测器（按涉及文件数排序）
+2. 风险集中度表只展示 Top-5 文件（按发现数排序）
+3. 如果扫描只有 1 个检测器命中，跳过发现分布表
+4. 导航指向以相对路径给出，相对于 scan root
+
+---
 
 ## report.md — 商业交付物（人读审计报告）
 
 `report.md` 是 SecGuardian 的**核心商业交付物**。一份报告同时服务三个角色：
 
-| 角色 | 阅读章节 | 关注点 |
+| 角色 | 阅读内容 | 关注点 |
 |------|---------|--------|
-| 决策者（CTO/客户） | §1 执行摘要 + §2 合规仪表盘 | 安全评分、合规状态、风险趋势 |
-| 技术负责人 | §3 检出清单 + §5 修复路线图 | 优先级排序、预估工时 |
-| 工程师 | §4 详细发现 | 证据链、修复代码、CWE 参考 |
+| 决策者（CTO/客户） | human/executive-summary.md + report.html | 安全评分、风险集中度、HTML 报告 |
+| 技术负责人 | §2 检出清单 + §4 修复路线图 | 优先级排序、预估工时 |
+| 工程师 | §3 详细发现 | 证据链、修复代码、CWE 参考 |
 
 ### 安全评分算法
 
@@ -132,54 +246,16 @@ findings.json               # v4.0: 单体文件（所有 finding 内联，生�
 
 ---
 
-## 1. 执行摘要
+## 1. 扫描元数据
 
-| 指标 | 本次 | 上次 | 趋势 |
-|------|------|------|------|
-| 安全评分 | **{{SCORE}}/100 — {{GRADE}}** | {{LAST_SCORE}} | {{TREND}} |
-| 扫描文件 | {{SCANNED_FILES}} | — | — |
-| 代码行数 | {{SCANNED_LINES}} | — | — |
-| Critical | {{CRITICAL}} | {{LAST_CRITICAL}} | {{CRITICAL_TREND}} |
-| High | {{HIGH}} | {{LAST_HIGH}} | {{HIGH_TREND}} |
-| Medium | {{MEDIUM}} | {{LAST_MEDIUM}} | {{MED_TREND}} |
-| Low | {{LOW}} | {{LAST_LOW}} | {{LOW_TREND}} |
-
-> **评级**: {{GRADE_DESC}}
-> {{RECOMMENDATION}}
-
----
-
-## 2. 合规仪表盘
-
-### OWASP Top 10 (2021)
-
-| 类别 | 覆盖率 | 检出数 |
-|------|--------|--------|
-| A01:2021 访问控制失效 | ✅ 覆盖 | {{A01_COUNT}} |
-| A02:2021 加密失败 | ✅ 覆盖 | {{A02_COUNT}} |
-| A03:2021 注入 | ✅ 覆盖 | {{A03_COUNT}} |
-| A04:2021 不安全设计 | ⚠️ 部分 | 0 |
-| A05:2021 安全配置错误 | ✅ 覆盖 | {{A05_COUNT}} |
-| A06:2021 脆弱组件 | ✅ 覆盖 | {{A06_COUNT}} |
-| A07:2021 认证失效 | ✅ 覆盖 | {{A07_COUNT}} |
-| A08:2021 软件和数据完整性 | ⚠️ 部分 | 0 |
-| A09:2021 日志和监控 | ✅ 覆盖 | {{A09_COUNT}} |
-| A10:2021 SSRF | ✅ 覆盖 | {{A10_COUNT}} |
-
-### CWE Top 25 (2024)
-
-**覆盖率: 25/25 (100%)**
-
-| CWE | 名称 | 检出数 |
-|-----|------|--------|
-| CWE-79 | XSS | {{XSS_COUNT}} |
-| CWE-89 | SQL 注入 | {{SQLI_COUNT}} |
-| CWE-120 | 缓冲区溢出 | {{BOF_COUNT}} |
-| ... | ... | ... |
-
----
-
-## 3. 检出清单
+| 指标 | 值 |
+|------|-----|
+| 扫描命令 | /{{COMMAND}} {{PATH}} |
+| 扫描语言 | {{LANGUAGE}} |
+| 扫描文件 | {{SCANNED_FILES}} 个文件，{{SCANNED_LINES}} 行 |
+| 检测器覆盖 | {{MATCHED}} matched, {{EXECUTED}} executed |
+| 扫描耗时 | {{DURATION}}ms |
+## 2. 检出清单
 
 | ID | 严重度 | 置信度 | CWE | 文件:行 | 标题 |
 |----|--------|--------|-----|---------|------|
@@ -191,7 +267,7 @@ findings.json               # v4.0: 单体文件（所有 finding 内联，生�
 
 ---
 
-## 4. 详细发现
+## 3. 详细发现
 
 ### {{ID}}: {{TITLE}}
 
@@ -255,7 +331,7 @@ findings.json               # v4.0: 单体文件（所有 finding 内联，生�
 
 ---
 
-## 5. 修复路线图
+## 4. 修复路线图
 
 按 `风险 × 可达性 ÷ 修复成本` 排序：
 
@@ -279,7 +355,7 @@ findings.json               # v4.0: 单体文件（所有 finding 内联，生�
 
 ---
 
-## 6. 附录
+## 5. 附录
 
 | 项目 | 值 |
 |------|-----|
@@ -310,13 +386,14 @@ pandoc report.md -o report.pdf --pdf-engine=weasyprint \
 
 | 能力 | Coverity | Snyk | SonarQube | **SecGuardian** |
 |------|----------|------|-----------|----------------|
-| 执行摘要 | ✅ | ✅ | ✅ | ✅ |
+| 统一入口仪表盘 | ❌ | ❌ | ❌ | ✅ human/executive-summary.md |
 | 安全评分 | ❌ | ✅ | ✅ | ✅ (A-F 等级) |
+| AI 修复包 | ❌ | ❌ | ❌ | ✅ ai/remediation-pack.json |
+| 工程师工作流（按检测器） | ❌ | ❌ | ❌ | ✅ findings/<ns>/<detector>/ |
+| HTML 报告 | ❌ | ❌ | ❌ | ✅ report.html 自动生成 |
 | 合规映射 | ✅ CWE | ❌ | ✅ OWASP | ✅ OWASP + CWE |
 | 修复路线图 | 部分 | ❌ | ❌ | ✅ 四阶段 + 预估工时 |
-| AI 可执行 | ❌ | ❌ | ❌ | ✅ report.md → AI Agent |
-| 免费导出 PDF | ❌ | ❌ | ❌ | ✅ pandoc 开源工具 |
-| 单文件交付 | ❌ (需 Web) | ❌ | ❌ (PDF) | ✅ Markdown (人 + AI 通读) |
+| AI 可执行 | ❌ | ❌ | ❌ | ✅ remediation-pack → AI Agent |
 
 ### 生成规则
 
@@ -430,7 +507,8 @@ M-DLK-concurrency_c-L43 ← Medium, DeadLock, concurrency.c:43
 
 ## 协议演进
 
-- **6.0** (当前): 三轮验证管道产出（`dismissed.json` + `verification-audit.json`）。`report.md` 增加"验证漏斗"章节。`summary.json` 增加 `findings_total` 和 `dismissed_by_round`。`results.sarif` 增加 `suppressions` 节点。详见 [verification-protocol.md](verification-protocol.md)。
+- **7.0** (当前): 消费者导向设计。新增 `human/executive-summary.md` 统一入口。新增 `ai/remediation-pack.json` AI 修复包。新增 `report.html`。report.md 精简到 5 节。移除 developer/by-file/ 和 ai/attack-graph.json。
+- **6.0**: 三轮验证管道（`dismissed.json` + `verification-audit.json`）。
 - **5.0**: 目录树架构。单体 findings.json → 轻量索引 + findings/ 目录树。
 - **4.0**: AI/Renderer 分离架构。
 - **3.0**: 四段式结构 + 质量门禁。
