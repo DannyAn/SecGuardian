@@ -398,13 +398,13 @@ with open('$TMPDIR/out-score/summary.json') as f:
 score = s['security_score']
 grade = s['score_grade']
 
-expected_score = max(0, 100 - (0*25 + 1*10 + 0*3 + 0*1))
+expected_score = max(0, round(100 * __import__('math').exp(-(0*0.2 + 1*0.1 + 0*0.04 + 0*0.01))))
 
 if score == expected_score:
     print(f"  Score: {score}/100 (expected {expected_score}) — OK")
-    if grade == 'A' and score >= 90:
+    if grade == 'A' and score >= 80:
         print(f"  Grade: {grade} — OK")
-    elif grade == 'B' and score >= 75:
+    elif grade == 'B' and score >= 55:
         print(f"  Grade: {grade} — OK")
     else:
         print(f"  Grade: {grade} — WARNING (score={score})")
@@ -413,7 +413,7 @@ else:
     sys.exit(1)
 PYEOF
 if [ $? -eq 0 ]; then
-    pass "Security score calculation correct (100 - 25×Critical - 10×High - 3×Medium - 1×Low)"
+    pass "Security score calculation correct (100 × exp(-0.2×Crit - 0.1×High - 0.04×Med - 0.01×Low))"
 else
     fail "Security score calculation incorrect"
 fi
@@ -458,7 +458,7 @@ import json
 s = json.load(open('$TMPDIR/out-ci/status.json'))
 assert s['gate_result'] == 'FAILED', f'Expected FAILED, got {s[\"gate_result\"]}'
 assert s['exit_code'] == 1, f'Expected exit_code 1, got {s[\"exit_code\"]}'
-assert s['security_score'] == 75, f'Expected score 75 (100 - 25*1 Critical), got {s["security_score"]}'
+assert s['security_score'] == 82, f'Expected score 82 (100 × exp(-0.2)), got {s["security_score"]}'
 print('OK — CI gate FAILED correctly on Critical finding')
 " 2>/dev/null && pass "CI mode: Critical finding → FAILED + exit_code=1" || fail "CI mode exit code incorrect"
 

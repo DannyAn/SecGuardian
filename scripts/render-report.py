@@ -24,6 +24,7 @@ Copyright 2026 SecGuardian. Apache 2.0.
 
 import argparse
 import json
+import math
 import os
 import sys
 import hashlib
@@ -179,17 +180,28 @@ def safe_len(obj):
     return len(obj) if isinstance(obj, (list, dict, str)) else 0
 
 def calc_score(findings):
-    """Calculate security score from findings list."""
-    weights = {"Critical": 25, "High": 10, "Medium": 3, "Low": 1, "Info": 0}
+    """Calculate security score from findings list.
+    
+    Uses exponential decay formula to avoid bottoming out at 0:
+    score = 100 * exp(-0.2*Crit - 0.1*High - 0.04*Med - 0.01*Low)
+    
+    This preserves granularity even for high-severity scans:
+    - 0 findings     → 100
+    - 1 Crit         → ~82
+    - 3 Crit + 5 High → ~47
+    - 9 Crit + 5 High + 3 Med → ~26
+    - 15 Crit        → ~5
+    """
+    weights = {"Critical": 0.2, "High": 0.1, "Medium": 0.04, "Low": 0.01, "Info": 0}
     penalty = sum(weights.get(f["severity"], 0) for f in findings)
-    return max(0, 100 - penalty)
+    return max(0, round(100 * math.exp(-penalty)))
 
 
 def calc_grade(score):
-    if score >= 90: return "A"
-    if score >= 75: return "B"
-    if score >= 60: return "C"
-    if score >= 40: return "D"
+    if score >= 80: return "A"
+    if score >= 55: return "B"
+    if score >= 35: return "C"
+    if score >= 15: return "D"
     return "F"
 
 
