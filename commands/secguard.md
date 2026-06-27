@@ -168,7 +168,7 @@ find_indexer() {
     echo "Using: $INDEXER"
 }
 find_indexer
-$INDEXER --path <path> --output .codeagent/secguard-secguardian/scans/<scan_id>/index.json
+$INDEXER --lang <language> --path <path> --output .codeagent/secguard-secguardian/scans/<scan_id>/index.json
 if [ $? -ne 0 ]; then echo "FATAL: Indexer failed — cannot continue"; exit 1; fi
 ```
 
