@@ -185,7 +185,7 @@ func collectFiles(path, lang string) ([]string, error) {
 		}
 		if info.IsDir() {
 			base := filepath.Base(p)
-			if base == ".git" || base == ".claude" || base == ".codeagent" || base == ".gemini" || base == ".opencode" || base == "node_modules" || base == "dist" {
+			if base == ".git" || base == ".claude" || base == ".codeagent" || base == ".gemini" || base == ".opencode" || base == "node_modules" || base == "dist" || base == "target" || base == "build" || base == "static" || base == "public" {
 				return filepath.SkipDir
 			}
 			return nil
