@@ -106,14 +106,38 @@ func runIndex(args []string) {
 	lg := indexer.BuildLockGraph(parsed)
 	fmt.Printf("  Lock usage: %d mutexes\n", len(lg.Mutexes))
 
+
+	// Determine primary language
+	primaryLang := *langFlag
+	if primaryLang == "auto" {
+		extCount := make(map[string]int)
+		for _, f := range files {
+			extCount[detectLanguage(f, "auto")]++
+		}
+		maxCount := 0
+		for lang, count := range extCount {
+			if count > maxCount {
+				maxCount = count
+				primaryLang = lang
+			}
+		}
+		if primaryLang == "auto" {
+			primaryLang = "c"
+		}
+	}
+
 	// Phase 6: Assemble and write context
 	ctx := context.AnalysisContext{
-		Path:      *pathFlag,
-		Files:     files,
-		Symbols:   symbols,
-		CallGraph: cg,
-		AllocFree: af,
-		LockGraph: lg,
+		Path:            *pathFlag,
+		FileCount:       len(files),
+		FunctionCount:   len(symbols.Functions),
+		CallEdgeCount:   len(cg.Edges),
+		PrimaryLanguage: primaryLang,
+		Files:           files,
+		Symbols:         symbols,
+		CallGraph:       cg,
+		AllocFree:       af,
+		LockGraph:       lg,
 	}
 
 	if err := os.MkdirAll(filepath.Dir(*outputFlag), 0755); err != nil {
