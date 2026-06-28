@@ -34,7 +34,7 @@ SecAudit 是 SecGuardian 的旗舰产品——AI 深度安全审计。它替代�
 遵循 [Scan Output Protocol 3.0](../knowledge/protocols/scan-output.md)。人读/机读分离。
 
 ```
-.codeagent/secaudit-secguardian/scans/<scan-id>/
+.codeagent/secguardian/secaudit/scans/<scan-id>/
 ├── report.md               # ★ 人读审计报告 (Markdown)
 ├── results.sarif            # 机读: SARIF 2.1.0 (CI/CD)
 ├── summary.json             # 仪表盘统计
@@ -63,7 +63,7 @@ Skill: secaudit-taint-analysis
 | C-002 | Critical | File upload → os.system | src/upload.py:108 |
 | H-001 | High | Cookie → response.write | src/middleware.js:56 |
 
-输出目录: .codeagent/secaudit-secguardian/scans/sec-20260523-143000-b3c4/
+输出目录: .codeagent/secguardian/secaudit/scans/sec-20260523-143000-b3c4/
 
 💡 **如何使用审计结果？**
 - **快速看汇总** → 打开 `manifest.json`
@@ -121,7 +121,7 @@ Skill: secaudit-taint-analysis
 ### Step 1: 建立输出目录
 
 - 生成 `scan_id`（格式: `sec-YYYYMMDD-HHMMSS-xxxx`，其中 `xxxx` 为随机4位字符）。
-- 创建输出目录: `.codeagent/secaudit-secguardian/scans/<scan_id>/`。
+- 创建输出目录: `.codeagent/secguardian/secaudit/scans/<scan_id>/`。
 - 记录审计开始时间戳，用于 Step 4 计算 `duration_ms`。
 
 ### Step 2: 构建语义索引（必须执行，不可跳过）
@@ -151,7 +151,7 @@ find_indexer() {
     echo "Using: $INDEXER"
 }
 find_indexer
-$INDEXER --path <path> --output .codeagent/secaudit-secguardian/scans/<scan_id>/index.json
+$INDEXER --path <path> --output .codeagent/secguardian/secaudit/scans/<scan_id>/index.json
 if [ $? -ne 0 ]; then echo "FATAL: Indexer failed — cannot continue"; exit 1; fi
 ```
 
@@ -164,7 +164,7 @@ if [ $? -ne 0 ]; then echo "FATAL: Indexer failed — cannot continue"; exit 1; 
 
 ```bash
 python3 scripts/validate-index.py \
-    --index .codeagent/secaudit-secguardian/scans/<scan_id>/index.json \
+    --index .codeagent/secguardian/secaudit/scans/<scan_id>/index.json \
     --scan-id <scan_id>
 ```
 
@@ -237,7 +237,7 @@ python3 scripts/validate-index.py \
 
 **4b. 输出轻量 `findings.json` + 自检完整性：**
 
-同 secguard Step 4b-4c（见 `commands/secguard.md`）。路径使用 `secaudit-secguardian`。
+同 secguard Step 4b-4c（见 `commands/secguard.md`）。路径使用 `secguardian/secaudit`。
 
 **4c. 调用渲染器生成所有输出：**
 
@@ -257,9 +257,9 @@ done
 [ -z "$RENDERER" ] && [ -f "scripts/render-report.py" ] && RENDERER="scripts/render-report.py"
 
 python3 "$RENDERER" \
-    --findings-dir .codeagent/secaudit-secguardian/scans/<scan_id>/findings/ \
-    --index .codeagent/secaudit-secguardian/scans/<scan_id>/index.json \
-    --output .codeagent/secaudit-secguardian/scans/<scan_id>/
+    --findings-dir .codeagent/secguardian/secaudit/scans/<scan_id>/findings/ \
+    --index .codeagent/secguardian/secaudit/scans/<scan_id>/index.json \
+    --output .codeagent/secguardian/secaudit/scans/<scan_id>/
 ```
 
 > 渲染器自动执行 secaudit 质量门禁，未通过的 finding 会在 report.md 中标记 ⚠️。

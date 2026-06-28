@@ -26,7 +26,7 @@ description: "安全编码规范检视 — 5 语言反模式检测矩阵 + 最�
 遵循 [Scan Output Protocol 3.0](../knowledge/protocols/scan-output.md)。人读/机读分离。
 
 ```
-.codeagent/secreview-secguardian/scans/<scan-id>/
+.codeagent/secguardian/secreview/scans/<scan-id>/
 ├── report.md               # ★ 人读检视报告 (Markdown)
 ├── results.sarif            # 机读: SARIF 2.1.0 (CI/CD)
 ├── summary.json             # 仪表盘统计
@@ -60,7 +60,7 @@ Language: Java (auto-detected)
 
 > 每个发现的修复建议来自反模式检测矩阵和对应语言的 `## 修复指引` 节。
 
-输出目录: .codeagent/secreview-secguardian/scans/2026-05-23T14-30-00-c4d5/
+输出目录: .codeagent/secguardian/secreview/scans/2026-05-23T14-30-00-c4d5/
 
 💡 **如何使用检视结果？**
 - **快速看汇总** → 打开 `manifest.json`
@@ -101,7 +101,7 @@ Language: Java (auto-detected)
 ### Step 1: 建立输出目录
 
 - 生成 `scan_id`（格式: `rv-YYYYMMDD-HHMMSS-xxxx`，其中 `xxxx` 为随机4位字符）。
-- 创建输出目录: `.codeagent/secreview-secguardian/scans/<scan_id>/`。
+- 创建输出目录: `.codeagent/secguardian/secreview/scans/<scan_id>/`。
 - 记录检视开始时间戳，用于 Step 4 计算 `duration_ms`。
 
 ### Step 2: 构建语义索引（必须执行，不可跳过）
@@ -131,7 +131,7 @@ find_indexer() {
     echo "Using: $INDEXER"
 }
 find_indexer
-$INDEXER --path <path> --output .codeagent/secreview-secguardian/scans/<scan_id>/index.json
+$INDEXER --path <path> --output .codeagent/secguardian/secreview/scans/<scan_id>/index.json
 if [ $? -ne 0 ]; then echo "FATAL: Indexer failed — cannot continue"; exit 1; fi
 ```
 
@@ -144,7 +144,7 @@ if [ $? -ne 0 ]; then echo "FATAL: Indexer failed — cannot continue"; exit 1; 
 
 ```bash
 python3 scripts/validate-index.py \
-    --index .codeagent/secreview-secguardian/scans/<scan_id>/index.json \
+    --index .codeagent/secguardian/secreview/scans/<scan_id>/index.json \
     --scan-id <scan_id>
 ```
 
@@ -212,7 +212,7 @@ python3 scripts/validate-index.py \
 
 **4b. 输出轻量 `findings.json` + 自检完整性：**
 
-同 secguard Step 4b-4c（见 `commands/secguard.md`）。路径使用 `secreview-secguardian`。
+同 secguard Step 4b-4c（见 `commands/secguard.md`）。路径使用 `secguardian/secreview`。
 
 **4c. 调用渲染器生成所有输出：**
 
@@ -232,9 +232,9 @@ done
 [ -z "$RENDERER" ] && [ -f "scripts/render-report.py" ] && RENDERER="scripts/render-report.py"
 
 python3 "$RENDERER" \
-    --findings-dir .codeagent/secreview-secguardian/scans/<scan_id>/findings/ \
-    --index .codeagent/secreview-secguardian/scans/<scan_id>/index.json \
-    --output .codeagent/secreview-secguardian/scans/<scan_id>/
+    --findings-dir .codeagent/secguardian/secreview/scans/<scan_id>/findings/ \
+    --index .codeagent/secguardian/secreview/scans/<scan_id>/index.json \
+    --output .codeagent/secguardian/secreview/scans/<scan_id>/
 ```
 
 > ⚠️ 如果渲染器不存在或执行失败，打印警告：`"Renderer unavailable — findings saved to findings/ directory tree only."`

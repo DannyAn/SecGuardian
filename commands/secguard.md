@@ -16,6 +16,7 @@ description: "安全加固项排查 — 67<!-- @secguardian:detector_count --> �
   /secguard ./src cpp                                # C/C++ 全量
   /secguard ./src python                             # Python 全量
   /secguard ./src java                               # Java 全量
+  /secguard ./src java --force                         # 强制刷新索引
 
 命名空间过滤:
   /secguard ./src cpp memory.*                       # 仅内存安全检测器
@@ -33,6 +34,8 @@ description: "安全加固项排查 — 67<!-- @secguardian:detector_count --> �
 SARIF 输出 (CI/CD 集成):
   /secguard ./src python --sarif                     # 附加 SARIF 2.1.0 输出
   /secguard ./src cpp memory.* --sarif               # 过滤 + SARIF
+  /secguard ./src python --force                        # 强制刷新索引
+  /secguard ./src cpp memory.* --force -f             # 强制 + 过滤 + SARIF
 ```
 
 ## 输出
@@ -40,7 +43,7 @@ SARIF 输出 (CI/CD 集成):
 遵循 [Scan Output Protocol 3.0](../knowledge/protocols/scan-output.md)。人读/机读分离。
 
 ```
-.codeagent/secguard-secguardian/scans/<scan-id>/
+.codeagent/secguardian/secguard/scans/<scan-id>/
 ├── human/                    # ★ v7.0: 统一入口
 │   └── executive-summary.md   一页仪表盘 + 发现分布 + 导航
 ├── findings/                 # 按检测器组织的发现目录树
@@ -80,12 +83,12 @@ Filters: memory.*, system.*
 
 > ID 格式: `<SEVERITY>-<DETECTOR_ABBREV>-<FILE_SLUG>-L<LINE>` — 一眼看懂严重度、漏洞类型、文件和行号。
 
-📋 统一入口: `.codeagent/secguard-secguardian/scans/sc-20260531-143000-a1b2/human/executive-summary.md`
-📄 完整报告: `.codeagent/secguard-secguardian/scans/sc-20260531-143000-a1b2/report.md`
-🌐 仪表盘: `.codeagent/secguard-secguardian/scans/sc-20260531-143000-a1b2/dashboard.html`
-🤖 AI 修复包: `.codeagent/secguard-secguardian/scans/sc-20260531-143000-a1b2/ai/remediation-pack.json`
-📊 SARIF: `.codeagent/secguard-secguardian/scans/sc-20260531-143000-a1b2/results.sarif`
-📋 索引: `.codeagent/secguard-secguardian/scans/sc-20260531-143000-a1b2/manifest.json`
+📋 统一入口: `.codeagent/secguardian/secguard/scans/sc-20260531-143000-a1b2/human/executive-summary.md`
+📄 完整报告: `.codeagent/secguardian/secguard/scans/sc-20260531-143000-a1b2/report.md`
+🌐 仪表盘: `.codeagent/secguardian/secguard/scans/sc-20260531-143000-a1b2/dashboard.html`
+🤖 AI 修复包: `.codeagent/secguardian/secguard/scans/sc-20260531-143000-a1b2/ai/remediation-pack.json`
+📊 SARIF: `.codeagent/secguardian/secguard/scans/sc-20260531-143000-a1b2/results.sarif`
+📋 索引: `.codeagent/secguardian/secguard/scans/sc-20260531-143000-a1b2/manifest.json`
 
 💡 **如何使用扫描结果？**
 - **快速看汇总** → 打开 `manifest.json`（JSON 索引，列出所有检出 ID/严重度/文件/行号）
@@ -134,42 +137,58 @@ Filters: memory.*, system.*
 ### Step 1: 建立输出目录
 
 - 生成 `scan_id`（格式: `sc-YYYYMMDD-HHMMSS-xxxx`，其中 `xxxx` 为随机4位字符）。
-- 创建输出目录: `.codeagent/secguard-secguardian/scans/<scan_id>/`。
+- 创建输出目录: `.codeagent/secguardian/secguard/scans/<scan_id>/`。
 - 记录扫描开始时间戳，用于 Step 4 计算 `duration_ms`。
 
 ### Step 2: 构建语义索引（必须执行，不可跳过）
 
 > ⚠️ 这是扫描的**核心前置步骤**。索引器提供符号表、调用图、alloc/free 配对，是后续检测器执行的结构化上下文。**不执行此步骤将导致扫描质量严重下降。**
 
-**2a. 执行索引器（阻塞等待完成）：**
+**2a. 执行索引器（共享索引 + --force 支持）：**
+
+索引文件位于 `.codeagent/secguardian/index.json`，三个命令共享。
+首次扫描自动创建，后续自动复用。
+
+**--force 处理**: 如果用户在命令中传入了 `--force` 或 `-f` 参数，
+在运行索引器相关的 shell 命令之前，先设置 `export FORCE=true`。
 
 ```bash
-# 定位 indexer wrapper — 项目级 + 用户级全覆盖
 find_indexer() {
     INDEXER=""
-    # Base directories × relative paths — covers project-level + user-level
-    for base in "." "$HOME"; do
-        for path in \
-            ".opencode/extensions/secguardian/scripts/secguardian-index" \
-            ".config/opencode/extensions/secguardian/scripts/secguardian-index" \
-            ".gemini/extensions/secguardian/scripts/secguardian-index" \
-            ".claude/plugins/secguardian/scripts/secguardian-index"; do
+    for base in "$HOME" "."; do
+        for path in             ".config/opencode/extensions/secguardian/scripts/secguardian-index"             ".gemini/extensions/secguardian/scripts/secguardian-index"             ".claude/plugins/secguardian/scripts/secguardian-index"             ".opencode/extensions/secguardian/scripts/secguardian-index"; do
             candidate="$base/$path"
-            [ -x "$candidate" ] && [ -f "$candidate" ] && INDEXER="$candidate" && break 3
+            [ -f "$candidate" ] && INDEXER="$candidate" && break 3
         done
     done
-    # Legacy fallbacks (pre-plugin-format deploys)
-    for candidate in \
-        scripts/secguardian-index \
-        internal/secguardian-index; do
-        [ -x "$candidate" ] && [ -f "$candidate" ] && INDEXER="$candidate" && break
+    for candidate in scripts/secguardian-index internal/secguardian-index; do
+        [ -f "$candidate" ] && INDEXER="$candidate" && break
     done
-    [ -z "$INDEXER" ] && echo "FATAL: secguardian-index not found (checked project + user paths)" && exit 1
+    [ -z "$INDEXER" ] && echo "FATAL: secguardian-index not found" && exit 1
     echo "Using: $INDEXER"
 }
 find_indexer
-$INDEXER --lang <language> --path <path> --output .codeagent/secguard-secguardian/scans/<scan_id>/index.json
-if [ $? -ne 0 ]; then echo "FATAL: Indexer failed — cannot continue"; exit 1; fi
+
+# 共享索引路径（产品级，三个命令共用，存于 .codeagent/secguardian/）
+SHARED_INDEX=".codeagent/secguardian/index.json"
+mkdir -p "$(dirname "$SHARED_INDEX")"
+
+FORCE=${FORCE:-false}
+for arg in "$@"; do
+    if [ "$arg" = "--force" ] || [ "$arg" = "-f" ]; then FORCE=true; break; fi
+done
+
+if [ -f "$SHARED_INDEX" ] && [ "$FORCE" = false ]; then
+    echo "  ✅ Index reused: $SHARED_INDEX"
+else
+    [ "$FORCE" = true ] && echo "  🔄 Force refresh: $SHARED_INDEX" || echo "  🔄 Creating index: $SHARED_INDEX"
+    TIMEOUT_CMD=""
+    if command -v timeout &>/dev/null; then TIMEOUT_CMD="timeout 120"
+    elif command -v gtimeout &>/dev/null; then TIMEOUT_CMD="gtimeout 120"
+    fi
+    $TIMEOUT_CMD $INDEXER --lang <language> --path <path> --output "$SHARED_INDEX"
+    if [ $? -ne 0 ]; then echo "FATAL: Indexer failed — cannot continue"; exit 1; fi
+fi
 ```
 
 **2b. 验证索引完整性 + 生成结构化摘要（必须通过）：**
@@ -182,7 +201,7 @@ if [ $? -ne 0 ]; then echo "FATAL: Indexer failed — cannot continue"; exit 1; 
 
 ```bash
 python3 scripts/validate-index.py \
-    --index .codeagent/secguard-secguardian/scans/<scan_id>/index.json \
+    --index .codeagent/secguardian/secguard/scans/<scan_id>/index.json \
     --scan-id <scan_id>
 ```
 
@@ -322,7 +341,7 @@ AI 只需读取 `## cpp` 以下至下一个 `##` 之间的内容即获得完整�
 写入两个新文件到 scan root：
 
 ```bash
-SCAN_DIR=".codeagent/secguard-secguardian/scans/<scan_id>"
+SCAN_DIR=".codeagent/secguardian/secguard/scans/<scan_id>"
 
 # dismissed.json — 被抑制的 Finding + 原因 + 轮次
 # verification-audit.json — 完整验证链 + 每轮收敛统计
@@ -331,7 +350,7 @@ SCAN_DIR=".codeagent/secguard-secguardian/scans/<scan_id>"
 **3.5f. 自检完整性：**
 
 ```bash
-SCAN_DIR=".codeagent/secguard-secguardian/scans/<scan_id>"
+SCAN_DIR=".codeagent/secguardian/secguard/scans/<scan_id>"
 export SCAN_DIR
 python3 << 'PYEOF'
 import json, os, sys
@@ -474,7 +493,7 @@ findings/crypto/password-storage/H-CRYPTO-crypto_utils-L20.json
 
 ```bash
 python3 scripts/validate-findings.py \
-    --findings-dir .codeagent/secguard-secguardian/scans/<scan_id>/findings/
+    --findings-dir .codeagent/secguardian/secguard/scans/<scan_id>/findings/
 ```
 
 **4d. 调用渲染器生成所有输出：**
@@ -496,9 +515,9 @@ done
 [ -z "$RENDERER" ] && [ -f "scripts/render-report.py" ] && RENDERER="scripts/render-report.py"
 
 python3 "$RENDERER" \
-    --findings-dir .codeagent/secguard-secguardian/scans/<scan_id>/findings/ \
-    --index .codeagent/secguard-secguardian/scans/<scan_id>/index.json \
-    --output .codeagent/secguard-secguardian/scans/<scan_id>/
+    --findings-dir .codeagent/secguardian/secguard/scans/<scan_id>/findings/ \
+    --index .codeagent/secguardian/secguard/scans/<scan_id>/index.json \
+    --output .codeagent/secguardian/secguard/scans/<scan_id>/
 ```
 
 渲染器自动生成: `report.md` + `results.sarif` + `summary.json` + `manifest.json` + `status.json` + `delta.json`。
