@@ -1,46 +1,26 @@
-SecGuardian Proprietary Knowledge License
+Creative Commons Attribution-NonCommercial 4.0 International
 
-Copyright (c) 2026 SecGuardian. All rights reserved.
+Copyright 2026 SecGuardian
 
-This license applies to the following directories and their contents:
-  - skills/          (all SKILL.md files, references/, and subdirectories)
-  - knowledge/       (all concept, detector, language, protocol, and template files)
+This work is licensed under the Creative Commons
+Attribution-NonCommercial 4.0 International License.
 
-NO PERMISSION IS GRANTED to:
-
-1. COPY, DISTRIBUTE, OR PUBLISH these files in any form, in whole or in part.
-
-2. USE these files for any commercial purpose, including but not limited to:
-   - Incorporating them into a competing security product or service
-   - Using them to train, fine-tune, or evaluate AI/ML models
-   - Offering security audit or code review services based on these files
-   - Reselling, sublicensing, or redistributing these files
-
-3. CREATE DERIVATIVE WORKS based on these files without explicit written
-   permission from SecGuardian.
-
-4. REMOVE OR MODIFY this license notice from any file.
+To view a copy of this license, visit:
+  https://creativecommons.org/licenses/by-nc/4.0/
 
 ---
 
-PERMITTED USE (with valid commercial license):
+Applicable to files under:
+  - skills/               (all SKILL.md files, references/, and subdirectories)
+  - knowledge/            (guard-rules, audit-rules, review-rules, protocols, languages)
 
-1. SecGuardian Pro, Team, and Enterprise licensees may use these files
-   as part of their licensed SecGuardian deployment.
+You are free to:
+  - Share — copy and redistribute the material in any medium or format
+  - Adapt — remix, transform, and build upon the material
 
-2. Evaluation use is permitted for a period of 14 days for the sole purpose
-   of assessing the product for potential purchase.
+Under the following terms:
+  - Attribution — You must give appropriate credit, provide a link to the license,
+    and indicate if changes were made.
+  - NonCommercial — You may not use the material for commercial purposes.
 
----
-
-DISCLAIMER:
-
-THESE FILES ARE PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND. THE ENTIRE
-RISK AS TO THE QUALITY AND PERFORMANCE OF THE SECURITY ANALYSIS METHODS
-DESCRIBED HEREIN IS WITH THE LICENSEE.
-
----
-
-For commercial licensing inquiries:
-  Email: licensing@secguardian.dev (placeholder)
-  Web: https://secguardian.dev (placeholder)
+For commercial licensing inquiries: licensing@secguardian.dev

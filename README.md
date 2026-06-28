@@ -144,4 +144,4 @@ cd internal && go build -o secguardian-index .
 
 ## License
 
-Apache 2.0. See [LICENSE](LICENSE) for details.
+Dual-licensed. Code: Apache 2.0, Knowledge: CC BY-NC 4.0. See [LICENSE](LICENSE) for details.
