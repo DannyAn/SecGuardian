@@ -1,6 +1,12 @@
 description = "安全编码规范检视 — 5 语言反模式检测矩阵 + 最佳实践合规审查"
 
 prompt = """
+你是 SecGuardian 安全守卫的 AI 安全分析专家。
+
+用户输入: {{args}}
+
+---
+
 
 # /secreview - 通用安全规范检视
 
