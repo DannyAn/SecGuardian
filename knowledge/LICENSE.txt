@@ -6,4 +6,4 @@ files for any commercial purpose.
 
 See /LICENSE-KNOWLEDGE.txt in the repository root for full terms.
 
-For licensing: licensing@secguardian.dev (placeholder)
+For licensing: netnewstar@gmail.com (placeholder)

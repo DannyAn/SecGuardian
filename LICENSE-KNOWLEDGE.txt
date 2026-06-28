@@ -40,4 +40,4 @@ summarizes common scenarios:
 If your use case falls in the right column or you are unsure,
 please contact us for a commercial license.
 
-For commercial licensing inquiries: licensing@secguardian.dev
+For commercial licensing inquiries: netnewstar@gmail.com

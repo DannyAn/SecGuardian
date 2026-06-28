@@ -153,7 +153,7 @@ SecGuardian is dual-licensed:
 
 **If your team is evaluating SecGuardian for internal security scanning:** The Apache 2.0 code
 is free to use. The knowledge base (detectors and rules) can be evaluated internally for up to
-30 days. For ongoing commercial use of the knowledge base, please [contact us](mailto:licensing@secguardian.dev).
+30 days. For ongoing commercial use of the knowledge base, please [contact us](mailto:netnewstar@gmail.com).
 
 See [LICENSE](LICENSE) (entry point), [LICENSE-CODE.txt](LICENSE-CODE.txt) (Apache 2.0),
 and [LICENSE-KNOWLEDGE.txt](LICENSE-KNOWLEDGE.txt) (CC BY-NC 4.0) for full terms.
