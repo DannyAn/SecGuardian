@@ -5,6 +5,74 @@
 
 ---
 
+## 2026-06-28 — Finding ID 重构 + 安全评分修复（Java 扫描实测发现）
+
+### 背景
+
+2026-06-27 对 `/Users/kongan/workbench/gitee/pkmhipster/main/src` 执行 `/secguard ./src java` 扫描，检出 26 个发现（8 Critical + 6 High + 12 Medium）。
+扫描输出暴露两个关联问题：所有 Finding 的 `id` 字段显示 "placeholder"，安全评分显示 0/100。
+
+### 讨论要点
+
+#### 1. Finding ID 双重问题
+
+**Bug**: AI Agent 写入 individual finding 文件时 `id` 填的是 `placeholder`，renderer 走 `--findings-dir` 加载后全显 placeholder。
+`findings_index` 中 ID 正确（如 `C-SQL-I-QuestionMapper-L70`），但 v5.0 路径不消费索引中的 ID。
+
+**设计问题**: 即使 ID 正确，格式 `C-SQL-I-QuestionMapper-L70` 也是工程师认知负担：
+- 缩写不统一（`H-WEAK--SysUserApplicationService-L127` 出现双连字符）
+- 行号不稳定，代码插入一行即失效
+- 试图同时做机器标识 + 人读引用，两件事都做不好
+
+#### 2. 新 Finding Identity 设计
+
+参照 SARIF 2.1.0 哲学，采用分层方案：
+
+| 职责 | 机制 | 说明 |
+|------|------|------|
+| 跨扫描去重 | SHA-256(`detector:file:line:cwe`) | 前 12 hex chars 做文件名 |
+| 人读定位 | `_${file_slug}-${line}` 后缀 | 文件名后附加可读部分 |
+| 人读引用 | 序号 `#1` ~ `#N` | 每次扫描按 severity→file→line 排序 |
+| 报告展示 | 序号 + detector + file:line + title | 不再展示 ID 列 |
+| SARIF 对齐 | `partialFingerprints` = 同一 SHA | 符合 OASIS 标准 |
+
+**选中方案**: `f42ce940c35c_SignatureUtils-35.json`
+- 前 12 位 SHA 前缀 → 去重 + 跨扫描稳定
+- `_SignatureUtils-35` → 工程师快速定位
+- 目录树已含 detector 命名空间（`findings/crypto/hardcoded-secrets/`）
+
+**否决的方案**:
+- **纯 SHA**（`f42ce940c35c.json`）: ls 查看无任何上下文
+- **SHA-CWE-file**（`f42ce940c35c_798-SignatureUtils-35.json`）: CWE 编号需要查表，信息密度低
+- **旧格式修修补补**: 缩写规则无论如何也做不到紧凑且可读
+
+#### 3. 安全评分问题
+
+Source 代码 renderer 已有指数衰减公式 `100 × exp(-0.2C - 0.1H - 0.04M - 0.01L)`，
+对该扫描本应产出 7/100（已确认），但产出 0/100。
+
+**根因**: AI Agent 在 `findings.json` 中写死 `security_score: 0`。虽然 `generate_summary` 和 `generate_status` 会从 findings 列表重新计算评分，但部署管线的某个环节绕过了 renderer 的计算。
+
+**修复方向**:
+- 从 `findings.json` 模板中移除 `security_score` 字段（AI 不负责评分）
+- Renderer 始终从 findings 列表计算评分
+- 确认 `calc_score` 使用的指数衰减公式已部署
+
+### 最终方案
+
+本次特性以 **FEATURE-006-finding-identity-redesign** 立项，覆盖 Finding Identity 重构 + 评分修复，隶属 EPIC-001 Core Scanning Engine。
+
+### 影响范围
+
+（待 spec 详细定义）
+- `scripts/render-report.py` — 移除 `security_score` override、manifest/report 改用序号+SHA
+- `knowledge/protocols/scan-output.md` — 更新文件命名 + finding 结构
+- `commands/secguard.md` / `secaudit.md` / `secreview.md` — 更新 ID 格式描述 + 模板
+- `skills/secguard/*/SKILL.md` — 更新 AI 写入 finding 的指令
+- `scripts/validate-findings.py` — 更新 schema（id 字段不再强制）
+
+---
+
 ## 2026-06-27 — 索引器容错与扫描可靠性系统性缺陷（Java 扫描实测回溯）
 
 #

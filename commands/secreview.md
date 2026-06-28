@@ -161,7 +161,7 @@ python3 scripts/validate-index.py \
 > **v6.0**: secreview 命令同样适用三轮验证管道（`commands/secguard.md` Step 3.5）。`--no-verify` 跳过验证。
 > ⚠️ **v5.0 关键变更**: AI **不再输出单体 findings.json**。改为按 detector 分类，**每个 finding 输出一个独立文件**到 `findings/` 目录树下。最后输出轻量 `findings.json`（同名升级，不含四段式，仅元数据+索引）。渲染器通过 `--findings-dir` 聚合所有 finding 文件生成报告。**禁止直接写 report.md / results.sarif / 任何其他输出文件**。
 
-**4a. 按 detector 分组，以 finding ID 为文件名逐文件输出：**
+**4a. 按 detector 分组，以 SHA 前缀为文件名逐文件输出：**
 
 每个 finding 写入独立文件，路径格式如 secguard Step 4a（见 `commands/secguard.md`），额外包含 `secreview_specific` 字段：
 
@@ -169,7 +169,7 @@ python3 scripts/validate-index.py \
 {
   "schema_version": "1.0",
   "finding": {
-    "id": "...",
+    # no "id" field — identity is SHA-256(detector:file:line:cwe)
     "severity": "High",
     "cwe": "CWE-390",
     "detector": "error.exception-swallow",

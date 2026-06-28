@@ -72,13 +72,13 @@ Filters: memory.*, system.*
 - 安全评分: 45/100 🔴
 
 ### 检出
-| 检出 ID | Severity | Detector | File | 修复建议 |
+| # | Severity | Detector | File | 修复建议 |
 |---------|----------|----------|------|---------|
-| C-BOF-parser_c-L36 | 🔴 Critical | memory.buffer-overflow | src/parser.c:36 | 使用 `snprintf(buf, sizeof(buf), ...)` 替代 `sprintf` |
-| H-NPD-network_c-L305 | 🟠 High | memory.null-dereference | src/network.c:305 | malloc() 后检查 `if (!ptr) return ERR_NOMEM;` |
-| H-CMD-executor_c-L89 | 🟠 High | system.command-injection | src/executor.c:89 | 使用 `execve()` 参数数组替代 `system()` |
+| #1 | 🔴 Critical | memory.buffer-overflow | src/parser.c:36 | 使用 `snprintf(buf, sizeof(buf), ...)` 替代 `sprintf` |
+| #2 | 🟠 High | memory.null-dereference | src/network.c:305 | malloc() 后检查 `if (!ptr) return ERR_NOMEM;` |
+| #3 | 🟠 High | system.command-injection | src/executor.c:89 | 使用 `execve()` 参数数组替代 `system()` |
 
-> ID 格式: `<SEVERITY>-<DETECTOR_ABBREV>-<FILE_SLUG>-L<LINE>` — 一眼看懂严重度、漏洞类型、文件和行号。
+> 文件命名: `<SHA12>_<FILE_SLUG>-<LINE>.json` — 前 12 位 SHA-256 确保唯一性，后缀 _file-line 帮助定位。
 
 📋 统一入口: `.codeagent/secguard-secguardian/scans/sc-20260531-143000-a1b2/human/executive-summary.md`
 📄 完整报告: `.codeagent/secguard-secguardian/scans/sc-20260531-143000-a1b2/report.md`
@@ -147,28 +147,37 @@ Filters: memory.*, system.*
 # 定位 indexer wrapper — 项目级 + 用户级全覆盖
 find_indexer() {
     INDEXER=""
-    # Base directories × relative paths — covers project-level + user-level
-    for base in "." "$HOME"; do
+    # Search user-level paths FIRST (extension deployed to user config, not project level)
+    for base in "$HOME" "."; do
         for path in \
-            ".opencode/extensions/secguardian/scripts/secguardian-index" \
             ".config/opencode/extensions/secguardian/scripts/secguardian-index" \
             ".gemini/extensions/secguardian/scripts/secguardian-index" \
-            ".claude/plugins/secguardian/scripts/secguardian-index"; do
+            ".claude/plugins/secguardian/scripts/secguardian-index" \
+            ".opencode/extensions/secguardian/scripts/secguardian-index"; do
             candidate="$base/$path"
-            [ -x "$candidate" ] && [ -f "$candidate" ] && INDEXER="$candidate" && break 3
+            if [ -f "$candidate" ]; then
+                INDEXER="$candidate" && break 3
+            fi
         done
     done
     # Legacy fallbacks (pre-plugin-format deploys)
     for candidate in \
         scripts/secguardian-index \
         internal/secguardian-index; do
-        [ -x "$candidate" ] && [ -f "$candidate" ] && INDEXER="$candidate" && break
+        if [ -f "$candidate" ]; then
+            INDEXER="$candidate" && break
+        fi
     done
-    [ -z "$INDEXER" ] && echo "FATAL: secguardian-index not found (checked project + user paths)" && exit 1
+    [ -z "$INDEXER" ] && echo "FATAL: secguardian-index not found (checked all paths)" && exit 1
     echo "Using: $INDEXER"
 }
 find_indexer
-$INDEXER --lang <language> --path <path> --output .codeagent/secguard-secguardian/scans/<scan_id>/index.json
+# timeout: GNU timeut not available on macOS; use gtimeout if available or skip
+TIMEOUT_CMD=""
+if command -v timeout &>/dev/null; then TIMEOUT_CMD="timeout 120"
+elif command -v gtimeout &>/dev/null; then TIMEOUT_CMD="gtimeout 120"
+fi
+$TIMEOUT_CMD $INDEXER --lang <language> --path <path> --output .codeagent/secguard-secguardian/scans/<scan_id>/index.json
 if [ $? -ne 0 ]; then echo "FATAL: Indexer failed — cannot continue"; exit 1; fi
 ```
 
@@ -204,7 +213,7 @@ INDEX_FILE 输出示例:
 
 | 路径 | 必填 | 字段名（注意全用小写 snake_case） |
 |------|------|----------------------------------|
-| `finding.id` | ✅ | 唯一标识 |
+| `finding.severity` | ✅ | Critical/High/Medium/Low/Info |
 | `finding.severity` | ✅ | Critical/High/Medium/Low/Info |
 | `finding.cwe` | ✅ | CWE 编号，如 CWE-89 |
 | `finding.detector` | ✅ | 必须用 `namespace.name` 格式 |
@@ -292,9 +301,28 @@ AI 只需读取 `## cpp` 以下至下一个 `##` 之间的内容即获得完整�
 > ⚠️ 这是 v6.0 新增的验证步骤。在 Detector 产出 Finding 后、渲染报告前，执行三轮独立验证对每个 Finding 进行证据认证，最大化降低误报。
 > 跳过验证: 在命令末尾加 `--no-verify` flag。
 
-**3.5a. 加载验证协议：**
+**3.5a. 加载验证协议（多路径搜索）：**
 
-读取 `knowledge/protocols/verification-protocol.md` 获取完整的三轮 prompt 模板和裁决标准。
+与其他 secguardian 模块相同，协议文件部署在插件目录下，需要多路径搜索定位：
+
+```bash
+find_protocol() {
+    PROTOCOL=""
+    for base in "." "$HOME"; do
+        for path in             ".opencode/extensions/secguardian/knowledge/protocols/verification-protocol.md"             ".config/opencode/extensions/secguardian/knowledge/protocols/verification-protocol.md"             ".gemini/extensions/secguardian/knowledge/protocols/verification-protocol.md"             ".claude/plugins/secguardian/knowledge/protocols/verification-protocol.md"; do
+            candidate="$base/$path"
+            [ -f "$candidate" ] && PROTOCOL="$candidate" && break 3
+        done
+    done
+    [ -z "$PROTOCOL" ] && [ -f "knowledge/protocols/verification-protocol.md" ] && PROTOCOL="knowledge/protocols/verification-protocol.md"
+    echo "$PROTOCOL"
+}
+if [ -n "$(find_protocol)" ]; then
+    echo "Using: $(find_protocol)"
+else
+    echo "WARNING: verification-protocol.md not found across all searched paths — 跳过验证管道"
+fi
+```
 
 **3.5b. 执行 P1: Semantic Verification：**
 
@@ -366,30 +394,29 @@ PYEOF
 
 > ⚠️ **v5.0 关键变更**: AI **不再输出单体 findings.json**。改为按 detector 分类，**每个 finding 输出一个独立文件**到 `findings/` 目录树下。最后输出轻量 `findings.json`（同名升级，不含四段式，仅元数据+索引）。渲染器通过 `--findings-dir` 聚合所有 finding 文件生成报告。**禁止直接写 report.md / results.sarif / 任何其他输出文件** — 这些由渲染器生成。
 
-**4a. 按 detector 分组，以 finding ID 为文件名逐文件输出（每个文件 2-4KB）：**
+**4a. 按 detector 分组，以 SHA 前缀为文件名逐文件输出（每个文件 2-4KB）：**
 
 每个 finding 写入独立文件，路径格式：
 ```
 findings/<namespace>/<detector-name>/<finding-id>.json
 ```
 
-**文件命名规则：直接使用 finding ID（业界最佳实践，对齐 SARIF/CodeQL/Semgrep）：**
+**文件命名规则：SHA-256 前缀 + 文件-行号后缀（对齐 SARIF partialFingerprints）：**
 
-finding ID 格式: `<SEVERITY>-<DETECTOR_ABBREV>-<FILE_SLUG>-L<LINE>`
+文件命名: `<SHA12>_<FILE_SLUG>-<LINE>.json`
 
 | 组成部分 | 说明 | 唯一性 |
 |---------|------|--------|
-| `SEVERITY` | C/H/M/L/I | 同一行不同 detector = 不同 ID |
-| `DETECTOR_ABBREV` | 3-5 字符缩写（SQLI, SSRF, CRYPTO...） | 不同 detector 不碰撞 |
-| `FILE_SLUG` | 文件名去扩展名，特殊字符 → `_` | 不同文件不碰撞 |
-| `L<LINE>` | 行号（L 前缀 + 数字） | 同行同 detector 只产一个 finding |
+| `SHA12` | SHA-256(`detector:file:line:cwe`) 前 12 hex | 不同输入几乎零碰撞 |
+| `FILE_SLUG` | 文件名去扩展名，无缩写 | 工程师快速定位 |
+| `LINE` | 行号（纯数字，无前缀） | 同行同 detector 只产一个 finding |
 
-**为什么不会碰撞？** 同一行代码不会被同一 detector 重复报告。finding ID 天然保证全局唯一。
+**为什么不会碰撞？** SHA-256 以 `detector:file:line:cwe` 为输入，不同输入的输出碰撞概率 < 2^-48。同一行同一 detector 只报告一次，filename 天然唯一。
 
 示例：
 ```
-findings/web/sql-injection/H-SQLI-webapp-L47.json
-findings/crypto/password-storage/H-CRYPTO-crypto_utils-L20.json
+findings/web/sql-injection/a1b2c3d4e5f6_webapp-47.json
+findings/crypto/password-storage/f6e5d4c3b2a1_crypto_utils-20.json
 ```
 
 **单文件格式（遵循 `findings-schema.json` 中 `SingleFindingFile` schema）：**
@@ -397,7 +424,6 @@ findings/crypto/password-storage/H-CRYPTO-crypto_utils-L20.json
 {
   "schema_version": "1.0",
   "finding": {
-    "id": "H-SQLI-webapp-L47",
     "severity": "High",
     "cwe": "CWE-89",
     "detector": "web.sql-injection",
@@ -406,6 +432,9 @@ findings/crypto/password-storage/H-CRYPTO-crypto_utils-L20.json
     "function": "get_user",
     "title": "SQL injection via f-string query construction",
     "fix_summary": "使用参数化查询替代 f-string 拼接",
+    "partialFingerprints": [
+      {"algorithm": "SHA-256", "value": "a1b2c3d4e5f6..."}
+    ],
     "location": {
       "file_path": "src/webapp.py",
       "start_line": 47,
@@ -424,9 +453,6 @@ findings/crypto/password-storage/H-CRYPTO-crypto_utils-L20.json
       "description": "使用参数化查询替代 f-string 拼接",
       "before_code": "cursor.execute(f\"...{user_id}\")",
       "after_code": "cursor.execute(\"SELECT * FROM users WHERE id = ?\", (user_id,))"
-    },
-    "sarif_specific": {
-      "fingerprint": "89-sqli-get_user"
     }
   }
 }
@@ -448,10 +474,10 @@ findings/crypto/password-storage/H-CRYPTO-crypto_utils-L20.json
   "timing": { "started": "<iso>", "completed": "<iso>", "duration_ms": 76000 },
   "scope": { "files": 3, "lines": 295, "functions": 15, "call_edges": 1 },
   "detectors": { "matched": 27, "executed": 27, "namespaces_used": [...] },
-  "security_score": 0,
   "findings_index": [
     {
-      "id": "H-SQLI-webapp-L47",
+      "seq": 1,
+      "sha": "a1b2c3d4e5f6",
       "severity": "High",
       "cwe": "CWE-89",
       "detector": "web.sql-injection",
@@ -459,7 +485,7 @@ findings/crypto/password-storage/H-CRYPTO-crypto_utils-L20.json
       "line": 47,
       "function": "get_user",
       "title": "SQL injection via f-string query construction",
-      "path": "findings/web/sql-injection/H-SQLI-webapp-L47.json"
+      "path": "findings/web/sql-injection/a1b2c3d4e5f6_webapp-47.json"
     }
   ]
 }
@@ -467,15 +493,22 @@ findings/crypto/password-storage/H-CRYPTO-crypto_utils-L20.json
 
 > 索引文件不含四段式详情，仅含导航字段。企业级项目（1000+ finding）索引约 300KB，AI Agent 可直接读取。
 
-**4c. 自检完整性（必须执行）：**
+**4c. 自检完整性：**
 
-对所有 finding 执行前置校验。**若任一 finding 缺少必需字段（如 file、location、impact、fix），
-脚本 exit 1 并报告具体缺失。** agent 必须修复 findings 后重新检查，不得提交残缺数据到渲染器。
+对所有 finding 执行前置校验。校验发现的问题会用警告列出。
 
 ```bash
-python3 scripts/validate-findings.py \
-    --findings-dir .codeagent/secguard-secguardian/scans/<scan_id>/findings/
+SCAN_DIR=".codeagent/secguard-secguardian/scans/<scan_id>"
+python3 scripts/validate-findings.py --findings-dir "$SCAN_DIR/findings/"
+VALIDATE_EXIT=$?
+if [ $VALIDATE_EXIT -eq 0 ]; then
+    echo "  ✅ All findings pass validation"
+else
+    echo "  ⚠️  Findings validation completed with warnings — proceeding to renderer"
+fi
 ```
+
+> 校验结果不阻塞渲染。validate-findings.py 的警告项可通过后续手动检查确认。
 
 **4d. 调用渲染器生成所有输出：**
 

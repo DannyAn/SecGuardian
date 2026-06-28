@@ -492,8 +492,8 @@ cat > "$TMPDIR/delta-scan1.json" << 'JSONEOF'
   "detectors": {"matched": 3, "executed": 3},
   "findings": [
     {"id": "H-DELTA-1-L1", "severity": "High", "cwe": "CWE-79", "detector": "web.xss",
-     "file": "a.go", "line": 1, "function": "A", "title": "XSS A", "fix_summary": "Fix",
-     "location": {"file_path": "a.go", "start_line": 1, "end_line": 1, "function_name": "A()", "snippet": "c"},
+     "file": "scan1_file", "line": 1, "function": "A", "title": "XSS A", "fix_summary": "Fix",
+     "location": {"file_path": "scan1_file", "start_line": 1, "end_line": 1, "function_name": "A()", "snippet": "c"},
      "evidence": {"code_context": "c", "judgment_rationale": "r", "data_flow_path": [{"step": "source", "file": "a.go", "line": 1, "description": "d"}]},
      "impact": {"attack_scenario": "xss", "cvss_score": 6.1, "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", "exploit_conditions": "any"},
      "fix": {"description": "f", "before_code": "b", "after_code": "a", "effort_hours": 1.0, "verification_method": "t"},
@@ -530,8 +530,8 @@ cat > "$TMPDIR/delta-scan2.json" << 'JSONEOF'
   "detectors": {"matched": 2, "executed": 2},
   "findings": [
     {"id": "H-DELTA-1-L1", "severity": "High", "cwe": "CWE-79", "detector": "web.xss",
-     "file": "a.go", "line": 1, "function": "A", "title": "XSS A", "fix_summary": "Fix",
-     "location": {"file_path": "a.go", "start_line": 1, "end_line": 1, "function_name": "A()", "snippet": "c"},
+     "file": "scan1_file", "line": 1, "function": "A", "title": "XSS A", "fix_summary": "Fix",
+     "location": {"file_path": "scan1_file", "start_line": 1, "end_line": 1, "function_name": "A()", "snippet": "c"},
      "evidence": {"code_context": "c", "judgment_rationale": "r", "data_flow_path": [{"step": "source", "file": "a.go", "line": 1, "description": "d"}]},
      "impact": {"attack_scenario": "xss", "cvss_score": 6.1, "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", "exploit_conditions": "any"},
      "fix": {"description": "f", "before_code": "b", "after_code": "a", "effort_hours": 1.0, "verification_method": "t"},
