@@ -2,6 +2,33 @@
 
 All notable changes to SecGuardian.
 
+## [0.9.1] — 2026-06-28
+
+### Added
+- **FEATURE-006: Finding Identity Redesign** — SHA-256 作为机器标识（12 hex chars），序号 #1~#N 做人读引用。manifest.json 使用 `seq` + `sha` 替代 `id`。报告表格用 `#N` 替代 `placeholder`。SARIF 使用 SHA 作为 `partialFingerprints`。
+- **FEATURE-007: 共享索引** — index.json 移至 `.codeagent/secguardian/` 根级别，三个命令复用。新增 `--force` / `-f` 刷新标志。
+- **目录结构简化** — 移除 `scans/` 目录层。扫描 ID 前缀统一为 `scan-`。输出：`.codeagent/secguardian/<cmd>/<scan-id>/`
+
+### Changed
+- **安全评分** — 指数衰减公式 `100 × exp(-0.2C - 0.1H - 0.04M - 0.01L)`，避免线性公式触底
+- **find_indexer()** — `$HOME` 优先 + `-f` 替代 `-x` + `.config/opencode` 优先路径
+- **macOS 兼容** — Step 2 增加 `gtimeout` 回退
+- **validate-findings.py** — 移除 `id` 字段强制要求，改为 `detector`
+- **Step 3.5a/4c** — 协议文件多路径搜索；validate 不阻塞 renderer
+- **secaudit/secreview Step 2a** — 引用 secguard 共享索引逻辑
+
+### Fixed
+- 11 个源文件的旧路径引用清理（AGENTS.md、DEVELOPER.md、CI 模板、skill 文档等）
+- 评分 `security_score` 覆盖 renderer 计算值的问题
+- Delta 对比 manifest `sha` 字段读取 bug
+- 修复路线图和 quality_gate 中 `item['id']` 崩溃
+- macOS `timeout` 命令兼容性
+- 跨语言管线测试 5/5 语言全通过
+
+---
+
+## [0.9.0] — 2026-06-25
+
 ## [0.9.0] — 2026-06-26
 
 ### ★ 输出协议 v7.0 — 消费者导向设计
