@@ -6,4 +6,4 @@ files for any commercial purpose.
 
 See /LICENSE-KNOWLEDGE.txt in the repository root for full terms.
 
-For licensing: netnewstar@gmail.com (placeholder)
+For licensing: netnewstar@gmail.com
