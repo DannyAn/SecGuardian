@@ -39,7 +39,7 @@ secguardian/                # v0.6.0, Go 1.25.3, parser + indexer 有 go test �
 ├── dist/                   # 构建输出 → 被 deploy.sh 部署
 ├── manifest.json           # 项目注册表: 版本/产品/技能/检测器/覆盖率
 ├── CLAUDE.md               # 遗留指引 (部分过时，以本文件和 deploy.sh 源码为准)
-└── .codeagent/             # 扫描输出归档: secguard-secguardian/scans/<scan-id>/
+└── .codeagent/             # 扫描输出归档: secguardian/<cmd>/<scan-id>/
 ```
 
 > **核心认知**: 这不是传统 SAST。只有 Go 索引器是编译代码，其余全部是 Markdown 知识文件，由 AI Agent 在扫描时动态加载。修改任何 `.md` → `dev-deploy.sh` → AI 重启即可生效。
@@ -237,7 +237,7 @@ kind := child.Kind()
 1. `secguardian-index --health` → HEALTH:OK/WARN
 2. `secguardian-index --path <path> --output .codeagent/.../index.json`
 3. AI Agent 读取 `index.json` → 加载 `skills/secguard/<lang>/SKILL.md` → 按 detector 执行
-4. 输出到 `.codeagent/secguard-secguardian/scans/<scan-id>/`
+4. 输出到 `.codeagent/secguardian/<cmd>/<scan-id>/`
 
 输出协议 v5.0 在 `knowledge/protocols/scan-output.md`（CLAUDE.md 中写的是 1.0，已过时）。
 

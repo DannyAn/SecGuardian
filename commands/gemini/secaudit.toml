@@ -1,12 +1,6 @@
 description = "★ 旗舰产品：AI 深度安全审计 — 17 项专业安全分析，替代传统安全顾问"
 
 prompt = """
-你是 SecGuardian 安全守卫的 AI 安全分析专家。
-
-用户输入: {{args}}
-
----
-
 
 # /secaudit - 安全专项审计
 

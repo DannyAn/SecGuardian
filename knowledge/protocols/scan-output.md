@@ -364,7 +364,7 @@ findings.json               # v4.0: 单体文件（所有 finding 内联，生�
 | 扫描命令 | /{{COMMAND}} {{PATH}} |
 | 检测器范围 | {{FILTERS}} ({{MATCHED}} matched, {{EXECUTED}} executed) |
 | 扫描时间 | {{DURATION}}ms |
-| 输出目录 | `.codeagent/{{EXTENSION}}/scans/{{SCAN_ID}}/` |
+| 输出目录 | `.codeagent/secguardian/<cmd>/<scan-id>/` |
 | SARIF | `results.sarif`（导入 GitHub Code Scanning / GitLab SAST / Azure DevOps） |
 | 报表生成 | `pandoc report.md -o report.pdf --pdf-engine=weasyprint` |
 ```

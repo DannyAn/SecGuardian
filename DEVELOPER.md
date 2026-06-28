@@ -70,9 +70,9 @@ examples/          ← 验证层：各语言漏洞示例代码
 
 | Extension | Command | 定位 | Skill 数量 | 覆盖语言 |
 |-----------|---------|------|-----------|---------|
-| secguard-secguardian | `/secguard` | 安全加固检查：API 级别的漏洞检测 | 4 | C++, Java, Python, Go |
-| secaudit-secguardian | `/secaudit` | 安全专项审计：纵深领域深入分析 | 17 | 语言无关 |
-| secreview-secguardian | `/secreview` | 安全规范审查：编码规范与反模式 | 4 | C++, Java, Python, Go |
+| secguard | `/secguard` | 安全加固检查：API 级别的漏洞检测 | 4 | C++, Java, Python, Go |
+| secaudit | `/secaudit` | 安全专项审计：纵深领域深入分析 | 17 | 语言无关 |
+| secreview | `/secreview` | 安全规范审查：编码规范与反模式 | 4 | C++, Java, Python, Go |
 
 - `/secguard` 关注 "这行 API 调用有没有漏洞"（精确）
 - `/secreview` 关注 "这段代码的设计模式是否安全"（语义）
@@ -182,9 +182,9 @@ bash scripts/release.sh 0.4.0
 ```
 secguardian/                      ← 项目根目录
 ├── .claude/extensions/           ← Claude Code 部署目标
-│   ├── secguard-secguardian/
-│   ├── secaudit-secguardian/
-│   └── secreview-secguardian/
+│   ├── secguard/
+│   ├── secaudit/
+│   └── secreview/
 ├── .opencode/                    ← OpenCode 部署目标
 │   ├── skills/                   ← 所有 25 个 skill 平铺
 │   │   └── .knowledge-<ext>/     ← 知识文件按 extension 隔离
@@ -288,7 +288,7 @@ secguardian/                      ← 项目根目录
 
 1. 编写 `knowledge/guard-rules/<new-detector>.md`（参考已有 detector 格式）
 2. 在 `manifest.json` 的 `knowledge.detectors` 中添加条目
-3. 在对应 `extensions/secguard-secguardian/extension.json` 的 `knowledge.detectors` 中添加
+3. 在对应 `extensions/secguardian/extension.json` 的 `knowledge.detectors` 中添加
 4. 重新部署：`bash scripts/dev-deploy.sh`
 5. 用 examples/ 验证检测效果
 
@@ -371,9 +371,9 @@ bash scripts/sync-version.sh 0.5.0
 | 文件 | 字段 |
 |------|------|
 | `manifest.json` | 顶级 `version` |
-| `extensions/secguard-secguardian/extension.json` | `version` |
-| `extensions/secaudit-secguardian/extension.json` | `version` |
-| `extensions/secreview-secguardian/extension.json` | `version` |
+| `extensions/secguardian/extension.json` | `version` |
+| `extensions/secguardian/extension.json` | `version` |
+| `extensions/secguardian/extension.json` | `version` |
 | `internal/main.go` | `const version`（需手动更新） |
 
 ### 发布检查清单
@@ -583,7 +583,7 @@ examples/
 /secguard examples/java-vuln-demo/src/ critical
 ```
 
-预期结果：检查 `.codeagent/secguard-secguardian/scans/<scan-id>/manifest.json`，应检出对应语言中注释标注的漏洞。
+预期结果：检查 `.codeagent/secguardian/secguard/<scan-id>/manifest.json`，应检出对应语言中注释标注的漏洞。
 
 ### 验证 secaudit 命令
 
@@ -633,8 +633,8 @@ examples/
 2. 编写 knowledge/threat-catalog.md 中 Rust 特有安全概念（如需要）
 3. 编写 skills/secguard-rust/SKILL.md（扫描提示词）
 4. 编写 skills/secreview-rust/SKILL.md（审查提示词，可选）
-5. 在 extensions/secguard-secguardian/extension.json 中注册
-6. 在 extensions/secreview-secguardian/extension.json 中注册（可选）
+5. 在 extensions/secguardian/extension.json 中注册
+6. 在 extensions/secguardian/extension.json 中注册（可选）
 7. 更新 manifest.json
 8. 创建 examples/rust-vuln-demo/ 测试用例
 9. bash scripts/dev-deploy.sh
@@ -645,7 +645,7 @@ examples/
 
 ```
 1. 编写 skills/secaudit-<name>/SKILL.md（参考 cryptography 等格式）
-2. 在 extensions/secaudit-secguardian/extension.json 的 skills 数组中添加
+2. 在 extensions/secguardian/extension.json 的 skills 数组中添加
 3. 更新 manifest.json 的 secaudit skill 列表
 4. bash scripts/dev-deploy.sh
 ```
@@ -735,12 +735,12 @@ Manifest 的结构：
 which jq && jq --version
 
 # 检查 extension.json 格式是否正确
-jq . extensions/secguard-secguardian/extension.json > /dev/null && echo "OK"
+jq . extensions/secguardian/extension.json > /dev/null && echo "OK"
 
 # 检查 skills 引用是否与文件系统匹配
 # extension.json 的 skills[] 中的 name 应与 skills/<cmd>-<name>/ 目录对应
 ls skills/ | sort
-jq -r '.skills[].name' extensions/secaudit-secguardian/extension.json | sort
+jq -r '.skills[].name' extensions/secguardian/extension.json | sort
 ```
 
 ### package.sh 报错

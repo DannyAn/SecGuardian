@@ -30,7 +30,7 @@ Every scan produces:
 ### Step A: Check if scan completed
 
 ```bash
-SCAN_DIR=".codeagent/secguard-secguardian/scans/latest"
+SCAN_DIR=".codeagent/secguardian/secguard/latest"
 if [ ! -f "$SCAN_DIR/manifest.json" ]; then
   echo "::error::No scan results found. Run secguardian-scan first."
   exit 2
@@ -132,11 +132,11 @@ After scan completes, these files are available:
 
 ```bash
 # Read a specific finding
-cat .codeagent/secguard-secguardian/scans/latest/findings/C-001.json
+cat .codeagent/secguardian/secguard/latest/findings/C-001.json
 
 # Extract key info with jq
 jq '{id, severity, title, location: {file, line}, confidence}' \
-  .codeagent/secguard-secguardian/scans/latest/findings/*.json
+  .codeagent/secguardian/secguard/latest/findings/*.json
 ```
 
 ### Security Dashboard PR Comment (GitHub Actions)
@@ -146,7 +146,7 @@ jq '{id, severity, title, location: {file, line}, confidence}' \
   uses: actions/github-script@v7
   with:
     script: |
-      const manifest = require('.codeagent/secguard-secguardian/scans/latest/manifest.json');
+      const manifest = require('.codeagent/secguardian/secguard/latest/manifest.json');
       const summary = manifest.summary.findings;
       const body = `## 🔒 SecGuardian Scan Results
         | Severity | Count |
@@ -195,7 +195,7 @@ jobs:
       - name: CI Gate Check
         id: gate
         run: |
-          SCAN_DIR=".codeagent/secguard-secguardian/scans/latest"
+          SCAN_DIR=".codeagent/secguardian/secguard/latest"
           EXIT=$(jq -r '.exit_code' "$SCAN_DIR/status.json")
           SCORE=$(jq -r '.score' "$SCAN_DIR/status.json")
           echo "exit_code=$EXIT" >> $GITHUB_OUTPUT
@@ -205,7 +205,7 @@ jobs:
         if: success()
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: .codeagent/secguard-secguardian/scans/latest/results.sarif
+          sarif_file: .codeagent/secguardian/secguard/latest/results.sarif
           category: secguardian
 
       - name: Fail pipeline on gate breach
@@ -219,7 +219,7 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const manifest = require('.codeagent/secguard-secguardian/scans/latest/manifest.json');
+            const manifest = require('.codeagent/secguardian/secguard/latest/manifest.json');
             const s = manifest.summary.findings;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -273,7 +273,7 @@ jobs:
 
       - name: CI Gate Check
         run: |
-          SCAN_DIR=".codeagent/secguard-secguardian/scans/latest"
+          SCAN_DIR=".codeagent/secguardian/secguard/latest"
           EXIT=$(jq -r '.exit_code' "$SCAN_DIR/status.json" 2>/dev/null || echo "2")
           TOTAL=$(jq -r '.summary.findings.total' "$SCAN_DIR/manifest.json" 2>/dev/null || echo "0")
           echo "Exit code: $EXIT, Total findings: $TOTAL"
@@ -296,7 +296,7 @@ For version-level / daily-build static analysis:
 #
 # Run daily, track trends via delta.json
 
-SCAN_BASE=".codeagent/secguard-secguardian/scans"
+SCAN_BASE=".codeagent/secguardian/secguard"
 
 # Run scan
 bash scripts/secguardian.sh scan --path src/
@@ -339,11 +339,11 @@ Override thresholds in CI:
 ```bash
 # Set strict gates for production branches
 jq '.threshold.critical_max = 0 | .threshold.high_max = 3' \
-  .codeagent/secguard-secguardian/scans/latest/status.json > /tmp/status.json
-mv /tmp/status.json .codeagent/secguard-secguardian/scans/latest/status.json
+  .codeagent/secguardian/secguard/latest/status.json > /tmp/status.json
+mv /tmp/status.json .codeagent/secguardian/secguard/latest/status.json
 
 # Then check gate
-jq -e '.exit_code == 0' .codeagent/secguard-secguardian/scans/latest/status.json
+jq -e '.exit_code == 0' .codeagent/secguardian/secguard/latest/status.json
 ```
 
 ---
@@ -355,7 +355,7 @@ Findings are labeled with confidence. Use this to reduce false-positive noise:
 ```bash
 # Only fail on high-confidence findings
 HIGH=$(jq '[.findings[] | select(.confidence.level == "high")] | length' \
-  .codeagent/secguard-secguardian/scans/latest/manifest.json)
+  .codeagent/secguardian/secguard/latest/manifest.json)
 
 echo "High-confidence findings: $HIGH"
 # Use $HIGH for gating instead of total findings
@@ -374,9 +374,9 @@ Confidence levels:
 - name: Confidence-gated gate
   run: |
     HIGH=$(jq '[.findings[] | select(.confidence.level == "high")] | length' \
-      .codeagent/secguard-secguardian/scans/latest/manifest.json)
+      .codeagent/secguardian/secguard/latest/manifest.json)
     MEDIUM=$(jq '[.findings[] | select(.confidence.level == "medium")] | length' \
-      .codeagent/secguard-secguardian/scans/latest/manifest.json)
+      .codeagent/secguardian/secguard/latest/manifest.json)
     echo "High: $HIGH, Medium: $MEDIUM"
     [ "$HIGH" -eq 0 ] && [ "$MEDIUM" -lt 5 ] && exit 0
     exit 1

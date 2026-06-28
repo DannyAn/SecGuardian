@@ -13,7 +13,7 @@ SecGuardian 所有命令可选的 SARIF 2.1.0 输出格式。SARIF 是 GitHub Co
 在执行 `/secguard`、`/secaudit`、`/secreview` 时附加 `--sarif` 参数，将在 `manifest.json` 同级目录生成 `results.sarif`。
 
 ```
-.codeagent/<extension-name>/scans/<scan-id>/
+.codeagent/secguardian/<cmd>/<scan-id>/
 ├── manifest.json
 ├── results.sarif          # SARIF 2.1.0 标准输出
 └── findings/
@@ -339,7 +339,7 @@ GitHub Code Scanning 消费 SARIF 文件的关键要求：
 - name: Upload SecGuardian SARIF results
   uses: github/codeql-action/upload-sarif@v3
   with:
-    sarif_file: .codeagent/secaudit-secguardian/scans/latest/results.sarif
+    sarif_file: .codeagent/secguardian/secaudit/<scan-id>/results.sarif
     category: secguardian-security-audit
 ```
 
@@ -355,7 +355,7 @@ GitLab SAST 要求：
 secguardian-scan:
   artifacts:
     reports:
-      sast: .codeagent/secaudit-secguardian/scans/latest/results.sarif
+      sast: .codeagent/secguardian/secaudit/<scan-id>/results.sarif
 ```
 
 ## 生成规则

@@ -1,12 +1,6 @@
 description = "安全加固项排查 — 67<!-- @secguardian:detector_count --> 个检测器覆盖 memory/concurrency/system/resource/crypto/web/error 7<!-- @secguardian:namespace_count --> 大安全分类"
 
 prompt = """
-你是 SecGuardian 安全守卫的 AI 安全分析专家。
-
-用户输入: {{args}}
-
----
-
 
 # /secguard - 安全加固项排查
 

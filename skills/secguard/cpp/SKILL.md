@@ -30,7 +30,7 @@ topic: [memory, concurrency, system, crypto]
 
 创建输出目录:
   scan_id = 2026-05-23T14-30-00-a1b2 (当前时间 + 8位短UUID)
-  output_dir = .codeagent/secguard-secguardian/scans/<scan_id>/
+  output_dir = .codeagent/secguardian/secguard/<scan_id>/
   mkdir -p <output_dir>/findings/
 ```
 
@@ -112,7 +112,7 @@ Critical detectors → High detectors → Medium detectors
 >
 > SARIF 结果同样要求：`message.markdown` 包含完整四段式，`relatedLocations` 标注 Source → Sink 路径，`fixes` 包含 before/after 替换。
 
-按以下结构写入 `.codeagent/secguard-secguardian/scans/<scan-id>/`：
+按以下结构写入 `.codeagent/secguardian/secguard/<scan-id>/`：
 
 **人读**：
 - `report.md` — 完整安全扫描报告（Markdown）。每个检出包含：位置、证据链（上下文代码片段）、检测器判定依据、具体修复建议（含 before/after 代码）。

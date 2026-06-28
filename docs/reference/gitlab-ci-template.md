@@ -17,7 +17,7 @@ secguardian-scan:
       fi
   script:
     - bash scripts/secguardian.sh scan --path src/ --sarif
-    - SCAN_DIR="$SECGUARDIAN_OUTPUT_DIR/secguard-secguardian/scans/latest"
+    - SCAN_DIR="$SECGUARDIAN_OUTPUT_DIR/secguardian/secguard/latest"
     - EXIT=$(jq -r '.exit_code' "$SCAN_DIR/status.json" 2>/dev/null || echo "2")
     - echo "Security scan complete (exit: $EXIT)"
     - cat "$SCAN_DIR/manifest.json" | jq '{score, findings: .summary.findings}'
@@ -25,7 +25,7 @@ secguardian-scan:
     paths:
       - .codeagent/
     reports:
-      sast: .codeagent/secguard-secguardian/scans/latest/results.sarif
+      sast: .codeagent/secguardian/secguard/latest/results.sarif
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
