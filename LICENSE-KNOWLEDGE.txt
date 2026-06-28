@@ -23,4 +23,21 @@ Under the following terms:
     and indicate if changes were made.
   - NonCommercial — You may not use the material for commercial purposes.
 
+Commercial Use Clarification:
+
+"NonCommercial" means not primarily intended for or directed towards
+commercial advantage or monetary compensation. The following table
+summarizes common scenarios:
+
+| ✅ Likely Allowed | ❌ Requires Commercial License |
+|---|---|
+| Personal learning & research | Using detectors in a commercial SaaS product |
+| Academic teaching & research | Reselling rules as a standalone product |
+| Open-source contributions back | Training ML models for commercial sale |
+| Internal evaluation (< 30 days) | Embedding rules into a commercial scanner |
+| Bug reports & improvements | Offering security audit services based on these rules |
+
+If your use case falls in the right column or you are unsure,
+please contact us for a commercial license.
+
 For commercial licensing inquiries: licensing@secguardian.dev

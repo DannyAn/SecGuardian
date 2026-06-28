@@ -142,6 +142,18 @@ cd internal && go build -o secguardian-index .
 
 ---
 
-## License
+## License & Commercial Use
 
-Dual-licensed. Code: Apache 2.0, Knowledge: CC BY-NC 4.0. See [LICENSE](LICENSE) for details.
+SecGuardian is dual-licensed:
+
+| Component | What's included | License | Commercial Use |
+|-----------|----------------|---------|----------------|
+| Source Code | scripts/, commands/, internal/, tools/ | Apache 2.0 | ✅ Free to use in any product |
+| Knowledge Base | skills/, knowledge/ (detectors, audit rules) | CC BY-NC 4.0 | ❌ Requires commercial license |
+
+**If your team is evaluating SecGuardian for internal security scanning:** The Apache 2.0 code
+is free to use. The knowledge base (detectors and rules) can be evaluated internally for up to
+30 days. For ongoing commercial use of the knowledge base, please [contact us](mailto:licensing@secguardian.dev).
+
+See [LICENSE](LICENSE) (entry point), [LICENSE-CODE.txt](LICENSE-CODE.txt) (Apache 2.0),
+and [LICENSE-KNOWLEDGE.txt](LICENSE-KNOWLEDGE.txt) (CC BY-NC 4.0) for full terms.
