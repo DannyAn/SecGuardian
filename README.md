@@ -3,9 +3,9 @@
 **AI 深度安全审计 + 代码漏洞发现 + 安全规范审查。年省 $50K+ 安全顾问费用。**
 
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue)](https://github.com/secguardian/secguardian)
-[![Version](https://img.shields.io/badge/version-0.5.5-blue)](https://github.com/secguardian/secguardian/blob/develop/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.9.1-blue)](https://github.com/secguardian/secguardian/blob/develop/CHANGELOG.md)
 [![Go](https://img.shields.io/badge/Go-1.22%2B-00ADD8)](https://go.dev)
-[![Detectors](https://img.shields.io/badge/detectors-60-brightgreen)](https://github.com/secguardian/secguardian/blob/develop/knowledge/language-index.md)
+[![Detectors](https://img.shields.io/badge/detectors-67-brightgreen)](https://github.com/secguardian/secguardian/blob/develop/knowledge/language-index.md)
 [![CWE Top 25](https://img.shields.io/badge/CWE_Top_25-100%25-brightgreen)](https://github.com/secguardian/secguardian/blob/develop/knowledge/language-index.md)
 
 SecGuardian 是为 **Claude Code**、**OpenCode**、**Gemini CLI**、**GitHub Actions** 提供的企业级白盒安全 AI 解决方案。支持 **Windows / macOS / Linux** 全平台 CLI。
@@ -13,6 +13,9 @@ SecGuardian 是为 **Claude Code**、**OpenCode**、**Gemini CLI**、**GitHub Ac
 ---
 
 ## ★ 旗舰产品：SecAudit — AI 深度安全审计
+
+> **一口审计所有。** 一条命令 `/secaudit ./src java` 完成 17 项安全领域的全面审计。
+> 从威胁建模到合规验证，从数据流分析到依赖扫描，一次运行产出完整审计报告。
 
 传统安全审计需要资深工程师逐项审查，单次审计费用 $10K-$50K。SecAudit 使用 AI 在数秒内完成同等深度的 17 项专业安全分析：
 
@@ -139,6 +142,6 @@ cd internal && go build -o secguardian-index .
 
 ---
 
-## 许可
+## License
 
-Proprietary. All rights reserved.
+Apache 2.0. See [LICENSE](LICENSE) for details.
