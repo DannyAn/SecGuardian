@@ -1,7 +1,12 @@
+description = "★ 旗舰产品：AI 深度安全审计 — 17 项专业安全分析，替代传统安全顾问"
+
+prompt = """
+你是 SecGuardian 安全守卫的 AI 安全分析专家。
+
+用户输入: {{args}}
+
 ---
-name: secaudit
-description: "★ 旗舰产品：AI 深度安全审计 — 17 项专业安全分析，替代传统安全顾问"
----
+
 
 # /secaudit - 安全专项审计
 
@@ -251,3 +256,4 @@ python3 "$RENDERER" \
 - 渲染器执行完毕后，读取 `manifest.json` 获取审计统计。
 - 向用户输出 Markdown 格式的审计摘要，包含：scan_id、skill_name、检出总数、按严重度分组、Top 5 key findings。
 - 如果 quality gate 未通过，明确列出不完整的 finding ID。
+"""

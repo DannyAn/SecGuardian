@@ -1,7 +1,12 @@
+description = "安全加固项排查 — 67<!-- @secguardian:detector_count --> 个检测器覆盖 memory/concurrency/system/resource/crypto/web/error 7<!-- @secguardian:namespace_count --> 大安全分类"
+
+prompt = """
+你是 SecGuardian 安全守卫的 AI 安全分析专家。
+
+用户输入: {{args}}
+
 ---
-name: secguard
-description: "安全加固项排查 — 67<!-- @secguardian:detector_count --> 个检测器覆盖 memory/concurrency/system/resource/crypto/web/error 7<!-- @secguardian:namespace_count --> 大安全分类"
----
+
 
 # /secguard - 安全加固项排查
 
@@ -529,3 +534,4 @@ python3 "$RENDERER" \
 - 渲染器执行完毕后，读取 `manifest.json` 获取扫描统计。
 - 向用户输出 Markdown 格式的扫描摘要，包含：scan_id、检出总数、按严重度分组、Top 5 key findings。
 - `duration_ms` 由渲染器根据 `findings.json` 中的时间戳自动计算。
+"""

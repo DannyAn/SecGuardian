@@ -74,7 +74,7 @@ Step 2: dashboard.html                 → 浏览器打开精美报告
 ```
 .codeagent/secguardian/
 ├── index.json                      # ★ 共享索引（所有命令复用）
-├── secguard/scans/<scan-id>/       # secguard 输出
+├── secguard/<scan-id>/             # secguard 输出
 │   ├── human/executive-summary.md
 │   ├── findings/<ns>/<det>/<sha12>_<file>-<line>.json
 │   ├── ai/remediation-pack.json
@@ -82,8 +82,8 @@ Step 2: dashboard.html                 → 浏览器打开精美报告
 │   ├── summary.json, manifest.json, status.json, delta.json
 │   ├── dismissed.json, verification-audit.json
 │   └── latest → <scan-id>/
-├── secaudit/scans/<scan-id>/       # secaudit 输出（同上结构）
-└── secreview/scans/<scan-id>/      # secreview 输出（同上结构）
+├── secaudit/<scan-id>/             # secaudit 输出（同上结构）
+└── secreview/<scan-id>/            # secreview 输出（同上结构）
 ```
 
 索引文件（index.json）从每个 scan 目录移至 `secguardian/` 根级别，跨命令共享。
@@ -522,7 +522,7 @@ M-DLK-concurrency_c-L43 ← Medium, DeadLock, concurrency.c:43
 
 ```json
 {
-  "scan_id": "sc-20260605-173324-2434534",
+  "scan_id": "scan-20260605-173324-2434534",
   "dismissed": [
     {
       "finding_id": "H-BOF-parser_c-L36",
@@ -546,7 +546,7 @@ M-DLK-concurrency_c-L43 ← Medium, DeadLock, concurrency.c:43
 
 ```json
 {
-  "scan_id": "sc-20260605-173324-2434534",
+  "scan_id": "scan-20260605-173324-2434534",
   "pipeline_version": "1.0",
   "rounds": {
     "p1_semantic": {"input_count": 74, "exempted": 18, "no_exemption": 52, "uncertain": 4},
