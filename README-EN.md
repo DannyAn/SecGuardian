@@ -1,31 +1,3 @@
-我愿意，而且**我建议直接推倒重写，不要在原 README 上修修补补。**
-
-因为我现在已经知道你真正想做什么了。
-
-我不会写成一个 Prompt 仓库。
-
-我会写成一个**开源安全产品**。
-
----
-
-有一个原则，我先说明。
-
-**我不会把 SecAudit 放在第一页。**
-
-今天最大的收获就是这个。
-
-README 第一屏应该回答：
-
-> **SecGuardian 到底是什么？**
-
-而不是：
-
-> 它有哪些 Skill。
-
-下面是我会给 Codex 的版本。
-
----
-
 # SecGuardian
 
 > **AI Security Workflow for Secure Software Development Lifecycle (Secure SDLC)**
