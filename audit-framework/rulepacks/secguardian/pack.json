@@ -1,0 +1,242 @@
+{
+  "name": "secguardian",
+  "version": "1.0.0",
+  "title": "SecGuardian Default",
+  "description": "Built-in audit rule pack. 16 rule-based phases + 1 setup phase, matching skills/secaudit/workflow-secaudit/SKILL.md.",
+  "workflow_source": "skills/secaudit/workflow-secaudit/SKILL.md",
+  "workflow_type": "17-phase sequential (1 setup + 16 rule phases)",
+  "standards": {
+    "owasp-asvs": [
+      "V2 (Authentication)",
+      "V3 (Session Management)",
+      "V4.1 (Access Control)",
+      "V5 (Validation/Sanitization/Encoding)",
+      "V6 (Cryptography)",
+      "V7 (Error/Logging)",
+      "V8 (Data Protection)",
+      "V9 (Communications)",
+      "V10 (Malicious Code)",
+      "V11 (Business Logic)",
+      "V12 (Files/Resources)",
+      "V13 (API/Web Service)",
+      "V14 (Configuration)"
+    ],
+    "cwe-top-25": [
+      "CWE-79 (XSS)",
+      "CWE-89 (SQL Injection)",
+      "CWE-78 (OS Injection)",
+      "CWE-434 (Unrestricted Upload)",
+      "CWE-352 (CSRF)",
+      "CWE-862 (Missing Authz)",
+      "CWE-863 (Incorrect Authz)",
+      "CWE-22 (Path Traversal)",
+      "CWE-200 (Info Exposure)",
+      "CWE-502 (Deserialization)",
+      "CWE-287 (Improper Authn)",
+      "CWE-798 (Hardcoded Credentials)",
+      "CWE-311 (Missing Encryption)"
+    ]
+  },
+  "execution": {
+    "type": "sequential",
+    "setup_phase": {
+      "phase": 0,
+      "id": "tech-stack-identification",
+      "description": "Identify tech stack, frameworks, data stores, deployment architecture (meta phase, no rule file)"
+    },
+    "phase_count": 16,
+    "supported_modes": [
+      "full",
+      "focus"
+    ],
+    "focus_mechanism": "Phase filtering via --focus <domain>",
+    "post_processing": [
+      "Cross-phase deduplication",
+      "Severity ordering by CVSS",
+      "OWASP Top 10 / CWE Top 25 classification",
+      "Security score: 100 - (Critical*25 + High*10 + Medium*3 + Low*1)",
+      "Fix roadmap: immediate / short-term / long-term"
+    ]
+  },
+  "rules": [
+    {
+      "phase": 1,
+      "id": "attack-surface-analysis",
+      "title": "Attack Surface Analysis",
+      "severity": "high",
+      "owasp-asvs": [
+        "V11"
+      ],
+      "file": "attack-surface-analysis.md"
+    },
+    {
+      "phase": 2,
+      "id": "input-validation",
+      "title": "Input Validation & Injection",
+      "severity": "critical",
+      "owasp-asvs": [
+        "V5"
+      ],
+      "file": "input-validation.md"
+    },
+    {
+      "phase": 3,
+      "id": "auth-and-session",
+      "title": "Authentication & Session Management",
+      "severity": "critical",
+      "owasp-asvs": [
+        "V2",
+        "V3"
+      ],
+      "file": "auth-and-session.md"
+    },
+    {
+      "phase": 4,
+      "id": "authorization",
+      "title": "Authorization & Access Control",
+      "severity": "critical",
+      "owasp-asvs": [
+        "V4.1"
+      ],
+      "file": "authorization.md"
+    },
+    {
+      "phase": 5,
+      "id": "cryptography",
+      "title": "Cryptography Security",
+      "severity": "critical",
+      "owasp-asvs": [
+        "V6",
+        "V8"
+      ],
+      "file": "cryptography.md"
+    },
+    {
+      "phase": 6,
+      "id": "secrets-management",
+      "title": "Secrets & Credential Management",
+      "severity": "critical",
+      "owasp-asvs": [
+        "V6",
+        "V8"
+      ],
+      "file": "secrets-management.md"
+    },
+    {
+      "phase": 7,
+      "id": "secure-transport",
+      "title": "Secure Transport & Communications",
+      "severity": "high",
+      "owasp-asvs": [
+        "V9"
+      ],
+      "file": "secure-transport.md"
+    },
+    {
+      "phase": 8,
+      "id": "data-protection",
+      "title": "Data Protection & Privacy",
+      "severity": "high",
+      "owasp-asvs": [
+        "V8"
+      ],
+      "file": "data-protection.md"
+    },
+    {
+      "phase": 9,
+      "id": "taint-analysis",
+      "title": "Taint Analysis",
+      "severity": "critical",
+      "owasp-asvs": [
+        "V5"
+      ],
+      "file": "taint-analysis.md"
+    },
+    {
+      "phase": 10,
+      "id": "data-flow-analysis",
+      "title": "Data Flow & Trust Boundaries",
+      "severity": "high",
+      "owasp-asvs": [
+        "V5"
+      ],
+      "file": "data-flow-analysis.md"
+    },
+    {
+      "phase": 11,
+      "id": "trust-boundary-analysis",
+      "title": "Trust Boundary Analysis",
+      "severity": "high",
+      "owasp-asvs": [
+        "V4.1",
+        "V5"
+      ],
+      "file": "trust-boundary-analysis.md"
+    },
+    {
+      "phase": 12,
+      "id": "state-machine-analysis",
+      "title": "State Machine & Business Logic",
+      "severity": "medium",
+      "owasp-asvs": [
+        "V11"
+      ],
+      "file": "state-machine-analysis.md"
+    },
+    {
+      "phase": 13,
+      "id": "dependency-security",
+      "title": "Dependency & Supply Chain Security",
+      "severity": "high",
+      "owasp-asvs": [
+        "V10"
+      ],
+      "file": "dependency-security.md"
+    },
+    {
+      "phase": 14,
+      "id": "infra-hardening",
+      "title": "Infrastructure Hardening",
+      "severity": "high",
+      "owasp-asvs": [
+        "V14"
+      ],
+      "file": "infra-hardening.md"
+    },
+    {
+      "phase": 15,
+      "id": "http-security-headers",
+      "title": "HTTP Security Headers",
+      "severity": "medium",
+      "owasp-asvs": [
+        "V14"
+      ],
+      "file": "http-security-headers.md"
+    },
+    {
+      "phase": 16,
+      "id": "logging-and-monitoring",
+      "title": "Logging & Audit Trail",
+      "severity": "medium",
+      "owasp-asvs": [
+        "V7"
+      ],
+      "file": "logging-and-monitoring.md"
+    }
+  ],
+  "extra_rules": [
+    {
+      "id": "output-encoding",
+      "title": "Output Encoding & XSS Prevention",
+      "severity": "critical",
+      "owasp-asvs": [
+        "V5"
+      ],
+      "note": "Run with --focus output-encoding. Not part of default workflow."
+    }
+  ],
+  "rule_base_path": "audit-framework/rulepacks/secguardian/rules/",
+  "fallback_paths": [
+    "knowledge/audit-rules/"
+  ]
+}
