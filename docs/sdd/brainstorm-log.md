@@ -749,3 +749,114 @@ Secreview 5 个 skill 从 ~45 行扩展到 ~100 行，增加结构化 Phase 1-5 
 
 ## 2026-06-21 — Code Health & Hygiene — 首次 Codex 审计修复
 
+
+
+---
+
+## 2026-06-30 — 战略定位升级 + /secfix 第四门
+
+### 背景
+
+2026-06-30 与 ChatGPT 深度讨论项目未来方向，输出 README-EN.md 作为临时愿景文件。
+结合这条线，与 Codex 进行了两轮重构：
+
+1. **README.md 全面英文化 + 战略叙事迁移**
+2. **/secreview 微重构**：从"安全编码规范检视"→"AI Security Code Review for PRs"
+3. **新增 /secfix 第四门**：AI Remediation，补全 Prevent → Detect → Fix → Verify 闭环
+
+### 讨论要点
+
+#### 1. ChatGPT 的战略警告与定位升级
+
+ChatGPT 指出核心风险：**"AI 比传统 SAST 更聪明"这个卖点的生命周期不会很长。**
+12 个月后 AI 推理能力是所有产品的共同能力，不再是独特优势。
+
+真正长期不贬值的，是另外三件事：
+
+| 资产 | 说明 |
+|------|------|
+| **Rule Packs** | OWASP ASVS、NIST SSDF、企业安全红线 → 可执行的审计规则 |
+| **Workflow** | 编码 → Review → 发布验收，完整 Secure SDLC，不是单次扫描 |
+| **Enterprise Outputs** | 给开发负责人、安全团队、审计部门、CI/CD 直接使用的输出 |
+
+建议的演进路径：
+> **AI Security Scanner → AI Security Workflow → AI Security Governance Platform**
+
+#### 2. /secfix 命名的推导
+
+| 候选名 | 评估 |
+|--------|------|
+| **/secfix** ✅ | sec- 前缀一致，2 音节，语义直接，"fix" 是工程师修代码时最自然的动词 |
+| /fixit ❌ | 太像随口叫 AI 改代码的语气，不像安全工具 |
+| /secremediate ❌ | 4 音节太长，破坏简洁性 |
+| /secpatch ❌ | 容易联想到 OS 补丁管理 |
+
+选中 /secfix。
+
+#### 3. /secfix 的位置决策
+
+不在 SDLC 中新增一个 Gate（"修复"本身不是决策点），而是作为 **/secreview 的出口动作**：
+
+```
+/secreview — 检出发现
+    │
+    ├── Clean → Merge
+    │
+    └── Findings → /secfix → patches → git commit → /secreview re-run
+```
+
+同时被 /secguard 和 /secaudit 按需调用，但主入口是 /secreview 的 remediation 出口。
+
+#### 4. /secfix 的商业价值分析
+
+企业不会为"AI 替人修代码"买单，但会为"把修复耗时从 30 分钟降到 2 分钟"买单。
+
+正确的叙事：
+> /secfix 不是用 AI 替工程师修代码。
+> 而是给每个安全发现预先写好修复草稿，让工程师在 30 秒内 review 完、应用、提交。
+> 决策权始终在工程师手里。他们可以改、可以驳回、可以调整。
+> 我们只是帮他们省掉"查资料写代码"的那 30 分钟。
+
+| 价值点 | 谁在乎 | 为什么付钱 |
+|--------|--------|-----------|
+| 减少修复耗时 10x | 工程 VP | dev 工时就是钱 |
+| 标准化修复质量 | 安全负责人 | AI 修的永远正确、一致 |
+| 降低修复门槛 | 团队新人 | junior 也能提交正确修复 |
+| 可审计的修复记录 | 合规团队 | finding → fix patch 一一对应 |
+| 修复 backlog 归零 | 所有人都爱 | 不存在"扫描发现 200 个、只修 50 个" |
+
+#### 5. README.md 定位升级
+
+从旧版"卖 AI 更聪明"→ 新版"卖三件 durable 的东西"：
+
+| 旧叙事 | 新叙事 |
+|--------|--------|
+| "AI 深度安全审计" | "AI Security Workflow for Secure SDLC" |
+| "传统 SAST 做不到" | "AI reasoning is becoming a commodity" |
+| "5 项分析方法" | "The value is in Rule Packs + Workflow + Outputs" |
+| "年省 $50K+" | "Fix security defects in minutes, not hours" |
+
+### 设计决策
+
+| 决策 | 选项 | 选中 | 理由 |
+|------|------|------|------|
+| /secfix 命名 | secfix / fixit / secremediate / secpatch | **secfix** | 前缀一致 + 语义直接 |
+| /secfix 位置 | 第四 Gate / secreview 出口 / 跨阶段工具 | **secreview 出口** | Gate 是决策点，fix 是动作 |
+| 第四门总称 | Three Gates / Four Gates | **Four Gates** | 四门 = Prevent→Detect→Fix→Verify |
+| 新 README 聚焦 | AI 能力 / 知识工作流 | **知识工作流** | AI 12 个月后是 commodity |
+
+### 关联产品
+
+| 命令 | 定位 | 输出 |
+|------|------|------|
+| /secguard | Secure Coding Guidance — coding 阶段 | findings with CWE + CVSS + fix |
+| /secreview | AI Security Code Review — PR 阶段 | findings + exploit scenarios + CWE |
+| /secfix | AI Remediation — PR 阶段出口 | patch files from finding fix fields |
+| /secaudit | AI Release Security Audit — 发布阶段 | audit report + pass/fail decision |
+
+### 下一步
+
+- [ ] /secaudit 命令重构（等用户提供新设计方案）
+- [ ] /secfix MVP 实现（消费 findings/ 目录 → 生成 patch files）
+- [ ] README 中补全 /secfix 的四门图已在本日完成
+
