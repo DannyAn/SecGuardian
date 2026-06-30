@@ -10,9 +10,10 @@ description: "安全加固项排查 — 67<!-- @secguardian:detector_count --> �
 ## 使用方式
 
 ```
-/secguard <path> <language> [filters] [--sarif]
+# ★ 零参数缺省调用（推荐）
+/secguard                                            # 扫描当前目录，自动检测语言，运行所有检测器
 
-全量扫描:
+# 显式指定路径和语言
   /secguard ./src cpp                                # C/C++ 全量
   /secguard ./src python                             # Python 全量
   /secguard ./src java                               # Java 全量
