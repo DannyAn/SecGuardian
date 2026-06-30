@@ -1,32 +1,53 @@
 ---
 name: secaudit
-description: "★ 旗舰产品：AI 深度安全审计 — 17 项专业安全分析，替代传统安全顾问"
+description: "AI Release Security Audit — Rule Pack-driven audit framework (17 rules across 17 domains)"
 ---
 
-# /secaudit - 安全专项审计
+# /secaudit - AI Release Security Audit
 
 针对安全专项问题进行深度审计分析。自动识别用户意图，路由到对应的分析或领域审计 skill。
 
 ## 使用方式
 
 ```
-## ★ 旗舰产品
+## Audit Framework
 
-SecAudit 是 SecGuardian 的旗舰产品——AI 深度安全审计。它替代传统安全顾问执行 17 项专业安全分析，每项分析需要资深工程师 4-8 小时。AI 在数秒内完成同等深度的审计，帮助企业年省 $50K+ 安全审计费用。
+SecAudit 基于 `audit-framework/` 架构构建——不是一个平铺的 skill 列表，而是一个可插拔 Rule Pack 系统。
+
+```
+audit-framework/
+├── rulepacks/         ← 可插拔规则包（当前: secguardian 默认）
+│   └── secguardian/
+│       ├── pack.json  ← 清单 + 标准映射
+│       └── rules/     ← 17 个审计规则
+├── engine/            ← 执行引擎规范
+├── templates/         ← 报告模板
+└── reporters/         ← 输出格式扩展点
+```
+
+每个 Rule Pack 对应一个安全标准或企业基线。默认内置 `secguardian` 覆盖 17 个审计域。未来可以加载 `company-redline-v3`、`owasp-asvs`、`pci-dss` 等 Rule Pack。
 
 ## 使用方式
 
 ```
-/secaudit <path> <language>                         # ★ 旗舰：完整 17 项审计报告
+# ★ 零参数缺省调用（推荐）
+/secaudit                                            # 扫描当前目录，自动检测语言，运行完整 16 阶段审计
+
+# 显式指定路径和语言
 /secaudit ./src python                              # Python 完整安全审计
 /secaudit ./src java                                # Java 完整安全审计
 /secaudit ./src cpp                                 # C/C++ 完整安全审计
+
+# Rule Pack 选择
+/secaudit --rulepack secguardian ./src python       # 显式指定 rulepack
+
+# 单项聚焦审计
+/secaudit --focus cryptography                      # 零参数 + 单项聚焦
 /secaudit ./src python --focus input-validation     # 单项：仅输入验证审计
-/secaudit ./src python --focus cryptography         # 单项：仅密码学审计
 /secaudit ./src python --focus taint-analysis       # 单项：仅污点分析
+
+# SARIF 输出
 /secaudit ./src python --sarif                      # 输出 SARIF 格式（CI/CD）
-/secaudit ./src python --focus input-validation --sarif  # 单项审计 + SARIF
-/secaudit                                            # 列出所有可用审计领域
 ```
 
 ## 输出
@@ -74,30 +95,32 @@ Skill: secaudit-taint-analysis
 
 ## 可用 Skills
 
+**Rule Pack 来源**: `audit-framework/rulepacks/secguardian/pack.json`（17 条规则，映射 OWASP ASVS + CWE Top 25）
+
 ### analysis - 安全分析方法 (5 个)
-| Skill | 描述 |
-|-------|------|
-| attack-surface-analysis | 分析攻击面，识别暴露入口点和接口 |
-| data-flow-analysis | 追踪数据从 Source 到 Sink 的完整数据流 |
-| state-machine-analysis | 分析状态转换，检测非法跃迁路径 |
-| taint-analysis | 标记污点数据源，追踪传播链 |
-| trust-boundary-analysis | 识别信任边界，检查跨边界控制 |
+| Skill | 描述 | Rule Pack 映射 |
+|-------|------|----------------|
+| attack-surface-analysis | 分析攻击面，识别暴露入口点和接口 | secguardian |
+| data-flow-analysis | 追踪数据从 Source 到 Sink 的完整数据流 | secguardian |
+| state-machine-analysis | 分析状态转换，检测非法跃迁路径 | secguardian |
+| taint-analysis | 标记污点数据源，追踪传播链 | secguardian |
+| trust-boundary-analysis | 识别信任边界，检查跨边界控制 | secguardian |
 
 ### domain - 安全领域审计 (12 个)
-| Skill | 描述 |
-|-------|------|
-| auth-and-session | 认证机制和会话生命周期审计 |
-| authorization | 权限模型审计，检测越权 |
-| cryptography | 加密实现审计，检测弱算法 |
-| data-protection | 敏感数据存储/传输/处理保护 |
-| dependency-security | 依赖的已知漏洞和供应链审计 |
-| http-security-headers | HTTP 安全头配置审计 |
-| infra-hardening | 容器/K8s/云资源加固审计 |
-| input-validation | 输入验证和注入漏洞审计 |
-| logging-and-monitoring | 日志完整性和安全监控审计 |
-| output-encoding | 输出编码和 XSS 防护审计 |
-| secrets-management | 密钥/凭证管理方式审计 |
-| secure-transport | TLS 配置和传输层安全审计 |
+| Skill | 描述 | Rule Pack 映射 |
+|-------|------|----------------|
+| auth-and-session | 认证机制和会话生命周期审计 | secguardian |
+| authorization | 权限模型审计，检测越权 | secguardian |
+| cryptography | 加密实现审计，检测弱算法 | secguardian |
+| data-protection | 敏感数据存储/传输/处理保护 | secguardian |
+| dependency-security | 依赖的已知漏洞和供应链审计 | secguardian |
+| http-security-headers | HTTP 安全头配置审计 | secguardian |
+| infra-hardening | 容器/K8s/云资源加固审计 | secguardian |
+| input-validation | 输入验证和注入漏洞审计 | secguardian |
+| logging-and-monitoring | 日志完整性和安全监控审计 | secguardian |
+| output-encoding | 输出编码和 XSS 防护审计 | secguardian |
+| secrets-management | 密钥/凭证管理方式审计 | secguardian |
+| secure-transport | TLS 配置和传输层安全审计 | secguardian |
 
 ## 派发规则与执行步骤
 
@@ -168,11 +191,19 @@ python3 scripts/validate-index.py \
     --scan-id <scan_id>
 ```
 
-### Step 3: 路由并应用 Audit Skill
+### Step 3: 加载 Rule Pack 并路由 Audit Skill
 
-- 如果用户未指定 skill-name，或输入为 `analysis` / `domain` / `list`，列出对应的 skills 列表。
+> **Rule Pack 选择**: 如果用户指定 `--rulepack <name>`，加载 `audit-framework/rulepacks/<name>/pack.json`。
+> 如果未指定，默认加载 `audit-framework/rulepacks/secguardian/pack.json`。
+> 从 `pack.json` 读取 `rules[]` 列表，获取可用审计规则的定义和标准映射。
+
+- 如果用户未指定 skill-name，或输入为 `analysis` / `domain` / `list`，列出对应的 skills 列表（从 pack.json 获取）。
 - 如果指定了具体的 skill-name，精确加载 `../skills/secaudit/{skill-name}/SKILL.md`。
+- **默认 rulepack (secguardian)**: 从 `audit-framework/rulepacks/secguardian/pack.json` 读取 `workflow_source`，加载 `skills/secaudit/workflow-secaudit/SKILL.md` 作为 17 阶段执行引擎。
+  - `pack.json.rules[].phase` 定义各 phase 的顺序
+  - 后处理（去重、评分、分类、修复路线图）由 workflow 定义
 - 根据 `index.json` 提供的符号表和调用图、`SKILL.md` 的审计规范以及 `../knowledge/guard-rules/` 中相关检测器的威胁定义进行深度推理审计。
+- **Custom rulepack**: 指定 `--rulepack <name>` 时，加载 `audit-framework/rulepacks/<name>/pack.json`，读取其 `workflow_source` 或执行 pack 内 `workflow.md`。
 
 ### Step 4: 输出结构化 findings（遵循 Findings Protocol v5.0）
 

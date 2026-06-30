@@ -1,79 +1,93 @@
 ---
 name: secreview-js
-description: 对 JavaScript/Node.js 代码进行通用安全规范检视，关注原型安全、异步错误处理和框架反模式。当用户请求JavaScript代码规范检视、Node.js反模式识别、前端安全规范、JS最佳实践审计时使用。
+description: "AI Code Security Review for JavaScript/Node.js — prototype pollution, async error handling, and JS-specific vulnerabilities during pull request review"
 category: language-specific
 language: javascript
 topic: [web, crypto, system]
 ---
 
-# 安全规范检视 — JavaScript/Node.js
+# AI Security Code Review — JavaScript/Node.js
 
-对 JavaScript/TypeScript 代码进行通用安全规范检视，关注原型安全、异步错误处理和前端安全最佳实践。
+AI-powered security code review for JavaScript/TypeScript code. Designed for pull request review and completed implementation analysis.
 
-> **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`。检视时优先利用符号表定位目标，而非逐个文件遍历。
+Focus areas: prototype pollution, async error handling, NoSQL injection, framework security (Express/React/Next.js), and business logic vulnerabilities.
 
-## 执行流程
+> **Prerequisite**: Command layer has executed `secguardian-index` to generate `index.json`. Use symbol table for review target identification rather than file-by-file traversal.
 
-### Phase 1: 加载上下文
+## Execution Phases
 
-1. 读取 `index.json`，获取 `files`、`symbols.functions`、`call_graph.edges`
-2. 加载 `knowledge/languages/javascript.md` 获取 JS/Node.js 危险 API 清单
+### Phase 1: Load Context
 
-### Phase 2: 语义层面检视
+1. Read `index.json` — `files`, `symbols.functions`, `call_graph.edges`
+2. Load `knowledge/languages/javascript.md` for JS/Node.js dangerous API list
+3. If git diff mode, load `delta.json` for changed function scope
 
-| # | 检查项 | 检测方法 | 示例：不合规 |
-|---|--------|---------|-------------|
-| 1 | 原型污染防护 | 搜索 `Object.assign`/`_.merge`/扩展运算符 → 递归合并是否过滤 `__proto__` | `_.merge(config, req.body)` → 应使用 `_.merge({}, config, sanitize(req.body))` |
-| 2 | NoSQL 注入防护 | 搜索 `findOne(`/`find(` → 查询条件是否校验类型 | `User.findOne({username: req.body.username})` — username 若是 `{$ne: null}` 可绕过 |
-| 3 | SSTI 防护 | 搜索 `ejs.render`/`pug.compile`/`handlebars.compile` → 模板源是否来自用户 | `res.render(userTemplatePath)` → 仅使用静态模板路径 |
-| 4 | 加密 API 安全 | 搜索 `crypto.createCipher`/`crypto.createHash('md5')` → 算法和模式选择 | `createCipher('aes-128-ecb', key)` → 应使用 `createCipheriv('aes-256-gcm', key, iv)` |
-| 5 | Promise 错误传播 | 搜索 `await` 语句 → 是否有 try-catch 包裹或 `.catch()` 链 | `await fetchData()` 无 catch → 应加 `.catch(handleError)` |
+### Phase 2: Vulnerability Detection by Code Review
 
-### Phase 3: 规范合规检视
+For each function (focusing on git-diff changed functions in PR mode):
 
-| # | 检查项 | 检测方法 | 修复指引 |
-|---|--------|---------|---------|
-| 1 | HTTP 安全头 | 检查是否使用 helmet 中间件 | `app.use(helmet())` 默认启用所有安全头 |
-| 2 | Cookie 安全属性 | 搜索 `res.cookie(` → 选项是否含 secure/httpOnly/sameSite | `cookie('token', val, {httpOnly: true, secure: true, sameSite: 'strict'})` |
-| 3 | CORS 配置 | 搜索 `cors(` → origin 是否为 `*` 或允许任意来源 | 白名单指定允许的 origin，禁止 `Access-Control-Allow-Origin: *` |
-| 4 | npm 依赖安全 | 检查 package.json → 是否定期 audit | 在 CI 中运行 `npm audit --audit-level=high` |
-| 5 | SSR 数据泄露 | 检查 Next.js/Nuxt → `getServerSideProps` 返回数据是否包含内部字段 | 序列化返回前剥离敏感字段（密码、token、内部 ID） |
+| # | Check | Detection Method | Example: Non-compliant |
+|---|-------|-----------------|------------------------|
+| 1 | Prototype pollution | Search `Object.assign`/`_.merge`/spread — recursive merge filters `__proto__`? | `_.merge(config, req.body)` -> use `_.merge({}, config, sanitize(req.body))` |
+| 2 | NoSQL injection | Search `findOne(`/`find(` — query condition type-validated? | `User.findOne({username: req.body.username})` — `{$ne: null}` bypass |
+| 3 | SSTI | Search `ejs.render`/`pug.compile`/`handlebars.compile` — user input in template source? | `res.render(userTemplate)` -> static template paths only |
+| 4 | Weak cryptography | Search `crypto.createCipher`/`crypto.createHash('md5')` — algorithm choice? | `createCipher('aes-128-ecb', key)` -> use `createCipheriv('aes-256-gcm', key, iv)` |
+| 5 | Unhandled promise | Search `await` — try-catch or `.catch()` chain present? | `await fetchData()` without catch -> add `.catch(handleError)` |
+| 6 | Code injection | Search `eval()`/`new Function()`/`vm.runInNewContext()` — dynamic code execution? | Use `JSON.parse` for data, avoid dynamic code |
 
-### Phase 4: 反模式识别
+**Pass output**: Each finding includes CWE mapping, exploit scenario, CVSS score, and fix recommendation.
 
-| # | 反模式 | 检测特征 | 修复方案 |
-|---|--------|---------|---------|
-| 1 | eval / dynamic code | `eval()` / `new Function()` / `vm.runInNewContext()` | 使用 JSON.parse 替代 eval，避免动态代码执行 |
-| 2 | Promise 未处理 rejection | await 无 try-catch，Promise 无 `.catch()` | 所有 await 包裹 try-catch，或统一 `process.on('unhandledRejection')` |
-| 3 | Express 错误中间件泄露 | `err.stack` 返回给客户端 | 生产环境仅返回通用错误消息，堆栈写入日志系统 |
-| 4 | innerHTML / dangerouslySetInnerHTML | 直接设置 HTML 且内容含用户输入 | 使用 `textContent` 或 DOMPurify 净化后设置 |
-| 5 | localStorage 存储敏感数据 | JWT/Token 存储在 `localStorage.setItem()` | JWT 应存储在 httpOnly cookie，敏感数据仅内存持有 |
-| 6 | Math.random() 用于安全 | 验证码/Token/密钥生成使用 `Math.random()` | 使用 `crypto.randomBytes()` 或 `crypto.randomUUID()` |
-| 7 | Mongoose 敏感字段泄露 | Schema 中 password/token 未设 `select: false` | 敏感字段设置 `select: false`，查询时显式 `.select('+field')` |
-| 8 | TypeScript any 绕过 | `(data as any).dangerousMethod()` | 定义完整类型接口，禁止 any 用于安全敏感路径 |
-| 9 | Service Worker 缓存认证 | SW 缓存中包含 Authorization header 的响应 | 过滤认证相关请求，不缓存含 Authorization/Cookie 的响应 |
+### Phase 3: Business Logic & Framework Security
 
-### Phase 5: 输出
+| # | Check | Detection Method | Fix Guidance |
+|---|-------|-----------------|-------------|
+| 1 | Security headers | Search for helmet middleware | `app.use(helmet())` for all default security headers |
+| 2 | Cookie security | Search `res.cookie(` — secure/httpOnly/sameSite? | `cookie('token', val, {httpOnly: true, secure: true, sameSite: 'strict'})` |
+| 3 | CORS config | Search `cors(` — origin `*` or too permissive? | Whitelist origins, deny `Access-Control-Allow-Origin: *` |
+| 4 | npm dependency safety | Check package.json — CI audit in place? | Run `npm audit --audit-level=high` in CI |
+| 5 | SSR data leak | Next.js/Nuxt `getServerSideProps` — internal fields exposed? | Strip sensitive fields (password, token, internal IDs) before serialization |
 
-遵循 `knowledge/protocols/scan-output.md` (v2.0，人读/机读分离)：`report.md` + `results.sarif` + `summary.json` + `manifest.json` + `status.json`。
+### Phase 4: Anti-pattern Recognition
 
-## 与 secguard-js 的区别
+| # | Anti-pattern | Detection Signature | Fix |
+|---|-------------|-------------------|-----|
+| 1 | eval / dynamic code | `eval()` / `new Function()` / `vm.runInNewContext()` | Use `JSON.parse` for data, avoid dynamic code execution |
+| 2 | Unhandled promise rejection | await without try-catch, Promise without `.catch()` | All awaits in try-catch; unified `process.on('unhandledRejection')` |
+| 3 | Express error middleware leak | `err.stack` returned to client | Production: generic error message, stack in logging system |
+| 4 | innerHTML / dangerouslySetInnerHTML | Direct HTML with user input | Use `textContent` or DOMPurify-sanitized content |
+| 5 | localStorage sensitive data | JWT/Token stored in `localStorage.setItem()` | JWT in httpOnly cookie, sensitive data in memory only |
+| 6 | Math.random() for security | Verification codes/tokens using `Math.random()` | Use `crypto.randomBytes()` or `crypto.randomUUID()` |
+| 7 | Mongoose field leak | Schema password/token without `select: false` | Set `select: false`, explicit `.select('+field')` for queries |
+| 8 | TypeScript any bypass | `(data as any).dangerousMethod()` | Define full type interfaces, no `any` on security-sensitive paths |
+| 9 | Service Worker auth caching | SW caching responses with Authorization header | Filter auth requests, never cache Authorization/Cookie responses |
 
-| 维度 | secguard（加固排查） | secreview（规范检视） |
-|------|---------------------|---------------------|
-| 粒度 | 具体 API 调用级 | 函数/模块级语义 |
-| 关注点 | 是否存在可利用漏洞 | 是否符合安全编码规范 |
-| 输出 | 漏洞位置 + CVSS 级别 | 不合规项 + 修复建议 |
-| 覆盖 | CWE Top 25 + 检测器 | OWASP + Node.js 安全最佳实践 |
+### Phase 5: Output
 
-## 输出完整性要求
+Follows `knowledge/protocols/scan-output.md` (v5.0). Each finding:
 
-> **输出协议**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
+- File path + line number + function name (from index.json)
+- CWE ID + exploit scenario
+- CVSS severity assessment
+- Fix recommendation (before/after code)
+
+## Difference from secguard-js
+
+| Dimension | secguard (Secure Coding) | secreview (Code Review) |
+|-----------|-------------------------|-------------------------|
+| SDLC Stage | During coding | During pull request / code review |
+| Granularity | API call level + detector filter | Function/module-level semantic + business logic |
+| Primary Output | Vulnerability location + CVSS | CWE mapping + exploit scenario + business logic risk |
+| Coverage | CWE Top 25 + detectors | OWASP + Node.js security + React/Next.js + anti-patterns |
+| Typical Mode | Full codebase scan | Git diff / PR changeset |
+
+## Output Completeness Requirements
+
+> **Output protocol**: Follow `knowledge/protocols/scan-output.md` (v5.0).
 >
-> Command 层 Step 4b 质量门禁强制检查每个检出的四段式完整性：
-> 1. **📍 Location** — 文件路径 + 行号 + 函数名 + 违规代码行
-> 2. **📋 Evidence** — 代码上下文（前后 3 行）+ 判定依据（指出违反的安全编码规范条款）
-> 3. **⚠️ Impact** — 不合规可能导致的安全风险 + 适用攻击场景
-> 4. **🔧 Fix** — Before/After 代码 + 工作量 + 验证方法 + SEI CERT/OWASP 参考链接
+> Command layer Step 4b quality gate enforces four-segment completeness for each finding:
+> 1. **Location** — File path + line + function + vulnerable code
+> 2. **Evidence** — Code context (3 lines around) + judgment rationale citing security standards
+> 3. **Impact** — Security risk + attack scenario (required)
+> 4. **Fix** — Before/After code + verification method + OWASP reference
 >
-> SARIF 结果同样要求：`message.markdown` 包含完整四段式，`relatedLocations` 标注关联代码位置，`fixes` 包含 before/after 替换。
+> SARIF output: `message.markdown` with full four-segment content, `relatedLocations` for associated code, `fixes` with before/after replacements.
