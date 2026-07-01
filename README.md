@@ -16,53 +16,44 @@ By moving beyond raw AI code generation and introducing **Rule Packs**, SecGuard
 
 ## Quick Start
 
-Choose your scenario:
-
-### I use Claude Code
-
-```bash
-# One-time setup
-bash scripts/deploy.sh cc
-
-# Then in any Claude Code session:
-/secguard ./src           # Secure coding guidance
-/secreview                # PR security review (auto git diff)
-/secfix                   # Auto-remediation from latest scan
-/secaudit                 # Full audit (auto-detect language)
-```
-
-### I use OpenCode
-
-```bash
-bash scripts/deploy.sh nga
-
-# Same commands:
-/secguard ./src
-/secreview
-/secfix
-/secaudit
-```
-
-### I use Gemini CLI
-
-```bash
-bash scripts/deploy.sh cac
-
-# Same commands:
-/secguard ./src
-/secreview
-/secfix
-/secaudit
-```
-
-### I want to try it from source
+All installation paths start from the repository:
 
 ```bash
 git clone https://github.com/DannyAn/SecGuardian.git
 cd SecGuardian
-bash scripts/dev-deploy.sh
+```
 
-# Run against the built-in vulnerable examples:
+Then choose your platform:
+
+### Claude Code
+
+```bash
+bash scripts/deploy.sh cc
+```
+
+### OpenCode
+
+```bash
+bash scripts/deploy.sh nga
+```
+
+### Gemini CLI
+
+```bash
+bash scripts/deploy.sh cac
+```
+
+### Build all platforms at once
+
+```bash
+bash scripts/dev-deploy.sh
+```
+
+### Run against the demo code
+
+After deploying, try the built-in vulnerable examples to see how each command works:
+
+```bash
 /secguard examples/cpp-vuln-demo/src cpp
 /secreview examples/python-vuln-demo/src python
 /secaudit --rulepack secguardian examples/java-vuln-demo/src java
