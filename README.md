@@ -79,7 +79,7 @@ cd internal && go build -o secguardian-index .
 
 ## The Secure SDLC Pipeline
 
-SecGuardian embeds security into the developer workflow. Rather than a single monolithic scan, it provides contextual tools for every stage of development.
+ The Software Development Lifecycle (SDLC) describes the stages of building software — from writing code and reviewing changes to shipping a release. SecGuardian embeds security into each of these stages. Rather than a single monolithic scan, it provides contextual tools purpose-built for each phase.
 
 ```mermaid
 graph TD
