@@ -187,7 +187,7 @@ func ParseFile(filePath string, lang string) (*ParseResult, error) {
 
 	// Variable extraction for Python (line-start assignment)
 	if lang == "python" {
-		varDeclPat := regexp.MustCompile(`(?m)^\s*(\w+)\s*=\s*(?!=)`)
+		varDeclPat := regexp.MustCompile(`(?m)^\s*(\w+)\s*=\s*[^=\n]`)
 		matches := varDeclPat.FindAllStringSubmatch(string(content), -1)
 		for _, m := range matches {
 			name := m[1]
