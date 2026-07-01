@@ -16,17 +16,59 @@ By moving beyond raw AI code generation and introducing **Rule Packs**, SecGuard
 
 ## Quick Start
 
-```bash
-# One-command deployment
-bash scripts/dev-deploy.sh
+Choose your scenario:
 
-# Per-platform
-bash scripts/deploy.sh cc     # Claude Code
-bash scripts/deploy.sh nga    # OpenCode
-bash scripts/deploy.sh cac    # Gemini CLI
+### I use Claude Code
+
+```bash
+# One-time setup
+bash scripts/deploy.sh cc
+
+# Then in any Claude Code session:
+/secguard ./src           # Secure coding guidance
+/secreview                # PR security review (auto git diff)
+/secfix                   # Auto-remediation from latest scan
+/secaudit                 # Full audit (auto-detect language)
 ```
 
-### Standalone indexer
+### I use OpenCode
+
+```bash
+bash scripts/deploy.sh nga
+
+# Same commands:
+/secguard ./src
+/secreview
+/secfix
+/secaudit
+```
+
+### I use Gemini CLI
+
+```bash
+bash scripts/deploy.sh cac
+
+# Same commands:
+/secguard ./src
+/secreview
+/secfix
+/secaudit
+```
+
+### I want to try it from source
+
+```bash
+git clone https://github.com/DannyAn/SecGuardian.git
+cd SecGuardian
+bash scripts/dev-deploy.sh
+
+# Run against the built-in vulnerable examples:
+/secguard examples/cpp-vuln-demo/src cpp
+/secreview examples/python-vuln-demo/src python
+/secaudit --rulepack secguardian examples/java-vuln-demo/src java
+```
+
+### Standalone indexer (Go developers)
 
 ```bash
 cd internal && go build -o secguardian-index .
