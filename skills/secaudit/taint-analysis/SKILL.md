@@ -75,7 +75,7 @@ cursor.execute(query)               # SINK: 污染数据到达危险操作
 ```
 调用链:
   handler() → process_input(user) → build_query(user) → db.execute()
-  
+
 分析策略:
   1. 从 handler 开始，标记 user 为污染
   2. 追踪进入 process_input → 参数标记为污染

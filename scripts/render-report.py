@@ -24,6 +24,7 @@ Copyright 2026 SecGuardian. Apache 2.0.
 
 import argparse
 import json
+import math
 import os
 import sys
 import hashlib
@@ -179,17 +180,28 @@ def safe_len(obj):
     return len(obj) if isinstance(obj, (list, dict, str)) else 0
 
 def calc_score(findings):
-    """Calculate security score from findings list."""
-    weights = {"Critical": 25, "High": 10, "Medium": 3, "Low": 1, "Info": 0}
+    """Calculate security score from findings list.
+    
+    Uses exponential decay formula to avoid bottoming out at 0:
+    score = 100 * exp(-0.2*Crit - 0.1*High - 0.04*Med - 0.01*Low)
+    
+    This preserves granularity even for high-severity scans:
+    - 0 findings     → 100
+    - 1 Crit         → ~82
+    - 3 Crit + 5 High → ~47
+    - 9 Crit + 5 High + 3 Med → ~26
+    - 15 Crit        → ~5
+    """
+    weights = {"Critical": 0.2, "High": 0.1, "Medium": 0.04, "Low": 0.01, "Info": 0}
     penalty = sum(weights.get(f["severity"], 0) for f in findings)
-    return max(0, 100 - penalty)
+    return max(0, round(100 * math.exp(-penalty)))
 
 
 def calc_grade(score):
-    if score >= 90: return "A"
-    if score >= 75: return "B"
-    if score >= 60: return "C"
-    if score >= 40: return "D"
+    if score >= 80: return "A"
+    if score >= 55: return "B"
+    if score >= 35: return "C"
+    if score >= 15: return "D"
     return "F"
 
 
@@ -343,7 +355,7 @@ def quality_gate_report(findings):
     for f in findings:
         ok, missing = validate_finding_4segment(f)
         if not ok:
-            issues.append(f"  ❌ {f['id']}: missing {', '.join(missing)}")
+            issues.append(f"  ❌ {f.get('_seq', 0)}: missing {', '.join(missing)}")
 
     if issues:
         header = [f"### ⚠️ Quality Gate: {len(issues)} finding(s) incomplete", ""]
@@ -402,11 +414,11 @@ def generate_report_md(findings_data):
         file_findings = by_file[filepath]
         plural = "s" if len(file_findings) > 1 else ""
         lines.append(f"### {filepath} ({len(file_findings)} finding{plural})\n")
-        lines.append("| Finding ID | Severity | CWE | Detector | Line | Fix |")
+        lines.append("| # | Severity | CWE | Detector | Line | Fix |")
         lines.append("|-----------|----------|-----|----------|------|-----|")
         for f in file_findings:
             sev_emoji = severity_emoji(f["severity"])
-            lines.append(f"| {f['id']} | {sev_emoji} {f['severity']} | {f['cwe']} | {f['detector']} | {f['line']} | {f.get('fix_summary', f['title'])} |")
+            lines.append(f"| #{f.get('_seq', 0)} | {sev_emoji} {f['severity']} | {f['cwe']} | {f['detector']} | {f['line']} | {f.get('fix_summary', f['title'])} |")
         lines.append("")
 
     # §3 Detailed Findings
@@ -428,7 +440,7 @@ def generate_report_md(findings_data):
             imp = f.get("impact", {})
             fix = f.get("fix", {})
 
-            lines.append(f"#### {sev_emoji} {f['id']} — {f['title']}\n")
+            lines.append(f"#### {sev_emoji} #{f.get('_seq', 0)} — {f['title']}\n")
         lines.append(f"| Field | Detail |")
         lines.append(f"|-------|--------|")
         lines.append(f"| **Severity** | {sev_emoji} {f['severity']} |")
@@ -513,7 +525,7 @@ def generate_report_md(findings_data):
         if items:
             lines.append(f"### Phase: {label}\n")
             for item in items:
-                lines.append(f"- **{item['id']}** — {item.get('fix_summary', item['title'])}")
+                lines.append(f"- **#{item.get('_seq', 0)}** — {item.get('fix_summary', item['title'])}")
             lines.append("")
 
     # §5 Appendix
@@ -645,7 +657,8 @@ def generate_sarif(findings_data):
             }],
             "partialFingerprints": {"primary": fingerprint(f)},
             "properties": {
-                "findingId": f["id"],
+                "findingId": f.get("_sha", ""),
+                "seq": f.get("_seq", 0),
                 "severity": f["severity"],
                 "cwe": f["cwe"],
                 "confidence": sarif.get("confidence", "medium"),
@@ -773,7 +786,8 @@ def generate_manifest(findings_data):
         "scope": findings_data.get("scope", {}),
         "findings": [
             {
-                "id": f["id"],
+                "seq": f.get("_seq", 0),
+                "sha": f.get("_sha", ""),
                 "severity": f["severity"],
                 "cwe": f["cwe"],
                 "detector": f["detector"],
@@ -845,8 +859,8 @@ def generate_delta(findings_data, output_dir):
     current_findings = findings_data.get("findings", [])
 
     if prev and "findings" in prev:
-        prev_ids = {f["id"] for f in prev["findings"]}
-        curr_ids = {f["id"] for f in current_findings}
+        prev_ids = {f.get("sha", f.get("_sha", "")) for f in prev["findings"]}
+        curr_ids = {f.get("_sha", f.get("sha", "")) for f in current_findings}
 
         new_ids = curr_ids - prev_ids
         fixed_ids = prev_ids - curr_ids
@@ -862,8 +876,8 @@ def generate_delta(findings_data, output_dir):
                 "total_current": len(current_findings),
                 "total_previous": len(prev["findings"])
             },
-            "new_finding_ids": sorted(new_ids),
-            "fixed_finding_ids": sorted(fixed_ids)
+            "new_finding_ids": sorted(new_ids),  # SHA prefixes
+            "fixed_finding_ids": sorted(fixed_ids)  # SHA prefixes
         }
     else:
         return {
@@ -984,12 +998,12 @@ def render_executive_summary(findings_data, output_dir):
     # Top-3 Critical/High
     if top3:
         lines.extend(["", "### Top 3 风险", "",
-                       "| ID | 文件:行 | 严重度 | 标题 |",
+                       "| # | 文件:行 | 严重度 | 标题 |",
                        "|----|---------|--------|------|"])
         for f in top3:
             sev_label = f.get("severity", "")
             emoji = sev_emoji.get(sev_label, "")
-            finding_id = f.get("id", "")
+            finding_id = f"#{f.get('_seq', 0)}" 
             file_line = f"{f.get('file', '')}:{f.get('line', '')}"
             title = f.get("title", "")
             lines.append(f"| {finding_id} | `{file_line}` | {emoji} {sev_label} | {title} |")
@@ -1034,7 +1048,7 @@ def render_remediation_pack(findings, findings_meta, output_dir):
     
     remediations = []
     for i, f in enumerate(findings):
-        finding_id = f.get("id", "")
+        finding_id = f"#{f.get('_seq', 0)}"
         
         # AI-tagged relationships
         related = []
@@ -1055,7 +1069,7 @@ def render_remediation_pack(findings, findings_meta, output_dir):
                     related.append(rid)
         
         rem = {
-            "finding_id": finding_id,
+            "finding_id": f"#{f.get('_seq', 0)}",
             "title": f.get("title", ""),
             "severity": f.get("severity", ""),
             "cwe": f.get("cwe", ""),
@@ -1282,7 +1296,7 @@ Examples:
             index_meta = load_json(index_path)
             for key in ["scan_id", "command", "started_at", "completed_at",
                          "duration_ms", "path", "mode", "filters", "language",
-                         "scope", "detectors", "security_score"]:
+                         "scope", "detectors", ]:
                 if key in index_meta and key not in ("findings_index", "summary"):
                     findings_data[key] = index_meta[key]
             if "scope" in index_meta and (not findings_data.get("scope") or findings_data["scope"].get("files", 0) == 0):
@@ -1306,6 +1320,18 @@ Examples:
     os.makedirs(args.output, exist_ok=True)
 
     findings = findings_data.get("findings", [])
+
+    # Sort findings: severity desc → file → line asc
+    sev_order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "Info": 4}
+    findings.sort(key=lambda f: (sev_order.get(f.get("severity", "Medium"), 5),
+                                  f.get("file", ""),
+                                  f.get("line", 0)))
+    # Compute SHA identity and sequential number for each finding
+    for i, f in enumerate(findings):
+        identity = f"{f.get('detector','')}:{f.get('file','')}:{f.get('line',0)}:{f.get('cwe','')}"
+        sha = hashlib.sha256(identity.encode()).hexdigest()[:12]
+        f['_seq'] = i + 1
+        f['_sha'] = sha
 
     # Quality gate (for secaudit)
     gate_warnings = []

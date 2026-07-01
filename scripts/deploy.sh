@@ -204,7 +204,7 @@ JSON
             done
         fi
         # Knowledge: merge across all extensions
-        for cat in languages detectors protocols; do
+        for cat in languages guard-rules protocols; do
             if [ -d "$d/knowledge/$cat" ]; then
                 find "$d/knowledge/$cat" -name '*.md' -exec cp {} "$plugin_dir/knowledge/$cat/" \;
             fi
@@ -231,7 +231,7 @@ JSON
     cp "$PROJECT_ROOT/knowledge/language-index.md" "$plugin_dir/knowledge/"
 
     # Copy wrapper scripts, renderer, and binaries into plugin
-    for wrapper in secguardian-index secguardian-index.ps1 render-report.py; do
+    for wrapper in secguardian-index secguardian-index.ps1 render-report.py validate-index.py validate-findings.py; do
         if [ -f "$PROJECT_ROOT/scripts/$wrapper" ]; then
             cp "$PROJECT_ROOT/scripts/$wrapper" "$plugin_dir/scripts/$wrapper"
             chmod +x "$plugin_dir/scripts/$wrapper" 2>/dev/null || true
@@ -541,7 +541,7 @@ deploy_opencode() {
     done
 
     mkdir -p "$ext_dir/commands" "$skills_dir" "$scripts_dir/bin" \
-             "$knowledge_dir/languages" "$knowledge_dir/detectors" \
+             "$knowledge_dir/languages" "$knowledge_dir/guard-rules" \
              "$knowledge_dir/protocols" "$knowledge_dir/standards" \
              "$opencode_dir/plugins"
 
@@ -580,7 +580,7 @@ JSON
     done
 
     # ── Deploy knowledge ─────────────────────────
-    for cat in languages detectors protocols; do
+    for cat in languages guard-rules protocols; do
         for d in "$DIST"/*/; do
             if [ -d "$d/knowledge/$cat" ]; then
                 find "$d/knowledge/$cat" -name '*.md' -exec cp {} "$knowledge_dir/$cat/" \;
@@ -597,7 +597,7 @@ JSON
     log_done "$cmd_n commands, $skill_n skills, knowledge/ + scripts/"
 
     # ── Deploy scripts + indexer ─────────────────
-    for wrapper in secguardian-index secguardian-index.ps1 render-report.py; do
+    for wrapper in secguardian-index secguardian-index.ps1 render-report.py validate-index.py validate-findings.py; do
         if [ -f "$PROJECT_ROOT/scripts/$wrapper" ]; then
             cp "$PROJECT_ROOT/scripts/$wrapper" "$scripts_dir/$wrapper"
             chmod +x "$scripts_dir/$wrapper" 2>/dev/null || true
@@ -655,7 +655,7 @@ JSON
                 [ -d "$sd" ] && cp -r "$sd" "$ext_dir/skills/$(basename "$d" | sed 's/-secguardian//')-$(basename "$sd")" && skill_n=$((skill_n + 1))
             done
         fi
-        for cat in languages detectors protocols; do
+        for cat in languages guard-rules protocols; do
             if [ -d "$d/knowledge/$cat" ]; then
                 find "$d/knowledge/$cat" -name '*.md' -exec cp {} "$ext_dir/knowledge/$cat/" \;
             fi
@@ -683,7 +683,7 @@ JSON
     fi
 
     # Wrapper scripts and binaries
-    for wrapper in secguardian-index secguardian-index.ps1 render-report.py; do
+    for wrapper in secguardian-index secguardian-index.ps1 render-report.py validate-index.py validate-findings.py; do
         [ -f "$PROJECT_ROOT/scripts/$wrapper" ] && cp "$PROJECT_ROOT/scripts/$wrapper" "$ext_dir/scripts/"
     done
     chmod +x "$ext_dir/scripts/"* 2>/dev/null || true

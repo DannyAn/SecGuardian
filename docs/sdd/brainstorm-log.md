@@ -5,7 +5,133 @@
 
 ---
 
+## 2026-06-28 — Finding ID 重构 + 安全评分修复（Java 扫描实测发现）
+
+### 背景
+
+2026-06-27 对 `/Users/kongan/workbench/gitee/pkmhipster/main/src` 执行 `/secguard ./src java` 扫描，检出 26 个发现（8 Critical + 6 High + 12 Medium）。
+扫描输出暴露两个关联问题：所有 Finding 的 `id` 字段显示 "placeholder"，安全评分显示 0/100。
+
+### 讨论要点
+
+#### 1. Finding ID 双重问题
+
+**Bug**: AI Agent 写入 individual finding 文件时 `id` 填的是 `placeholder`，renderer 走 `--findings-dir` 加载后全显 placeholder。
+`findings_index` 中 ID 正确（如 `C-SQL-I-QuestionMapper-L70`），但 v5.0 路径不消费索引中的 ID。
+
+**设计问题**: 即使 ID 正确，格式 `C-SQL-I-QuestionMapper-L70` 也是工程师认知负担：
+- 缩写不统一（`H-WEAK--SysUserApplicationService-L127` 出现双连字符）
+- 行号不稳定，代码插入一行即失效
+- 试图同时做机器标识 + 人读引用，两件事都做不好
+
+#### 2. 新 Finding Identity 设计
+
+参照 SARIF 2.1.0 哲学，采用分层方案：
+
+| 职责 | 机制 | 说明 |
+|------|------|------|
+| 跨扫描去重 | SHA-256(`detector:file:line:cwe`) | 前 12 hex chars 做文件名 |
+| 人读定位 | `_${file_slug}-${line}` 后缀 | 文件名后附加可读部分 |
+| 人读引用 | 序号 `#1` ~ `#N` | 每次扫描按 severity→file→line 排序 |
+| 报告展示 | 序号 + detector + file:line + title | 不再展示 ID 列 |
+| SARIF 对齐 | `partialFingerprints` = 同一 SHA | 符合 OASIS 标准 |
+
+**选中方案**: `f42ce940c35c_SignatureUtils-35.json`
+- 前 12 位 SHA 前缀 → 去重 + 跨扫描稳定
+- `_SignatureUtils-35` → 工程师快速定位
+- 目录树已含 detector 命名空间（`findings/crypto/hardcoded-secrets/`）
+
+**否决的方案**:
+- **纯 SHA**（`f42ce940c35c.json`）: ls 查看无任何上下文
+- **SHA-CWE-file**（`f42ce940c35c_798-SignatureUtils-35.json`）: CWE 编号需要查表，信息密度低
+- **旧格式修修补补**: 缩写规则无论如何也做不到紧凑且可读
+
+#### 3. 安全评分问题
+
+Source 代码 renderer 已有指数衰减公式 `100 × exp(-0.2C - 0.1H - 0.04M - 0.01L)`，
+对该扫描本应产出 7/100（已确认），但产出 0/100。
+
+**根因**: AI Agent 在 `findings.json` 中写死 `security_score: 0`。虽然 `generate_summary` 和 `generate_status` 会从 findings 列表重新计算评分，但部署管线的某个环节绕过了 renderer 的计算。
+
+**修复方向**:
+- 从 `findings.json` 模板中移除 `security_score` 字段（AI 不负责评分）
+- Renderer 始终从 findings 列表计算评分
+- 确认 `calc_score` 使用的指数衰减公式已部署
+
+### 最终方案
+
+本次特性以 **FEATURE-006-finding-identity-redesign** 立项，覆盖 Finding Identity 重构 + 评分修复，隶属 EPIC-001 Core Scanning Engine。
+
+### 影响范围
+
+（待 spec 详细定义）
+- `scripts/render-report.py` — 移除 `security_score` override、manifest/report 改用序号+SHA
+- `knowledge/protocols/scan-output.md` — 更新文件命名 + finding 结构
+- `commands/secguard.md` / `secaudit.md` / `secreview.md` — 更新 ID 格式描述 + 模板
+- `skills/secguard/*/SKILL.md` — 更新 AI 写入 finding 的指令
+- `scripts/validate-findings.py` — 更新 schema（id 字段不再强制）
+
+---
+
+## 2026-06-27 — 索引器容错与扫描可靠性系统性缺陷（Java 扫描实测回溯）
+
+#
+
 ## 2026-06-21 — 命令接口统一 + SecAudit 工作流旗舰化 + Detector 索引自动生成
+
+## 背景
+
+2026-06-27 对 `/Users/kongan/workbench/gitee/pkmhipster/main/src` 执行 `/secguard ./src java` 扫描。225 个 Java 文件（Spring Boot + MyBatis 后端），含 `src/main/resources/static/` 前端的 Vue/React minified JS bundle。
+
+扫描总耗时 ~18 分钟，其中索引器因 JS bundle 超时 2 次浪费 ~10 分钟。
+
+### 讨论要点
+
+会话分析发现 8 个设计缺陷。按影响面从大到小：
+
+| # | 缺陷 | 根因 | 影响范围 |
+|---|------|------|---------|
+| 1 | `--lang` 参数未传递 | 所有 SKILL.md Step 2 写死 `$INDEXER --path --output`，没有 `--lang $language`。5 个语言的 SKILL.md 都缺 | 每次扫描：auto 模式把无关文件也解析 |
+| 2 | validate 脚本未打包 | `package.sh` 未拷贝 `validate-index.py` / `validate-findings.py` 到 dist/，SKILL.md 引用的验证步骤不可执行 | 验证管道形同虚设 |
+| 3 | guard-rules 未部署 | dist/ 有但 `~/.config/opencode/extensions/secguardian/` 没有 `knowledge/guard-rules/`，AI 无法加载 67 个检测器定义 | AI 只能凭 detector 名字推测规则 |
+| 4 | 安全评分无区分度 | `100 - 25×Crit - 10×High - 3×Med` → 9Crit+5High+3Med = 0/100，与 15Crit 结果一样 F | 安全评分失去表达力 |
+| 5 | JS minified bundle 无限制 | `parser_javascript.go` 正则解析，对 >4000 函数单文件无上限 | 索引器在含前端项目上必卡 |
+| 6 | index.json 缺聚合字段 | 顶层只有 path/files/symbols/call_graph/alloc_free/lock_graph，无 file_count/function_count 等 | AI 每次手工算，易错 |
+| 7 | `--no-verify` CLI 未定义 | Step 3.5 提到该 flag 但参数解析指令无处理逻辑 | 功能存在但不可用 |
+| 8 | 索引器 auto 模式路径排除不全 | 缺 `target/`、`build/`、`static/`、`public/` | Java/Gradle 项目 + 前端项目易中 |
+
+### 回溯：为什么 C/Python/Go 没发现 `--lang` 缺失
+
+这是系统性问题——5 个语言 SKILL.md 的 Step 2 都缺少 `--lang` 传参。C/Python/Go 没触发的原因：
+
+- **C**: 源码树通常只有 `.c` / `.h`，auto 模式无副作用
+- **Python**: 偶尔有少量 JS，但不会是 minified bundle，解析迅速
+- **Go**: 源码树干净，auto 模式直接匹配 `.go`
+- **Java** (首次暴露): `src/main/resources/static/` 含 Vue/React build artifact — `chunk-libs.dc48dc82.js` 单文件 4418 函数，正则解析器卡死 → 超时 → AI 才意识到要用 `--lang java`
+
+**结论**：不是 Java 特有问题，是所有语言的 SKILL.md 都有这个 bug。Java 项目的特定目录结构让它第一个暴露。
+
+### 最终方案
+
+拆成 3 个 Feature Package 并行推进：
+
+| Feature | 范围 | 归属 Epic |
+|---------|------|----------|
+| **FEATURE-005: Indexer Robustness** | #1 `--lang` 传递 + #5 JS bundle 限制 + #6 index.json 字段 + #8 路径排除 | EPIC-001 |
+| **FEATURE-003: Build & Deployment Verification** | #2 validate 脚本打包 + #3 guard-rules 部署 + L3 验证增强 | EPIC-002 |
+| **FEATURE-004 changes** | #4 评分公式改造（纳入 v7 协议 scope）| EPIC-001 / FEATURE-004 |
+
+`--no-verify` (#7) 归入 FEATURE-003 (Verification Pipeline) 原有 scope。
+
+### 影响范围
+
+- 5 个 SKILL.md 文件（cpp/go/java/python/js 的 Step 2 指令）
+- `internal/main.go`（auto 模式排除路径 + index.json 聚合字段）
+- `internal/parser_javascript.go`（minified bundle 大小阈值）
+- `scripts/package.sh`（validate 脚本拷贝）
+- `scripts/deploy.sh`（guard-rules 部署完整性）
+- `scripts/dev-verify.sh`（L3 增加 guard-rules 和 validate 脚本检查）
+- `knowledge/protocols/scan-output.md`（评分公式修正）
 
 ### 背景
 
@@ -173,8 +299,6 @@ review-rules/ 的消费方式：AI 按语言加载一个语言文件，逐条对
 | Q1 | secaudit 的 `--focus <skill-name>` 是否 v1 就做？还是 v2 再说？ | 接口设计 |
 | Q2 | `language-index.md` 是否应该 git 跟踪？还是 build artifact？ | 开发工作流 |
 | Q3 | secguard 的 git-diff 增量模式参数如何对齐新的 `<path> <language>` 格式？ | 接口设计 |
-
-
 
 ## 2026-06-17 — 五轮→三轮设计修正（端到端数据反推）
 
@@ -620,214 +744,115 @@ Secreview 5 个 skill 从 ~45 行扩展到 ~100 行，增加结构化 Phase 1-5 
 6. **命名即文档** — Phase 持久化输出 > Phase 生成 Findings
 7. **平台感知，用户无感** — 双模 parser + 五平台二进制 + 品牌扩展名，用户只管下载解压
 
-
 ---
 
 ## 2026-06-21 — Code Health & Hygiene — 首次 Codex 审计修复
 
-### 背景
+---
 
-首次使用 Codex 对 SecGuardian 项目进行全盘审计，发现 7 项具体问题。这些不涉及架构变更，但影响开发者体验和 CI 可信度。按 SDD 方法论建 Feature Package 系统修复。
-
-### 发现的问题
-
-| # | 问题 | 严重度 | 修复方案 |
-|---|------|--------|---------|
-| 1 | **版本漂移**: manifest.json 已升至 0.6.0，但 main.go + 3 extension.json 仍为 0.5.5 | 🔴 CI 红线 | 4 文件同步到 0.6.0 |
-| 2 | **Go build 假阳性**: Go 1.23+ 缓存 trim 失败返回 exit 1，`2>/dev/null` 不治本 | 🟡 开发者体验 | GOCACHE 指向可写临时目录 |
-| 3 | **AGENTS.md 过时**: 版本号 (0.5.3)、测试套件描述与实际不符 | 🟡 误导 | 刷新文档 |
-| 4 | **JS 解析器漏过滤**: `try`/`do` 关键字被误认为函数名 | 🟡 准确性 | 扩充 dedup 列表 |
-| 5 | **parser_re.go 变量提取局限**: 仅 C/C++ 有声明的变量提取 | 🟡 覆盖率 | 扩展到 Go/Java/Python/JS |
-| 6 | **context/ 包测试盲区**: 核心 JSON 数据模型无单元测试 | 🟡 质量 | 添加基础测试 |
-| 7 | **go.mod 残留**: `mattn/go-pointer` 标记 indirect 但未使用 | 🔵 整洁 | `go mod tidy` |
-
-### 讨论要点
-
-- **为什么不合并到已有 Epic？** EPIC-001（核心引擎）和 EPIC-002（平台工程）聚焦架构级变更，这些是运维和修缮性质，独立 Epic 更清晰
-- **SDD 简化**: 这是纯修复（非新功能），ADR 只记录关键设计决策而非架构方案
-- **测试策略**: `context/` 包测试不追求全覆盖，优先验证 JSON 序列化/反序列化和核心类型正确性
-
-### 影响范围
-
-- `internal/main.go`, `extensions/*/extension.json` (版本号)
-- `scripts/self-check.sh`, `scripts/ci-check.sh` (GOCACHE)
-- `AGENTS.md` (文档)
-- `internal/parser/parser_javascript.go` (JS 过滤)
-- `internal/parser/parser_re.go` (变量提取)
-- `internal/context/` (新测试文件)
-- `internal/go.mod`, `internal/go.sum` (依赖清理)
-
-
-## 2026-06-25 — 输出协议 v7.0 设计提案：从 Scanner 内部视角转向消费者视角
+## 2026-06-30 — 战略定位升级 + /secfix 第四门
 
 ### 背景
 
-当前输出协议 v6.0 已有 11 个输出文件，经历 6 次迭代（v2.0 人读/机读分离 → v3.0 四段式 → v4.0 AI/Renderer 分离 → v5.0 目录树 → v6.0 验证管道）。在审视外部竞品和 AI Native Architecture 趋势时，发现一个深层结构性问题：
+2026-06-30 与 ChatGPT 深度讨论项目未来方向，输出 README-EN.md 作为临时愿景文件。
+结合这条线，与 Codex 进行了两轮重构：
 
-当前输出协议的组织视角是 Scanner 内部实现视角（detector namespace 分类），而非消费者视角。
-
-### 问题分析
-
-1. **消费者视角缺失**：当前 `findings/web/sql-injection/` 组织对 AI Agent 写文件方便，但对消费者不友好。工程师想知道"我的文件有哪些问题"，安全负责人想看攻击链路，AI 修复 Agent 需要机器可读的修复指令。
-
-2. **无 Finding 关系模型**：一个 SQL 注入可能同时涉及 Data Flow、Trust Boundary、PII Exposure 多个维度。当前设计下这些维度是 detector 分类的副产品，而非显式建模。
-
-3. **AI Agent 修复能力未被充分利用**：当前 fix 段是 human-readable 的 before/after 代码。AI Agent 需要的是 root_cause、fix_strategy、framework_specific 等结构化修复指令。
-
-4. **开发者 by-file 视角空白**：工程师拿到扫描结果后的自然反应是"我的文件有哪些问题？"——当前需要在多个 detector 目录间跳跃查找。
+1. **README.md 全面英文化 + 战略叙事迁移**
+2. **/secreview 微重构**：从"安全编码规范检视"→"AI Security Code Review for PRs"
+3. **新增 /secfix 第四门**：AI Remediation，补全 Prevent → Detect → Fix → Verify 闭环
 
 ### 讨论要点
 
-外部参考提供了一些核心理念：
+#### 1. ChatGPT 的战略警告与定位升级
 
-- **Single Source of Truth + Multiple Renderers**：只有一个权威的 finding 模型，其他全部由渲染器生成
-- **Finding Graph**：一个 SQLi 和一个 PII 泄漏之间可能有攻击链路，孤立 finding 看不见这个
-- **AI Remediation Pack**：给 AI Agent 吃的结构化修复包，不是给人读的文本
-- **Developer By-File**：开发者按文件看问题，不是按 OWASP 类别
-- **Scanner 只做诊断，Agent 做治疗**：不要生成 patch，生成诊断蓝图
+ChatGPT 指出核心风险：**"AI 比传统 SAST 更聪明"这个卖点的生命周期不会很长。**
+12 个月后 AI 推理能力是所有产品的共同能力，不再是独特优势。
 
-### 交叉评估结果
+真正长期不贬值的，是另外三件事：
 
-| 建议 | 判定 | 理由 |
+| 资产 | 说明 |
+|------|------|
+| **Rule Packs** | OWASP ASVS、NIST SSDF、企业安全红线 → 可执行的审计规则 |
+| **Workflow** | 编码 → Review → 发布验收，完整 Secure SDLC，不是单次扫描 |
+| **Enterprise Outputs** | 给开发负责人、安全团队、审计部门、CI/CD 直接使用的输出 |
+
+建议的演进路径：
+> **AI Security Scanner → AI Security Workflow → AI Security Governance Platform**
+
+#### 2. /secfix 命名的推导
+
+| 候选名 | 评估 |
+|--------|------|
+| **/secfix** ✅ | sec- 前缀一致，2 音节，语义直接，"fix" 是工程师修代码时最自然的动词 |
+| /fixit ❌ | 太像随口叫 AI 改代码的语气，不像安全工具 |
+| /secremediate ❌ | 4 音节太长，破坏简洁性 |
+| /secpatch ❌ | 容易联想到 OS 补丁管理 |
+
+选中 /secfix。
+
+#### 3. /secfix 的位置决策
+
+不在 SDLC 中新增一个 Gate（"修复"本身不是决策点），而是作为 **/secreview 的出口动作**：
+
+```
+/secreview — 检出发现
+    │
+    ├── Clean → Merge
+    │
+    └── Findings → /secfix → patches → git commit → /secreview re-run
+```
+
+同时被 /secguard 和 /secaudit 按需调用，但主入口是 /secreview 的 remediation 出口。
+
+#### 4. /secfix 的商业价值分析
+
+企业不会为"AI 替人修代码"买单，但会为"把修复耗时从 30 分钟降到 2 分钟"买单。
+
+正确的叙事：
+> /secfix 不是用 AI 替工程师修代码。
+> 而是给每个安全发现预先写好修复草稿，让工程师在 30 秒内 review 完、应用、提交。
+> 决策权始终在工程师手里。他们可以改、可以驳回、可以调整。
+> 我们只是帮他们省掉"查资料写代码"的那 30 分钟。
+
+| 价值点 | 谁在乎 | 为什么付钱 |
+|--------|--------|-----------|
+| 减少修复耗时 10x | 工程 VP | dev 工时就是钱 |
+| 标准化修复质量 | 安全负责人 | AI 修的永远正确、一致 |
+| 降低修复门槛 | 团队新人 | junior 也能提交正确修复 |
+| 可审计的修复记录 | 合规团队 | finding → fix patch 一一对应 |
+| 修复 backlog 归零 | 所有人都爱 | 不存在"扫描发现 200 个、只修 50 个" |
+
+#### 5. README.md 定位升级
+
+从旧版"卖 AI 更聪明"→ 新版"卖三件 durable 的东西"：
+
+| 旧叙事 | 新叙事 |
+|--------|--------|
+| "AI 深度安全审计" | "AI Security Workflow for Secure SDLC" |
+| "传统 SAST 做不到" | "AI reasoning is becoming a commodity" |
+| "5 项分析方法" | "The value is in Rule Packs + Workflow + Outputs" |
+| "年省 $50K+" | "Fix security defects in minutes, not hours" |
+
+### 设计决策
+
+| 决策 | 选项 | 选中 | 理由 |
+|------|------|------|------|
+| /secfix 命名 | secfix / fixit / secremediate / secpatch | **secfix** | 前缀一致 + 语义直接 |
+| /secfix 位置 | 第四 Gate / secreview 出口 / 跨阶段工具 | **secreview 出口** | Gate 是决策点，fix 是动作 |
+| 第四门总称 | Three Gates / Four Gates | **Four Gates** | 四门 = Prevent→Detect→Fix→Verify |
+| 新 README 聚焦 | AI 能力 / 知识工作流 | **知识工作流** | AI 12 个月后是 commodity |
+
+### 关联产品
+
+| 命令 | 定位 | 输出 |
 |------|------|------|
-| canonical/findings.json 物理目录 | ❌ 不新增 | 已有 findings-schema.json + findings/ 目录树 |
-| human/report.md + human/findings/ | ❌ 不采纳 | 冗余，report.md + findings/ 已覆盖 |
-| developer/by-file/ | ✅ 采纳 | 工程师刚需 |
-| ai/attack-graph.json | ✅ 采纳 | AI Native 最大亮点 |
-| ai/remediation-pack.json | ✅ 采纳 | AI Agent 直接消费 |
-| ai/taint-graph.json | ⏹ 推迟 | 与 attack-graph.json 合并 |
-| sarif/results.sarif 移动 | ❌ 不移动 | CI/CD 工具链期望固定路径 |
-| fixes/*.md | ❌ 不采纳 | remediation-pack.json 已覆盖 |
-| HTML 标准输出 | ❌ 不采纳 | pandoc 按需导出 |
+| /secguard | Secure Coding Guidance — coding 阶段 | findings with CWE + CVSS + fix |
+| /secreview | AI Security Code Review — PR 阶段 | findings + exploit scenarios + CWE |
+| /secfix | AI Remediation — PR 阶段出口 | patch files from finding fix fields |
+| /secaudit | AI Release Security Audit — 发布阶段 | audit report + pass/fail decision |
 
-### 最终方案
+### 下一步
 
-**AI Agent 输出不变**，仍只输出 findings/ 目录树。Renderer 新增三个渲染器函数：
-
-1. render_attack_graph() → ai/attack-graph.json
-2. render_remediation_pack() → ai/remediation-pack.json
-3. render_developer_by_file() → developer/by-file/*.md
-
-AI 唯一增量工作：在输出 finding 时可选地标记 relationships 字段。
-
-### 影响范围
-
-- knowledge/protocols/scan-output.md — v7.0：新增 ai/ + developer/ 目录
-- knowledge/protocols/findings-schema.json — v1.1：新增 schema 定义
-- scripts/render-report.py — 新增 3 个渲染函数
-- scripts/e2e-verify.sh — §12 新增输出验证
-- commands/*.md — Step 4d 路径说明更新
-
-详见: FEATURE-004-output-protocol-v7
-
-
-### 消费者覆盖分析（2026-06-25 后续讨论）
-
-用完整 consumer × output 矩阵分析后，发现三个缺口：
-
-| 缺口 | 消费者 | 当前状态 | 判定 |
-|------|--------|---------|------|
-| 无独立精要输出 | 管理层（CTO/VP Eng） | ⚠️ 报告摘要嵌在 6 章技术报告中 | ✅ 新增 `human/executive-summary.md` |
-| 无自动生成 HTML | 管理层/审计/董事会 | ❌ "pandoc 按需导出"每次都要跑命令 | ✅ 新增 `report.html` 自动生成 |
-| 无单件审计证据包 | 审计 | ⚠️ 散在 4 个文件中 | ❌ 砍掉——"多出来的概念都是负担" |
-
-#### 最终 v7.0 目录结构确认
-
-```
-scan-root/
-├── report.md                   人读报告（不变）
-├── results.sarif               CI/CD（不变）
-├── findings.json               轻量索引（不变）
-├── findings/                   canonical 数据源（不变，定位明确化）
-├── summary.json                仪表盘（不变）
-├── manifest.json               元数据（不变）
-├── status.json                 CI 门禁（不变）
-├── delta.json                  增量对比（不变）
-├── dismissed.json              验证管道（不变）
-├── verification-audit.json     验证管道（不变）
-│
-├── ai/                          ★ AI 可消费输出
-│   ├── attack-graph.json        Finding 关系图
-│   └── remediation-pack.json    AI 修复包
-│
-├── developer/                   ★ 开发者视图
-│   └── by-file/*.md
-│
-├── human/                       ★ 管理层视图
-│   └── executive-summary.md     一页精要
-│
-└── report.html                  自动生成的 HTML 报告
-```
-
-
-### 消费者分析复盘与最终设计（2026-06-26）
-
-对最初提案进行了多轮审视和修正：
-
-**推翻的设计决策：**
-
-1. **developer/by-file/ ×** — 1000+ 文件项目里生成 1000+ 个 .md 是灾难。工程师的高频工作流是按检测器集中修完一类再修下一类（findings/web/sql-injection/ → findings/web/xss/），不是按文件跳来跳去。by-file 的轻量替代：executive-summary.md 中的"风险集中度"表（Top-N 文件 + 发现数占比）。
-
-2. **ai/attack-graph.json ×** — 没有真实消费者。finding 之间的关系价值保留，嵌入 remediation-pack.json 的 related_findings 字段。
-
-3. **report.md 7 节 ×** — 管理内容归到 executive-summary，报告简化为 5 节。
-
-**保留并强化的设计：**
-
-4. **findings/<ns>/<detector>/ ✅** — 最初被误判为"scanner 内部视角"，实则是工程师的核心工作流。保持 v5.0 设计不变。
-
-5. **human/executive-summary.md ✅** — 从"管理层精要"升级为统一入口 + 导航中心，包含发现分布交叉表（检测器 × 文件），让工程师一页看到"SQLi 涉及哪几个文件"，然后钻进对应 detector 目录修复。
-
-6. **ai/remediation-pack.json ✅** — 每条 finding 含 related_findings（关联发现 ID）。
-
-**不做什么（最终确认）：**
-
-- ❌ developer/by-file/ — 高频用法是 findings/<ns>/<detector>/
-- ❌ ai/attack-graph.json — 嵌入 remediation-pack
-- ❌ ai/taint-graph.json / trust-boundaries.json — 推迟到后续版本
-- ❌ compliance/audit-report.json — "多出来的概念都是负担"
-- ❌ html/ 子目录 — report.html 在 scan root
-- ❌ human/findings/ — 与 findings/ 目录树冗余
-
-**最终目录结构确认：**
-
-```
-scan-root/
-├── human/
-│   └── executive-summary.md      统一入口: 评分/发现分布(检测器×文件)/风险集中度/导航
-├── findings/                     工程师核心工作流: findings/<ns>/<detector>/<finding-id>.json
-├── ai/
-│   └── remediation-pack.json     AI修复包(含related_findings)
-├── report.md                     安全工程师完整报告(精简5节)
-├── report.html                   管理层/审计HTML
-├── findings.json                 轻量索引
-├── summary.json                  仪表盘机读
-├── results.sarif                 CI/CD
-├── status.json / delta.json / manifest.json / dismissed.json / verification-audit.json
-└── index.json                    索引器
-```
-
-
-### 工程师旅程闭环——report.md §3 按检测器分组（2026-06-26 实施修正）
-
-FEATURE-004 实施中发现一个旅程断裂：executive-summary 导航指向 `findings/<检测器>/`（JSON 数据层，工程师不能直接读），report.md §3 按严重度平铺混合所有检测器。
-
-修复方案：report.md §3 改为按 detector 分组显示，添加子编号 §3.x。导航指向 `report.md §3.x`。
-
-```
-executive-summary → "SQLi 影响 3 个文件" → report.md §3.1 web.sql-injection → 集中修完 → 进入下一类
-```
-
-findings/ 目录保持 JSON 不变（canonical 数据层，Renderer 和 AI Agent 消费）。
-
-### report.md §2 改为按文件分组（2026-06-26 实施修正）
-
-报告复习后发现 §2 检出清单是 flat 列表，既不是按类型也不是按文件。工程师两种检索都需要：
-- 按类型 → §3（已有，按检测器分组）
-- 按文件 → §2（改为按文件分组）
-
-改动后 report.md 完整覆盖双检索：
-```
-§2 检出清单（按文件）     → "parser.c 有哪些问题？"
-§3 详细发现（按检测器）    → "SQLi 有哪些问题？"
-```
+- [ ] /secaudit 命令重构（等用户提供新设计方案）
+- [ ] /secfix MVP 实现（消费 findings/ 目录 → 生成 patch files）
+- [ ] README 中补全 /secfix 的四门图已在本日完成

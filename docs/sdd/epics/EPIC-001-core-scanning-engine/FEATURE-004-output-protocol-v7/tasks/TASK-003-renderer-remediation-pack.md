@@ -23,7 +23,7 @@ def render_remediation_pack(findings, output_dir):
     for i, f in enumerate(findings):
         key = (f.get("file",""), f.get("function",""))
         idx.setdefault(key, []).append(i)
-    
+
     for i, f in enumerate(findings):
         related = list(f.get("relationships", []))
         key = (f.get("file",""), f.get("function",""))
@@ -32,7 +32,7 @@ def render_remediation_pack(findings, output_dir):
                 rid = findings[j].get("id", "")
                 if rid and rid not in related:
                     related.append(rid)
-        
+
         rem = {
             "finding_id": f.get("id",""),
             "title": f.get("title",""),

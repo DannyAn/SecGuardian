@@ -6,7 +6,6 @@
 > **日期**: 2026-06-07
 > **作者**: JonyAn + Claude Opus 4.8
 
-
 ## 1. 问题陈述
 
 ### 1.1 散弹式修改 (Shotgun Surgery)

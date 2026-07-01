@@ -1,6 +1,6 @@
 # 06 — SCA 开源治理 (Software Composition Analysis Governance)
 
-> **对应 Sheet:** `06_SCA_Governance`  
+> **对应 Sheet:** `06_SCA_Governance`
 > **牵引方向:** SecGuardian 开源组件治理能力——覆盖许可证合规、CVE 漏洞管理、依赖新鲜度和 SBOM 管理。
 
 ---
@@ -173,5 +173,5 @@ knowledge/concepts/
 
 ---
 
-> **本文档指引 SecGuardian 构建 SCA 治理能力。**  
+> **本文档指引 SecGuardian 构建 SCA 治理能力。**
 > 与 [05_SAST_Rules](05_SAST_Rules.md) 的静态分析互补，覆盖"自有代码分析" + "开源依赖分析"两个维度。

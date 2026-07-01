@@ -1,117 +1,135 @@
 ---
 name: secreview
-description: "安全编码规范检视 — 5 语言反模式检测矩阵 + 最佳实践合规审查"
+description: "AI Security Code Review — 5-language PR security review with exploit scenario analysis"
 ---
 
-# /secreview - 通用安全规范检视
+# /secreview - AI Security Code Review for Pull Requests
 
-检视危险函数使用、安全函数规范、代码反模式和最佳实践合规。
+AI-powered security code review designed for pull requests, repositories and completed implementations.
 
-## 使用方式
+Unlike traditional linters, SecReview reasons about code behavior, business logic and exploitability.
+
+## Usage
 
 ```
-/secreview <path> <language>
+# ★ 零参数缺省调用（推荐）
+/secreview                                           # 检测当前目录，自动识别语言，git diff 模式
 
-/secreview ./src java            # Java 安全规范检视
-/secreview ./src python          # Python 安全规范检视
-/secreview ./src cpp             # C/C++ 安全规范检视
-/secreview ./src go              # Go 安全规范检视
-/secreview ./src javascript      # JavaScript 安全规范检视
-/secreview ./src java --sarif    # 输出 SARIF 格式 (CI/CD)
-/secreview ./src                 # ★ language 省略时 AI 从 index.json 自动检测
+# 全量代码库检视
+/secreview ./src                                     # 语言自动检测
+/secreview ./src java                                # Java code review
+
+# Git diff / PR review 模式
+/secreview git diff                                  # 当前目录的变更
+/secreview ./src cpp git diff main                   # Current branch vs main
+
+# SARIF 输出
+/secreview ./src java --sarif                        # Append SARIF 2.1.0 output
 ```
 
-## 输出
+## Output
 
-遵循 [Scan Output Protocol 3.0](../knowledge/protocols/scan-output.md)。人读/机读分离。
+Follows [Scan Output Protocol 5.0](../knowledge/protocols/scan-output.md). Human-readable and machine-readable separation.
 
 ```
 .codeagent/secreview-secguardian/scans/<scan-id>/
-├── report.md               # ★ 人读检视报告 (Markdown)
-├── results.sarif            # 机读: SARIF 2.1.0 (CI/CD)
-├── summary.json             # 仪表盘统计
-├── manifest.json            # 检视元数据 + 发现索引
-├── status.json              # CI 门禁
-└── delta.json               # 增量对比 (vs 上次扫描)
+├── human/                    # ★ v7.0: Unified entry point
+│   └── executive-summary.md    One-page dashboard + finding distribution + navigation
+├── findings/                 # Per-detector organized finding directory tree
+├── ai/                       # ★ v7.0: AI-consumable
+│   └── remediation-pack.json   AI remediation pack (with cross-references)
+├── report.md                 # ★ Human-readable review report (concise 5 sections)
+├── dashboard.html            # ★ v7.0: Management dashboard
+├── results.sarif             # Machine: SARIF 2.1.0 (CI/CD)
+├── summary.json              # Dashboard statistics
+├── manifest.json             # Review metadata + finding index
+├── status.json               # CI gate status
+└── delta.json                # Delta vs previous scan
 ```
 
-**执行完毕后必须输出检视摘要：**
+**Execution summary (must output after each run):**
 
 ```
-## secreview 检视完成
+## secreview review complete
 
-Scan ID: 2026-05-23T14-30-00-c4d5
+Scan ID: pr-20260531-143000-a1b2
 Path: ./src
 Language: Java (auto-detected)
+Mode: git diff main
 
-### 结果
-- 扫描文件: 45
-- 检视项: 32 checked
-- 检出: 5 (Critical: 0, High: 2, Medium: 3)
+### Results
+- Files reviewed: 12 (8 changed + 4 context)
+- Review dimensions: 6 checked
+- Findings: 5 (Critical: 0, High: 2, Medium: 3, Info: 0)
 
-### 发现
-| ID | Severity | Category | File | 修复建议 |
-|----|----------|----------|------|---------|
-| H-001 | High | 异常吞掉 | src/service/UserService.java:89 | 空 catch 块至少添加错误日志；安全关键操作（认证/鉴权）必须传播异常 |
-| H-002 | High | 字段注入 | src/controller/AdminController.java:23 | 使用构造函数注入替代 `@Autowired` 字段注入 |
-| M-001 | Medium | 日志含敏感信息 | src/handler/AuthHandler.java:156 | 日志脱敏：`logger.info("User: {}", username)` 而非 `logger.info(user.toString())` |
-| M-002 | Medium | ThreadLocal 未清理 | src/filter/RequestFilter.java:42 | 在 `finally` 块中调用 `ThreadLocal.remove()` |
-| M-003 | Medium | @Transactional 自调用 | src/service/OrderService.java:203 | 通过代理调用或提取到独立的 Service 方法 |
+### Findings
+| # | Severity | CWE | File | Summary |
+|---|----------|-----|------|---------|
+| #1 | 🟠 High | CWE-089 | src/service/UserService.java:89 | SQL injection via string concatenation |
+| #2 | 🟠 High | CWE-807 | src/controller/AdminController.java:23 | Trust boundary violation in auth bypass |
+| #3 | 🟡 Medium | CWE-532 | src/handler/AuthHandler.java:156 | Sensitive data in log output |
+| #4 | 🟡 Medium | CWE-200 | src/filter/RequestFilter.java:42 | ThreadLocal data leak across requests |
+| #5 | 🟡 Medium | CWE-829 | src/service/OrderService.java:203 | Unsafe deserialization from user input |
 
-> 每个发现的修复建议来自反模式检测矩阵和对应语言的 `## 修复指引` 节。
+> Each finding includes exploit scenario, CWE mapping, severity assessment, CVE-like CVSS scoring, and fix recommendation.
 
-输出目录: .codeagent/secreview-secguardian/scans/2026-05-23T14-30-00-c4d5/
+Output directory: .codeagent/secreview-secguardian/scans/pr-20260531-143000-a1b2/
 
-💡 **如何使用检视结果？**
-- **快速看汇总** → 打开 `manifest.json`
-- **★ 人读检视报告** → 打开 `report.md`（每个不合规项含完整四段式：📍 Location → 📋 Evidence → ⚠️ Impact → 🔧 Fix）
-- **CI/CD 集成** → 消费 `results.sarif`
-- **🤖 AI Agent 修复** → 读取 `ai/remediation-pack.json` 自动修复：`读取 report.md §4，按每个发现的 🔧 Fix 方案修改代码`
+💡 **How to use review results?**
+- **Quick summary** -> `manifest.json`
+- **★ Unified entry** -> `human/executive-summary.md`
+- **Engineer remediation** -> Per-finding in `findings/` directory
+- **Management dashboard** -> Open `dashboard.html` in browser
+- **Full review report** -> `report.md` (5-section concise report)
+- **🤖 AI Agent fix** -> Read `ai/remediation-pack.json`
+- **CI/CD integration** -> Consume `results.sarif`
 ```
 
-## 与 /secguard 的区别
+## Difference from /secguard
 
-| 维度 | secguard | secreview |
-|------|----------|-----------|
-| 粒度 | 具体 API 调用级 + detector 过滤 | 函数/模块级语义 + 语言 |
-| 关注点 | 是否存在可利用漏洞 | 是否符合安全编码规范 |
-| 输出 | CWE + CVSS | 反模式 + 最佳实践违规 |
-| 严重度 | Critical → Info | High → Info |
+| Dimension | secguard | secreview |
+|-----------|----------|-----------|
+| SDLC Stage | During coding | During pull request / code review |
+| Primary Users | Individual developers | Developers + Reviewers + PR approvers |
+| Granularity | API-level + detector filtered | Function/module-level semantic + business logic |
+| Focus | Does this API call introduce a vulnerability? | Is the change safe to merge? |
+| Output | CWE + CVSS + detection detail | CWE + exploit scenario + business logic impact |
+| Severity | Critical -> Info | High -> Info (PR-blocking semantics) |
+| Typical Mode | Full codebase scan | Git diff / PR changeset |
 
-## 派发规则与执行步骤
+## Dispatch Rules & Execution Steps
 
-> **隔离约束**: 本命令只能加载 `skills/` 扩展下的 `secreview-*` 前缀 skill，禁止加载 `secguard-*` 或 `secaudit-*` 前缀的任何文件。反模式检测矩阵仅从 `skills/secreview/{language}/SKILL.md` 和对应 `references/` 加载。
+> **Isolation constraint**: This command may ONLY load skills with `secreview-*` prefix from the `skills/` extension. Loading `secguard-*` or `secaudit-*` prefixed files is strictly prohibited.
 
-你（AI Agent）在接收到 `/secreview` 命令后，必须按以下步骤执行来构建索引并进行安全编码规范检视。
+You (the AI Agent) must follow these steps when executing `/secreview` to perform the security code review.
 
-### 前置检查（Pre-flight Checklist）
+### Pre-flight Checklist
 
-在执行任何检视步骤之前，必须逐项确认以下所有条件。**任一项未通过，检视不得开始，向用户报告具体错误。**
+Before starting any review, verify each condition below. **If any check fails, report the specific error and abort.**
 
-- [ ] 定位索引器 wrapper：检查 `.opencode/extensions/secguardian/`（项目级）→ `~/.config/opencode/extensions/secguardian/`（用户级）→ `.gemini/` → `.claude/` → `scripts/` 回退（至少一个存在且可执行）
-- [ ] 执行 `{indexer} --health` 通过（输出必须包含 `HEALTH:OK` 或 `HEALTH:WARN`，不接受 `HEALTH:FAIL`）
-- [ ] 目标路径 `<path>` 存在且包含至少一个源码文件
-- [ ] **语言推断（仅当用户未提供 `language` 参数时）**：检查 `<path>` 下源码文件扩展名 → `*.c/*.cpp/*.h` → `cpp`, `*.py` → `python`, `*.java` → `java`, `*.go` → `go`。无需询问用户，扩展名即可判定。
-- [ ] 确认不会启动 clangd/LSP/compile_commands.json/bear 等外部工具 — indexer (tree-sitter) 已提供符号表+调用图+文件清单，所有代码结构数据从 index.json 获取
+- [ ] Locate indexer wrapper: `.opencode/extensions/secguardian/` (project) -> `~/.config/opencode/extensions/secguardian/` (user) -> `.gemini/` -> `.claude/` -> `scripts/` fallback (at least one exists and is executable)
+- [ ] Run `{indexer} --health` passes (output must contain `HEALTH:OK` or `HEALTH:WARN`; `HEALTH:FAIL` is not accepted)
+- [ ] Target `<path>` exists and contains at least one source file
+- [ ] **Language detection (only when user omits `language` parameter)** check source extensions in `<path>`: `*.c/*.cpp/*.h` -> `cpp`, `*.py` -> `python`, `*.java` -> `java`, `*.go` -> `go`. No need to ask the user.
+- [ ] Confirm no external tools (clangd/LSP/compile_commands.json/bear) will be started. The indexer (tree-sitter) already provides symbol table + call graph + file manifest.
 
-> 若未通过，报告具体哪一项失败并终止。不要降级为手工逐文件检视。
+> If any check fails, report which one and abort. Do not degrade to manual file-by-file review.
 
 ---
 
-### Step 1: 建立输出目录
+### Step 1: Create Output Directory
 
-- 生成 `scan_id`（格式: `rv-YYYYMMDD-HHMMSS-xxxx`，其中 `xxxx` 为随机4位字符）。
-- 创建输出目录: `.codeagent/secreview-secguardian/scans/<scan_id>/`。
-- 记录检视开始时间戳，用于 Step 4 计算 `duration_ms`。
+- Generate `scan_id` (format: `pr-YYYYMMDD-HHMMSS-xxxx`, where `xxxx` is 4 random alphanumeric characters).
+- Create output directory: `.codeagent/secreview-secguardian/scans/<scan_id>/`.
+- Record review start timestamp for Step 4 `duration_ms` calculation.
 
-### Step 2: 构建语义索引（必须执行，不可跳过）
+### Step 2: Build Semantic Index (Required)
 
-> ⚠️ 这是检视的**核心前置步骤**。索引器提供符号表、调用图，是后续规范检视的结构化上下文。**不执行此步骤将导致检视质量严重下降。**
+> ⚠️ This is the **core prerequisite** for review. The indexer provides symbol table and call graph needed for structured security analysis. **Skipping this step will severely degrade review quality.**
 
-**2a. 执行索引器（阻塞等待完成）：**
+**2a. Execute indexer (blocking):**
 
 ```bash
-# 定位 indexer wrapper — 项目级 + 用户级全覆盖
 find_indexer() {
     INDEXER=""
     for base in "." "$HOME"; do
@@ -132,15 +150,10 @@ find_indexer() {
 }
 find_indexer
 $INDEXER --path <path> --output .codeagent/secreview-secguardian/scans/<scan_id>/index.json
-if [ $? -ne 0 ]; then echo "FATAL: Indexer failed — cannot continue"; exit 1; fi
+if [ $? -ne 0 ]; then echo "FATAL: Indexer failed"; exit 1; fi
 ```
 
-**2b. 验证索引完整性 + 生成结构化摘要（必须通过）：**
-
-执行以下脚本。若返回非 0，**立即终止检视**并向用户报告索引生成出错。
-若成功，直接读取输出的 JSON 摘要作为后续所有步骤的上下文，**禁止自己写 Python 或 shell 去重新解析 index.json**。
-
-> ⚠️ 此脚本自动处理不同语言索引器输出差异，对 `None`/`null` 值安全。
+**2b. Validate index integrity (required):**
 
 ```bash
 python3 scripts/validate-index.py \
@@ -148,98 +161,118 @@ python3 scripts/validate-index.py \
     --scan-id <scan_id>
 ```
 
-### Step 3: 语言检测与 Skill 路由
+> If return code is non-zero, **abort immediately** and report index error.
 
-- 从摘要中的 `primary_language` 获取目标语言。
-- 加载对应语言的 skill：`../skills/secreview/{language}/SKILL.md`。
-- 参考 `../knowledge/languages/{language}.md` 中的危险 API 列表和框架安全说明。
+### Step 3: Language Detection & Skill Routing
 
-- **利用 index.json 中的符号表定位检视目标**，而非逐文件遍历。
+- Extract `primary_language` from the summary.
+- Load the corresponding skill: `../skills/secreview/{language}/SKILL.md`.
+- Reference `../knowledge/languages/{language}.md` for dangerous API lists and framework security notes.
+- **Use index.json symbol table to locate review targets**, rather than traversing files.
 
-### Step 4: 输出结构化 findings（遵循 Findings Protocol v5.0）
+### Step 4: AI Security Code Review — Three Reasoning Dimensions
 
-> **v6.0**: secreview 命令同样适用三轮验证管道（`commands/secguard.md` Step 3.5）。`--no-verify` 跳过验证。
-> ⚠️ **v5.0 关键变更**: AI **不再输出单体 findings.json**。改为按 detector 分类，**每个 finding 输出一个独立文件**到 `findings/` 目录树下。最后输出轻量 `findings.json`（同名升级，不含四段式，仅元数据+索引）。渲染器通过 `--findings-dir` 聚合所有 finding 文件生成报告。**禁止直接写 report.md / results.sarif / 任何其他输出文件**。
+> The AI Agent performs three complementary reasoning passes. Each pass uses the index.json for structural context (symbols, call graph, alloc/free pairs, lock graph) and the skill file for language-specific review criteria.
 
-**4a. 按 detector 分组，以 finding ID 为文件名逐文件输出：**
+**Pass A — Vulnerability Detection by Code Review**
 
-每个 finding 写入独立文件，路径格式如 secguard Step 4a（见 `commands/secguard.md`），额外包含 `secreview_specific` 字段：
+For each function/symbol in the changeset (or full codebase), evaluate:
+
+1. **Input trust boundaries** — Does user input cross into dangerous sinks (SQL, shell, file system, eval)?
+2. **Authentication / authorization** — Are access control checks present and correct?
+3. **Data flow analysis** — Does untrusted data reach sensitive operations without sanitization?
+4. **Cryptography usage** — Are algorithms, key lengths, and RNGs appropriate?
+5. **Error handling** — Do errors leak sensitive information? Are exceptional paths handled safely?
+6. **Dependency / serialization** — Are third-party deserialization sources trusted?
+
+Cite specific CWE IDs for each finding. Include an exploit scenario that explains how an attacker could leverage the defect.
+
+**Pass B — Business Logic Security**
+
+Evaluate the changes for business logic vulnerabilities:
+
+1. **State manipulation** — Can an attacker transition the application to an invalid state?
+2. **Privilege escalation** — Does the change allow accessing resources without proper authorization?
+3. **Race conditions** — Are shared resources protected consistently (TOCTOU, async race)?
+4. **Rate limiting / abuse** — Can the change be abused for denial of service?
+
+**Pass C — Anti-pattern & Code Quality Review**
+
+Evaluate against language-specific anti-patterns (from the skill file):
+
+1. **Coding standard violations** — SEI CERT, OWASP, Go Security Guidelines, etc.
+2. **Framework-specific anti-patterns** — Spring, Django, Express, React, etc.
+3. **Common language pitfalls** — Type confusion, unsafe reflection, prototype pollution, etc.
+
+> Findings from all three passes are consolidated into a single output. Each finding should reference which pass(es) identified it.
+
+### Step 5: Output Structured Findings (Findings Protocol v5.0)
+
+> **v5.0**: Each finding is written as an individual file in the `findings/` directory tree. A lightweight `findings.json` (index only, no full content) serves as the manifest. The renderer aggregates via `--findings-dir`.
+
+**5a. Output individual finding files:**
+
+Each finding written to `<scan_dir>/findings/<detector>/<sha12>_<file_slug>-<line>.json`:
 
 ```json
 {
   "schema_version": "1.0",
   "finding": {
-    "id": "...",
     "severity": "High",
-    "cwe": "CWE-390",
-    "detector": "error.exception-swallow",
-    "file": "src/UserService.java",
+    "cwe": "CWE-089",
+    "detector": "web.sql-injection",
+    "file": "src/service/UserService.java",
     "line": 89,
     "location": {
-      "file_path": "src/UserService.java",
+      "file_path": "src/service/UserService.java",
       "start_line": 89,
       "end_line": 92,
-      "function_name": "login",
-      "snippet": "try { ... } catch (Exception e) {}"
+      "function_name": "findUser",
+      "snippet": "String qry = \"SELECT * FROM users WHERE id=\" + userId;"
     },
     "evidence": {
-      "judgment_rationale": "空 catch 块吞掉异常 — 违反 SEI CERT ERR00-J"
+      "judgment_rationale": "String concatenation in SQL query with direct user input — violates OWASP Top 10 A03:2021 Injection"
     },
     "impact": {
-      "attack_scenario": "攻击尝试无法被追踪审计",
-      "cvss_score": 3.3
+      "attack_scenario": "Attacker provides userId=1 OR 1=1 to bypass authentication and retrieve all users",
+      "cvss_score": 8.2
     },
     "fix": {
-      "description": "空 catch 块至少添加错误日志",
-      "before_code": "try { ... } catch (Exception e) {}",
-      "after_code": "try { ... } catch (Exception e) { logger.warn('login failed', e); }"
+      "description": "Use PreparedStatement for parameterized query",
+      "before_code": "String qry = \"SELECT * FROM users WHERE id=\" + userId;",
+      "after_code": "PreparedStatement ps = conn.prepareStatement(\"SELECT * FROM users WHERE id=?\"); ps.setInt(1, userId);"
     },
     "secreview_specific": {
-      "review_type": "full",
-      "review_focus": ["security", "code-quality"]
+      "review_pass": "vulnerability_detection",
+      "review_focus": ["input-validation", "injection-prevention"]
     }
   }
 }
 ```
 
-关键要求（secreview 独有）：
-  - `detector` 字段必须使用 `namespace.name` 格式（如 `error.exception-swallow`），
-    与 guard-rules 命名一致。禁止使用裸名（如 `exception-swallow`）。
-- `evidence.judgment_rationale` 必须引用对应语言的安全编码规范（SEI CERT / OWASP / Go Security Guidelines）
-- `secreview_specific.review_focus` — 本次检视的焦点领域
-- **必须包含** `file`、`line`、`location`、`impact`、`fix` 字段（与 secguard 格式一致）。
-  缺少 `file` 字段会导致渲染器报告 `KeyError`。
+Key requirements (secreview-specific):
+- `detector` must use `namespace.name` format (e.g., `web.sql-injection`), matching guard-rules naming
+- `evidence.judgment_rationale` must cite relevant security standards (SEI CERT / OWASP / Go Security Guidelines)
+- `impact.attack_scenario` is **required** — describe a concrete way an attacker could exploit this
+- `secreview_specific.review_pass` indicates which reasoning pass identified the finding
+- **Must include** `file`, `line`, `location`, `impact`, `fix` fields
 
-**4b. 输出轻量 `findings.json` + 自检完整性：**
+**5b. Output lightweight `findings.json` + self-check:**
 
-同 secguard Step 4b-4c（见 `commands/secguard.md`）。路径使用 `secreview-secguardian`。
+Same as secguard Step 4b-4c (see `commands/secguard.md`). Use `secreview-secguardian` paths.
 
-**4c. 调用渲染器生成所有输出：**
+**5c. Invoke renderer:**
 
 ```bash
-# 定位渲染器（同 secguard）
-RENDERER=""
-for base in "." "$HOME"; do
-    for path in \
-        ".opencode/extensions/secguardian/scripts/render-report.py" \
-        ".config/opencode/extensions/secguardian/scripts/render-report.py" \
-        ".gemini/extensions/secguardian/scripts/render-report.py" \
-        ".claude/plugins/secguardian/scripts/render-report.py"; do
-        candidate="$base/$path"
-        [ -f "$candidate" ] && RENDERER="$candidate" && break 3
-    done
-done
-[ -z "$RENDERER" ] && [ -f "scripts/render-report.py" ] && RENDERER="scripts/render-report.py"
-
 python3 "$RENDERER" \
     --findings-dir .codeagent/secreview-secguardian/scans/<scan_id>/findings/ \
     --index .codeagent/secreview-secguardian/scans/<scan_id>/index.json \
     --output .codeagent/secreview-secguardian/scans/<scan_id>/
 ```
 
-> ⚠️ 如果渲染器不存在或执行失败，打印警告：`"Renderer unavailable — findings saved to findings/ directory tree only."`
+> ⚠️ If renderer unavailable: `"Renderer unavailable — findings saved to findings/ directory tree only."`
 
-### Step 5: 输出检视摘要
+### Step 6: Output Review Summary
 
-- 渲染器执行完毕后，读取 `manifest.json` 获取检视统计。
-- 向用户输出 Markdown 格式的检视摘要，包含：scan_id、language、检出总数、按严重度/类别分组、Top 5 key findings。
+- After renderer completes, read `manifest.json` for review statistics.
+- Output a Markdown review summary to the user, containing: scan_id, language, mode (full vs git diff), total findings by severity/type, and top findings with exploit scenarios.

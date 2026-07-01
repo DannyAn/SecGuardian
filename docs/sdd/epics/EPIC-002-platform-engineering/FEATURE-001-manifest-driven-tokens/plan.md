@@ -4,7 +4,6 @@
 > **Epic**: EPIC-002-platform-engineering
 > **状态**: ✅ 已完成
 
-
 **Goal:** 消除 detector 数量变更时的散弹式修改——manifest.json 为单一权威源，sync-manifest.sh 自动传播到所有文件。
 
 **Architecture:** `NNN<!-- @secguardian:token_name -->` 标记格式，`sync-manifest.sh` 读取 manifest.json 更新数字，`package.sh` 构建时调用，`self-check.sh` 的 `--check` 模式验证一致性。
@@ -89,7 +88,7 @@ for file in $FILES_WITH_TOKENS; do
     for token_name in "${!TOKENS[@]}"; do
         expected="${TOKENS[$token_name]}"
         marker="@secguardian:$token_name"
-        
+
         if grep -q "$marker" "$file" 2>/dev/null; then
             if [ "$CHECK" -eq 1 ]; then
                 # CI mode: verify correctness
@@ -257,20 +256,20 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ```python
 def load_detector_index_from_files(detectors_dir=None):
     """Build detector → {index, cwe} mapping from knowledge/guard-rules/*.md files.
-    
+
     Falls back to builtin DETECTOR_RULE_INDEX if detector files not available.
     """
     if detectors_dir is None:
         # Find knowledge/guard-rules/ relative to this script
         script_dir = os.path.dirname(os.path.abspath(__file__))
         detectors_dir = os.path.join(script_dir, "..", "knowledge", "detectors")
-    
+
     if not os.path.isdir(detectors_dir):
         return DETECTOR_RULE_INDEX  # fallback
-    
+
     index = {}
     detector_files = sorted(f for f in os.listdir(detectors_dir) if f.endswith('.md'))
-    
+
     for i, fname in enumerate(detector_files):
         # Convert filename to detector name: memory-null-dereference.md → memory.null-dereference
         name = fname[:-3]  # strip .md
@@ -279,7 +278,7 @@ def load_detector_index_from_files(detectors_dir=None):
             detector_name = f"{parts[0]}.{parts[1]}"
         else:
             detector_name = name
-        
+
         # Parse CWE from detector file frontmatter
         cwe_list = []
         filepath = os.path.join(detectors_dir, fname)
@@ -292,14 +291,13 @@ def load_detector_index_from_files(detectors_dir=None):
                     break
         except Exception:
             pass
-        
+
         if not cwe_list:
             cwe_list = ["CWE-000"]
-        
-        index[detector_name] = {"index": i, "cwe": cwe_list}
-    
-    return index
 
+        index[detector_name] = {"index": i, "cwe": cwe_list}
+
+    return index
 
 # Keep builtin as fallback
 DETECTOR_RULE_INDEX_FALLBACK = {
@@ -426,7 +424,7 @@ m = json.load(open('manifest.json'))
 m['knowledge']['detectors']['count'] = 68
 m['knowledge']['detectors']['namespaces']['test'] = 1
 json.dump(m, open('manifest.json', 'w'), indent=2, ensure_ascii=False)
-" 
+"
 
 # 3. 运行 sync-manifest.sh
 bash scripts/sync-manifest.sh

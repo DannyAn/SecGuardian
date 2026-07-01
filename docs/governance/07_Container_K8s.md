@@ -1,6 +1,6 @@
 # 07 — 容器与 Kubernetes 安全 (Container & K8s Security)
 
-> **对应 Sheet:** `07_Container_K8s`  
+> **对应 Sheet:** `07_Container_K8s`
 > **牵引方向:** SecGuardian 容器/K8s 安全扫描能力——覆盖镜像安全、运行时保护、RBAC、网络安全和密钥管理。
 
 ---
@@ -97,10 +97,10 @@ Subject (User/SA) → RoleBinding/ClusterRoleBinding → Role/ClusterRole → Re
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
-metadata: 
+metadata:
   namespace: myapp
 rules:
-- apiGroups: [""] 
+- apiGroups: [""]
   resources: ["pods", "configmaps"]
   verbs: ["get", "list", "watch"]  # 不需要 create/delete
 ---
@@ -214,5 +214,5 @@ secguard — 安全基线扫描
 
 ---
 
-> **本文档指引 SecGuardian 扩展至容器与 K8s 安全领域。**  
+> **本文档指引 SecGuardian 扩展至容器与 K8s 安全领域。**
 > 与 [08_Cloud_Security](08_Cloud_Security.md) 的云层安全配置形成"容器+云"一体化防护。

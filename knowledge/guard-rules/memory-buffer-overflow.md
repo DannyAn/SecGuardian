@@ -43,7 +43,7 @@ confidence: dynamic
 ```
 # C11 Annex K (运行时约束强制)
 strcpy_s(dst, sizeof(dst), src)
-strcat_s(dst, sizeof(dst), src)  
+strcat_s(dst, sizeof(dst), src)
 sprintf_s(buf, sizeof(buf), fmt, ...)
 scanf_s("%s", buf, sizeof(buf))
 gets_s(buf, sizeof(buf))

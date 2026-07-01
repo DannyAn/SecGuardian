@@ -9,7 +9,7 @@
 """
 import argparse, json, os, sys
 
-REQUIRED_ROOT_FIELDS = ['id', 'severity', 'detector', 'file', 'line', 'cwe']
+REQUIRED_ROOT_FIELDS = ['severity', 'detector', 'file', 'line', 'cwe']
 REQUIRED_SEVERITIES = {'Critical', 'High', 'Medium', 'Low', 'Info'}
 REQUIRED_LOCATION = ['file_path', 'start_line', 'snippet']
 REQUIRED_EVIDENCE = ['code_context', 'judgment_rationale']
@@ -107,8 +107,8 @@ def main():
             # Extract finding (support both wrapper and bare format)
             finding = data.get('finding') if isinstance(data, dict) and 'finding' in data else data
 
-            if not isinstance(finding, dict) or 'id' not in finding:
-                print(f"  ❌ {filepath}: not a valid finding (missing 'finding' wrapper or 'id' field)")
+            if not isinstance(finding, dict) or 'detector' not in finding:
+                print(f"  ❌ {filepath}: not a valid finding (missing 'finding' wrapper or 'detector' field)")
                 total_errors += 1
                 continue
 
@@ -116,7 +116,7 @@ def main():
             errors = validate_finding(finding, filepath)
             if errors:
                 if not args.quiet:
-                    print(f"  ❌ {finding.get('id', 'unknown')}:")
+                    print(f"  ❌ {finding.get('detector', 'unknown')}:")
                     for e in errors:
                         print(e)
                 total_errors += len(errors)

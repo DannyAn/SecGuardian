@@ -25,8 +25,6 @@ All notable changes to SecGuardian.
 
 - **修复建议动态生成** — AI Agent 根据代码上下文动态组装，不从 detector 知识库拷贝固定模板。
 
-
-
 ## [0.8.0] — 2026-06-25
 
 ### ★ Renderer & Artifact Pipeline Overhaul
@@ -55,7 +53,6 @@ All notable changes to SecGuardian.
 - **release.sh**: 动态规则计数
 - **gitee-release.sh**: 命令格式更新为 `<path> <language> [filters]`
 - **Agent 字段命名对齐**: 三命令模板 Step 4a 标准字段名，消除 120 条验证错误
-
 
 ---
 

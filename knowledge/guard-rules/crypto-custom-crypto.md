@@ -80,7 +80,7 @@ func Encrypt(data []byte, key byte) []byte {
 ```javascript
 // BAD: JS 自定义加密
 function encrypt(data, key) {
-    return data.split('').map(c => 
+    return data.split('').map(c =>
         String.fromCharCode(c.charCodeAt(0) ^ key)
     ).join('');  // XOR!
 }

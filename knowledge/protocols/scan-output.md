@@ -29,7 +29,6 @@ version: "7.0"
 > **v4.0 变更 (2026-06-06)**: 引入 AI/Renderer 分离架构。
 > **v3.0 变更 (2026-06-05)**: report.md §4 强制四段式结构。增加输出前质量门禁。
 
-
 ## 用户旅程
 
 扫描输出的 15+ 文件对新用户不友好。按照这个顺序阅读：
@@ -95,17 +94,16 @@ Step 2: dashboard.html                 → 浏览器打开精美报告
 
 ### 文件命名规范
 
-文件名直接使用 finding ID（格式: `<SEVERITY>-<DETECTOR_ABBREV>-<FILE_SLUG>-L<LINE>`），利用其天然唯一性：
+文件名使用 SHA-256 前缀 + 文件-行号后缀（格式: `<SHA12>_<FILE_SLUG>-<LINE>`），机器唯一 + 人可读：
 
 | 组成部分 | 说明 | 示例 |
 |---------|------|------|
-| `SEVERITY` | C/H/M/L/I | `H` |
-| `DETECTOR_ABBREV` | 3-5 字符缩写 | `SQLI` |
-| `FILE_SLUG` | 文件名去扩展名，特殊字符 → `_` | `webapp` |
-| `L<LINE>` | 行号 | `L47` |
-| 完整文件名 | — | `H-SQLI-webapp-L47.json` |
+| `SHA12` | SHA-256(`detector:file:line:cwe`) 前 12 hex | `a1b2c3d4e5f6` |
+| `FILE_SLUG` | 文件名去扩展名，无缩写 | `webapp` |
+| `LINE` | 行号（纯数字，无前缀） | `47` |
+| 完整文件名 | — | `a1b2c3d4e5f6_webapp-47.json` |
 
-**不会碰撞**：同一行代码不会被同一 detector 重复报告。对齐 SARIF (partialFingerprints)、CodeQL (file-hash)、Semgrep (finding-hash) 的 ID-as-key 模式。
+**不会碰撞**：SHA-256 以 `detector:file:line:cwe` 为输入，碰撞概率 < 2^-48。文件名中的 SHA 前缀保证目录内唯一。对齐 SARIF partialFingerprints。
 
 ### v4.0 兼容模式（遗留）
 
@@ -132,9 +130,6 @@ findings.json               # v4.0: 单体文件（所有 finding 内联，生�
 | 🤖 AI Agent | `ai/remediation-pack.json` 修复包 | 自动修复 |
 | 👔 管理层 | `human/executive-summary.md` 精要 | `dashboard.html` 精美报告 |
 | 📊 CI/CD | `results.sarif` + `status.json` | — |
-
-
-
 
 ## human/executive-summary.md — 统一入口
 
@@ -224,15 +219,20 @@ findings.json               # v4.0: 单体文件（所有 finding 内联，生�
 ### 安全评分算法
 
 ```
-评分 = 100 - (Critical×25 + High×10 + Medium×3 + Low×1)
+评分 = 100 × exp(-0.2×Crit - 0.1×High - 0.04×Med - 0.01×Low)
 上限 100，下限 0
 
+说明：使用指数衰减公式避免线性扣分快速归零。
+线性扣分（旧公式）中 4 个 Critical 即归零，失去区分度。
+指数衰减在 15 个 Critical 时仍能给出 ~5 分，
+使"稍有防护"（80 分）和"完全无防护"（5 分）可见差异。
+
 等级映射:
-  90-100   A  优秀 — 可发布生产环境
-  75-89    B  良好 — 建议修复 High+ 后发布
-  60-74    C  及格 — 存在需关注的风险
-  40-59    D  较差 — 禁止发布，必须修复所有 Critical
-  0-39     F  危险 — 存在可远程利用的已知漏洞
+  80-100   A  优秀 — 可发布生产环境
+  55-79    B  良好 — 建议修复 High+ 后发布
+  35-54    C  及格 — 存在需关注的风险
+  15-34    D  较差 — 禁止发布，必须修复所有 Critical
+  0-14     F  危险 — 存在可远程利用的已知漏洞
 ```
 
 ### 完整模板
@@ -401,18 +401,19 @@ pandoc report.md -o report.pdf --pdf-engine=weasyprint \
 2. **每个检出必须包含完整四段式** — 📍 Location → 📋 Evidence → ⚠️ Impact → 🔧 Fix，内容来自 detector 的 `## 检测逻辑` 和 `## 修复指引` 节
 3. **代码段包含上下文** — 前后各 2-3 行
 4. **严重度用 emoji** — 🔴 Critical / 🟠 High / 🟡 Medium / 🔵 Low / ⚪ Info
-5. **检出 ID 自我描述** — 格式 `<SEVERITY>-<DETECTOR_ABBREV>-<FILE_SLUG>-L<LINE>`，工程师一眼看懂
+5. **文件命名分离机器标识和人类标识** — 机器用 SHA-256（`a1b2c3d4e5f6_webapp-47.json`），人用序号 `#1`~`#N`
 6. **质量门禁强制执行** — 写入报告前执行 Step 4b 检查清单，每个 finding 四段式完整性不达标则补充后重试（最多 3 次）
 
-### 检出 ID 格式
+### 文件命名格式
 
 ```
-C-BOF-parser_c-L36    ← Critical, BufferOverFlow, parser.c:36
-H-NPD-network_c-L305  ← High, NullPointerDeref, network.c:305  
-M-DLK-concurrency_c-L43 ← Medium, DeadLock, concurrency.c:43
+a1b2c3d4e5f6_parser-36.json        ← SHA(a1b2c3d4e5f6) + parser.c:36
+f6e5d4c3b2a1_network-305.json      ← SHA(f6e5d4c3b2a1) + network.c:305
+c4d5e6f7a8b9_concurrency-43.json   ← SHA(c4d5e6f7a8b9) + concurrency.c:43
 ```
 
-60 个 detector 的 3-5 字符大写缩写见 [threat-catalog.md](../../threat-catalog.md)。
+SHA-256 输入 = `detector:file:line:cwe`，前 12 hex 作为文件名前缀。
+后缀 `_file_line` 帮助工程师快速定位。报告表中引用使用序号 `#1` ~ `#N`。
 
 ## manifest.json — 扫描元数据
 

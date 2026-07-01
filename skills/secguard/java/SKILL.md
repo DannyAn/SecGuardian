@@ -6,7 +6,6 @@ language: java
 topic: [web, crypto, system]
 ---
 
-
 # Java 安全加固排查
 
 对 Java 代码进行安全加固项排查，扫描代码和 PR 中需要安全加固的问题。

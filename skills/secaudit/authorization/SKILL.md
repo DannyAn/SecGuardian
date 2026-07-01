@@ -92,10 +92,10 @@ public Order getOrder(@PathVariable Long orderId, @CurrentUser User user) {
 # BAD: 部分操作缺少权限检查
 class UserViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
-    
+
     def list(self, request):          # 列出所有用户 — 有权限检查 ✓
         ...
-    
+
     def delete(self, request, pk):    # 删除用户 — 依赖装饰器，但装饰器配置错误 ✗
         ...
 

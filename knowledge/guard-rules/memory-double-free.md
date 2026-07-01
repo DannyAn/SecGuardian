@@ -25,7 +25,7 @@ confidence: dynamic
 // 标准 C 库
 free(ptr);
 
-// C++ 
+// C++
 delete ptr;
 delete[] ptr;
 

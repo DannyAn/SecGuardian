@@ -4,7 +4,6 @@
 > **Epic**: EPIC-001-core-scanning-engine
 > **状态**: ✅ 已完成
 
-
 **Goal:** Upgrade all 67 detectors in `knowledge/guard-rules/` to unified template with precision+confidence metadata, MUST/SHOULD/MAY evidence collection guides, FP exclusion tables with evidence binding, and MATCH/EXCLUDE pattern separation.
 
 **Architecture:** 5 phases — schema update first (findings-schema.json), then 4 detector batches by quality/completeness (P0: 6 missing FP + evidence from scratch → P1: 13 content-light detectors <90 lines → P2: 28 medium quality → P3: 20 already well-formed requiring metadata upgrade only), with verification scans after each batch.
@@ -754,26 +753,26 @@ echo "=== Detector Structural Verification ==="
 for f in knowledge/guard-rules/*.md; do
   TOTAL=$((TOTAL+1))
   ERRORS=0
-  
+
   # 1. Has precision
   grep -q 'precision:' "$f" || { echo "  MISSING precision: $f"; ERRORS=$((ERRORS+1)); }
-  
+
   # 2. Has confidence: dynamic
   grep -q 'confidence: dynamic' "$f" || { echo "  MISSING confidence: $f"; ERRORS=$((ERRORS+1)); }
-  
+
   # 3. Has evidence collection chapter
   grep -q '取证证据收集指引' "$f" || { echo "  MISSING evidence chapter: $f"; ERRORS=$((ERRORS+1)); }
-  
+
   # 4. Has 3-column FP table
   grep -q '| 场景 | 排除依据 | 证据要求 |' "$f" && grep -q '排除依据.*证据要求' "$f" || { echo "  MISSING 3-col FP: $f"; ERRORS=$((ERRORS+1)); }
-  
+
   # 5. Has MATCH/EXCLUDE
   grep -q 'MATCH\|EXCLUDE' "$f" || { echo "  MISSING MATCH/EXCLUDE: $f"; ERRORS=$((ERRORS+1)); }
-  
+
   # 6. Has ≥6 chapters
   CHAPTERS=$(grep -c '^## ' "$f")
   [ "$CHAPTERS" -ge 6 ] || { echo "  FEW CHAPTERS ($CHAPTERS): $f"; ERRORS=$((ERRORS+1)); }
-  
+
   if [ $ERRORS -eq 0 ]; then
     PASS=$((PASS+1))
   else

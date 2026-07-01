@@ -32,18 +32,39 @@ var jsArrowInObj = regexp.MustCompile(`(?m)(\w+)\s*:\s*(?:async\s+)?\([^)]*\)\s*
 var jsMethodInObj = regexp.MustCompile(`(?m)(\w+)\s*\([^)]*\)\s*\{`)
 
 func parseJSFile(filePath string) (*ParseResult, error) {
+	// Guard: skip files >512KB (likely minified bundles)
+	fi, err := os.Stat(filePath)
+	if err != nil {
+		return nil, err
+	}
+	if fi.Size() > 512*1024 {
+		return &ParseResult{
+			File:     filePath,
+			Language: "javascript",
+		}, nil
+	}
+
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
+	}
+
+	// Guard: skip minified single-line files (>2000 chars on any line)
+	text := string(content)
+	lines := strings.Split(text, "\n")
+	for _, line := range lines {
+		if len(line) > 2000 {
+			return &ParseResult{
+				File:     filePath,
+				Language: "javascript",
+			}, nil
+		}
 	}
 
 	result := &ParseResult{
 		File:     filePath,
 		Language: "javascript",
 	}
-
-	text := string(content)
-	lines := strings.Split(text, "\n")
 
 	// Extract functions
 	seen := make(map[string]bool)

@@ -10,7 +10,6 @@
 
 ## Phase 1: 输出协议 v3.0 重构实施
 
-
 **Goal:** 将安全扫描输出从摘要型报告升级为完整的人读检视报告（四段式：Location → Evidence → Impact → Fix），同时优化 SARIF 以充分利用 message.markdown 和 relatedLocations。
 
 **Architecture:** 两阶段实施。Phase 1 不改协议文件，在 3 个 command 指令中嵌入强制质量检查清单，确保 AI agent 每次输出完整四段式。Phase 2 升级 2 个协议文件（scan-output.md v3.0 + sarif-output.md v1.1），增加 message.markdown 模板和 relatedLocations 规范。Skill 文件仅需要在有输出阶段的部分添加引用，不需要大规模改写。
@@ -750,7 +749,6 @@ Task 10                       (验证)
 
 ## Phase 2: Findings 目录树输出实施
 
-
 **Goal:** 将 findings 输出从单体 `findings.json` 重构为按 detector 组织的目录树，使 AI Agent 可逐文件读写，消除大项目的 token 爆炸问题。
 
 **Architecture:** `findings/<namespace>/<detector-name>/<finding-id>.json` — 每个 finding 一个独立文件（~2KB），文件名直接使用 finding ID（天然唯一，对齐 SARIF/CodeQL 业界实践），渲染器 `os.walk()` 遍历聚合，向后兼容 v4.0 单体格式。
@@ -775,7 +773,7 @@ Task 10                       (验证)
 ```python
 def load_findings_from_tree(findings_dir):
     """Load all finding files from a v5.0 directory tree.
-    
+
     Walks findings/<namespace>/<detector>/<file>.json
     Returns list of finding dicts (same format as v4.0 findings.json['findings']).
     """
@@ -793,7 +791,7 @@ def load_findings_from_tree(findings_dir):
                 except (json.JSONDecodeError, FileNotFoundError) as e:
                     print(f"WARNING: Skipping invalid finding file {filepath}: {e}", file=sys.stderr)
                     continue
-                # Support both wrappers: {"finding": {...}} (v5.0 single) 
+                # Support both wrappers: {"finding": {...}} (v5.0 single)
                 # and bare Finding object (v4.0 inline from monolithic findings.json)
                 if isinstance(data, dict) and 'finding' in data:
                     findings.append(data['finding'])
@@ -809,7 +807,7 @@ def load_findings_from_tree(findings_dir):
 找到 `parser.add_argument("--findings", ...)` 那一行（第 674 行附近），在其后添加：
 
 ```python
-parser.add_argument("--findings-dir", 
+parser.add_argument("--findings-dir",
                     help="Path to v5.0 findings/ directory tree (overrides --findings)")
 ```
 
@@ -835,7 +833,7 @@ if args.findings_dir:
     index_path = os.path.join(args.output, "findings.json")
     if os.path.isfile(index_path):
         index_meta = load_json(index_path)
-        for key in ["scan_id", "command", "started_at", "completed_at", 
+        for key in ["scan_id", "command", "started_at", "completed_at",
                      "duration_ms", "path", "mode", "filters", "language",
                      "scope", "detectors", "security_score"]:
             if key in index_meta and key not in ("findings_index", "summary"):
@@ -1337,7 +1335,7 @@ for entry in idx['findings_index']:
         ev = finding.get('evidence', {})
         imp = finding.get('impact', {})
         fix = finding.get('fix', {})
-        
+
         incomplete = []
         if not loc.get('file_path'): incomplete.append('location.file_path')
         if not loc.get('snippet'): incomplete.append('location.snippet')
@@ -1345,7 +1343,7 @@ for entry in idx['findings_index']:
         if not imp.get('attack_scenario'): incomplete.append('impact.attack_scenario')
         if not fix.get('before_code'): incomplete.append('fix.before_code')
         if not fix.get('after_code'): incomplete.append('fix.after_code')
-        
+
         if incomplete:
             missing.append(f"{entry['id']}: missing {', '.join(incomplete)}")
         else:
@@ -1507,13 +1505,13 @@ for root, dirs, files in os.walk(findings_dir):
         with open(fpath) as f:
             data = json.load(f)
         finding = data.get('finding', data)
-        
+
         # Check four-segment
         loc = finding.get('location', {})
         ev = finding.get('evidence', {})
         imp = finding.get('impact', {})
         fix = finding.get('fix', {})
-        
+
         missing = []
         if not loc.get('file_path'): missing.append('location.file_path')
         if not loc.get('snippet'): missing.append('location.snippet')
@@ -1521,7 +1519,7 @@ for root, dirs, files in os.walk(findings_dir):
         if not imp.get('attack_scenario'): missing.append('impact.attack_scenario')
         if not fix.get('before_code'): missing.append('fix.before_code')
         if not fix.get('after_code'): missing.append('fix.after_code')
-        
+
         if missing:
             issues.append(f'{fname}: missing {missing}')
         count += 1
@@ -1552,7 +1550,7 @@ done
 # 旧格式
 python3 -c "import json; d=json.load(open('examples/python-vuln-demo/.codeagent/secguard-secguardian/scans/sc-20260606-215859-zua2/manifest.json')); print('v4.0 findings:', len(d['findings'])); [print(f['id']) for f in sorted(d['findings'], key=lambda x: x['id'])]" > /tmp/v4_ids.txt
 
-# 新格式  
+# 新格式
 SCAN_DIR=$(readlink -f examples/python-vuln-demo/.codeagent/secguard-secguardian/scans/latest)
 python3 -c "import json; d=json.load(open('$SCAN_DIR/manifest.json')); print('v5.0 findings:', len(d['findings'])); [print(f['id']) for f in sorted(d['findings'], key=lambda x: x['id'])]" > /tmp/v5_ids.txt
 

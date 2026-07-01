@@ -31,11 +31,11 @@ def render_executive_summary(findings_data, output_dir):
         det = f.get("detector", "unknown")
         detector_files.setdefault(det, set()).add(f.get("file", ""))
         detector_count[det] += 1
-    
+
     # 风险集中度（文件 x 发现数）
     file_count = Counter(f.get("file", "") for f in findings)
     total = len(findings)
-    
+
     # Top-3 Critical
     sorted_f = sorted(findings, key=lambda x: {"Critical":0,"High":1}.get(x.get("severity",""),9))
     top3 = sorted_f[:3]

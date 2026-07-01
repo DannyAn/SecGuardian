@@ -6,7 +6,6 @@ language: go
 topic: [web, concurrency, crypto, system]
 ---
 
-
 # Go 安全加固排查
 
 对 Go 代码进行安全加固项排查，扫描代码和 PR 中需要安全加固的问题。

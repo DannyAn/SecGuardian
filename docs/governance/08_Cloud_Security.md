@@ -1,6 +1,6 @@
 # 08 — 云安全配置 (Cloud Security Configuration)
 
-> **对应 Sheet:** `08_Cloud_Security`  
+> **对应 Sheet:** `08_Cloud_Security`
 > **牵引方向:** SecGuardian 云安全基线检测能力——覆盖 IAM、存储、网络和密钥管理四大云安全领域。
 
 ---
@@ -181,12 +181,12 @@ resource: aws_s3_bucket
 checks:
   - path: "acl"
     not_equals: "public-read"
-  - path: "acl" 
+  - path: "acl"
     not_equals: "public-read-write"
 severity: Critical
 ```
 
 ---
 
-> **本文档指引 SecGuardian 构建云安全基线检测能力。**  
+> **本文档指引 SecGuardian 构建云安全基线检测能力。**
 > 结合 [07_Container_K8s](07_Container_K8s.md) 的容器安全，形成"代码→容器→云"三层安全防护体系。

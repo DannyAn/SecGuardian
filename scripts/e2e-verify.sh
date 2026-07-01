@@ -398,13 +398,13 @@ with open('$TMPDIR/out-score/summary.json') as f:
 score = s['security_score']
 grade = s['score_grade']
 
-expected_score = max(0, 100 - (0*25 + 1*10 + 0*3 + 0*1))
+expected_score = max(0, round(100 * __import__('math').exp(-(0*0.2 + 1*0.1 + 0*0.04 + 0*0.01))))
 
 if score == expected_score:
     print(f"  Score: {score}/100 (expected {expected_score}) — OK")
-    if grade == 'A' and score >= 90:
+    if grade == 'A' and score >= 80:
         print(f"  Grade: {grade} — OK")
-    elif grade == 'B' and score >= 75:
+    elif grade == 'B' and score >= 55:
         print(f"  Grade: {grade} — OK")
     else:
         print(f"  Grade: {grade} — WARNING (score={score})")
@@ -413,7 +413,7 @@ else:
     sys.exit(1)
 PYEOF
 if [ $? -eq 0 ]; then
-    pass "Security score calculation correct (100 - 25×Critical - 10×High - 3×Medium - 1×Low)"
+    pass "Security score calculation correct (100 × exp(-0.2×Crit - 0.1×High - 0.04×Med - 0.01×Low))"
 else
     fail "Security score calculation incorrect"
 fi
@@ -458,7 +458,7 @@ import json
 s = json.load(open('$TMPDIR/out-ci/status.json'))
 assert s['gate_result'] == 'FAILED', f'Expected FAILED, got {s[\"gate_result\"]}'
 assert s['exit_code'] == 1, f'Expected exit_code 1, got {s[\"exit_code\"]}'
-assert s['security_score'] == 75, f'Expected score 75 (100 - 25*1 Critical), got {s["security_score"]}'
+assert s['security_score'] == 82, f'Expected score 82 (100 × exp(-0.2)), got {s["security_score"]}'
 print('OK — CI gate FAILED correctly on Critical finding')
 " 2>/dev/null && pass "CI mode: Critical finding → FAILED + exit_code=1" || fail "CI mode exit code incorrect"
 
@@ -492,8 +492,8 @@ cat > "$TMPDIR/delta-scan1.json" << 'JSONEOF'
   "detectors": {"matched": 3, "executed": 3},
   "findings": [
     {"id": "H-DELTA-1-L1", "severity": "High", "cwe": "CWE-79", "detector": "web.xss",
-     "file": "a.go", "line": 1, "function": "A", "title": "XSS A", "fix_summary": "Fix",
-     "location": {"file_path": "a.go", "start_line": 1, "end_line": 1, "function_name": "A()", "snippet": "c"},
+     "file": "scan1_file", "line": 1, "function": "A", "title": "XSS A", "fix_summary": "Fix",
+     "location": {"file_path": "scan1_file", "start_line": 1, "end_line": 1, "function_name": "A()", "snippet": "c"},
      "evidence": {"code_context": "c", "judgment_rationale": "r", "data_flow_path": [{"step": "source", "file": "a.go", "line": 1, "description": "d"}]},
      "impact": {"attack_scenario": "xss", "cvss_score": 6.1, "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", "exploit_conditions": "any"},
      "fix": {"description": "f", "before_code": "b", "after_code": "a", "effort_hours": 1.0, "verification_method": "t"},
@@ -530,8 +530,8 @@ cat > "$TMPDIR/delta-scan2.json" << 'JSONEOF'
   "detectors": {"matched": 2, "executed": 2},
   "findings": [
     {"id": "H-DELTA-1-L1", "severity": "High", "cwe": "CWE-79", "detector": "web.xss",
-     "file": "a.go", "line": 1, "function": "A", "title": "XSS A", "fix_summary": "Fix",
-     "location": {"file_path": "a.go", "start_line": 1, "end_line": 1, "function_name": "A()", "snippet": "c"},
+     "file": "scan1_file", "line": 1, "function": "A", "title": "XSS A", "fix_summary": "Fix",
+     "location": {"file_path": "scan1_file", "start_line": 1, "end_line": 1, "function_name": "A()", "snippet": "c"},
      "evidence": {"code_context": "c", "judgment_rationale": "r", "data_flow_path": [{"step": "source", "file": "a.go", "line": 1, "description": "d"}]},
      "impact": {"attack_scenario": "xss", "cvss_score": 6.1, "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", "exploit_conditions": "any"},
      "fix": {"description": "f", "before_code": "b", "after_code": "a", "effort_hours": 1.0, "verification_method": "t"},
