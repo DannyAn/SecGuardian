@@ -10,7 +10,7 @@
 
 SecGuardian is an AI-powered application security framework that helps engineering teams build, review, fix, and release secure software through four security gates.
 
-Instead of acting as another vulnerability scanner, SecGuardian integrates AI reasoning with security engineering practices across the entire Secure SDLC — from writing code to shipping a release candidate.
+SecGuardian integrates AI reasoning with security engineering practices across the entire SDLC — from writing code to shipping a release.
 
 ```
 
@@ -47,15 +47,15 @@ Instead of acting as another vulnerability scanner, SecGuardian integrates AI re
 
 ## Why SecGuardian?
 
-AI reasoning is becoming a commodity. Within a year, every development tool will understand code and detect patterns just as well.
+AI reasoning is becoming a commodity. As language models improve, every development tool will offer comparable code analysis — it is no longer a defensible moat.
 
-The real differentiator is not how smart the AI gets — it is what you build on top of it.
+The real differentiator is not raw AI capability — it is what you build on top of it.
 
 SecGuardian focuses on three things that compound in value over time:
 
 **1. Enterprise Security Knowledge (Rule Packs)**
 
-How to organize OWASP ASVS, NIST SSDF, CIS Benchmarks, PCI DSS, and enterprise security redlines into executable audit rules that teams can run, customize, and maintain independently of the AI engine.
+A framework for translating standards like OWASP ASVS, NIST SSDF, CIS Benchmarks, and PCI DSS into executable audit rules. Teams can run, customize, and maintain these rules independently of the AI engine.
 
 **2. Secure SDLC Workflow (Four Gates)**
 
@@ -63,7 +63,7 @@ From coding to pull request to release acceptance — a complete pipeline with f
 
 **3. Actionable Outputs for the Whole Organization**
 
-Outputs designed for the audience that needs them: developers get fix recommendations, security engineers get evidence packages, release managers get security scores, and CI/CD pipelines get SARIF. These aren't just AI agent logs — they are consumable by everyone involved in shipping software.
+Outputs designed for specific roles: developers get fix recommendations, security engineers get evidence packages, release managers get security scores, and CI/CD pipelines get SARIF. These are not just AI agent logs — they are designed for every stakeholder involved in shipping software.
 
 ---
 
@@ -129,9 +129,9 @@ Goal:
 
 AI Remediation.
 
-For developers who know a fix is needed — and would rather review a patch than write one.
+For developers who prefer reviewing a patch to writing one from scratch.
 
-SecFix reads findings from `/secreview` (or `/secguard`, `/secaudit`) and generates ready-to-apply patches for each finding. The developer reviews each patch, adjusts if needed, and applies — reducing a 30-minute fix cycle to 2-5 minutes.
+SecFix reads findings from `/secreview`, `/secguard`, or `/secaudit` and generates ready-to-apply patches for each finding. The developer reviews each patch, makes any necessary adjustments, and applies it — reducing a 30-minute fix cycle to roughly two minutes.
 
 Typical workflow:
 
@@ -158,10 +158,8 @@ AI Release Security Audit.
 
 Built on a pluggable Rule Pack architecture (`audit-framework/`). The default `secguardian` pack covers 17 audit domains. Future packs include `company-redline-v3`, `owasp-asvs`, and `pci-dss`.
 
-SecAudit is **not another code review tool.**
-
-It simulates an enterprise security acceptance process by evaluating an application against predefined security baselines and audit rule packs.
-Each audit is scoped by a Rule Pack: `/secaudit --rulepack secguardian ./src`.
+SecAudit is a release security audit tool. It evaluates an application against predefined security baselines and audit rule packs — a process distinct from code review.
+Each audit uses a single Rule Pack: `/secaudit --rulepack secguardian ./src`.
 
 Typical use cases:
 
@@ -235,7 +233,7 @@ SecAudit combines multiple analysis strategies, including:
 - Trust Boundary Analysis
 - State Machine Analysis
 
-Analysis strategies are tools, not the product. The long-term value comes from the Rule Packs that define what to analyze, and the workflow that acts on the results.
+Analysis strategies are tools, not the product. The long-term value lies in the Rule Packs that define what to analyze and the workflow that acts on the results.
 
 ---
 
@@ -406,13 +404,13 @@ GitLab SAST (`artifacts:reports:sast`) and Azure DevOps also supported.
 
 ## Vision
 
-Our vision is to make enterprise-grade application security accessible to every development team — without replacing security engineers.
+Our vision is to make enterprise-grade application security accessible to every development team. Security engineers remain at the center of the process — they work with better tooling, not fewer people.
 
 We are building toward that vision in three phases:
 
 > **AI Security Scanner** → **AI Security Workflow** → **AI Security Governance Platform**
 
-What we are building today — the Audit Framework and Rule Packs — lays the foundation for that third phase: a governance platform where organizations define their security policies as executable rules, run them across every stage of development, and produce audit-ready evidence for every release.
+The Audit Framework and Rule Packs we are building today lay the foundation for that third phase: a governance platform where organizations define their security policies as executable rules, run them across every stage of development, and produce audit-ready evidence for every release.
 
 ---
 
