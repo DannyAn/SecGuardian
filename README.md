@@ -16,42 +16,33 @@ By moving beyond raw AI code generation and introducing **Rule Packs**, SecGuard
 
 ## Quick Start
 
-All installation paths start from the repository:
+### Stable release (recommended)
+
+Download the latest version from [Releases](https://github.com/DannyAn/SecGuardian/releases), then:
+
+```bash
+# Install for all supported platforms (default)
+bash scripts/deploy.sh
+
+# Or install for a specific platform:
+bash scripts/deploy.sh cc     # Claude Code
+bash scripts/deploy.sh nga    # OpenCode
+bash scripts/deploy.sh cac    # Gemini CLI
+```
+
+### Build from source
+
+If you want the latest development build:
 
 ```bash
 git clone https://github.com/DannyAn/SecGuardian.git
 cd SecGuardian
-```
-
-Then choose your platform:
-
-### Claude Code
-
-```bash
-bash scripts/deploy.sh cc
-```
-
-### OpenCode
-
-```bash
-bash scripts/deploy.sh nga
-```
-
-### Gemini CLI
-
-```bash
-bash scripts/deploy.sh cac
-```
-
-### Build all platforms at once
-
-```bash
 bash scripts/dev-deploy.sh
 ```
 
-### Run against the demo code
+### Try the demo
 
-After deploying, try the built-in vulnerable examples to see how each command works:
+After deploying, run against the built-in vulnerable examples:
 
 ```bash
 /secguard examples/cpp-vuln-demo/src cpp
