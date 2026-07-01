@@ -260,12 +260,7 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
     cp "$PROJECT_ROOT/scripts/validate-index.py" "$dist_dir/scripts/validate-index.py"
     cp "$PROJECT_ROOT/scripts/validate-findings.py" "$dist_dir/scripts/validate-findings.py"
 
-    # Copy deploy script (for release users who run bash scripts/deploy.sh)
-    if [ -f "$PROJECT_ROOT/scripts/deploy.sh" ]; then
-        cp "$PROJECT_ROOT/scripts/deploy.sh" "$dist_dir/scripts/deploy.sh"
-        chmod +x "$dist_dir/scripts/deploy.sh"
-        echo "    script: deploy.sh"
-    fi
+
 
     # Copy cross-platform precompiled binaries
     bin_count=0

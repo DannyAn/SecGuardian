@@ -18,7 +18,7 @@ By moving beyond raw AI code generation and introducing **Rule Packs**, SecGuard
 
 ### Stable release (recommended)
 
-Download the latest version from [Releases](https://github.com/DannyAn/SecGuardian/releases), then:
+Download the latest source tarball (`secguardian-<version>-source.tar.gz`) from [Releases](https://github.com/DannyAn/SecGuardian/releases), extract it, then:
 
 ```bash
 # Install for all supported platforms (default)
@@ -29,6 +29,8 @@ bash scripts/deploy.sh cc     # Claude Code
 bash scripts/deploy.sh nga    # OpenCode
 bash scripts/deploy.sh cac    # Gemini CLI
 ```
+
+> 💡 The platform-specific `.zip` packages (Claude Code, OpenCode, Gemini CLI) are AI agent plugin bundles — extract and install them directly in your agent's plugin directory. The `source.tar.gz` is what you need for `scripts/deploy.sh`. 
 
 ### Build from source
 
