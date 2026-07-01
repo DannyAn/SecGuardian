@@ -156,12 +156,63 @@ else
     RELEASE_URL="${GITHUB_API}/releases/${RELEASE_ID}"
 fi
 
-# ── 6. 上传产物 ────────────────────────────
+# ── 6. 上传产物（带重试） ───────────────────
 log "Uploading ${#ARTIFACTS[@]} artifacts..."
+
+# Try gh CLI first (handles retries + chunking natively)
+if command -v gh &>/dev/null; then
+    TAG="v${VERSION}"
+    GH_USER=$(gh auth status 2>&1 | grep -o 'Logged in to github.com as [^ ]*' | awk '{print $5}' || echo "")
+    if [ -n "$GH_USER" ]; then
+        log "Using gh CLI (authenticated as $GH_USER)..."
+        for artifact in "${ARTIFACTS[@]}"; do
+            log "  Uploading $(basename "$artifact")..."
+            gh release upload "$TAG" "$artifact" --clobber 2>/dev/null && ok "$(basename "$artifact")" || warn "$(basename "$artifact") failed (falling back)"
+        done
+        echo ""
+        echo -e "${GREEN}${BOLD}═══ Published to GitHub ═══${NC}"
+        echo ""
+        echo "  Release:  https://github.com/${OWNER}/${REPO}/releases/tag/v${VERSION}"
+        echo "  Tag:      v${VERSION}"
+        echo "  Artifacts: ${#ARTIFACTS[@]} uploaded via gh"
+        echo ""
+        unset TOKEN
+        exit 0
+    fi
+    log "gh not authenticated, falling back to curl..."
+fi
+
+# Fallback: curl with retries
 
 # Fetch existing assets to skip duplicates
 EXISTING_NAMES=$(curl -s "https://api.github.com/repos/${OWNER}/${REPO}/releases/${RELEASE_ID}/assets" \
     -H "Authorization: Bearer $TOKEN" | jq -r '.[].name // empty')
+
+upload_with_retry() {
+    local file="$1"
+    local name="$2"
+    local mime="$3"
+    local retries=3
+    local wait=5
+
+    for i in $(seq 1 $retries); do
+        HTTP_CODE=$(curl -s --connect-timeout 60 --max-time 600 -o /dev/null -w "%{http_code}" \
+            -X POST "https://uploads.github.com/repos/${OWNER}/${REPO}/releases/${RELEASE_ID}/assets?name=${name}" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: ${mime}" \
+            --data-binary "@$file" 2>/dev/null || echo "000")
+
+        if [ "$HTTP_CODE" = "201" ]; then
+            return 0
+        fi
+        if [ "$i" -lt "$retries" ]; then
+            warn "  Retry $i/$retries for $name (HTTP $HTTP_CODE, waiting ${wait}s)..."
+            sleep "$wait"
+            wait=$((wait * 2))
+        fi
+    done
+    return 1
+}
 
 for artifact in "${ARTIFACTS[@]}"; do
     filename=$(basename "$artifact")
@@ -173,16 +224,10 @@ for artifact in "${ARTIFACTS[@]}"; do
 
     log "  Uploading $filename..."
 
-    HTTP_CODE=$(curl -s --connect-timeout 30 --max-time 300 -o /dev/null -w "%{http_code}" \
-        -X POST "https://uploads.github.com/repos/${OWNER}/${REPO}/releases/${RELEASE_ID}/assets?name=${filename}" \
-        -H "Authorization: Bearer $TOKEN" \
-        -H "Content-Type: application/octet-stream" \
-        --data-binary "@$artifact")
-
-    if [ "$HTTP_CODE" = "201" ]; then
+    if upload_with_retry "$artifact" "$filename" "application/octet-stream"; then
         ok "$filename"
     else
-        warn "$filename: HTTP $HTTP_CODE"
+        warn "$filename failed after 3 retries"
     fi
 
     # Upload .sha256 if exists
@@ -192,11 +237,7 @@ for artifact in "${ARTIFACTS[@]}"; do
         if echo "$EXISTING_NAMES" | grep -qxF "$sha_name"; then
             continue
         fi
-        curl -s --connect-timeout 30 --max-time 60 -o /dev/null \
-            -X POST "https://uploads.github.com/repos/${OWNER}/${REPO}/releases/${RELEASE_ID}/assets?name=${sha_name}" \
-            -H "Authorization: Bearer $TOKEN" \
-            -H "Content-Type: text/plain" \
-            --data-binary "@$sha_file" 2>/dev/null || true
+        upload_with_retry "$sha_file" "$sha_name" "text/plain" 2>/dev/null || true
     fi
 done
 
