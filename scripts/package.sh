@@ -253,10 +253,14 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
     fi
     if [ -f "$PROJECT_ROOT/scripts/secguardian-index.ps1" ]; then
         cp "$PROJECT_ROOT/scripts/secguardian-index.ps1" "$dist_dir/scripts/secguardian-index.ps1"
-    cp "$PROJECT_ROOT/scripts/validate-index.py" "$dist_dir/scripts/validate-index.py"
-    cp "$PROJECT_ROOT/scripts/validate-findings.py" "$dist_dir/scripts/validate-findings.py"
         echo "    wrapper: secguardian-index.ps1 (powershell)"
     fi
+
+    # Copy shared utility scripts
+    cp "$PROJECT_ROOT/scripts/validate-index.py" "$dist_dir/scripts/validate-index.py"
+    cp "$PROJECT_ROOT/scripts/validate-findings.py" "$dist_dir/scripts/validate-findings.py"
+
+
 
     # Copy cross-platform precompiled binaries
     bin_count=0

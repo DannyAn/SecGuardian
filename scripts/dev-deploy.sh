@@ -1,6 +1,9 @@
 #!/bin/bash
 # SecGuardian — 一键构建 + 三平台部署（开发用）
 #
+# ⚠️ 已弃用: 请使用 bash scripts/deploy.sh all 代替
+#    deploy.sh 会自动构建 dist/，功能与 dev-deploy.sh 相同
+#
 # 用法:
 #   bash scripts/dev-deploy.sh               # 构建 + 部署全部平台
 #   bash scripts/dev-deploy.sh --user        # 构建 + 用户级部署
