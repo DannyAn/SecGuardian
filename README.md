@@ -16,25 +16,39 @@ By moving beyond raw AI code generation and introducing **Rule Packs**, SecGuard
 
 ## Quick Start
 
-### Stable release (recommended)
+Choose how you want to install:
 
-Download the latest release from [Releases](https://github.com/DannyAn/SecGuardian/releases). For `scripts/deploy.sh`, you need the **source tarball** — look for `secguardian-<version>-source.tar.gz`. Extract it, then:
+### Plugin zip (recommended)
+
+Download the plugin zip for your AI agent from [Releases](https://github.com/DannyAn/SecGuardian/releases):
+
+| If you use... | Download this file |
+|---|---|
+| Claude Code | `secguardian-0.10.0-claude-code-<os>-<arch>.zip` |
+| OpenCode | `secguardian-0.10.0-opencode-<os>-<arch>.zip` |
+| Gemini CLI | `secguardian-0.10.0-gemini-cli-<os>-<arch>.zip` |
+
+Extract the zip into your agent's plugin directory, then use:
 
 ```bash
-# Install for all supported platforms (default)
-bash scripts/deploy.sh
-
-# Or install for a specific platform:
-bash scripts/deploy.sh cc     # Claude Code
-bash scripts/deploy.sh nga    # OpenCode
-bash scripts/deploy.sh cac    # Gemini CLI
+/secguard ./src           # Secure coding guidance
+/secreview                # Code review (auto git diff)
+/secfix                   # Auto-remediation
+/secaudit                 # Full audit
 ```
 
- > 💡 The platform-specific `.zip` packages (Claude Code, OpenCode, Gemini CLI) are AI agent plugin bundles. Extract and install them directly in your agent's plugin directory. You only need the `-source.tar.gz` if you plan to run `scripts/deploy.sh`.
+### Source tarball (with deploy.sh)
 
-### Build from source
+Download `secguardian-0.10.0-source.tar.gz` from [Releases](https://github.com/DannyAn/SecGuardian/releases), extract, then:
 
-If you want the latest development build:
+```bash
+bash scripts/deploy.sh          # Install for all supported platforms
+bash scripts/deploy.sh cc       # Claude Code only
+bash scripts/deploy.sh nga      # OpenCode only
+bash scripts/deploy.sh cac      # Gemini CLI only
+```
+
+### Build from source (development)
 
 ```bash
 git clone https://github.com/DannyAn/SecGuardian.git
