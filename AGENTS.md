@@ -363,3 +363,33 @@ bash scripts/gitee-release.sh 0.7.0  # 发布到 Gitee
 
 修改 detector 数量时，只需改 `manifest.json`。构建时 `scripts/sync-manifest.sh` 自动更新所有文件中的 `NNN<!-- @secguardian:xxx -->` 标记。
 CI 验证：`bash scripts/sync-manifest.sh --check`（已集成到 self-check.sh §7.6）。
+ 
+ ### GitHub Token
+ 
+ 存储在 macOS 钥匙串中，读取方式同 Gitee token：
+ 
+ ```bash
+ # 首次设置
+ security add-generic-password -a "DannyAn" -s "github-token" -w "your-token-here"
+ 
+ # AI Agent 读取
+ TOKEN=$(security find-generic-password -a "DannyAn" -s "github-token" -w)
+ 
+ # 使用示例：创建 PR
+ curl -s -X POST \
+   -H "Authorization: Bearer $TOKEN" \
+   -H "Accept: application/vnd.github.v3+json" \
+   https://api.github.com/repos/DannyAn/SecGuardian/pulls \
+   -d '{"title":"...", "head":"branch-name", "base":"develop", "body":"..."}'
+ 
+ # 使用完毕立即清除
+ unset TOKEN
+ ```
+ 
+ GitHub API 常用操作：
+ 
+ - **创建 PR**: `POST /repos/DannyAn/SecGuardian/pulls`
+ - **改默认分支**: `PATCH /repos/DannyAn/SecGuardian` with `{"default_branch":"master"}`
+ - **获取 check runs**: `GET /repos/DannyAn/SecGuardian/commits/{sha}/check-runs`
+ - **获取 annotations**: `GET /repos/DannyAn/SecGuardian/check-runs/{id}/annotations`
+ 
