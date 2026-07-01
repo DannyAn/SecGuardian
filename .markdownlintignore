@@ -4,3 +4,7 @@
 .codeagent/
 .remember/
 dist/
+.gemini/
+.opencode/
+.claude/
+dist/
