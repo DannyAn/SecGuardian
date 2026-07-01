@@ -1,6 +1,6 @@
 # 05 — SAST 规则治理 (Static Analysis Security Testing Rules)
 
-> **对应 Sheet:** `05_SAST_Rules`  
+> **对应 Sheet:** `05_SAST_Rules`
 > **牵引方向:** SecGuardian SAST 检测规则体系的标准化建设——覆盖 5 大漏洞分类，共计 100 条检测规则。
 
 ---
@@ -249,5 +249,5 @@ remediation:
 
 ---
 
-> **本文档指引 SecGuardian 从当前 6 个活跃检测器扩展至 100 条 SAST 检测规则体系。**  
+> **本文档指引 SecGuardian 从当前 6 个活跃检测器扩展至 100 条 SAST 检测规则体系。**
 > 结合 [02_Secure_Coding](02_Secure_Coding.md) 的安全编码规范与 [06_SCA_Governance](06_SCA_Governance.md) 的开源组件治理，形成完整代码安全防线。

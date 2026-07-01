@@ -15,6 +15,7 @@ Core Scanning Engine 是 SecGuardian 的核心能力层，负责从代码中检�
 | [FEATURE-001: Output Protocol Evolution](./FEATURE-001-output-protocol/) | ✅ 已完成 | 输出协议从 v2 摘要型演进到 v5 目录树 |
 | [FEATURE-002: Detector Quality Enhancement](./FEATURE-002-detector-quality/) | ✅ 已完成 | 67 个检测器统一模板、误报消除、证据增强 |
 | [FEATURE-003: Verification Pipeline](./FEATURE-003-verification-pipeline/) | 📋 Spec (v2) | 三轮 AI Agent 验证管道：Semantic→Counter-Evidence→Adjudication，Detector 输出格式不变 |
+| [FEATURE-004: Output Protocol v7.0](./FEATURE-004-output-protocol-v7/) | 📋 规划中 | 消费者导向设计：human/executive-summary + findings/(保持) + ai/remediation-pack + report.html |
 
 ## 架构影响
 

@@ -32,10 +32,18 @@ export const SecGuardianPlugin = async () => {
         }
       }
 
+      // Register skills directory so AI can discover secaudit/secguard/secreview skills
       const skillsDir = join(extDir, 'skills')
       cfg.skills = cfg.skills || { paths: [] }
       if (!cfg.skills.paths.includes(skillsDir)) {
         cfg.skills.paths.push(skillsDir)
+      }
+
+      // Register knowledge directories so AI can discover rules
+      const knowledgeDir = join(extDir, 'knowledge')
+      cfg.knowledge = cfg.knowledge || { paths: [] }
+      if (!cfg.knowledge.paths.includes(knowledgeDir)) {
+        cfg.knowledge.paths.push(knowledgeDir)
       }
     }
   }

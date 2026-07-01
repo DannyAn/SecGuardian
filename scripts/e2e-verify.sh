@@ -398,13 +398,13 @@ with open('$TMPDIR/out-score/summary.json') as f:
 score = s['security_score']
 grade = s['score_grade']
 
-expected_score = max(0, 100 - (0*25 + 1*10 + 0*3 + 0*1))
+expected_score = max(0, round(100 * __import__('math').exp(-(0*0.2 + 1*0.1 + 0*0.04 + 0*0.01))))
 
 if score == expected_score:
     print(f"  Score: {score}/100 (expected {expected_score}) — OK")
-    if grade == 'A' and score >= 90:
+    if grade == 'A' and score >= 80:
         print(f"  Grade: {grade} — OK")
-    elif grade == 'B' and score >= 75:
+    elif grade == 'B' and score >= 55:
         print(f"  Grade: {grade} — OK")
     else:
         print(f"  Grade: {grade} — WARNING (score={score})")
@@ -413,7 +413,7 @@ else:
     sys.exit(1)
 PYEOF
 if [ $? -eq 0 ]; then
-    pass "Security score calculation correct (100 - 25×Critical - 10×High - 3×Medium - 1×Low)"
+    pass "Security score calculation correct (100 × exp(-0.2×Crit - 0.1×High - 0.04×Med - 0.01×Low))"
 else
     fail "Security score calculation incorrect"
 fi
@@ -458,7 +458,7 @@ import json
 s = json.load(open('$TMPDIR/out-ci/status.json'))
 assert s['gate_result'] == 'FAILED', f'Expected FAILED, got {s[\"gate_result\"]}'
 assert s['exit_code'] == 1, f'Expected exit_code 1, got {s[\"exit_code\"]}'
-assert s['security_score'] == 75, f'Expected score 75 (100 - 25*1 Critical), got {s["security_score"]}'
+assert s['security_score'] == 82, f'Expected score 82 (100 × exp(-0.2)), got {s["security_score"]}'
 print('OK — CI gate FAILED correctly on Critical finding')
 " 2>/dev/null && pass "CI mode: Critical finding → FAILED + exit_code=1" || fail "CI mode exit code incorrect"
 
@@ -492,8 +492,8 @@ cat > "$TMPDIR/delta-scan1.json" << 'JSONEOF'
   "detectors": {"matched": 3, "executed": 3},
   "findings": [
     {"id": "H-DELTA-1-L1", "severity": "High", "cwe": "CWE-79", "detector": "web.xss",
-     "file": "a.go", "line": 1, "function": "A", "title": "XSS A", "fix_summary": "Fix",
-     "location": {"file_path": "a.go", "start_line": 1, "end_line": 1, "function_name": "A()", "snippet": "c"},
+     "file": "scan1_file", "line": 1, "function": "A", "title": "XSS A", "fix_summary": "Fix",
+     "location": {"file_path": "scan1_file", "start_line": 1, "end_line": 1, "function_name": "A()", "snippet": "c"},
      "evidence": {"code_context": "c", "judgment_rationale": "r", "data_flow_path": [{"step": "source", "file": "a.go", "line": 1, "description": "d"}]},
      "impact": {"attack_scenario": "xss", "cvss_score": 6.1, "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", "exploit_conditions": "any"},
      "fix": {"description": "f", "before_code": "b", "after_code": "a", "effort_hours": 1.0, "verification_method": "t"},
@@ -530,8 +530,8 @@ cat > "$TMPDIR/delta-scan2.json" << 'JSONEOF'
   "detectors": {"matched": 2, "executed": 2},
   "findings": [
     {"id": "H-DELTA-1-L1", "severity": "High", "cwe": "CWE-79", "detector": "web.xss",
-     "file": "a.go", "line": 1, "function": "A", "title": "XSS A", "fix_summary": "Fix",
-     "location": {"file_path": "a.go", "start_line": 1, "end_line": 1, "function_name": "A()", "snippet": "c"},
+     "file": "scan1_file", "line": 1, "function": "A", "title": "XSS A", "fix_summary": "Fix",
+     "location": {"file_path": "scan1_file", "start_line": 1, "end_line": 1, "function_name": "A()", "snippet": "c"},
      "evidence": {"code_context": "c", "judgment_rationale": "r", "data_flow_path": [{"step": "source", "file": "a.go", "line": 1, "description": "d"}]},
      "impact": {"attack_scenario": "xss", "cvss_score": 6.1, "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", "exploit_conditions": "any"},
      "fix": {"description": "f", "before_code": "b", "after_code": "a", "effort_hours": 1.0, "verification_method": "t"},
@@ -821,7 +821,26 @@ for name, cond in [('path present', 'path' in d),('files>0',len(d['files'])>0),(
     ok = ok and cond
 " && pass "index.json structure" || fail "index.json structure FAILED"
 
+# Verify opencode-plugin.js source has required registrations
+OPENCODE_PLUGIN_SRC="$PROJECT_ROOT/scripts/opencode-plugin.js"
+if [ -f "$OPENCODE_PLUGIN_SRC" ]; then
+    K=$(grep -c 'cfg.knowledge' "$OPENCODE_PLUGIN_SRC" 2>/dev/null || echo 0)
+    S=$(grep -c 'cfg.skills' "$OPENCODE_PLUGIN_SRC" 2>/dev/null || echo 0)
+    C=$(grep -c 'cfg.command' "$OPENCODE_PLUGIN_SRC" 2>/dev/null || echo 0)
+    [ "$K" -gt 0 ] && [ "$S" -gt 0 ] && [ "$C" -gt 0 ] &&         pass "opencode-plugin.js: knowledge+skills+commands" ||         fail "opencode-plugin.js: missing (k=$K s=$S c=$C)"
+else
+    fail "opencode-plugin.js NOT FOUND at $OPENCODE_PLUGIN_SRC"
+fi
+
 rm -rf "$tmp" dist/
+
+fi
+# ── 13. Cross-Language Pipeline Verification ──
+section "13. Cross-Language Pipeline Verification"
+if bash "$PROJECT_ROOT/scripts/verify-lang-pipeline.sh" >/dev/null 2>&1; then
+    pass "All 4 languages pass full pipeline"
+else
+    fail "Cross-language pipeline test FAILED"
 fi
 
 echo -e "${BOLD}╔══════════════════════════════════════════════╗${NC}"
@@ -856,4 +875,68 @@ else
 fi
 
 [ "$MODE" = "ci" ] && exit $FAIL
-exit 0
+# ── §12: v7.0 Consumer-Centric Output ─────────────────────────────
+echo ""
+echo "=== §12: Consumer-Centric Output ==="
+SCAN_DIR=".codeagent/secguard-secguardian/scans/latest"
+FAILED=0
+
+# 12.1 human/executive-summary.md
+if [ -f "$SCAN_DIR/human/executive-summary.md" ]; then
+    echo "  ✅ 12.1 human/executive-summary.md exists"
+else
+    echo "  ❌ 12.1 human/executive-summary.md missing"
+    FAILED=$((FAILED+1))
+fi
+
+# 12.2 ai/remediation-pack.json
+if [ -f "$SCAN_DIR/ai/remediation-pack.json" ]; then
+    echo "  ✅ 12.2 ai/remediation-pack.json exists"
+    python3 -c "
+import json
+with open('$SCAN_DIR/ai/remediation-pack.json') as f:
+    d = json.load(f)
+assert 'version' in d
+assert 'remediations' in d
+print(f'       ({len(d[\"remediations\"])} remediations)')
+" && echo "  ✅ 12.2 valid"
+else
+    echo "  ❌ 12.2 ai/remediation-pack.json missing"
+    FAILED=$((FAILED+1))
+fi
+
+# 12.3 dashboard.html
+if [ -f "$SCAN_DIR/dashboard.html" ]; then
+    echo "  ✅ 12.3 dashboard.html exists"
+    python3 -c "
+with open('$SCAN_DIR/dashboard.html') as f:
+    html = f.read()
+assert '<!DOCTYPE html>' in html
+assert '</html>' in html
+assert 'Severity' in html
+print(f'       ({len(html)} bytes)')
+" && echo "  ✅ 12.3 valid (no code blocks)"
+else
+    echo "  ❌ 12.3 dashboard.html missing"
+    FAILED=$((FAILED+1))
+fi
+
+# 12.4 report.md simplified (no executive/verification/compliance)
+python3 -c "
+with open('$SCAN_DIR/report.md') as f:
+    content = f.read()
+sections_removed = ['Executive Summary', 'Verification Funnel', 'Compliance Dashboard']
+found = [s for s in sections_removed if s in content]
+if found:
+    print(f'  ⚠️  report.md still contains: {found}')
+else:
+    print(f'  ✅ 12.4 report.md simplified')
+"
+
+echo ""
+if [ $FAILED -gt 0 ]; then
+    echo "  ❌ §12: $FAILED checks failed"
+    FAIL=$((FAIL + FAILED))
+else
+    echo "  ✅ §12: All checks passed"
+fi

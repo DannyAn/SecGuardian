@@ -1,73 +1,89 @@
 ---
 name: secreview-python
-description: 对 Python 代码进行通用安全规范检视，关注危险函数使用和安全编码规范。当用户请求Python代码规范检视、Python反模式识别、Python安全编码规范、Django/Flask最佳实践时使用。
+description: "AI Code Security Review for Python — dangerous API usage, framework vulnerabilities, and Python-specific security issues during pull request review"
 category: language-specific
 language: python
 topic: [web, crypto, system]
 ---
 
-# 安全规范检视 — Python
+# AI Security Code Review — Python
 
-对 Python 代码进行通用安全规范检视，关注危险函数使用、安全函数规范和代码安全最佳实践。
+AI-powered security code review for Python code. Designed for pull request review and completed implementation analysis.
 
-> **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`。检视时优先利用符号表定位目标，而非逐个文件遍历。
+Focus areas: dangerous function usage, framework security (Django/Flask), deserialization safety, and business logic vulnerabilities.
 
-## 执行流程
+> **Prerequisite**: Command layer has executed `secguardian-index` to generate `index.json`. Use symbol table for review target identification rather than file-by-file traversal.
 
-### Phase 1: 加载上下文
+## Execution Phases
 
-1. 读取 `index.json`，获取 `files`、`symbols.functions`、`call_graph.edges`
-2. 加载 `knowledge/languages/python.md` 获取 Python 危险函数清单
+### Phase 1: Load Context
 
-### Phase 2: 语义层面检视
+1. Read `index.json` — `files`, `symbols.functions`, `call_graph.edges`
+2. Load `knowledge/languages/python.md` for Python dangerous function list
+3. If git diff mode, load `delta.json` for changed function scope
 
-| # | 检查项 | 检测方法 | 示例：不合规 |
-|---|--------|---------|-------------|
-| 1 | SQL 参数化 | 搜索 `cursor.execute`/`.raw()` → SQL 字符串是否使用 f-string/%/.format 拼接 | `cursor.execute(f"SELECT * FROM users WHERE id={uid}")` → 应使用 `cursor.execute("SELECT ... WHERE id=%s", [uid])` |
-| 2 | 序列化安全 | 搜索 `pickle.load`/`yaml.load`/`dill.load` → 数据源是否可信 | `pickle.loads(request.data)` → 使用 `json.loads()` 替代 |
-| 3 | 密码学安全 | 搜索 `random.randint`/`random.choice` → 是否用于安全场景 | `random.randint(0, 999999)` 做验证码 → 使用 `secrets.randbelow()` |
-| 4 | subprocess 安全 | 搜索 `os.system`/`subprocess.call` → `shell` 参数 + 用户输入 | `subprocess.call(f"ping {host}", shell=True)` → 使用 `subprocess.call(["ping", host])` |
+### Phase 2: Vulnerability Detection by Code Review
 
-### Phase 3: 规范合规检视
+For each function (focusing on git-diff changed functions in PR mode):
 
-| # | 检查项 | 检测方法 | 修复指引 |
-|---|--------|---------|---------|
-| 1 | DEBUG 模式 | 搜索 `DEBUG = True` → 是否在生产配置中 | 生产环境 `DEBUG = False`，使用环境变量或独立 settings 模块控制 |
-| 2 | 模板安全 | 搜索 `render_template_string`/`render` → 是否对用户输入自动编码 | 使用 `render_template`（自动编码），避免 `render_template_string(user_input)` |
-| 3 | CORS 配置 | 搜索 `CORS_ORIGIN_ALLOW_ALL`/`allow_origins` → 是否过宽 | 白名单指定 origin，禁用 `allow_origins=['*']` |
-| 4 | JSON 响应 | 搜索 `HttpResponse(json.dumps(data))` → 手动拼接 JSON | 使用 `JsonResponse(data)` 确保 Content-Type 正确且自动编码 |
+| # | Check | Detection Method | Example: Non-compliant |
+|---|-------|-----------------|------------------------|
+| 1 | SQL injection | Search `cursor.execute`/`.raw()` — f-string/%/.format in SQL? | `cursor.execute(f"SELECT * FROM users WHERE id={uid}")` -> parameterized query |
+| 2 | Unsafe deserialization | Search `pickle.load`/`yaml.load`/`dill.load` — is data source untrusted? | `pickle.loads(request.data)` -> use `json.loads()` |
+| 3 | Weak cryptography | Search `random.randint`/`random.choice` for security contexts | `random.randint(0, 999999)` for code -> use `secrets.randbelow()` |
+| 4 | Command injection | Search `os.system`/`subprocess.call` — `shell=True` with user input? | `subprocess.call(f"ping {host}", shell=True)` -> use arg array |
+| 5 | SSTI | Search `render_template_string`/`Jinja2.from_string` — user input in template? | `render_template_string(user_input)` -> use static templates |
+| 6 | Path traversal | Search `open()`/`os.path.join()` — user-controlled path? | `open(os.path.join(upload_dir, filename))` -> validate resolved path |
 
-### Phase 4: 反模式识别
+**Pass output**: Each finding includes CWE mapping, exploit scenario, CVSS score, and fix recommendation.
 
-| # | 反模式 | 检测特征 | 修复方案 |
-|---|--------|---------|---------|
-| 1 | 裸 except 吞异常 | `except Exception: pass` / `except: pass` | 至少记录日志 `logger.exception()`，明确捕获的异常类型 |
-| 2 | hasattr 安全检查局限性 | `if hasattr(obj, 'is_admin')` 做权限校验 | 使用显式属性字典或访问控制列表（ACL），不依赖属性存在性 |
-| 3 | __getattr__ 劫持 | 自定义 `__getattr__` 无管控地返回动态属性 | 限制 `__getattr__` 返回的属性范围，对安全敏感属性额外校验 |
-| 4 | 动态导入滥用 | `importlib.import_module(user_input)` / `__import__(user_input)` | 禁止基于用户输入的动态导入，使用注册表/映射表替代 |
-| 5 | Monkey Patch 安全假设 | 运行时替换模块函数导致安全逻辑失效 | 关键安全函数标记为不可 monkey patch，使用 `wrapt.decorator` 做包装 |
+### Phase 3: Business Logic & Framework Security
 
-### Phase 5: 输出
+| # | Check | Detection Method | Fix Guidance |
+|---|-------|-----------------|-------------|
+| 1 | DEBUG mode | Search `DEBUG = True` — production config? | Production `DEBUG = False`, use env variables |
+| 2 | Template safety | Search `render_template_string`/`render` — auto-encoding? | Use `render_template` (auto-escape), avoid `render_template_string(user_input)` |
+| 3 | CORS config | Search `CORS_ORIGIN_ALLOW_ALL`/`allow_origins` — too permissive? | Whitelist specific origins, disable `allow_origins=['*']` |
+| 4 | JSON response | Search `HttpResponse(json.dumps(data))` — manual JSON? | Use `JsonResponse(data)` for correct Content-Type + encoding |
+| 5 | Auth check consistency | Search views — is authentication consistent on all endpoints? | Ensure `@login_required`/equivalent on every authenticated endpoint |
 
-遵循 `knowledge/protocols/scan-output.md` (v2.0，人读/机读分离)：`report.md` + `results.sarif` + `summary.json` + `manifest.json` + `status.json`。
+### Phase 4: Anti-pattern Recognition
 
-## 与 secguard-python 的区别
+| # | Anti-pattern | Detection Signature | Fix |
+|---|-------------|-------------------|-----|
+| 1 | Bare except swallowing | `except Exception: pass` or `except: pass` | Log `logger.exception()`, name specific exception types |
+| 2 | hasattr auth bypass | `if hasattr(obj, 'is_admin')` for auth checks | Use explicit attribute dict or ACL, not attribute existence |
+| 3 | __getattr__ hijacking | Custom `__getattr__` returning uncontrolled dynamic attributes | Limit return scope, validate sensitive attribute access |
+| 4 | Dynamic import abuse | `importlib.import_module(user_input)` / `__import__(user_input)` | Use registry/mapping table, ban user-based dynamic imports |
+| 5 | Monkey-patch safety | Runtime module replacement bypassing security logic | Mark critical security functions as non-patchable using `wrapt.decorator` |
 
-| 维度 | secguard（加固排查） | secreview（规范检视） |
-|------|---------------------|---------------------|
-| 粒度 | 具体 API 调用级 | 函数/模块级语义 |
-| 关注点 | 是否存在可利用漏洞 | 是否符合安全编码规范 |
-| 输出 | 漏洞位置 + CVSS 级别 | 不合规项 + 修复建议 |
-| 覆盖 | CWE Top 25 + 检测器 | OWASP + Python 安全最佳实践 |
+### Phase 5: Output
 
-## 输出完整性要求
+Follows `knowledge/protocols/scan-output.md` (v5.0). Each finding:
 
-> **输出协议**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
+- File path + line number + function name (from index.json)
+- CWE ID + exploit scenario
+- CVSS severity assessment
+- Fix recommendation (before/after code)
+
+## Difference from secguard-python
+
+| Dimension | secguard (Secure Coding) | secreview (Code Review) |
+|-----------|-------------------------|-------------------------|
+| SDLC Stage | During coding | During pull request / code review |
+| Granularity | API call level + detector filter | Function/module-level semantic + business logic |
+| Primary Output | Vulnerability location + CVSS | CWE mapping + exploit scenario + business logic risk |
+| Coverage | CWE Top 25 + detectors | OWASP + Django/Flask security + concurrency + anti-patterns |
+| Typical Mode | Full codebase scan | Git diff / PR changeset |
+
+## Output Completeness Requirements
+
+> **Output protocol**: Follow `knowledge/protocols/scan-output.md` (v5.0).
 >
-> Command 层 Step 4b 质量门禁强制检查每个检出的四段式完整性：
-> 1. **📍 Location** — 文件路径 + 行号 + 函数名 + 违规代码行
-> 2. **📋 Evidence** — 代码上下文（前后 3 行）+ 判定依据（指出违反的安全编码规范条款）
-> 3. **⚠️ Impact** — 不合规可能导致的安全风险 + 适用攻击场景
-> 4. **🔧 Fix** — Before/After 代码 + 工作量 + 验证方法 + SEI CERT/OWASP 参考链接
+> Command layer Step 4b quality gate enforces four-segment completeness for each finding:
+> 1. **Location** — File path + line + function + vulnerable code
+> 2. **Evidence** — Code context (3 lines around) + judgment rationale citing security standards
+> 3. **Impact** — Security risk + attack scenario (required)
+> 4. **Fix** — Before/After code + verification method + OWASP reference
 >
-> SARIF 结果同样要求：`message.markdown` 包含完整四段式，`relatedLocations` 标注关联代码位置，`fixes` 包含 before/after 替换。
+> SARIF output: `message.markdown` with full four-segment content, `relatedLocations` for associated code, `fixes` with before/after replacements.

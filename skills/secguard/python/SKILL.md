@@ -6,7 +6,6 @@ language: python
 topic: [web, crypto, system]
 ---
 
-
 # Python 安全加固排查
 
 对 Python 代码进行安全加固项排查，扫描代码和 PR 中需要安全加固的问题。

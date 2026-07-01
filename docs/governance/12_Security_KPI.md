@@ -1,6 +1,6 @@
 # 12 — 安全 KPI 度量 (Security KPI Metrics)
 
-> **对应 Sheet:** `12_Security_KPI`  
+> **对应 Sheet:** `12_Security_KPI`
 > **牵引方向:** SecGuardian 安全成效度量体系——量化安全能力成熟度，驱动持续改进。
 
 ---
@@ -179,5 +179,5 @@ KPI Dashboard + 报表
 
 ---
 
-> **本文档指引 SecGuardian 构建安全 KPI 度量体系。**  
+> **本文档指引 SecGuardian 构建安全 KPI 度量体系。**
 > KPI 数据驱动前 11 个治理域的持续改进。参见 [00_Governance_Model](00_Governance_Model.md) 顶层框架。

@@ -1,6 +1,6 @@
 # 02 — 安全编码规范 (Secure Coding Standards)
 
-> **对应 Sheet:** `02_Secure_Coding`  
+> **对应 Sheet:** `02_Secure_Coding`
 > **牵引方向:** SecGuardian 安全编码检测引擎——支持多语言的安全编码规则集，涵盖输入验证、内存安全、错误处理、密码学使用和安全 API。
 
 ---
@@ -204,5 +204,5 @@ knowledge/languages/
 
 ---
 
-> **本文档指引 SecGuardian 构建多语言安全编码检测引擎。**  
+> **本文档指引 SecGuardian 构建多语言安全编码检测引擎。**
 > 参考 [01_Security_Redlines](01_Security_Redlines.md) 的红线体系与 [05_SAST_Rules](05_SAST_Rules.md) 的 SAST 规则治理。

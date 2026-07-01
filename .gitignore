@@ -51,3 +51,5 @@ session-*.md
 
 # 构建时生成的 Gemini .toml 文件
 commands/gemini/*.toml
+# Python bytecode cache
+__pycache__/

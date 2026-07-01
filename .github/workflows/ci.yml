@@ -65,7 +65,7 @@ jobs:
 
       - name: Count knowledge files
         run: |
-          echo "Knowledge files: $(ls knowledge/detectors/*.md | wc -l)"
+          echo "Knowledge files: $(ls knowledge/guard-rules/*.md | wc -l)"
           echo "Languages: $(ls knowledge/languages/*.md | wc -l)"
           echo "Protocols: $(ls knowledge/protocols/*.md | wc -l)"
           echo "Standards: $(ls knowledge/standards/*.md | wc -l)"
@@ -73,13 +73,13 @@ jobs:
       - name: Verify frontmatter completeness
         run: |
           missing=0
-          for f in knowledge/detectors/*.md; do
+          for f in knowledge/guard-rules/*.md; do
             if ! grep -q "detector:" "$f" || ! grep -q "cwe:" "$f" || ! grep -q "severity:" "$f"; then
               echo "Missing frontmatter in: $f"
               missing=$((missing + 1))
             fi
           done
-          echo "Files with complete frontmatter: $(($(ls knowledge/detectors/*.md | wc -l) - missing))"
+          echo "Files with complete frontmatter: $(($(ls knowledge/guard-rules/*.md | wc -l) - missing))"
           if [ $missing -gt 0 ]; then exit 1; fi
 
   examples:
@@ -97,7 +97,7 @@ jobs:
       - name: Verify all detectors have example coverage
         run: |
           echo "Checking example coverage..."
-          for f in knowledge/detectors/*.md; do
+          for f in knowledge/guard-rules/*.md; do
             cwe=$(grep "cwe:" "$f" | head -1 | sed 's/.*CWE-//;s/ .*//')
             if ! grep -rq "CWE-$cwe" examples/*/src/; then
               echo "MISSING example for: $(basename $f .md) (CWE-$cwe)"

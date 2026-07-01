@@ -1,32 +1,53 @@
 ---
 name: secaudit
-description: "★ 旗舰产品：AI 深度安全审计 — 17 项专业安全分析，替代传统安全顾问"
+description: "AI Release Security Audit — Rule Pack-driven audit framework (17 rules across 17 domains)"
 ---
 
-# /secaudit - 安全专项审计
+# /secaudit - AI Release Security Audit
 
 针对安全专项问题进行深度审计分析。自动识别用户意图，路由到对应的分析或领域审计 skill。
 
 ## 使用方式
 
 ```
-## ★ 旗舰产品
+## Audit Framework
 
-SecAudit 是 SecGuardian 的旗舰产品——AI 深度安全审计。它替代传统安全顾问执行 17 项专业安全分析，每项分析需要资深工程师 4-8 小时。AI 在数秒内完成同等深度的审计，帮助企业年省 $50K+ 安全审计费用。
+SecAudit 基于 `audit-framework/` 架构构建——不是一个平铺的 skill 列表，而是一个可插拔 Rule Pack 系统。
+
+```
+audit-framework/
+├── rulepacks/         ← 可插拔规则包（当前: secguardian 默认）
+│   └── secguardian/
+│       ├── pack.json  ← 清单 + 标准映射
+│       └── rules/     ← 17 个审计规则
+├── engine/            ← 执行引擎规范
+├── templates/         ← 报告模板
+└── reporters/         ← 输出格式扩展点
+```
+
+每个 Rule Pack 对应一个安全标准或企业基线。默认内置 `secguardian` 覆盖 17 个审计域。未来可以加载 `company-redline-v3`、`owasp-asvs`、`pci-dss` 等 Rule Pack。
 
 ## 使用方式
 
 ```
-/secaudit <path> <language>                         # ★ 旗舰：完整 17 项审计报告
+# ★ 零参数缺省调用（推荐）
+/secaudit                                            # 扫描当前目录，自动检测语言，运行完整 16 阶段审计
+
+# 显式指定路径和语言
 /secaudit ./src python                              # Python 完整安全审计
 /secaudit ./src java                                # Java 完整安全审计
 /secaudit ./src cpp                                 # C/C++ 完整安全审计
+
+# Rule Pack 选择
+/secaudit --rulepack secguardian ./src python       # 显式指定 rulepack
+
+# 单项聚焦审计
+/secaudit --focus cryptography                      # 零参数 + 单项聚焦
 /secaudit ./src python --focus input-validation     # 单项：仅输入验证审计
-/secaudit ./src python --focus cryptography         # 单项：仅密码学审计
 /secaudit ./src python --focus taint-analysis       # 单项：仅污点分析
+
+# SARIF 输出
 /secaudit ./src python --sarif                      # 输出 SARIF 格式（CI/CD）
-/secaudit ./src python --focus input-validation --sarif  # 单项审计 + SARIF
-/secaudit                                            # 列出所有可用审计领域
 ```
 
 ## 输出
@@ -69,35 +90,37 @@ Skill: secaudit-taint-analysis
 - **快速看汇总** → 打开 `manifest.json`
 - **★ 人读审计报告** → 打开 `report.md`（每个发现含完整四段式：📍 Location → 📋 Evidence → ⚠️ Impact → 🔧 Fix）
 - **CI/CD 集成** → 消费 `results.sarif`
-- **AI Agent 修复** → 告诉 AI：`读取 report.md §4，按每个发现的 🔧 Fix 方案修改代码`
+- **🤖 AI Agent 修复** → 读取 `ai/remediation-pack.json` 自动修复：`读取 report.md §4，按每个发现的 🔧 Fix 方案修改代码`
 ```
 
 ## 可用 Skills
 
+**Rule Pack 来源**: `audit-framework/rulepacks/secguardian/pack.json`（17 条规则，映射 OWASP ASVS + CWE Top 25）
+
 ### analysis - 安全分析方法 (5 个)
-| Skill | 描述 |
-|-------|------|
-| attack-surface-analysis | 分析攻击面，识别暴露入口点和接口 |
-| data-flow-analysis | 追踪数据从 Source 到 Sink 的完整数据流 |
-| state-machine-analysis | 分析状态转换，检测非法跃迁路径 |
-| taint-analysis | 标记污点数据源，追踪传播链 |
-| trust-boundary-analysis | 识别信任边界，检查跨边界控制 |
+| Skill | 描述 | Rule Pack 映射 |
+|-------|------|----------------|
+| attack-surface-analysis | 分析攻击面，识别暴露入口点和接口 | secguardian |
+| data-flow-analysis | 追踪数据从 Source 到 Sink 的完整数据流 | secguardian |
+| state-machine-analysis | 分析状态转换，检测非法跃迁路径 | secguardian |
+| taint-analysis | 标记污点数据源，追踪传播链 | secguardian |
+| trust-boundary-analysis | 识别信任边界，检查跨边界控制 | secguardian |
 
 ### domain - 安全领域审计 (12 个)
-| Skill | 描述 |
-|-------|------|
-| auth-and-session | 认证机制和会话生命周期审计 |
-| authorization | 权限模型审计，检测越权 |
-| cryptography | 加密实现审计，检测弱算法 |
-| data-protection | 敏感数据存储/传输/处理保护 |
-| dependency-security | 依赖的已知漏洞和供应链审计 |
-| http-security-headers | HTTP 安全头配置审计 |
-| infra-hardening | 容器/K8s/云资源加固审计 |
-| input-validation | 输入验证和注入漏洞审计 |
-| logging-and-monitoring | 日志完整性和安全监控审计 |
-| output-encoding | 输出编码和 XSS 防护审计 |
-| secrets-management | 密钥/凭证管理方式审计 |
-| secure-transport | TLS 配置和传输层安全审计 |
+| Skill | 描述 | Rule Pack 映射 |
+|-------|------|----------------|
+| auth-and-session | 认证机制和会话生命周期审计 | secguardian |
+| authorization | 权限模型审计，检测越权 | secguardian |
+| cryptography | 加密实现审计，检测弱算法 | secguardian |
+| data-protection | 敏感数据存储/传输/处理保护 | secguardian |
+| dependency-security | 依赖的已知漏洞和供应链审计 | secguardian |
+| http-security-headers | HTTP 安全头配置审计 | secguardian |
+| infra-hardening | 容器/K8s/云资源加固审计 | secguardian |
+| input-validation | 输入验证和注入漏洞审计 | secguardian |
+| logging-and-monitoring | 日志完整性和安全监控审计 | secguardian |
+| output-encoding | 输出编码和 XSS 防护审计 | secguardian |
+| secrets-management | 密钥/凭证管理方式审计 | secguardian |
+| secure-transport | TLS 配置和传输层安全审计 | secguardian |
 
 ## 派发规则与执行步骤
 
@@ -152,83 +175,46 @@ find_indexer() {
 }
 find_indexer
 $INDEXER --path <path> --output .codeagent/secaudit-secguardian/scans/<scan_id>/index.json
+if [ $? -ne 0 ]; then echo "FATAL: Indexer failed — cannot continue"; exit 1; fi
 ```
 
 **2b. 验证索引完整性 + 生成结构化摘要（必须通过）：**
 
 执行以下脚本。若返回非 0，**立即终止审计**并向用户报告索引生成出错。
-若成功，直接读取输出的 JSON 摘要作为后续所有步骤的上下文，**禁止自己写 Python 去探测索引结构**。
+若成功，直接读取输出的 JSON 摘要作为后续所有步骤的上下文，**禁止自己写 Python 或 shell 去重新解析 index.json**。
+
+> ⚠️ 此脚本自动处理不同语言索引器输出差异，对 `None`/`null` 值安全。
 
 ```bash
-INDEX_FILE=.codeagent/secaudit-secguardian/scans/<scan_id>/index.json
-python3 << 'PYEOF'
-import json, sys, os
-from collections import Counter
-
-with open(os.environ['INDEX_FILE']) as f:
-    d = json.load(f)
-
-# ── 校验 ──
-assert len(d.get('files',[])) > 0, 'FATAL: index contains no files'
-assert 'symbols' in d, 'FATAL: index missing symbols'
-assert 'call_graph' in d, 'FATAL: index missing call_graph'
-
-# ── 语言检测（健壮扩展名映射） ──
-EXT_MAP = {
-    'c': 'cpp', 'h': 'cpp', 'cpp': 'cpp', 'cc': 'cpp', 'cxx': 'cpp', 'hpp': 'cpp', 'hh': 'cpp', 'hxx': 'cpp',
-    'java': 'java',
-    'py': 'python', 'pyw': 'python',
-    'go': 'go',
-    'js': 'javascript', 'jsx': 'javascript', 'ts': 'javascript', 'tsx': 'javascript', 'mjs': 'javascript', 'cjs': 'javascript',
-    'rs': 'rust', 'swift': 'swift', 'kt': 'kotlin', 'kts': 'kotlin', 'scala': 'scala',
-    'rb': 'ruby', 'php': 'php', 'cs': 'csharp', 'fs': 'fsharp',
-    'sh': 'shell', 'bash': 'shell', 'zsh': 'shell',
-    'cmake': 'cmake', 'mk': 'makefile',
-}
-def detect_lang(filepath):
-    base = os.path.basename(filepath)
-    if base.startswith('.'):
-        return None
-    if '.' not in base:
-        return None
-    ext = base.rsplit('.', 1)[-1].lower()
-    return EXT_MAP.get(ext)
-
-langs = Counter()
-for f in d['files']:
-    lang = detect_lang(f)
-    if lang:
-        langs[lang] += 1
-
-primary_lang = langs.most_common(1)[0][0] if langs else 'unknown'
-
-summary = {
-    'scan_id': os.environ.get('SCAN_ID', ''),
-    'file_count': len(d['files']),
-    'function_count': len(d['symbols']['functions']),
-    'call_edge_count': len(d['call_graph']['edges']),
-    'primary_language': primary_lang,
-    'language_distribution': dict(langs.most_common()),
-    'index_path': os.environ['INDEX_FILE'],
-}
-json.dump(summary, sys.stdout, indent=2, ensure_ascii=False)
-PYEOF
+python3 scripts/validate-index.py \
+    --index .codeagent/secaudit-secguardian/scans/<scan_id>/index.json \
+    --scan-id <scan_id>
 ```
 
-> **关键约束**：此脚本输出 JSON 到 stdout。读取该 JSON 获取 `file_count`、`function_count`、`primary_language` 等，**严禁**自行编写 Python 或 shell 去重新解析 index.json。
+### Step 3: 加载 Rule Pack 并路由 Audit Skill
 
-### Step 3: 路由并应用 Audit Skill
+> **Rule Pack 选择**: 如果用户指定 `--rulepack <name>`，加载 `audit-framework/rulepacks/<name>/pack.json`。
+> 如果未指定，默认加载 `audit-framework/rulepacks/secguardian/pack.json`。
+> 从 `pack.json` 读取 `rules[]` 列表，获取可用审计规则的定义和标准映射。
 
-- 如果用户未指定 skill-name，或输入为 `analysis` / `domain` / `list`，列出对应的 skills 列表。
+- 如果用户未指定 skill-name，或输入为 `analysis` / `domain` / `list`，列出对应的 skills 列表（从 pack.json 获取）。
 - 如果指定了具体的 skill-name，精确加载 `../skills/secaudit/{skill-name}/SKILL.md`。
+- **默认 rulepack (secguardian)**: 从 `audit-framework/rulepacks/secguardian/pack.json` 读取 `workflow_source`，加载 `skills/secaudit/workflow-secaudit/SKILL.md` 作为 17 阶段执行引擎。
+  - `pack.json.rules[].phase` 定义各 phase 的顺序
+  - 后处理（去重、评分、分类、修复路线图）由 workflow 定义
 - 根据 `index.json` 提供的符号表和调用图、`SKILL.md` 的审计规范以及 `../knowledge/guard-rules/` 中相关检测器的威胁定义进行深度推理审计。
+- **Custom rulepack**: 指定 `--rulepack <name>` 时，加载 `audit-framework/rulepacks/<name>/pack.json`，读取其 `workflow_source` 或执行 pack 内 `workflow.md`。
 
 ### Step 4: 输出结构化 findings（遵循 Findings Protocol v5.0）
 
 > **v6.0**: secaudit 命令同样适用三轮验证管道（`commands/secguard.md` Step 3.5）。`--no-verify` 跳过验证。
 > ⚠️ **v5.0 关键变更**: AI **不再输出单体 findings.json**。改为按 detector 分类，**每个 finding 输出一个独立文件**到 `findings/` 目录树下。最后输出轻量 `findings.json`（同名升级，不含四段式，仅元数据+索引）。渲染器通过 `--findings-dir` 聚合所有 finding 文件生成报告。**禁止直接写 report.md / results.sarif / 任何其他输出文件**。
 
-**4a. 按 detector 分组，以 finding ID 为文件名逐文件输出：**
+**4a. 按 detector 分组，以 SHA 前缀为文件名逐文件输出：**
+
+> **重要: detector 命名约定** — 每个 finding 的 `detector` 字段必须使用 `audit.{skill-name}` 格式，
+> 例如 `audit.attack-surface-analysis`、`audit.taint-analysis`、`audit.cryptography`。
+> 不得使用裸名 (如 `attack-surface-analysis`)，否则 SARIF 生成器会报 `IndexError`。
 
 每个 finding 写入独立文件，路径格式如 secguard Step 4a（见 `commands/secguard.md`），额外包含 `secaudit_specific` 字段：
 
@@ -236,8 +222,33 @@ PYEOF
 {
   "schema_version": "1.0",
   "finding": {
-    "id": "...",
-    "...": "...",
+    # no "id" field — identity is SHA-256(detector:file:line:cwe)
+    "severity": "Critical",
+    "cwe": "CWE-89",
+    "detector": "audit.taint-analysis",
+    "file": "src/webapp.py",
+    "line": 47,
+    "location": {
+      "file_path": "src/webapp.py",
+      "start_line": 47,
+      "end_line": 48,
+      "function_name": "get_user",
+      "snippet": "cursor.execute(f\"SELECT * FROM users WHERE id = {user_id}\")"
+    },
+    "evidence": {
+      "code_context": "cursor.execute(f\"...{user_id}...")",
+      "judgment_rationale": "用户输入直接拼接 SQL — 违反 OWASP Top 10 A03:2021",
+      "data_flow_path": "HTTP param → get_user() → f-string → cursor.execute"
+    },
+    "impact": {
+      "attack_scenario": "攻击者通过 SQL 注入窃取所有用户数据",
+      "cvss_score": 9.8
+    },
+    "fix": {
+      "description": "使用参数化查询替代 f-string",
+      "before_code": "cursor.execute(f\"SELECT * FROM users WHERE id = {user_id}\")",
+      "after_code": "cursor.execute(\"SELECT * FROM users WHERE id = ?\", (user_id,))"
+    },
     "secaudit_specific": {
       "skill_name": "taint-analysis",
       "skill_category": "analysis",
@@ -249,6 +260,8 @@ PYEOF
 ```
 
 关键要求（secaudit 独有）：
+- **必须包含** `file`、`line`、`location`、`evidence`、`impact`、`fix` 字段（与 secguard 格式一致）。
+  仅提供 `secaudit_specific` 会导致渲染器 `KeyError`。
 - `evidence.data_flow_path` 必须包含完整的 Source → Propagation → Sink 路径（至少 3 个步骤）
 - `secaudit_specific.skill_name` — 本次审计的 skill 名称
 - `secaudit_specific.analysis_paths` / `complete_chains` — 数据流分析统计

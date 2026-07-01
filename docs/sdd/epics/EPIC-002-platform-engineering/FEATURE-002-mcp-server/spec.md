@@ -7,8 +7,6 @@
 > **作者**: JonyAn + Claude Code
 > **评审**: ChatGPT (两轮架构评审)
 
-
-
 ## Architecture Vision
 
 **SecGuardian 的核心资产不是 MCP Server。不是 CLI。不是 Report Renderer。**

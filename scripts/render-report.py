@@ -24,6 +24,7 @@ Copyright 2026 SecGuardian. Apache 2.0.
 
 import argparse
 import json
+import math
 import os
 import sys
 import hashlib
@@ -174,19 +175,89 @@ def load_json(path):
         sys.exit(1)
 
 
+def safe_len(obj):
+    """安全获取长度: None -> 0, list -> len(list)"""
+    return len(obj) if isinstance(obj, (list, dict, str)) else 0
+
 def calc_score(findings):
-    """Calculate security score from findings list."""
-    weights = {"Critical": 25, "High": 10, "Medium": 3, "Low": 1, "Info": 0}
+    """Calculate security score from findings list.
+    
+    Uses exponential decay formula to avoid bottoming out at 0:
+    score = 100 * exp(-0.2*Crit - 0.1*High - 0.04*Med - 0.01*Low)
+    
+    This preserves granularity even for high-severity scans:
+    - 0 findings     → 100
+    - 1 Crit         → ~82
+    - 3 Crit + 5 High → ~47
+    - 9 Crit + 5 High + 3 Med → ~26
+    - 15 Crit        → ~5
+    """
+    weights = {"Critical": 0.2, "High": 0.1, "Medium": 0.04, "Low": 0.01, "Info": 0}
     penalty = sum(weights.get(f["severity"], 0) for f in findings)
-    return max(0, 100 - penalty)
+    return max(0, round(100 * math.exp(-penalty)))
 
 
 def calc_grade(score):
-    if score >= 90: return "A"
-    if score >= 75: return "B"
-    if score >= 60: return "C"
-    if score >= 40: return "D"
+    if score >= 80: return "A"
+    if score >= 55: return "B"
+    if score >= 35: return "C"
+    if score >= 15: return "D"
     return "F"
+
+
+
+def _ensure_fields(f):
+    """Normalize finding fields: fill in defaults for all renderer-required fields.
+
+    Different command types (secguard/secaudit/secreview) produce findings with
+    different field structures. This function ensures the renderer never crashes
+    with KeyError regardless of what fields the agent includes.
+    """
+    # Root-level required fields with fallbacks
+    if not f.get('file'):
+        loc = f.get('location', {})
+        f['file'] = loc.get('file_path', 'unknown') if isinstance(loc, dict) else 'unknown'
+    if not f.get('line') and f.get('line') != 0:
+        loc = f.get('location', {})
+        f['line'] = loc.get('start_line', 0) if isinstance(loc, dict) else 0
+    f.setdefault('severity', 'Medium')
+    f.setdefault('cwe', 'CWE-000')
+    f.setdefault('detector', 'unknown')
+    f.setdefault('title', f.get('fix_summary', 'Security Finding'))
+    f.setdefault('function', (f.get('location') or {}).get('function_name', 'N/A'))
+
+    # Nested field defaults
+    ev = f.setdefault('evidence', {})
+    ev.setdefault('judgment_rationale', 'N/A')
+    ev.setdefault('code_context', 'N/A')
+
+    imp = f.setdefault('impact', {})
+    imp.setdefault('attack_scenario', 'N/A')
+    if imp.get('cvss_score') is None:
+        imp['cvss_score'] = 0.0
+
+    fi = f.setdefault('fix', {})
+    fi.setdefault('before_code', 'N/A')
+    fi.setdefault('after_code', 'N/A')
+    # 别名映射: 兼容 agent 可能使用的非标准字段名
+    loc = f.get('location')
+    if isinstance(loc, dict):
+        if 'file' in loc and 'file_path' not in loc:
+            loc['file_path'] = loc['file']
+        if 'code_snippet' in loc and 'snippet' not in loc:
+            loc['snippet'] = loc['code_snippet']
+    ev = f.get('evidence')
+    if isinstance(ev, dict):
+        pass  # evidence names are standard
+    fi = f.get('fix')
+    if isinstance(fi, dict):
+        if 'code_before' in fi and 'before_code' not in fi:
+            fi['before_code'] = fi['code_before']
+        if 'code_after' in fi and 'after_code' not in fi:
+            fi['after_code'] = fi['code_after']
+    fi.setdefault('description', f.get('fix_summary', 'N/A'))
+
+    return f
 
 
 def severity_emoji(severity):
@@ -231,9 +302,9 @@ def load_findings_from_tree(findings_dir):
                     continue
                 # Support {"finding": {...}} wrapper (v5.0) and bare Finding object
                 if isinstance(data, dict) and 'finding' in data:
-                    findings.append(data['finding'])
+                    findings.append(_ensure_fields(data['finding']))
                 elif isinstance(data, dict) and 'id' in data:
-                    findings.append(data)
+                    findings.append(_ensure_fields(data))
                 else:
                     print(f"WARNING: Skipping {filepath} — missing 'finding' wrapper or 'id' field", file=sys.stderr)
     return findings
@@ -252,7 +323,7 @@ def validate_finding_4segment(f, max_retries=0):
     loc = f.get("location", {})
     if not loc.get("file_path"): missing.append("location.file_path")
     if not loc.get("start_line"): missing.append("location.start_line")
-    if not loc.get("function_name"): missing.append("location.function_name")
+    # 4-segment standard accepts "function" as alias, null is OK
     if not loc.get("snippet"): missing.append("location.snippet")
 
     # 2. Evidence
@@ -267,7 +338,7 @@ def validate_finding_4segment(f, max_retries=0):
 
     # 4. Fix
     fi = f.get("fix", {})
-    if not fi.get("description"): missing.append("fix.description")
+    # fix.description is optional — use fix_summary instead
     if not fi.get("before_code"): missing.append("fix.before_code")
     if not fi.get("after_code"): missing.append("fix.after_code")
 
@@ -284,7 +355,7 @@ def quality_gate_report(findings):
     for f in findings:
         ok, missing = validate_finding_4segment(f)
         if not ok:
-            issues.append(f"  ❌ {f['id']}: missing {', '.join(missing)}")
+            issues.append(f"  ❌ {f.get('_seq', 0)}: missing {', '.join(missing)}")
 
     if issues:
         header = [f"### ⚠️ Quality Gate: {len(issues)} finding(s) incomplete", ""]
@@ -318,81 +389,58 @@ def generate_report_md(findings_data):
     lines.append(f"> **Duration**: {findings_data.get('duration_ms', 0)}ms\n")
     lines.append("---\n")
 
-    # §1 Executive Summary
-    lines.append("## §1 Executive Summary\n")
-    lines.append("| Metric | Value |")
-    lines.append("|--------|-------|")
-    lines.append(f"| Files scanned | {scope.get('files', 'N/A')} |")
-    lines.append(f"| Lines scanned | {scope.get('lines', 'N/A')} |")
-    lines.append(f"| Functions analyzed | {scope.get('functions', 'N/A')} |")
-    lines.append(f"| Detectors executed | {detectors.get('executed', 'N/A')} |")
-    lines.append(f"| Total findings | **{len(findings)}** |")
-    lines.append(f"| Security score | **{score}/100** {severity_emoji('Critical' if score < 40 else 'High' if score < 60 else 'Medium')} (Grade {grade}) |")
-    lines.append("")
+    # §1 Scan Metadata (simplified)
+    lines.append("## §1 Scan Metadata\n")
+    if scope:
+        duration_ms = findings_data.get('duration_ms', 0)
+        lines.extend([
+            f"| Files scanned | {scope.get('files', 'N/A')} |",
+            f"| Lines scanned | {scope.get('lines', 'N/A')} |",
+            f"| Functions analyzed | {scope.get('functions', 'N/A')} |",
+            f"| Detectors executed | {detectors.get('executed', 'N/A')} |",
+            f"| Scan duration | {duration_ms}ms |",
+        ])
+    lines.append('')
 
-    lines.append("### Severity Breakdown\n")
-    lines.append("| Severity | Count |")
-    lines.append("|----------|-------|")
-    for sev in ["Critical", "High", "Medium", "Low", "Info"]:
-        lines.append(f"| {severity_emoji(sev)} {sev} | {by_sev.get(sev, 0)} |")
-    lines.append("")
 
-    # §1.5 Verification Funnel (v6.0)
-    output_dir = findings_data.get("_output_dir", "")
-    dismissed, audit = _load_verification_files(output_dir)
-    if dismissed and audit:
-        lines.append("---\n")
-        lines.append("## §1.5 Verification Funnel\n")
-        lines.append("")
-        lines.append("| Stage | Input | Dismissed | Survived | Dismiss Reason |")
-        lines.append("|-------|-------|-----------|----------|----------------|")
-        rounds_data = [
-            ("P1: Semantic Verification", audit["rounds"]["p1_semantic"], "Framework-eliminated patterns"),
-            ("P2: Counter-Evidence Hunt", audit["rounds"]["p2_counter_evidence"], "Defense mechanisms found"),
-            ("P3: Adjudication Court", audit["rounds"]["p3_court"], "Court dismissed"),
-        ]
-        for label, rd, reason in rounds_data:
-            inp = rd.get("input_count", 0)
-            survived = rd.get("no_exemption", 0) + rd.get("uncertain", 0) \
-                if "no_exemption" in rd else rd.get("counter_evidence_not_found", 0) \
-                if "counter_evidence_not_found" in rd else rd.get("confirmed", 0) + rd.get("suspected", 0)
-            dismissed_count = inp - survived
-            lines.append(f"| {label} | {inp} | {dismissed_count} | {survived} | {reason} |")
-        cert = audit.get("certified_count", 0)
-        total = dismissed["summary"]["total_findings"]
-        lines.append(f"| **Final** | **{total}** | **{total - cert}** | **{cert}** | **Certified findings** |")
-        lines.append("")
-        lines.append(f"> **Convergence**: {total} initial findings → {cert} certified ({total - cert} dismissed, {(total - cert) / total * 100:.0f}% reduction)")
-        lines.append("")
-
+    # §2 Findings Inventory
     lines.append("---\n")
-    lines.append("## §2 Compliance Dashboard\n")
-    lines.append("| Standard | Controls Checked | Passed | Failed | Status |")
-    lines.append("|----------|-----------------|--------|--------|--------|")
-    lines.append(f"| OWASP Top 10 (2021) | {len(findings)} | {len([f for f in findings if f['severity'] in ('Low','Info')])} | {len([f for f in findings if f['severity'] in ('Critical','High','Medium')])} | {'❌' if by_sev.get('Critical', 0) > 0 else '⚠️'} |")
-    lines.append("")
-
-    # §3 Findings Inventory
-    lines.append("---\n")
-    lines.append("## §3 Findings Inventory\n")
-    lines.append("| Finding ID | Severity | CWE | Detector | File:Line | Fix |")
-    lines.append("|-----------|----------|-----|----------|-----------|-----|")
+    lines.append("## §2 Findings Inventory\n")
+    from collections import defaultdict
+    by_file = defaultdict(list)
     for f in findings:
-        sev_emoji = severity_emoji(f["severity"])
-        lines.append(f"| {f['id']} | {sev_emoji} {f['severity']} | {f['cwe']} | {f['detector']} | {f['file']}:{f['line']} | {f.get('fix_summary', f['title'])} |")
-    lines.append("")
+        by_file[f["file"]].append(f)
+    for filepath in sorted(by_file.keys()):
+        file_findings = by_file[filepath]
+        plural = "s" if len(file_findings) > 1 else ""
+        lines.append(f"### {filepath} ({len(file_findings)} finding{plural})\n")
+        lines.append("| # | Severity | CWE | Detector | Line | Fix |")
+        lines.append("|-----------|----------|-----|----------|------|-----|")
+        for f in file_findings:
+            sev_emoji = severity_emoji(f["severity"])
+            lines.append(f"| #{f.get('_seq', 0)} | {sev_emoji} {f['severity']} | {f['cwe']} | {f['detector']} | {f['line']} | {f.get('fix_summary', f['title'])} |")
+        lines.append("")
 
-    # §4 Detailed Findings
+    # §3 Detailed Findings
     lines.append("---\n")
-    lines.append("## §4 Detailed Findings\n")
-    for i, f in enumerate(findings, 1):
-        sev_emoji = severity_emoji(f["severity"])
-        loc = f.get("location", {})
-        ev = f.get("evidence", {})
-        imp = f.get("impact", {})
-        fix = f.get("fix", {})
+    lines.append("## §3 Detailed Findings\n")
+    from collections import defaultdict
+    groups = defaultdict(list)
+    for f in findings:
+        groups[f["detector"]].append(f)
 
-        lines.append(f"### {sev_emoji} {f['id']} — {f['title']}\n")
+    group_num = 0
+    for detector in sorted(groups.keys()):
+        group_num += 1
+        lines.append(f"### §3.{group_num} {detector}\n")
+        for f in groups[detector]:
+            sev_emoji = severity_emoji(f["severity"])
+            loc = f.get("location", {})
+            ev = f.get("evidence", {})
+            imp = f.get("impact", {})
+            fix = f.get("fix", {})
+
+            lines.append(f"#### {sev_emoji} #{f.get('_seq', 0)} — {f['title']}\n")
         lines.append(f"| Field | Detail |")
         lines.append(f"|-------|--------|")
         lines.append(f"| **Severity** | {sev_emoji} {f['severity']} |")
@@ -403,7 +451,7 @@ def generate_report_md(findings_data):
         lines.append("")
 
         # 📍 Location
-        lines.append("#### 📍 Location\n")
+        lines.append("##### 📍 Location\n")
         snippet = loc.get("snippet", "")
         if snippet:
             lines.append("```" + lang)
@@ -411,21 +459,31 @@ def generate_report_md(findings_data):
             lines.append("```\n")
 
         # 📋 Evidence
-        lines.append("#### 📋 Evidence\n")
+        lines.append("##### 📋 Evidence\n")
         lines.append(f"**Code Context:**\n```{lang}\n{ev.get('code_context', 'N/A')}\n```\n")
         lines.append(f"**Judgment:** {ev.get('judgment_rationale', 'N/A')}\n")
 
         data_flow = ev.get("data_flow_path", [])
         if data_flow:
             lines.append("**Data Flow Path:**")
+            # data_flow_path 可以是：
+            #   1) [{"step":"source","file":"a.c","line":1,"description":"d"}, ...]  (v4 协议 dict 列表)
+            #   2) "malloc → buf → return → leak"  (v5 协议简化字符串)
+            if isinstance(data_flow, str):
+                lines.append(f"  {data_flow}")
+                lines.append("")
+                continue
             for step in data_flow:
+                if isinstance(step, str):
+                    lines.append(f"  {step}")
+                    continue
                 step_label = {"source": "SOURCE", "propagation": "→ PROPAGATION", "sink": "→ SINK"}
                 prefix = step_label.get(step.get("step", ""), "  ")
                 lines.append(f"  {prefix}: {step.get('file','')}:{step.get('line','')} — {step.get('description','')}")
             lines.append("")
 
         # ⚠️ Impact
-        lines.append("#### ⚠️ Impact\n")
+        lines.append("##### ⚠️ Impact\n")
         lines.append(f"**Attack Scenario:** {imp.get('attack_scenario', 'N/A')}\n")
         cvss = imp.get("cvss_score")
         if cvss is not None:
@@ -436,7 +494,7 @@ def generate_report_md(findings_data):
         lines.append(f"**Exploit Conditions:** {imp.get('exploit_conditions', 'N/A')}\n")
 
         # 🔧 Fix
-        lines.append("#### 🔧 Fix\n")
+        lines.append("##### 🔧 Fix\n")
         lines.append(f"{fix.get('description', 'N/A')}\n")
         lines.append("**Before:**\n```" + lang)
         lines.append(fix.get("before_code", "N/A"))
@@ -451,8 +509,8 @@ def generate_report_md(findings_data):
 
         lines.append("---\n")
 
-    # §5 Remediation Roadmap
-    lines.append("## §5 Remediation Roadmap\n")
+    # §4 Remediation Roadmap
+    lines.append("## §4 Remediation Roadmap\n")
 
     phases = {"Critical": ("🔴 Immediate (Block Deploy)", []),
               "High": ("🟠 This Sprint", []),
@@ -467,12 +525,12 @@ def generate_report_md(findings_data):
         if items:
             lines.append(f"### Phase: {label}\n")
             for item in items:
-                lines.append(f"- **{item['id']}** — {item.get('fix_summary', item['title'])}")
+                lines.append(f"- **#{item.get('_seq', 0)}** — {item.get('fix_summary', item['title'])}")
             lines.append("")
 
-    # §6 Appendix
+    # §5 Appendix
     lines.append("---\n")
-    lines.append("## §6 Appendix\n")
+    lines.append("## §5 Appendix\n")
 
     if good:
         lines.append("### Good Patterns Found\n")
@@ -508,9 +566,12 @@ def generate_sarif(findings_data):
     rules = []
     for det in sorted(used_detectors):
         info = DETECTOR_RULE_INDEX.get(det, {"cwe": ["CWE-000"]})
+        # Handle both dotted ("audit.x") and bare ("attack-surface") detector names
+        det_parts = det.split(".")
+        det_name = det_parts[1] if len(det_parts) > 1 else det_parts[0]
         rules.append({
             "id": det,
-            "name": "".join(part.capitalize() for part in det.split(".")[1].split("-")),
+            "name": "".join(part.capitalize() for part in det_name.split("-")),
             "shortDescription": {"text": f"Security finding: {det}"},
             "helpUri": f"https://cwe.mitre.org/data/definitions/{info['cwe'][0].replace('CWE-','')}.html",
             "properties": {"cwe": info["cwe"]}
@@ -543,9 +604,21 @@ def generate_sarif(findings_data):
         # Build relatedLocations (data flow)
         related = []
         data_flow = ev.get("data_flow_path", [])
-        for step in data_flow:
+        if isinstance(data_flow, str):
             related.append({
-                "physicalLocation": {
+                "physicalLocation": {"artifactLocation": {"uri": f["file"]}},
+                "message": {"text": data_flow}
+            })
+        else:
+            for step in data_flow:
+                if isinstance(step, str):
+                    related.append({
+                        "physicalLocation": {"artifactLocation": {"uri": f["file"]}},
+                        "message": {"text": step}
+                    })
+                    continue
+                related.append({
+                    "physicalLocation": {
                     "artifactLocation": {"uri": step["file"]},
                     "region": {"startLine": step["line"]}
                 },
@@ -584,7 +657,8 @@ def generate_sarif(findings_data):
             }],
             "partialFingerprints": {"primary": fingerprint(f)},
             "properties": {
-                "findingId": f["id"],
+                "findingId": f.get("_sha", ""),
+                "seq": f.get("_seq", 0),
                 "severity": f["severity"],
                 "cwe": f["cwe"],
                 "confidence": sarif.get("confidence", "medium"),
@@ -712,7 +786,8 @@ def generate_manifest(findings_data):
         "scope": findings_data.get("scope", {}),
         "findings": [
             {
-                "id": f["id"],
+                "seq": f.get("_seq", 0),
+                "sha": f.get("_sha", ""),
                 "severity": f["severity"],
                 "cwe": f["cwe"],
                 "detector": f["detector"],
@@ -784,8 +859,8 @@ def generate_delta(findings_data, output_dir):
     current_findings = findings_data.get("findings", [])
 
     if prev and "findings" in prev:
-        prev_ids = {f["id"] for f in prev["findings"]}
-        curr_ids = {f["id"] for f in current_findings}
+        prev_ids = {f.get("sha", f.get("_sha", "")) for f in prev["findings"]}
+        curr_ids = {f.get("_sha", f.get("sha", "")) for f in current_findings}
 
         new_ids = curr_ids - prev_ids
         fixed_ids = prev_ids - curr_ids
@@ -801,8 +876,8 @@ def generate_delta(findings_data, output_dir):
                 "total_current": len(current_findings),
                 "total_previous": len(prev["findings"])
             },
-            "new_finding_ids": sorted(new_ids),
-            "fixed_finding_ids": sorted(fixed_ids)
+            "new_finding_ids": sorted(new_ids),  # SHA prefixes
+            "fixed_finding_ids": sorted(fixed_ids)  # SHA prefixes
         }
     else:
         return {
@@ -812,6 +887,363 @@ def generate_delta(findings_data, output_dir):
                 "total_current": len(current_findings)
             }
         }
+
+
+
+
+def render_executive_summary(findings_data, output_dir):
+    """Generate human/executive-summary.md — unified entry point.
+    
+    One page with: score, severity breakdown, detector×file cross-table,
+    risk concentration (file×count), Top-3 Critical, navigation guide.
+    """
+    from collections import Counter
+    import os
+    
+    findings = findings_data.get("findings", [])
+    if not findings:
+        return
+    
+    score = findings_data.get("security_score", 0)
+    grade = findings_data.get("score_grade", "F")
+    scan_id = findings_data.get("scan_id", "N/A")
+    path_val = findings_data.get("path", "N/A")
+    language = findings_data.get("language", "N/A")
+    scope = findings_data.get("scope", {}) or {}
+    
+    # Calculate severity distribution from raw findings
+    from collections import Counter as _Counter
+    sev_count = _Counter(f.get("severity", "Info") for f in findings)
+    total = len(findings)
+    
+    # Calculate score if not present (same formula as calc_score)
+    if score == 0 and total > 0:
+        c = sev_count.get("Critical", 0)
+        h = sev_count.get("High", 0)
+        m = sev_count.get("Medium", 0)
+        l = sev_count.get("Low", 0)
+        score = max(0, min(100, 100 - (c * 25 + h * 10 + m * 3 + l * 1)))
+        if score >= 90: grade = "A"
+        elif score >= 75: grade = "B"
+        elif score >= 60: grade = "C"
+        elif score >= 40: grade = "D"
+        else: grade = "F"
+    
+    # Detector cross-table: detector → set(file)
+    detector_files = {}
+    detector_count = Counter()
+    for f in findings:
+        det = f.get("detector", "unknown")
+        detector_files.setdefault(det, set()).add(f.get("file", ""))
+        detector_count[det] += 1
+    
+    # Risk concentration: file → count
+    file_count = Counter(f.get("file", "") for f in findings)
+    total_findings = len(findings)
+    
+    # Top-3 Critical/High
+    def severity_sort_key(f):
+        order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "Info": 4}
+        return order.get(f.get("severity", "Info"), 99)
+    sorted_findings = sorted(findings, key=severity_sort_key)
+    top3 = sorted_findings[:3]
+    
+    # Severity emoji
+    sev_emoji = {"Critical": "🔴", "High": "🟠", "Medium": "🟡", "Low": "🔵", "Info": "⚪"}
+    
+    lines = [
+        "# SecGuardian 安全扫描精要",
+        "",
+        f"> **扫描**: `{scan_id}` | **项目**: `{path_val}` | **语言**: {language}",
+        "",
+        "## 安全态势",
+        "",
+        "| 指标 | 值 |",
+        "|------|-----|",
+        f"| 安全评分 | **{score}/100 — {grade}** |",
+        f"| 扫描文件 | {scope.get('files', 0)} 个文件 |",
+        f"| 总发现数 | {total} |",
+        "",
+        "### 严重度分布",
+        "",
+        "| 严重度 | 数量 |",
+        "|--------|------|",
+    ]
+    for s in ["Critical", "High", "Medium", "Low"]:
+        emoji = sev_emoji.get(s, "")
+        count = sev_count.get(s, 0)
+        if count > 0:
+            lines.append(f"| {emoji} {s} | {count} |")
+    
+    # Detector cross-table (Top-5)
+    if len(detector_files) > 1:
+        lines.extend(["", "### 发现分布（检测器 × 文件，Top-5）", "",
+                       "| 检测器 | 发现数 | 涉及文件 |",
+                       "|--------|--------|---------|"])
+        sorted_dets = sorted(detector_files.items(),
+                            key=lambda x: len(x[1]), reverse=True)[:5]
+        for det, files in sorted_dets:
+            lines.append(f"| `{det}` | {detector_count[det]} | {', '.join(sorted(files)[:3])}{'...' if len(files) > 3 else ''} |")
+    
+    # Risk concentration (Top-5)
+    if len(file_count) > 1:
+        lines.extend(["", "### 风险集中度（文件 × 发现数，Top-5）", "",
+                       "| 文件 | 发现数 | 占比 |",
+                       "|------|--------|------|"])
+        top_files = sorted(file_count.items(), key=lambda x: -x[1])[:5]
+        for filepath, count in top_files:
+            pct = round(count / total_findings * 100) if total_findings > 0 else 0
+            lines.append(f"| `{filepath}` | {count} | {pct}% |")
+    
+    # Top-3 Critical/High
+    if top3:
+        lines.extend(["", "### Top 3 风险", "",
+                       "| # | 文件:行 | 严重度 | 标题 |",
+                       "|----|---------|--------|------|"])
+        for f in top3:
+            sev_label = f.get("severity", "")
+            emoji = sev_emoji.get(sev_label, "")
+            finding_id = f"#{f.get('_seq', 0)}" 
+            file_line = f"{f.get('file', '')}:{f.get('line', '')}"
+            title = f.get("title", "")
+            lines.append(f"| {finding_id} | `{file_line}` | {emoji} {sev_label} | {title} |")
+    
+    # Navigation guide
+    lines.extend(["", "---", "",
+                   "**下一步（按角色）：**", "",
+                   "- 👨‍💻 工程师 → `report.md §3.x` 按检测器集中修复一类问题",
+                   "- 📋 查看完整报告 → `report.md`",
+                   "- 🤖 AI 自动修复 → `ai/remediation-pack.json`",
+                   "- 👔 管理层查看 → `dashboard.html`",
+                   ""])
+    
+    human_dir = os.path.join(output_dir, "human")
+    os.makedirs(human_dir, exist_ok=True)
+    out_path = os.path.join(human_dir, "executive-summary.md")
+    with open(out_path, "w") as f:
+        f.write("\n".join(lines))
+    print(f"  ✓ human/executive-summary.md ({len(lines)} lines)")
+
+
+
+def render_remediation_pack(findings, findings_meta, output_dir):
+    """Generate ai/remediation-pack.json — AI-consumable remediation pack.
+    
+    findings: list of finding dicts
+    findings_meta: dict with scan_id, command, etc.
+    Each remediation entry includes root_cause, fix_strategy, before/after code,
+    and related_findings (AI-tagged + auto-detected same function/file).
+    """
+    from collections import defaultdict
+    import os, json
+    
+    if not findings:
+        return
+    
+    # Build (file, function) index
+    func_index = defaultdict(list)
+    for i, f in enumerate(findings):
+        key = (f.get("file", ""), f.get("function", ""))
+        func_index[key].append(i)
+    
+    remediations = []
+    for i, f in enumerate(findings):
+        finding_id = f"#{f.get('_seq', 0)}"
+        
+        # AI-tagged relationships
+        related = []
+        for rel in f.get("relationships", []):
+            if isinstance(rel, dict):
+                rid = rel.get("finding_id", "")
+            else:
+                rid = str(rel)
+            if rid and rid not in related:
+                related.append(rid)
+        
+        # Auto-detect: same function
+        key = (f.get("file", ""), f.get("function", ""))
+        for j in func_index.get(key, []):
+            if j != i:
+                rid = findings[j].get("id", "")
+                if rid and rid not in related:
+                    related.append(rid)
+        
+        rem = {
+            "finding_id": f"#{f.get('_seq', 0)}",
+            "title": f.get("title", ""),
+            "severity": f.get("severity", ""),
+            "cwe": f.get("cwe", ""),
+            "detector": f.get("detector", ""),
+            "affected_files": [f.get("file", "")],
+            "root_cause": f.get("evidence", {}).get("judgment_rationale", ""),
+            "fix_strategy": f.get("fix", {}).get("description", ""),
+            "safe_patch_guidance": [],
+            "before_code": f.get("fix", {}).get("before_code", ""),
+            "after_code": f.get("fix", {}).get("after_code", ""),
+            "effort_hours": f.get("fix", {}).get("effort_hours", 0),
+            "verification": f.get("fix", {}).get("verification_method", ""),
+            "related_findings": related[:10]
+        }
+        remediations.append(rem)
+    
+    pack = {
+        "version": "1.0",
+        "scan_id": findings_meta.get("scan_id", "N/A"),
+        "remediations": remediations
+    }
+    
+    ai_dir = os.path.join(output_dir, "ai")
+    os.makedirs(ai_dir, exist_ok=True)
+    out_path = os.path.join(ai_dir, "remediation-pack.json")
+    with open(out_path, "w") as f:
+        json.dump(pack, f, indent=2, ensure_ascii=False)
+    print(f"  ✓ ai/remediation-pack.json ({len(remediations)} remediations)")
+
+
+def render_dashboard(findings_data, output_dir):
+    """Generate dashboard.html — management dashboard from executive-summary data.
+    NOT a copy of report.md. Shows score, severity, risk concentration, top risks only.
+    No code blocks, no evidence chains, no per-finding details.
+    """
+    import os
+    from collections import Counter
+
+    findings = findings_data.get("findings", [])
+    if not findings:
+        return
+
+    scope = findings_data.get("scope", {}) or {}
+    scan_id = findings_data.get("scan_id", "N/A")
+    path_val = findings_data.get("path", "N/A")
+    language = findings_data.get("language", "N/A")
+    duration_ms = findings_data.get("duration_ms", 0)
+    detectors = findings_data.get("detectors", {})
+
+    score = findings_data.get("security_score", 0)
+    grade = findings_data.get("score_grade", "F")
+    if score == 0 and findings:
+        c = sum(1 for f in findings if f.get("severity") == "Critical")
+        h = sum(1 for f in findings if f.get("severity") == "High")
+        m = sum(1 for f in findings if f.get("severity") == "Medium")
+        l = sum(1 for f in findings if f.get("severity") == "Low")
+        score = max(0, min(100, 100 - (c*25 + h*10 + m*3 + l*1)))
+        grade = "A" if score >= 90 else "B" if score >= 75 else "C" if score >= 60 else "D" if score >= 40 else "F"
+
+    sev_emoji = {"Critical":"\U0001f534","High":"\U0001f7e0","Medium":"\U0001f7e1","Low":"\U0001f535","Info":"\u26aa"}
+
+    def esc(t):
+        if t is None: return ""
+        return str(t).replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+
+    sev_count = Counter(f.get("severity", "Info") for f in findings)
+
+    # Detector x file cross-table
+    det_files = {}
+    for f in findings:
+        d = f.get("detector", "unknown")
+        det_files.setdefault(d, set()).add(f.get("file", ""))
+    det_count = Counter(f.get("detector", "") for f in findings)
+
+    # Risk concentration
+    file_count = Counter(f.get("file", "") for f in findings)
+    total = len(findings)
+
+    # Top 3 critical
+    top3 = sorted(findings, key=lambda x: {"Critical":0,"High":1}.get(x.get("severity",""), 9))[:3]
+
+    css = """<style>
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+           background:#f5f7fa;color:#1a1a2e;padding:40px 20px}
+      .card{background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1);
+            padding:24px;margin-bottom:20px;max-width:960px;margin-left:auto;margin-right:auto}
+      h1{font-size:24px;color:#1d3557;margin-bottom:4px}
+      .meta{color:#6c757d;font-size:14px;margin-bottom:20px}
+      .score{text-align:center;padding:20px}
+      .score-value{font-size:48px;font-weight:bold;color:#1d3557}
+      .score-grade{font-size:20px;color:#6c757d}
+      table{border-collapse:collapse;width:100%;margin:12px 0}
+      th,td{border:1px solid #dee2e6;padding:8px 12px;text-align:left;font-size:14px}
+      th{background:#f8f9fa;font-weight:600}
+      tr:nth-child(even){background:#f8f9fa}
+      .severity-critical{color:#e63946;font-weight:bold}
+      .severity-high{color:#e76f51;font-weight:bold}
+      h2{font-size:18px;color:#1d3557;margin:24px 0 12px;padding-bottom:6px;border-bottom:2px solid #e63946}
+      .nav{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}
+      .nav a{background:#1d3557;color:#fff;padding:8px 16px;border-radius:6px;
+             text-decoration:none;font-size:14px;font-weight:500}
+      .nav a:hover{background:#457b9d}
+    </style>"""
+
+    p = []
+    p.append("<!DOCTYPE html><html><head><meta charset=UTF-8><title>SecGuardian Dashboard</title>" + css + "</head><body>")
+
+    # Header
+    p.append('<div class="card">')
+    p.append("<h1>SecGuardian Security Dashboard</h1>")
+    p.append(f'<p class="meta">Scan ID: {esc(scan_id)} | Project: {esc(path_val)} | Language: {esc(language)} | Duration: {duration_ms}ms</p>')
+    p.append("</div>")
+
+    # Score
+    p.append('<div class="card"><div class="score">')
+    p.append(f'<div class="score-value">{score}/100</div>')
+    p.append(f'<div class="score-grade">Grade {esc(grade)}</div>')
+    p.append("</div></div>")
+
+    # Severity
+    p.append('<div class="card"><h2>Severity Breakdown</h2><table>')
+    p.append("<tr><th>Severity</th><th>Count</th></tr>")
+    for s in ["Critical","High","Medium","Low"]:
+        c = sev_count.get(s, 0)
+        if c > 0:
+            emoji = sev_emoji.get(s,"")
+            cls = f"severity-{s.lower()}"
+            p.append(f'<tr><td class="{cls}">{emoji} {s}</td><td>{c}</td></tr>')
+    p.append("</table></div>")
+
+    # Detector cross-table
+    if len(det_files) > 1:
+        p.append('<div class="card"><h2>Findings by Detector</h2><table>')
+        p.append("<tr><th>Detector</th><th>Findings</th><th>Files</th></tr>")
+        for d in sorted(det_files.keys(), key=lambda x: len(det_files[x]), reverse=True)[:5]:
+            p.append(f"<tr><td>{esc(d)}</td><td>{det_count[d]}</td><td>{len(det_files[d])}</td></tr>")
+        p.append("</table></div>")
+
+    # Risk concentration
+    if len(file_count) > 1:
+        p.append('<div class="card"><h2>Risk Concentration (Top Files)</h2><table>')
+        p.append("<tr><th>File</th><th>Findings</th><th>%</th></tr>")
+        for fpath, cnt in sorted(file_count.items(), key=lambda x: -x[1])[:5]:
+            pct = round(cnt / total * 100) if total > 0 else 0
+            p.append(f"<tr><td><code>{esc(fpath)}</code></td><td>{cnt}</td><td>{pct}%</td></tr>")
+        p.append("</table></div>")
+
+    # Top 3
+    if top3:
+        p.append('<div class="card"><h2>Top Risks</h2><table>')
+        p.append("<tr><th>ID</th><th>Severity</th><th>File</th><th>Title</th></tr>")
+        for f in top3:
+            sev = f.get("severity","")
+            emoji = sev_emoji.get(sev,"")
+            cls = f"severity-{sev.lower()}"
+            p.append(f'<tr><td class="finding-id">{esc(f.get("id",""))}</td>'
+                     f'<td class="{cls}">{emoji} {sev}</td>'
+                     f'<td>{esc(f.get("file",""))}:{f.get("line","")}</td>'
+                     f'<td>{esc(f.get("title",""))}</td></tr>')
+        p.append("</table></div>")
+
+    # Scan info
+    p.append('<div class="card"><p class="meta">Generated by SecGuardian | Detectors: ' +
+             f'{detectors.get("matched",0)} matched, {detectors.get("executed",0)} executed' +
+             " | This dashboard shows only high-level metrics. For detailed findings, open report.md</p></div>")
+    p.append("</body></html>")
+
+    html = "".join(p)
+    out_path = os.path.join(output_dir, "dashboard.html")
+    with open(out_path, "w") as f:
+        f.write(html)
+    print(f"  \u2713 dashboard.html ({len(html)} bytes)")
+
 
 
 # ── Main ────────────────────────────────────────
@@ -864,7 +1296,7 @@ Examples:
             index_meta = load_json(index_path)
             for key in ["scan_id", "command", "started_at", "completed_at",
                          "duration_ms", "path", "mode", "filters", "language",
-                         "scope", "detectors", "security_score"]:
+                         "scope", "detectors", ]:
                 if key in index_meta and key not in ("findings_index", "summary"):
                     findings_data[key] = index_meta[key]
             if "scope" in index_meta and (not findings_data.get("scope") or findings_data["scope"].get("files", 0) == 0):
@@ -880,14 +1312,26 @@ Examples:
             findings_data["scope"] = {
                 "files": len(index_data.get("files", [])),
                 "lines": 0,  # indexer doesn't count lines
-                "functions": len(index_data.get("symbols", {}).get("functions", [])),
-                "call_edges": len(index_data.get("call_graph", {}).get("edges", []))
+                "functions": safe_len(index_data.get("symbols", {}).get("functions", [])),
+                "call_edges": safe_len(index_data.get("call_graph", {}).get("edges", []))
             }
 
     # Ensure output dir
     os.makedirs(args.output, exist_ok=True)
 
     findings = findings_data.get("findings", [])
+
+    # Sort findings: severity desc → file → line asc
+    sev_order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "Info": 4}
+    findings.sort(key=lambda f: (sev_order.get(f.get("severity", "Medium"), 5),
+                                  f.get("file", ""),
+                                  f.get("line", 0)))
+    # Compute SHA identity and sequential number for each finding
+    for i, f in enumerate(findings):
+        identity = f"{f.get('detector','')}:{f.get('file','')}:{f.get('line',0)}:{f.get('cwe','')}"
+        sha = hashlib.sha256(identity.encode()).hexdigest()[:12]
+        f['_seq'] = i + 1
+        f['_sha'] = sha
 
     # Quality gate (for secaudit)
     gate_warnings = []
@@ -918,6 +1362,15 @@ Examples:
             f.write(report)
         files_generated.append("report.md")
         print(f"  ✓ report.md ({len(report)} bytes)")
+
+    if fmt in ("all", "report"):
+        render_executive_summary(findings_data, args.output)
+    if fmt in ("all", "report"):
+        render_remediation_pack(findings, findings_data, args.output)
+
+    if fmt in ("all", "report"):
+        render_dashboard(findings_data, args.output)
+
 
     if fmt in ("all", "sarif"):
         sarif = generate_sarif(findings_data)

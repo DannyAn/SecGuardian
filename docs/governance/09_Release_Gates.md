@@ -1,6 +1,6 @@
 # 09 — 发布门禁 (Release Gates)
 
-> **对应 Sheet:** `09_Release_Gates`  
+> **对应 Sheet:** `09_Release_Gates`
 > **牵引方向:** SecGuardian 发布流水线安全门禁体系——确保安全扫描结果在软件发布前自动卡点。
 
 ---
@@ -168,5 +168,5 @@ Deploy
 
 ---
 
-> **本文档指引 SecGuardian 构建完整的 CI/CD 安全门禁体系。**  
+> **本文档指引 SecGuardian 构建完整的 CI/CD 安全门禁体系。**
 > 与 [10_Vuln_SLA](10_Vuln_SLA.md) 的漏洞 SLA 管理形成"发现→修复→发布"闭环。
