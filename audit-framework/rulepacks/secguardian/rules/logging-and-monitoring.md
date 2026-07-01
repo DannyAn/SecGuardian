@@ -98,11 +98,11 @@ log.info("User login: username={}", sanitize(username));
 @app.middleware
 async def log_requests(request):
     logger.info(f"Request: {await request.body()}")  # 包含 password!
-    
+
 # GOOD: 选择性记录，过滤敏感字段
 @app.middleware
 async def log_requests(request):
-    safe_body = {k: v for k, v in body.items() 
+    safe_body = {k: v for k, v in body.items()
                  if k not in ['password', 'token', 'secret']}
     logger.info(f"Request: {safe_body}")
 ```

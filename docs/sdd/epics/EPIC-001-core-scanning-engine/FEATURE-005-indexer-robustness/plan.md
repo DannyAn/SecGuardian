@@ -57,7 +57,7 @@ graph LR
     T1[TASK-001: index.json 聚合字段] --> T3[TASK-003: 路径排除]
     T2[TASK-002: JS bundle 限制] --> T3
     T3 --> T4[TASK-004: --lang 传参]
-    
+
     style T1 fill:#d4edda
     style T2 fill:#d4edda
     style T3 fill:#d4edda

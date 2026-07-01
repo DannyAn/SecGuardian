@@ -302,7 +302,6 @@ bash scripts/e2e-verify.sh --quick  # 跳过第 9 节 (多语言索引)，快速
 | 10 | 渲染器性能 | < 5s 完成 1 个 finding 的渲染 | 性能退化 |
 | 11 | L5 构建→包→执行 | package.sh 编译 + dist 结构 + indexer 扫描 | 构建/部署管线损坏 |
 
-
 ## 版本发布流程
 
 > **每次发布版本必须按以下步骤执行**，缺一不可。AI Agent 执行时自动按步骤执行。

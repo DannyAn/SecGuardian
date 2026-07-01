@@ -1,6 +1,6 @@
 # 10 — 漏洞 SLA 管理 (Vulnerability SLA Management)
 
-> **对应 Sheet:** `10_Vuln_SLA`  
+> **对应 Sheet:** `10_Vuln_SLA`
 > **牵引方向:** SecGuardian 漏洞生命周期管理——从发现、评估、修复到验证的全流程 SLA 管控。
 
 ---
@@ -230,5 +230,5 @@ notifications:
 
 ---
 
-> **本文档指引 SecGuardian 构建漏洞 SLA 管理能力。**  
+> **本文档指引 SecGuardian 构建漏洞 SLA 管理能力。**
 > 与 [09_Release_Gates](09_Release_Gates.md) 的发布门禁形成"发现 → 修复 → 发布"完整闭环。

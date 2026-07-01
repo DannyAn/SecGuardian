@@ -1,6 +1,6 @@
 # 11 — 隐私与合规 (Privacy & Compliance)
 
-> **对应 Sheet:** `11_Privacy_Compliance`  
+> **对应 Sheet:** `11_Privacy_Compliance`
 > **牵引方向:** SecGuardian 隐私合规检测能力——覆盖 PII 识别、数据留存、用户同意和跨境数据传输。
 
 ---
@@ -183,5 +183,5 @@ secaudit (扩展后)
 
 ---
 
-> **本文档指引 SecGuardian 在隐私合规方向的能力建设。**  
+> **本文档指引 SecGuardian 在隐私合规方向的能力建设。**
 > 与 [12_Security_KPI](12_Security_KPI.md) 中的合规 KPI 指标联动，为组织提供可量化的合规度量。

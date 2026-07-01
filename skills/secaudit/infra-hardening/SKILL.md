@@ -153,7 +153,7 @@ spec:
 - [C-01] 5个服务以 root 运行 → runAsNonRoot: true
 - [H-01] 3个服务使用 latest 标签 → 固定版本+摘要
 
-### K8s 安全: 5 发现  
+### K8s 安全: 5 发现
 - [C-01] default ServiceAccount 挂载到所有 Pod
 - [H-01] 无 NetworkPolicy，Pod 间全通
 

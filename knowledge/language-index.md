@@ -59,4 +59,3 @@ guard-rules/system-secrets-detection, audit-rules/attack-surface-analysis, audit
 audit-rules/data-flow-analysis, audit-rules/data-protection, audit-rules/dependency-security, audit-rules/http-security-headers, audit-rules/infra-hardening
 audit-rules/input-validation, audit-rules/logging-and-monitoring, audit-rules/output-encoding, audit-rules/secrets-management, audit-rules/secure-transport
 audit-rules/state-machine-analysis, audit-rules/taint-analysis, audit-rules/trust-boundary-analysis, review-rules/javascript
-

@@ -300,7 +300,6 @@ review-rules/ 的消费方式：AI 按语言加载一个语言文件，逐条对
 | Q2 | `language-index.md` 是否应该 git 跟踪？还是 build artifact？ | 开发工作流 |
 | Q3 | secguard 的 git-diff 增量模式参数如何对齐新的 `<path> <language>` 格式？ | 接口设计 |
 
-
 ## 2026-06-17 — 五轮→三轮设计修正（端到端数据反推）
 
 ### 背景
@@ -749,8 +748,6 @@ Secreview 5 个 skill 从 ~45 行扩展到 ~100 行，增加结构化 Phase 1-5 
 
 ## 2026-06-21 — Code Health & Hygiene — 首次 Codex 审计修复
 
-
-
 ---
 
 ## 2026-06-30 — 战略定位升级 + /secfix 第四门
@@ -859,4 +856,3 @@ ChatGPT 指出核心风险：**"AI 比传统 SAST 更聪明"这个卖点的生�
 - [ ] /secaudit 命令重构（等用户提供新设计方案）
 - [ ] /secfix MVP 实现（消费 findings/ 目录 → 生成 patch files）
 - [ ] README 中补全 /secfix 的四门图已在本日完成
-

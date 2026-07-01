@@ -1,6 +1,6 @@
 # 03 — 架构安全评审 (Architecture Security Review)
 
-> **对应 Sheet:** `03_Architecture_Review`  
+> **对应 Sheet:** `03_Architecture_Review`
 > **牵引方向:** SecGuardian 架构安全评审能力——在应用上线前识别设计缺陷，提供架构层面的安全评估。
 
 ---
@@ -176,5 +176,5 @@
 
 ---
 
-> **本文档指引 SecGuardian 从代码级安全扩展到架构设计级安全评审。**  
+> **本文档指引 SecGuardian 从代码级安全扩展到架构设计级安全评审。**
 > 与 [04_Threat_Modeling](04_Threat_Modeling.md) 的 STRIDE 方法论联动。

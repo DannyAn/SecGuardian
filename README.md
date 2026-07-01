@@ -16,7 +16,6 @@ Instead of acting as another vulnerability scanner, SecGuardian integrates AI re
 
                 Secure SDLC — Four Gates
 
-
         Coding
            |
            v
@@ -49,21 +48,21 @@ Instead of acting as another vulnerability scanner, SecGuardian integrates AI re
 ## Why SecGuardian?
 
 AI reasoning is becoming a commodity. Within a year, every development tool will understand code and detect patterns just as well.
- 
+
 The real differentiator is not how smart the AI gets — it is what you build on top of it.
- 
+
 SecGuardian focuses on three things that compound in value over time:
- 
+
 **1. Enterprise Security Knowledge (Rule Packs)**
- 
+
 How to organize OWASP ASVS, NIST SSDF, CIS Benchmarks, PCI DSS, and enterprise security redlines into executable audit rules that teams can run, customize, and maintain independently of the AI engine.
- 
+
 **2. Secure SDLC Workflow (Four Gates)**
- 
+
 From coding to pull request to release acceptance — a complete pipeline with four clear decision gates, each answering a yes/no question about whether the software moves to the next stage.
- 
+
 **3. Actionable Outputs for the Whole Organization**
- 
+
 Outputs designed for the audience that needs them: developers get fix recommendations, security engineers get evidence packages, release managers get security scores, and CI/CD pipelines get SARIF. These aren't just AI agent logs — they are consumable by everyone involved in shipping software.
 
 ---
@@ -126,7 +125,6 @@ Goal:
 
 ---
 
-
 ## SecFix
 
 AI Remediation.
@@ -154,11 +152,10 @@ Goal:
 
 ---
 
-
 ## SecAudit
 
 AI Release Security Audit.
- 
+
 Built on a pluggable Rule Pack architecture (`audit-framework/`). The default `secguardian` pack covers 17 audit domains. Future packs include `company-redline-v3`, `owasp-asvs`, and `pci-dss`.
 
 SecAudit is **not another code review tool.**
@@ -243,11 +240,11 @@ Analysis strategies are tools, not the product. The long-term value comes from t
 ---
 
 ## Rule Packs & Knowledge System
- 
+
 SecGuardian organizes enterprise security standards into executable Rule Packs. Each Rule Pack maps a published standard to a structured set of audit rules, each with pass/fail criteria, evidence requirements, and remediation guidance.
- 
+
 A Rule Pack is not a document — it is a machine-executable knowledge asset that can be versioned, reviewed, and customized per organization.
- 
+
 ```
 Published Standard (e.g., OWASP ASVS)
          |
@@ -264,11 +261,10 @@ Published Standard (e.g., OWASP ASVS)
          v
    Evidence + Decision
 ```
- 
-This separation means the AI engine can be upgraded independently of the security knowledge, and vice versa — the Rule Packs outlast the AI model.
- 
-**Current coverage includes:**
 
+This separation means the AI engine can be upgraded independently of the security knowledge, and vice versa — the Rule Packs outlast the AI model.
+
+**Current coverage includes:**
 
 - Authentication & Session
 - Authorization
@@ -411,11 +407,11 @@ GitLab SAST (`artifacts:reports:sast`) and Azure DevOps also supported.
 ## Vision
 
 Our vision is to make enterprise-grade application security accessible to every development team — without replacing security engineers.
- 
+
 We are building toward that vision in three phases:
- 
+
 > **AI Security Scanner** → **AI Security Workflow** → **AI Security Governance Platform**
- 
+
 What we are building today — the Audit Framework and Rule Packs — lays the foundation for that third phase: a governance platform where organizations define their security policies as executable rules, run them across every stage of development, and produce audit-ready evidence for every release.
 
 ---

@@ -148,7 +148,6 @@ report.md §3 Detailed Findings 改为按 detector 分组 + 子编号 §3.x。ex
 - executive-summary 导航更新：指向 report.md §3.x
 - findings/ 目录保持 JSON 不变（canonical 数据层）
 
-
 ---
 
 ## ADR-010: report.md §2 按文件分组

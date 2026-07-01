@@ -1,6 +1,6 @@
 # 00 — 安全治理模型 (Security Governance Model)
 
-> **对应 Sheet:** `00_Governance_Model`  
+> **对应 Sheet:** `00_Governance_Model`
 > **牵引方向:** SecGuardian 安全治理框架的顶层设计，决定产品应覆盖哪些安全域以及遵循哪些行业标准。
 
 ---
@@ -124,5 +124,5 @@ ASVS v4.0 分为 **3 个验证等级 (L1/L2/L3)**：
 
 ---
 
-> **本文档为 SecGuardian 治理框架的顶层设计指引。**  
+> **本文档为 SecGuardian 治理框架的顶层设计指引。**
 > 后续每个 sheet 的详细文档将在此框架下展开具体控制要求。

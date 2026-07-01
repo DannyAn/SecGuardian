@@ -1,7 +1,7 @@
 # SecGuardian 企业安全治理标准
 
-> 本目录由 `Enterprise_Security_Governance_Standard.xlsx` 整理生成。  
-> 每个文档结合了原始表格结构与业界最佳实践，指引 SecGuardian 产品未来发展。  
+> 本目录由 `Enterprise_Security_Governance_Standard.xlsx` 整理生成。
+> 每个文档结合了原始表格结构与业界最佳实践，指引 SecGuardian 产品未来发展。
 > 生成日期: 2026-05-31
 
 ---

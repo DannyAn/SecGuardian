@@ -29,7 +29,6 @@ version: "7.0"
 > **v4.0 变更 (2026-06-06)**: 引入 AI/Renderer 分离架构。
 > **v3.0 变更 (2026-06-05)**: report.md §4 强制四段式结构。增加输出前质量门禁。
 
-
 ## 用户旅程
 
 扫描输出的 15+ 文件对新用户不友好。按照这个顺序阅读：
@@ -131,9 +130,6 @@ findings.json               # v4.0: 单体文件（所有 finding 内联，生�
 | 🤖 AI Agent | `ai/remediation-pack.json` 修复包 | 自动修复 |
 | 👔 管理层 | `human/executive-summary.md` 精要 | `dashboard.html` 精美报告 |
 | 📊 CI/CD | `results.sarif` + `status.json` | — |
-
-
-
 
 ## human/executive-summary.md — 统一入口
 
@@ -412,7 +408,7 @@ pandoc report.md -o report.pdf --pdf-engine=weasyprint \
 
 ```
 a1b2c3d4e5f6_parser-36.json        ← SHA(a1b2c3d4e5f6) + parser.c:36
-f6e5d4c3b2a1_network-305.json      ← SHA(f6e5d4c3b2a1) + network.c:305  
+f6e5d4c3b2a1_network-305.json      ← SHA(f6e5d4c3b2a1) + network.c:305
 c4d5e6f7a8b9_concurrency-43.json   ← SHA(c4d5e6f7a8b9) + concurrency.c:43
 ```
 

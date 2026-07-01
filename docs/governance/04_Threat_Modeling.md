@@ -1,6 +1,6 @@
 # 04 — 威胁建模 (Threat Modeling)
 
-> **对应 Sheet:** `04_Threat_Modeling`  
+> **对应 Sheet:** `04_Threat_Modeling`
 > **牵引方向:** SecGuardian 威胁建模自动化——基于 STRIDE 分类的系统化威胁分析能力。
 
 ---
@@ -205,5 +205,5 @@
 
 ---
 
-> **本文档指引 SecGuardian 构建自动化威胁建模能力。**  
+> **本文档指引 SecGuardian 构建自动化威胁建模能力。**
 > 与 [03_Architecture_Review](03_Architecture_Review.md) 的架构评审流程紧密结合形成完整设计阶段安全闭环。
