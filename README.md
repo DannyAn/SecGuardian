@@ -28,7 +28,7 @@ Download the plugin zip for your AI agent from [Releases](https://github.com/Dan
 | OpenCode | `secguardian-0.10.0-opencode-<os>-<arch>.zip` |
 | Gemini CLI | `secguardian-0.10.0-gemini-cli-<os>-<arch>.zip` |
 
-Extract the zip into your agent's plugin directory, then use:
+Extract the zip into your agent's plugin directory, or install it through your agent's extension manager. Then use:
 
 ```bash
 /secguard ./src           # Secure coding guidance
