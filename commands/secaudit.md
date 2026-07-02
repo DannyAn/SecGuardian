@@ -1,6 +1,6 @@
 ---
 name: secaudit
-description: "AI Release Security Audit — Rule Pack-driven audit framework (17 rules across 17 domains)"
+description: "AI Release Security Audit — 17-domain audit framework with knowledge-driven detection"
 ---
 
 # /secaudit - AI Release Security Audit
@@ -12,20 +12,20 @@ description: "AI Release Security Audit — Rule Pack-driven audit framework (17
 ```
 ## Audit Framework
 
-SecAudit 基于 `audit-framework/` 架构构建——不是一个平铺的 skill 列表，而是一个可插拔 Rule Pack 系统。
+SecAudit 基于 `docs/audit-framework/` 架构构建——知识驱动的审计框架，安全规则统一存放在 `knowledge/` 中。
 
 ```
-audit-framework/
-├── rulepacks/         ← 可插拔规则包（当前: secguardian 默认）
-│   └── secguardian/
-│       ├── pack.json  ← 清单 + 标准映射
-│       └── rules/     ← 17 个审计规则
+docs/audit-framework/  ← Audit Execution Framework
+├── architecture.md    ← 架构概览与组件关系
+├── workflow.md        ← 审计工作流
+├── evidence.md        ← 证据收集模型
+├── report-schema.md   ← 报告模式与 CI 门禁
 ├── engine/            ← 执行引擎规范
 ├── templates/         ← 报告模板
 └── reporters/         ← 输出格式扩展点
 ```
 
-每个 Rule Pack 对应一个安全标准或企业基线。默认内置 `secguardian` 覆盖 17 个审计域。未来可以加载 `company-redline-v3`、`owasp-asvs`、`pci-dss` 等 Rule Pack。
+审计规则统一存储在 `knowledge/audit-rules/` 中，AI Agent 按 workflow 加载对应域的知识文件进行检测。未来扩展（如 `owasp-asvs`、`pci-dss`）只需在 `knowledge/` 下新增规则目录。
 
 ## 使用方式
 
@@ -37,10 +37,6 @@ audit-framework/
 /secaudit ./src python                              # Python 完整安全审计
 /secaudit ./src java                                # Java 完整安全审计
 /secaudit ./src cpp                                 # C/C++ 完整安全审计
-
-# Rule Pack 选择
-/secaudit --rulepack secguardian ./src python       # 显式指定 rulepack
-
 # 单项聚焦审计
 /secaudit --focus cryptography                      # 零参数 + 单项聚焦
 /secaudit ./src python --focus input-validation     # 单项：仅输入验证审计
@@ -95,7 +91,7 @@ Skill: secaudit-taint-analysis
 
 ## 可用 Skills
 
-**Rule Pack 来源**: `audit-framework/rulepacks/secguardian/pack.json`（17 条规则，映射 OWASP ASVS + CWE Top 25）
+**审计规则来源**: `knowledge/audit-rules/`（17 条规则，映射 OWASP ASVS + CWE Top 25）
 
 ### analysis - 安全分析方法 (5 个)
 | Skill | 描述 | Rule Pack 映射 |
@@ -191,20 +187,16 @@ python3 scripts/validate-index.py \
     --scan-id <scan_id>
 ```
 
-### Step 3: 加载 Rule Pack 并路由 Audit Skill
+### Step 3: 加载审计规则并路由 Audit Skill
 
-> **Rule Pack 选择**: 如果用户指定 `--rulepack <name>`，加载 `audit-framework/rulepacks/<name>/pack.json`。
-> 如果未指定，默认加载 `audit-framework/rulepacks/secguardian/pack.json`。
-> 从 `pack.json` 读取 `rules[]` 列表，获取可用审计规则的定义和标准映射。
+> 默认加载 `knowledge/audit-rules/` 中的 17 条审计规则，按 workflow 定义的 phase 顺序执行。
 
 - 如果用户未指定 skill-name，或输入为 `analysis` / `domain` / `list`，列出对应的 skills 列表（从 pack.json 获取）。
 - 如果指定了具体的 skill-name，精确加载 `../skills/secaudit/{skill-name}/SKILL.md`。
-- **默认 rulepack (secguardian)**: 从 `audit-framework/rulepacks/secguardian/pack.json` 读取 `workflow_source`，加载 `skills/secaudit/workflow-secaudit/SKILL.md` 作为 17 阶段执行引擎。
-  - `pack.json.rules[].phase` 定义各 phase 的顺序
+- **默认审计模式**: 加载 `skills/secaudit/workflow-secaudit/SKILL.md` 作为 17 阶段执行引擎，各 phase 从 `knowledge/audit-rules/` 加载对应的规则文件。
+  - workflow 中定义的 phase 顺序
   - 后处理（去重、评分、分类、修复路线图）由 workflow 定义
 - 根据 `index.json` 提供的符号表和调用图、`SKILL.md` 的审计规范以及 `../knowledge/guard-rules/` 中相关检测器的威胁定义进行深度推理审计。
-- **Custom rulepack**: 指定 `--rulepack <name>` 时，加载 `audit-framework/rulepacks/<name>/pack.json`，读取其 `workflow_source` 或执行 pack 内 `workflow.md`。
-
 ### Step 4: 输出结构化 findings（遵循 Findings Protocol v5.0）
 
 > **v6.0**: secaudit 命令同样适用三轮验证管道（`commands/secguard.md` Step 3.5）。`--no-verify` 跳过验证。

@@ -63,7 +63,7 @@ After deploying, run against the built-in vulnerable examples:
 ```bash
 /secguard examples/cpp-vuln-demo/src cpp
 /secreview examples/python-vuln-demo/src python
-/secaudit --rulepack secguardian examples/java-vuln-demo/src java
+/secaudit examples/java-vuln-demo/src java
 ```
 
 ### Standalone indexer (Go developers)
@@ -107,24 +107,18 @@ These four commands represent different stages of Secure SDLC, not different lev
 
 ---
 
-## Enterprise Governance as Code (Rule Packs)
+## Knowledge-Driven Audit Framework
 
-Raw AI reasoning is powerful, but enterprise security requires consistency, traceability, and compliance. SecGuardian achieves this through **Rule Packs** — machine-executable knowledge assets that map published standards to audit rules, evidence requirements, and pass/fail criteria.
+Audit rules and security knowledge are maintained as Markdown files in `knowledge/`, not duplicated across the project. This makes them version-controllable, reviewable, and independent of the AI model — knowledge outlasts the AI.
 
 ```
-audit-framework/
-├── rulepacks/             # Pluggable rule pack definitions
-│   ├── secguardian/       # Built-in default (17 audit domains)
-│   │   ├── pack.json      # Manifest + standard mappings
-│   │   └── rules/         # 17 audit rules
-│   ├── company-redline/   # Future: enterprise security baseline
-│   └── owasp-asvs/        # Future: OWASP ASVS compliance
-├── engine/                # Execution engine specification
-├── templates/             # Report template definitions
-└── reporters/             # Output format extensions
+docs/audit-framework/  ← Audit Execution Framework design docs
+knowledge/audit-rules/ ← 17 audit rules (single source of truth)
+skills/secaudit/       ← AI Workflow definitions
+commands/secaudit.md   ← User entry point
 ```
 
-Teams can version, review, and customize Rule Packs independently of the AI model. The AI engine can be upgraded without touching the security knowledge, and vice versa — Rule Packs outlast the AI model.
+All three commands (`/secguard`, `/secreview`, `/secaudit`) share the same invocation pattern: `<path> <language>`. Knowledge is always loaded from `knowledge/` at scan time.
 
 ### Current coverage
 

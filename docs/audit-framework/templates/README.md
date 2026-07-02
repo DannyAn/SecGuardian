@@ -28,7 +28,7 @@ templates/<name>/
 {{ high_count }}            — High 数
 {{ medium_count }}          — Medium 数
 {{ scan_id }}               — 扫描 ID
-{{ rulepack_name }}         — Rule Pack 名称
+{{ command_type }}          — 命令类型（secguard/secaudit/secreview）
 {{ findings }}              — 所有发现的列表
 {{ duration_ms }}           — 执行耗时
 ```

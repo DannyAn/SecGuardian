@@ -1,7 +1,7 @@
 # Progress — FEATURE-008: Audit Framework
 
 > **Feature**: FEATURE-008
-> **上次更新**: 2026-06-30 23:30 CST
+> **上次更新**: 2026-07-02 21:30 CST
 > **整体状态**: ✅ Complete
 
 ---
@@ -15,7 +15,7 @@
    Plan:       ✅ Complete (10 tasks)
    Task:       ✅ Complete
    Progress:   ✅ Complete (this document)
-   Change:     N/A
+   Change:     ✅ Complete (CHANGE-002)
 ```
 
 ---
@@ -91,3 +91,20 @@ commands/secaudit.md                                 — 新增 --rulepack CLI +
 - [ ] `audit-framework/engine/` — 独立执行引擎（脱离 AI Agent）
 - [ ] `audit-framework/reporters/sarif.py` — 独立的 SARIF reporter
 - [ ] `audit-framework/reporters/pdf.py` — PDF 报告生成
+### CHANGE-002: Architecture Refinement
+
+| 修改项 | 变更 |
+|--------|------|
+| `audit-framework/rulepacks/` | **删除**（17 个重复规则文件移回 `knowledge/audit-rules/` 唯一源） |
+| `audit-framework/README.md` | **重写** — 定位为 Audit Execution Framework |
+| `audit-framework/architecture.md` | **新增** — 四模块职责与数据流 |
+| `audit-framework/workflow.md` | **新增** — 审计工作流 9 阶段详述 |
+| `audit-framework/evidence.md` | **新增** — 证据收集模型及质量门禁 |
+| `audit-framework/report-schema.md` | **新增** — 报告模式与 CI 门禁规范 |
+| `audit-framework/engine/README.md` | **更新** — 引用从 `rulepacks/` 改为 `knowledge/audit-rules/` |
+| `commands/secaudit.md` | **更新** — 6 处路径从 `audit-framework/rulepacks/` 改为 `knowledge/audit-rules/` |
+
+**影响**:
+- `audit-framework/`: 36KB（原 ~1.2MB，含 98KB 规则文件已删除）
+- `knowledge/`: 无变更（保持 SSOT）
+- `self-check.sh`: 108 passed, 0 failed ✅

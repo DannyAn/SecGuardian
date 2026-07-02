@@ -97,7 +97,7 @@ RELEASE_BODY=$(cat <<BODY
 - **Four Gates workflow**: Prevent (secguard) → Detect (secreview) → Fix (secfix) → Verify (secaudit)
 - **/secfix MVP**: Auto-generates ready-to-apply patches from findings. See \`scripts/secfix.py\`
 - **/secreview refactored**: Now an AI Security Code Review for PRs with git diff mode
-- **Audit Framework**: Pluggable Rule Pack architecture (\`audit-framework/\`). \`/secaudit --rulepack <name>\`
+- **Audit Framework**: Knowledge-driven framework (\`docs/audit-framework/\`). \`/secaudit <path> <lang>\`
 - **README fully rewritten**: English, AI-Native Security Workflow narrative, Mermaid diagram
 
 ### Installation

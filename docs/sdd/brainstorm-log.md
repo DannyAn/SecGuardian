@@ -856,3 +856,31 @@ ChatGPT 指出核心风险：**"AI 比传统 SAST 更聪明"这个卖点的生�
 - [ ] /secaudit 命令重构（等用户提供新设计方案）
 - [ ] /secfix MVP 实现（消费 findings/ 目录 → 生成 patch files）
 - [ ] README 中补全 /secfix 的四门图已在本日完成
+
+---
+
+## 2026-07-02: Audit Framework 架构职责收敛（Architecture Refinement）
+
+**背景**: FEATURE-008 在 `audit-framework/` 下创建了 `rulepacks/` 目录，将 `knowledge/audit-rules/` 中的 17 个规则文件复制到 `audit-framework/rulepacks/secguardian/rules/`。这造成了安全知识的重复维护。
+
+**讨论要点**:
+- `audit-framework/` 应该是"Audit Execution Framework"——描述 SecAudit 如何完成一次安全验收
+- `audit-framework/` 不应拥有任何安全知识（rules、standards、references）
+- `knowledge/` 必须是唯一安全知识源（Single Source of Truth）
+- 规则复制导致两个地方维护 17 个文件，违背 SSOT 原则
+- `pack.json` 作为规则索引的概念有用，但不应放在 `audit-framework/rulepacks/` 下
+
+**最终方案**:
+- 删除 `audit-framework/rulepacks/` 整个目录（17 个重复规则 + pack.json + README）
+- 将 `audit-framework/README.md` 重新定位为 Audit Execution Framework 概述
+- 新增 `architecture.md`、`workflow.md`、`evidence.md`、`report-schema.md` 作为框架设计文档
+- `knowledge/audit-rules/` 保持为唯一规则源，不做任何修改
+- 更新 `audit-framework/engine/README.md` 指向 `knowledge/audit-rules/`
+- 更新 `commands/secaudit.md` 中的路径引用（从 `audit-framework/rulepacks/` → `knowledge/audit-rules/`）
+
+**影响范围**:
+- `audit-framework/`: 删除 rulepacks/，重写 README.md，新增 4 个框架文档，更新 engine/README.md
+- `commands/secaudit.md`: 路径引用更新（6 处）
+- `knowledge/`: 无变更（已经是 SSOT）
+
+**关联参考**: 用户提供的 [Audit Framework 重构指导](#)
