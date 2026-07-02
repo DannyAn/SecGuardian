@@ -112,10 +112,9 @@ These four commands represent different stages of Secure SDLC, not different lev
 Audit rules and security knowledge are maintained as Markdown files in `knowledge/`, not duplicated across the project. This makes them version-controllable, reviewable, and independent of the AI model — knowledge outlasts the AI.
 
 ```
-docs/audit-framework/  ← Audit Execution Framework design docs
-knowledge/audit-rules/ ← 17 audit rules (single source of truth)
-skills/secaudit/       ← AI Workflow definitions
-commands/secaudit.md   ← User entry point
+knowledge/audit-rules/ ← 13 audit domains (single source of truth)
+skills/secaudit/SKILL.md ← AI Workflow (only skill)
+commands/secaudit.md   ← /secaudit <path> <lang>
 ```
 
 All three commands (`/secguard`, `/secreview`, `/secaudit`) share the same invocation pattern: `<path> <language>`. Knowledge is always loaded from `knowledge/` at scan time.

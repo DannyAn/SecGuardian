@@ -12,18 +12,7 @@ description: "AI Release Security Audit — 17-domain audit framework with knowl
 ```
 ## Audit Framework
 
-SecAudit 基于 `docs/audit-framework/` 架构构建——知识驱动的审计框架，安全规则统一存放在 `knowledge/` 中。
-
-```
-docs/audit-framework/  ← Audit Execution Framework
-├── architecture.md    ← 架构概览与组件关系
-├── workflow.md        ← 审计工作流
-├── evidence.md        ← 证据收集模型
-├── report-schema.md   ← 报告模式与 CI 门禁
-├── engine/            ← 执行引擎规范
-├── templates/         ← 报告模板
-└── reporters/         ← 输出格式扩展点
-```
+安全规则统一存放在 `knowledge/audit-rules/` 中，AI Agent 按 workflow 加载对应域的知识文件进行检测。
 
 审计规则统一存储在 `knowledge/audit-rules/` 中，AI Agent 按 workflow 加载对应域的知识文件进行检测。未来扩展（如 `owasp-asvs`、`pci-dss`）只需在 `knowledge/` 下新增规则目录。
 
@@ -93,7 +82,6 @@ Skill: aud-input-validation
 
 **审计域**: `knowledge/audit-rules/`（13 个审计域，覆盖 OWASP ASVS + CWE Top 25）
 
-详细审计域说明见 `docs/audit-framework/workflow.md`。
 
 ## 派发规则与执行步骤
 
