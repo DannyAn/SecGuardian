@@ -2,6 +2,45 @@
 
 All notable changes to SecGuardian.
 
+## [0.11.0] — 2026-07-02
+
+### ★ Audit Framework 架构职责收敛 (CHANGE-002)
+
+#### 重构
+- **知识去重** — 删除 `audit-framework/rulepacks/` (17 个规则与 `knowledge/` 完全重复)，`knowledge/audit-rules/` 成为唯一安全知识源 (SSOT)
+- **目录归位** — `audit-framework/` 从根级移至 `docs/audit-framework/`（后因冗余删除，架构设计移交 SDD 维护）
+- **CLI 入口统一** — 移除 `--rulepack` 参数，`/secaudit <path> <lang>` 与 `/secguard`、`/secreview` 一致
+- **框架纯化** — `audit-framework/` 不再包含任何安全规则副本，纯框架设计文档
+
+### ★ SecAudit Domain Model 重构 (FEATURE-009)
+
+#### 领域模型
+- **分析方法降级为 AI 内部推理** — Taint Analysis、Data Flow、Attack Surface、Trust Boundary、State Machine 不再作为用户入口，由 AI Workflow 自动选择
+- **SecAudit 仅暴露安全审计域** — 13 个审计域 (Authentication、Cryptography、Input Validation 等)，用户只需理解安全领域
+- **新增 information-exposure 域** — 补齐用户列出的 12 个核心域
+
+#### Skills 收敛
+- **skills/secaudit/ 从 18 个降为 1 个** — 删除 16 个独立 skill 目录（5 分析方法 + 11 领域），仅保留 `skills/secaudit/SKILL.md`
+- **Skill 路径拍平** — `skills/secaudit/workflow-secaudit/SKILL.md` → `skills/secaudit/SKILL.md`
+- **引用文件迁移** — 2 个参考文件 (owasp-asvs-auth.md、tls-config.md) 从 skill 目录迁移至 `knowledge/standards/`
+
+#### 入口界面
+- `commands/secaudit.md` — 移除 skill 列表、分析算法引用、简化 Step 3
+- `commands/gemini/secaudit.toml` — 同步清理
+- `--focus` 支持 13 个审计域 (原 17 个)
+
+#### 文档
+- `docs/audit-framework/` — 已删除，所有架构设计决策由 `docs/sdd/` 维护 (FEATURE-008, CHANGE-002, FEATURE-009)
+- `README.md` — 更新目录树和产品描述
+- `manifest.json` + `extensions/*/extension.json` — 技能清单同步更新
+
+### 其他改进
+
+- `scripts/self-check.sh` — skills 计数从 `ls -d` 改为 `find -name SKILL.md`，兼容 zsh 空 glob
+- `scripts/ci-check.sh` — 支持拍平 skill 结构验证 (`SKILL.md (flat)`)
+- `internal/main.go` — 版本号同步至 0.11.0
+- **总代码量** — +35 / -2324 行 (净削 2289 行，清理大量冗余知识)
+
 ## [0.9.0] — 2026-06-26
 
 ### ★ 输出协议 v7.0 — 消费者导向设计
