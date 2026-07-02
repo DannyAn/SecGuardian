@@ -56,7 +56,7 @@ docs/audit-framework/
 docs/audit-framework 定义审计流程
         │
         ▼ 读取 framework 定义
-skills/secaudit/workflow-secaudit 加载工作流
+skills/secaudit/SKILL.md 加载工作流
         │
         ▼ 按工作流加载规则
 knowledge/audit-rules/*.md  提供规则内容

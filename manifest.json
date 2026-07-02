@@ -11,7 +11,7 @@
   "extensions": {
     "secaudit-secguardian": {
       "command": "secaudit",
-      "description": "★ 旗舰产品：AI 深度安全审计 — 替代传统安全顾问的 17 项纵深分析",
+      "description": "★ 旗舰产品：AI 深度安全审计 — 13 个审计域覆盖全生命周期安全",
       "platforms": [
         "claude-code",
         "opencode",
@@ -19,90 +19,10 @@
         "github-actions"
       ],
       "skills": {
-        "attack-surface-analysis": {
-          "category": "analysis",
+        "secaudit": {
+          "category": "workflow",
           "status": "active",
-          "desc": "攻击面分析 — 识别所有暴露入口点"
-        },
-        "data-flow-analysis": {
-          "category": "analysis",
-          "status": "active",
-          "desc": "数据流分析 — 追踪敏感数据完整流向"
-        },
-        "state-machine-analysis": {
-          "category": "analysis",
-          "status": "active",
-          "desc": "状态机分析 — 检测非法状态跃迁"
-        },
-        "taint-analysis": {
-          "category": "analysis",
-          "status": "active",
-          "desc": "污点分析 — Source→Sink 传播链追踪"
-        },
-        "trust-boundary-analysis": {
-          "category": "analysis",
-          "status": "active",
-          "desc": "信任边界分析 — 跨边界安全控制审计"
-        },
-        "auth-and-session": {
-          "category": "domain",
-          "status": "active",
-          "desc": "认证与会话管理 — OWASP ASVS 标准"
-        },
-        "authorization": {
-          "category": "domain",
-          "status": "active",
-          "desc": "授权与访问控制 — 越权/IDOR 检测"
-        },
-        "cryptography": {
-          "category": "domain",
-          "status": "active",
-          "desc": "密码学安全 — 算法/密钥/随机数审计"
-        },
-        "input-validation": {
-          "category": "domain",
-          "status": "active",
-          "desc": "输入验证 — OWASP Top 10 注入防御审计"
-        },
-        "data-protection": {
-          "category": "domain",
-          "status": "active",
-          "desc": "数据保护 — 敏感数据全生命周期审计"
-        },
-        "secrets-management": {
-          "category": "domain",
-          "status": "active",
-          "desc": "密钥管理 — 凭证存储/轮换/泄露检测"
-        },
-        "secure-transport": {
-          "category": "domain",
-          "status": "active",
-          "desc": "安全传输 — TLS/证书/协议配置审计"
-        },
-        "http-security-headers": {
-          "category": "domain",
-          "status": "active",
-          "desc": "HTTP 安全头 — CSP/HSTS/X-Frame 审计"
-        },
-        "output-encoding": {
-          "category": "domain",
-          "status": "active",
-          "desc": "输出编码 — XSS/注入跨上下文防护"
-        },
-        "logging-and-monitoring": {
-          "category": "domain",
-          "status": "active",
-          "desc": "日志与监控 — 安全事件可追溯性审计"
-        },
-        "dependency-security": {
-          "category": "domain",
-          "status": "active",
-          "desc": "依赖安全 — 已知漏洞/供应链风险审计"
-        },
-        "infra-hardening": {
-          "category": "domain",
-          "status": "active",
-          "desc": "基础设施加固 — 容器/K8s/云资源审计"
+          "desc": "AI 安全审计工作流 — 自动选择推理策略，按审计域执行检测"
         }
       }
     },

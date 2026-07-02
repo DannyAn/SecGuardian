@@ -447,7 +447,7 @@ uninstall_opencode() {
             if [ -d "$base/$sub" ]; then
                 if [ -f "$base/$sub/secaudit.md" ] || \
                    [ -f "$base/$sub/secguard.md" ] || \
-                   [ -d "$base/$sub/secaudit-attack-surface-analysis" ]; then
+                   [ -d "$base/$sub/secaudit-attack-surface-analysis" ] || [ -d "$base/$sub/secguard-attack-surface-analysis" ]; then
                     rm -rf "$base/$sub"
                     log_done "已移除 (legacy): $base/$sub"
                 fi
@@ -471,7 +471,7 @@ uninstall_gemini() {
                 # Only remove if it was our deployment
                 if [ -f "$base/$sub/secaudit.toml" ] || \
                    [ -f "$base/$sub/secguard.toml" ] || \
-                   [ -d "$base/$sub/secaudit-attack-surface-analysis" ]; then
+                   [ -d "$base/$sub/secaudit-attack-surface-analysis" ] || [ -d "$base/$sub/secguard-attack-surface-analysis" ]; then
                     rm -rf "$base/$sub"
                     log_done "已移除 (legacy): $base/$sub"
                 fi

@@ -5,7 +5,7 @@
 ## 执行架构
 
 ```
-skills/secaudit/workflow-secaudit/SKILL.md
+skills/secaudit/SKILL.md
         │ 定义执行顺序
         ▼
 knowledge/audit-rules/*.md
@@ -23,13 +23,13 @@ Findings → Report
 
 ```
 /secaudit ./src python
-  -> 加载 skills/secaudit/workflow-secaudit/SKILL.md
+  -> 加载 skills/secaudit/SKILL.md
   -> 读取 17 阶段顺序执行的定义
 ```
 
-工作流定义在 `skills/secaudit/workflow-secaudit/SKILL.md` 中，包含：
+工作流定义在 `skills/secaudit/SKILL.md` 中，包含：
 - Phase 0: Setup — 技术栈识别（无规则文件）
-- Phase 1–16: 各审计域检查（每个 phase 加载对应的 knowledge 规则文件）
+- 各审计域检查（每个 phase 加载对应的 knowledge 规则文件）
 - 后处理（去重、评分、分类、修复路线图）
 
 ### Step 2: 加载规则
@@ -37,9 +37,9 @@ Findings → Report
 每个 phase 从 `knowledge/audit-rules/` 加载对应的规则文件：
 
 ```
-Phase 1  → knowledge/audit-rules/attack-surface-analysis.md
-Phase 2  → knowledge/audit-rules/input-validation.md
-Phase 3  → knowledge/audit-rules/auth-and-session.md
+Phase 1  → knowledge/audit-rules/input-validation.md
+Phase 2  → knowledge/audit-rules/auth-and-session.md
+Phase 3  → knowledge/audit-rules/authorization.md
 ...
 ```
 
@@ -73,7 +73,7 @@ Phase 3  → knowledge/audit-rules/auth-and-session.md
 
 | 组件 | 角色 | 路径 |
 |------|------|------|
-| 工作流 | HOW to run | `skills/secaudit/workflow-secaudit/SKILL.md` |
+| 工作流 | HOW to run | `skills/secaudit/SKILL.md` |
 | 规则 | WHAT to check | `knowledge/audit-rules/*.md` |
 | 框架 | Framework design | `docs/audit-framework/` |
 

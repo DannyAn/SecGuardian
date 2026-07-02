@@ -17,7 +17,7 @@ User
 构建语义索引（index.json）
   │
   ▼ 3. Load Knowledge
-加载 knowledge/audit-rules/*.md
+加载 knowledge/audit-rules/*.md（13 个审计域）
   │
   ▼ 4. Collect Context
 分析项目技术栈、架构、数据流
@@ -63,7 +63,7 @@ CI 门禁：PASSED / FAILED
 
 从 `knowledge/audit-rules/` 加载检测规则：
 
-- 每个审计域对应一个 `.md` 文件（如 `cryptography.md`）
+- 每个审计域对应一个 `.md` 文件（共 13 个域，如 `cryptography.md`、`auth-and-session.md`）
 - 知识文件定义：what to check、how to judge、risk level
 
 知识来源仅限 `knowledge/`，不涉及 `docs/audit-framework/`。

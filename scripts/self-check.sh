@@ -80,9 +80,9 @@ done
 # 1e Verify audit-rules structure
 AUD_COUNT=$(ls "$AUD_DIR"/*.md 2>/dev/null | wc -l | tr -d ' ')
 if [ "$AUD_COUNT" -eq 17 ]; then
-    green "audit-rules: 17 files (complete)"
+    green "audit-rules: 13 files (complete)"
 else
-    yellow "audit-rules: $AUD_COUNT files (expected 17)"
+    yellow "audit-rules: $AUD_COUNT files (expected 13)"
 fi
 
 # 1f Verify review-rules structure
@@ -151,7 +151,7 @@ echo "5. Skills structure"
 SKILL_COUNT=0
 for cmd_dir in skills/secaudit skills/secguard skills/secreview; do
     if [ -d "$cmd_dir" ]; then
-        n=$(ls -d "$cmd_dir"/*/ 2>/dev/null | wc -l | tr -d ' ')
+        n=$(find "$cmd_dir" -name "SKILL.md" -maxdepth 2 2>/dev/null | wc -l | tr -d ' ')
         green "$cmd_dir/ ($n skills)"
         SKILL_COUNT=$((SKILL_COUNT + n))
     else

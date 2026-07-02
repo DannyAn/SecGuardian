@@ -48,9 +48,9 @@ User 输入 /secaudit ./src python
 commands/secaudit.md 解析参数
         │
         ▼
-skills/secaudit/workflow-secaudit/SKILL.md 启动工作流
+skills/secaudit/SKILL.md 启动工作流
         │
-        ├── 加载 knowledge/audit-rules/*.md（规则定义）
+        ├── 加载 knowledge/audit-rules/*.md（13 个审计域规则）
         │
         ├── 收集项目上下文（index.json + 源码结构）
         │
@@ -65,7 +65,7 @@ skills/secaudit/workflow-secaudit/SKILL.md 启动工作流
 |------|------|
 | 规则唯一性 | 所有安全规则只存在于 `knowledge/`，不可在别处复制 |
 | 框架无规则 | `docs/audit-framework/` 不包含任何 `.md` 规则文件 |
-| Skill 无知识 | `skills/secaudit/*/SKILL.md` 引用 knowledge，不内嵌规则 |
+| Skill 无知识 | 仅 `secaudit` 一个 skill，通过加载 knowledge 执行 |
 | Command 无逻辑 | `commands/secaudit.md` 只做入口路由，不确定规则内容 |
 
 ## 未来演进方向

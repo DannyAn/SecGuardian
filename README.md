@@ -180,7 +180,7 @@ SecGuardian never merges code automatically. The developer retains final decisio
 - uses: secguardian/secguardian-action@v1
   with:
     mode: secaudit
-    skill: taint-analysis
+    skill: secaudit
     path: src/
 ```
 

@@ -1,56 +1,40 @@
 {
-  "name": "secaudit-secguardian",
-  "version": "0.10.0",
-  "description": "★ 旗舰产品：AI 深度安全审计 — 替代传统安全顾问的 17 项纵深分析",
-  "author": "SecGuardian",
-  "command": "secaudit",
-  "protocol": "2.0",
-  "platforms": {
-    "claude-code": {
-      "entry": "commands/secaudit.md"
+    "name": "secaudit-secguardian",
+    "version": "0.10.0",
+    "description": "★ 旗舰产品：AI 深度安全审计 — 13 个审计域覆盖全生命周期安全",
+    "author": "SecGuardian",
+    "command": "secaudit",
+    "protocol": "2.0",
+    "platforms": {
+        "claude-code": {
+            "entry": "commands/secaudit.md"
+        },
+        "opencode": {
+            "entry": "commands/secaudit.md"
+        },
+        "gemini-cli": {
+            "entry": "commands/secaudit.md"
+        }
     },
-    "opencode": {
-      "entry": "commands/secaudit.md"
-    },
-    "gemini-cli": {
-      "entry": "commands/secaudit.md"
-    }
-  },
-  "skills": [
-    "attack-surface-analysis",
-    "data-flow-analysis",
-    "state-machine-analysis",
-    "taint-analysis",
-    "trust-boundary-analysis",
-    "auth-and-session",
-    "authorization",
-    "cryptography",
-    "data-protection",
-    "dependency-security",
-    "http-security-headers",
-    "infra-hardening",
-    "input-validation",
-    "logging-and-monitoring",
-    "output-encoding",
-    "secrets-management",
-    "secure-transport"
-  ],
-  "knowledge": {
-    "protocols": [
-      "scan-output",
-      "sarif-output"
+    "skills": [
+        "secaudit"
     ],
-    "languages": [
-      "cpp",
-      "java",
-      "python",
-      "go",
-      "javascript"
-    ]
-  },
-  "output": {
-    "base_dir": ".codeagent",
-    "scans_dir": "scans",
-    "protocol": "scan-output/2.0"
-  }
+    "knowledge": {
+        "protocols": [
+            "scan-output",
+            "sarif-output"
+        ],
+        "languages": [
+            "cpp",
+            "java",
+            "python",
+            "go",
+            "javascript"
+        ]
+    },
+    "output": {
+        "base_dir": ".codeagent",
+        "scans_dir": "scans",
+        "protocol": "scan-output/2.0"
+    }
 }

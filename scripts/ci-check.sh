@@ -95,6 +95,8 @@ else
             sd="skills/${cmd}/${skill}"
             if [ -d "$sd" ] && [ -f "$sd/SKILL.md" ]; then
                 pass "${cmd}/${skill}"
+            elif [ -f "skills/${cmd}/SKILL.md" ]; then
+                pass "${cmd}/${skill}/SKILL.md (flat)"
             else
                 fail "${cmd}/${skill} — 目录或 SKILL.md 缺失 (checked: $sd)"
                 ((ERRORS++))

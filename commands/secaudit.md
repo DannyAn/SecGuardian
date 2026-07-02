@@ -40,7 +40,7 @@ docs/audit-framework/  ← Audit Execution Framework
 # 单项聚焦审计
 /secaudit --focus cryptography                      # 零参数 + 单项聚焦
 /secaudit ./src python --focus input-validation     # 单项：仅输入验证审计
-/secaudit ./src python --focus taint-analysis       # 单项：仅污点分析
+/secaudit ./src python --focus data-protection      # 单项：仅数据保护审计
 
 # SARIF 输出
 /secaudit ./src python --sarif                      # 输出 SARIF 格式（CI/CD）
@@ -63,10 +63,10 @@ docs/audit-framework/  ← Audit Execution Framework
 **执行完毕后必须输出审计摘要：**
 
 ```
-## secaudit 审计完成 — taint-analysis
+## secaudit 审计完成 — input-validation
 
 Scan ID: sec-20260523-143000-b3c4
-Skill: secaudit-taint-analysis
+Skill: aud-input-validation
 
 ### 结果
 - 分析路径: 15 (Source → Propagation → Sink)
@@ -89,38 +89,13 @@ Skill: secaudit-taint-analysis
 - **🤖 AI Agent 修复** → 读取 `ai/remediation-pack.json` 自动修复：`读取 report.md §4，按每个发现的 🔧 Fix 方案修改代码`
 ```
 
-## 可用 Skills
+## 可用审计域
 
-**审计规则来源**: `knowledge/audit-rules/`（17 条规则，映射 OWASP ASVS + CWE Top 25）
+**审计域**: `knowledge/audit-rules/`（13 个审计域，覆盖 OWASP ASVS + CWE Top 25）
 
-### analysis - 安全分析方法 (5 个)
-| Skill | 描述 | Rule Pack 映射 |
-|-------|------|----------------|
-| attack-surface-analysis | 分析攻击面，识别暴露入口点和接口 | secguardian |
-| data-flow-analysis | 追踪数据从 Source 到 Sink 的完整数据流 | secguardian |
-| state-machine-analysis | 分析状态转换，检测非法跃迁路径 | secguardian |
-| taint-analysis | 标记污点数据源，追踪传播链 | secguardian |
-| trust-boundary-analysis | 识别信任边界，检查跨边界控制 | secguardian |
-
-### domain - 安全领域审计 (12 个)
-| Skill | 描述 | Rule Pack 映射 |
-|-------|------|----------------|
-| auth-and-session | 认证机制和会话生命周期审计 | secguardian |
-| authorization | 权限模型审计，检测越权 | secguardian |
-| cryptography | 加密实现审计，检测弱算法 | secguardian |
-| data-protection | 敏感数据存储/传输/处理保护 | secguardian |
-| dependency-security | 依赖的已知漏洞和供应链审计 | secguardian |
-| http-security-headers | HTTP 安全头配置审计 | secguardian |
-| infra-hardening | 容器/K8s/云资源加固审计 | secguardian |
-| input-validation | 输入验证和注入漏洞审计 | secguardian |
-| logging-and-monitoring | 日志完整性和安全监控审计 | secguardian |
-| output-encoding | 输出编码和 XSS 防护审计 | secguardian |
-| secrets-management | 密钥/凭证管理方式审计 | secguardian |
-| secure-transport | TLS 配置和传输层安全审计 | secguardian |
+详细审计域说明见 `docs/audit-framework/workflow.md`。
 
 ## 派发规则与执行步骤
-
-> **隔离约束**: 本命令只能加载 `skills/` 扩展下的 `secaudit-*` 前缀 skill，禁止加载 `secguard-*` 或 `secreview-*` 前缀的任何文件。审计技能仅从 `skills/secaudit/{name}/SKILL.md` 路由。
 
 你（AI Agent）在接收到 `/secaudit` 命令后，必须按以下步骤执行来构建索引并进行安全审计。
 
@@ -187,16 +162,14 @@ python3 scripts/validate-index.py \
     --scan-id <scan_id>
 ```
 
-### Step 3: 加载审计规则并路由 Audit Skill
+### Step 3: 加载审计域规则并路由 Workflow
 
-> 默认加载 `knowledge/audit-rules/` 中的 17 条审计规则，按 workflow 定义的 phase 顺序执行。
+> 默认加载 `knowledge/audit-rules/` 中的 13 个审计域规则，由 secaudit workflow 自动调度执行。
 
-- 如果用户未指定 skill-name，或输入为 `analysis` / `domain` / `list`，列出对应的 skills 列表（从 pack.json 获取）。
-- 如果指定了具体的 skill-name，精确加载 `../skills/secaudit/{skill-name}/SKILL.md`。
-- **默认审计模式**: 加载 `skills/secaudit/workflow-secaudit/SKILL.md` 作为 17 阶段执行引擎，各 phase 从 `knowledge/audit-rules/` 加载对应的规则文件。
+- **默认审计模式**: 加载 `skills/secaudit/SKILL.md` 作为执行引擎，各 phase 从 `knowledge/audit-rules/` 加载对应的规则文件。
   - workflow 中定义的 phase 顺序
   - 后处理（去重、评分、分类、修复路线图）由 workflow 定义
-- 根据 `index.json` 提供的符号表和调用图、`SKILL.md` 的审计规范以及 `../knowledge/guard-rules/` 中相关检测器的威胁定义进行深度推理审计。
+- **单项聚焦**: `--focus <domain>` 时跳过不匹配的 phase，仅加载对应域的规则文件
 ### Step 4: 输出结构化 findings（遵循 Findings Protocol v5.0）
 
 > **v6.0**: secaudit 命令同样适用三轮验证管道（`commands/secguard.md` Step 3.5）。`--no-verify` 跳过验证。
@@ -205,8 +178,8 @@ python3 scripts/validate-index.py \
 **4a. 按 detector 分组，以 SHA 前缀为文件名逐文件输出：**
 
 > **重要: detector 命名约定** — 每个 finding 的 `detector` 字段必须使用 `audit.{skill-name}` 格式，
-> 例如 `audit.attack-surface-analysis`、`audit.taint-analysis`、`audit.cryptography`。
-> 不得使用裸名 (如 `attack-surface-analysis`)，否则 SARIF 生成器会报 `IndexError`。
+> 例如 `audit.cryptography`、`audit.input-validation`、`audit.auth-and-session`。
+> 不得使用裸名 (如 `cryptography`)，否则 SARIF 生成器会报 `IndexError`。
 
 每个 finding 写入独立文件，路径格式如 secguard Step 4a（见 `commands/secguard.md`），额外包含 `secaudit_specific` 字段：
 
@@ -217,7 +190,7 @@ python3 scripts/validate-index.py \
     # no "id" field — identity is SHA-256(detector:file:line:cwe)
     "severity": "Critical",
     "cwe": "CWE-89",
-    "detector": "audit.taint-analysis",
+    "detector": "audit.input-validation",
     "file": "src/webapp.py",
     "line": 47,
     "location": {
@@ -242,7 +215,7 @@ python3 scripts/validate-index.py \
       "after_code": "cursor.execute(\"SELECT * FROM users WHERE id = ?\", (user_id,))"
     },
     "secaudit_specific": {
-      "skill_name": "taint-analysis",
+      "skill_name": "input-validation",
       "skill_category": "analysis",
       "analysis_paths": 15,
       "complete_chains": 4

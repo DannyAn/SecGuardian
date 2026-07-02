@@ -884,3 +884,28 @@ ChatGPT 指出核心风险：**"AI 比传统 SAST 更聪明"这个卖点的生�
 - `knowledge/`: 无变更（已经是 SSOT）
 
 **关联参考**: 用户提供的 [Audit Framework 重构指导](#)
+
+---
+
+## 2026-07-02: SecAudit 领域模型重构 (Domain Model Redefinition)
+
+**背景**: 当前 skills/secaudit/ 和 knowledge/audit-rules/ 将分析方法（Taint Analysis、Attack Surface 等）与安全领域（Authentication、Cryptography 等）混在同一级。用户需要选择 "我到底要用 taint-analysis 还是 cryptography？"，增加了认知负担。
+
+**讨论要点**:
+- 分析方法（Taint Analysis、Data Flow、Attack Surface、Trust Boundary、State Machine）应该是 AI 内部推理能力，不是用户入口
+- 安全领域（Authentication、Cryptography、Input Validation 等）是产品能力，应该暴露给用户
+- Skills 概念收敛为 "AI Workflow"——SecAudit 只保留 workflow-secaudit 一个 skill
+- 未来新增标准（OWASP ASVS、PCI DSS、CIS Benchmark）通过 Mapping 实现，不新增 Rule
+- Analysis Method 可以持续演进（Symbolic Execution、CPG、Graph Reasoning），不影响产品接口
+
+**最终方案**:
+- knowledge/audit-rules/: 删除 5 个分析方法文件，新增 information-exposure.md
+- skills/secaudit/: 删除 15 个独立 skill（5 分析方法 + 12 领域），仅保留 workflow-secaudit
+- commands/secaudit.md: 简化为单一入口，无 skill 路由
+- docs/audit-framework/: 更新架构图和工作流描述
+
+**影响范围**:
+- knowledge/audit-rules/: 17→13 文件（-5 +1）
+- skills/secaudit/: 18→1 目录（仅保留 workflow-secaudit）
+- commands/secaudit.md: 大幅简化
+- manifest.json: 更新计数
