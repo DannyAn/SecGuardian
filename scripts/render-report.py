@@ -1303,6 +1303,9 @@ Examples:
                     findings_data[key] = index_meta[key]
             if "scope" in index_meta and (not findings_data.get("scope") or findings_data["scope"].get("files", 0) == 0):
                 findings_data["scope"] = index_meta["scope"]
+        # --command always wins over what the AI or validate-findings wrote
+        if args.command:
+            findings_data["command"] = args.command
     else:
         # v4.0: load monolithic findings.json
         findings_data = load_json(args.findings)
