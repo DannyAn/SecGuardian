@@ -65,6 +65,7 @@ description: "AI Release Security Audit — 17-domain audit framework with knowl
 ## secaudit 审计完成 — input-validation
 
 Scan ID: sec-20260523-143000-b3c4
+Project: <project-name>
 Workspace: <user-project>
 Skill: aud-input-validation
 

@@ -62,6 +62,7 @@ Follows [Scan Output Protocol 5.0](../knowledge/protocols/scan-output.md). Human
 ## secreview review complete
 
 Scan ID: pr-20260531-143000-a1b2
+Project: <project-name>
 Workspace: <user-project>
 Path: ./src
 Language: Java (auto-detected)
