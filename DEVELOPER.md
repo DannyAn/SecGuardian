@@ -777,3 +777,133 @@ done
 - 各语言速查表: `skills/<cmd>-<lang>/references/<lang>-security-cheatsheet.md`
 - 各语言反模式: `skills/secreview-<lang>/references/<lang>-anti-patterns.md`
 - OWASP ASVS 认证参考: `skills/secaudit-auth-and-session/references/owasp-asvs-auth.md`
+
+---
+
+## PR 门禁与分支保护
+
+> SecGuardian 使用 GitHub Actions + Branch Protection 实现 PR 合并前的自动化质量门禁。
+
+### 分支策略
+
+| 分支 | 用途 | 保护级别 |
+|------|------|---------|
+| `develop` | 日常开发、功能集成 | 🔒 全保护 |
+| `master` | 发布版本 | 🔒 全保护 |
+
+### 合并流程
+
+```mermaid
+gitGraph
+  commit id:"日常开发"
+  branch feature/xxx
+  commit id:"功能开发"
+  commit id:"完成"
+  checkout develop
+  merge feature/xxx tag:"PR → CI 自动触发"
+```
+
+1. 从 `develop` 创建功能分支：`git checkout -b feature/xxx`
+2. 开发完成后提 PR → `develop`
+3. CI 自动运行 10+ 个 job（见下方）
+4. **全部通过 + 至少 1 人 Review** → 可合并
+5. 合并后 CI 在 `develop` 上再次触发
+
+### 门禁检查清单（PR 必须全部通过）
+
+| # | 检查项 | 脚本/Job | 验证内容 |
+|---|--------|---------|---------|
+| 1 | Self Check | `bash scripts/self-check.sh` | 107 项：知识库结构、manifest 一致性、command path、skills 数、stale ref、Go 编译、indexer 冒烟 |
+| 2 | CI Check | `bash scripts/ci-check.sh` | extension.json 格式、版本号一致性、skill 目录、Go 编译、索引器端到端 |
+| 3 | Build | Go 编译 x 3 平台 | ubuntu / macOS / Windows 交叉编译 |
+| 4 | Test | Go 单元测试 |  CGO=0 和 CGO=1 两种模式 |
+| 5 | Knowledge Check | frontmatter 完整性 | 所有 guard-rules 必含 `description` / `cwe` / `severity` |
+| 6 | Example Check | 示例覆盖率 | 每个 CWE 在 examples/ 中至少有 1 条标记 |
+| 7 | MarkdownLint | markdownlint-cli2 | Markdown 格式规范 |
+
+### 绕过门禁
+
+**不建议，但紧急时可两种方式：**
+
+```bash
+# 方式一：直接 push 到 develop（需要管理员权限 + 临时关闭保护）
+# GitHub → Settings → Branches → develop → Unprotect
+
+# 方式二：通过 API 合并（需要管理员权限 + token）
+curl -X PUT \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Accept: application/vnd.github.v3+json" \
+  "https://api.github.com/repos/DannyAn/SecGuardian/pulls/$PR_ID/merge" \
+  -d '{"merge_method":"squash"}'
+```
+
+### 配置详情
+
+配置文件：`.github/workflows/ci.yml`
+
+触发条件：
+- `push` 到 `develop` / `master`
+- `pull_request` 目标为 `develop` / `master`
+
+分支保护设置（通过 GitHub API 配置）：
+
+```json
+{
+  "required_status_checks": {
+    "strict": true,
+    "contexts": [
+      "CI / Self Check",
+      "CI / CI Check",
+      "CI / Build ubuntu-latest",
+      "CI / Build macos-latest",
+      "CI / Build windows-latest",
+      "CI / Test ubuntu-latest CGO=1",
+      "CI / Knowledge Check",
+      "CI / Example Check",
+      "CI / MarkdownLint"
+    ]
+  },
+  "enforce_admins": true,
+  "required_pull_request_reviews": {
+    "required_approving_review_count": 1,
+    "dismiss_stale_reviews": true
+  },
+  "required_linear_history": true,
+  "allow_force_pushes": false,
+  "allow_deletions": false
+}
+```
+
+### 本地预检（push 前推荐）
+
+```bash
+# 快速预检（~15s）
+bash scripts/self-check.sh
+
+# 结构验证（~10s）
+bash scripts/ci-check.sh
+```
+
+> 这两个脚本合起来就是 PR 上 CI 跑的全部内容的本地版本。本地跑过再 push，基本不会在 CI 上翻车。
+
+### CI 工作流文件位置
+
+| 平台 | 配置文件 | 用途 |
+|------|---------|------|
+| GitHub Actions | `.github/workflows/ci.yml` | PR 门禁 + push 自动检查 |
+| GitHub Actions | `.github/workflows/release.yml` | 版本发布（tag push 触发） |
+| Gitee Go | `.gitee-ci.yml` | Gitee 镜像 CI（需手动开通） |
+
+### 常见问题
+
+**Q: PR 提交后 CI 没有触发？**
+A: 检查 `.github/workflows/ci.yml` 的 `on.pull_request.branches` 是否包含目标分支名。目前配置了 `develop` 和 `main`。
+
+**Q: CI job 显示 "pending" 状态？**
+A: 首次 PR 时 GitHub 需要先完成一次完整运行才能识别 check name。等第一次跑完即可。
+
+**Q: 合并按钮灰色显示 "Required checks must pass"？**
+A: 说明有的 check 还没跑完或失败了。点进 PR 的 Checks tab 查看具体哪个失败。
+
+**Q: 如何查看历史 CI 运行结果？**
+A: 打开 https://github.com/DannyAn/SecGuardian/actions
