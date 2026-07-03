@@ -1,10 +1,10 @@
 #!/bin/bash
 # SecGuardian — 统一部署脚本
-# 用法: bash scripts/deploy.sh <platform> [--user] [--zip] [--build] [--verify]
+# 用法: bash scripts/deploy.sh <platform> [--user] [--zip] [--verify]
 #       bash scripts/deploy.sh all
 #       bash scripts/deploy.sh cc|nga|cac
 #
-# 前置条件: dist/ 已通过 package.sh 构建完成
+# 默认行为: 自动先构建（package.sh）再部署
 # 会先自动检查 dist/ 是否就绪，否则先执行 package.sh
 
 set -euo pipefail
@@ -38,15 +38,14 @@ SecGuardian — 部署脚本
   --user       部署到用户家目录（推荐，跨项目共用）
   --uninstall  卸载已安装的 secguardian 文件
   --zip        部署后生成发布压缩包 → dist/archives/
-  --build      部署前自动构建 dist/（等价于先跑 package.sh）
   --verify     部署后运行 dev-verify.sh 验证健康
 
 示例:
   bash scripts/deploy.sh all --user          # 用户级部署
   bash scripts/deploy.sh all --uninstall     # 卸载全部
   bash scripts/deploy.sh all --user --uninstall
-  bash scripts/deploy.sh all --build              # 构建 + 部署全部
-  bash scripts/deploy.sh all --build --verify     # 构建 + 部署 + 验证  # 卸载用户级安装
+  bash scripts/deploy.sh all                     # 构建 + 部署全部
+  bash scripts/deploy.sh all --verify             # 构建 + 部署 + 验证  # 卸载用户级安装
   bash scripts/deploy.sh cc                 # 项目级部署 Claude Code
 EOF
     exit 0
@@ -61,7 +60,6 @@ while [[ $# -gt 0 ]]; do
         --user) DEPLOY_USER=true; shift ;;
         --uninstall) DO_UNINSTALL=true; shift ;;
         --zip) DO_ZIP=true; shift ;;
-        --build) DO_BUILD=true; shift ;;
         --verify) DO_VERIFY=true; shift ;;
         -h|--help|help) show_help ;;
         *) shift ;;
@@ -78,8 +76,8 @@ case "$PLATFORM" in
         ;;
 esac
 
-# ── 前置构建 ──────────────────────────────────
-if $DO_BUILD; then
+# ── 前置构建（默认执行，--uninstall 时跳过）───
+if ! $DO_UNINSTALL; then
     echo "  → 正在构建 dist/..."
     bash "$PROJECT_ROOT/scripts/package.sh"
     echo "  ✓ 构建完成"

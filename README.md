@@ -53,7 +53,7 @@ bash scripts/deploy.sh cac      # Gemini CLI only
 ```bash
 git clone https://github.com/DannyAn/SecGuardian.git
 cd SecGuardian
-bash scripts/deploy.sh all --build
+bash scripts/deploy.sh all
 ```
 
 ### Try the demo

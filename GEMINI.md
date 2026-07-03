@@ -1,6 +1,6 @@
 # GEMINI.md — SecGuardian for Gemini CLI
 
-> **核心认知**: SecGuardian 不是传统 SAST。只有 Go 索引器是编译代码，其余全部是 Markdown 知识文件，由 AI Agent 在扫描时动态加载。修改任何 `.md` → `bash scripts/deploy.sh all --build` → AI 重启即可生效。
+> **核心认知**: SecGuardian 不是传统 SAST。只有 Go 索引器是编译代码，其余全部是 Markdown 知识文件，由 AI Agent 在扫描时动态加载。修改任何 `.md` → `bash scripts/deploy.sh all` → AI 重启即可生效。
 
 ## 开发守则第一条：SDD 规格驱动开发
 
@@ -41,10 +41,10 @@
 
 | 你做了什么 | 执行命令 | 耗时 |
 |-----------|---------|------|
-| 修改 skills/knowledge/commands | `bash scripts/deploy.sh all --build` | ~30s |
-| 修改 internal/ (Go 索引器) | `bash scripts/deploy.sh all --build --verify` | ~35s |
+| 修改 skills/knowledge/commands | `bash scripts/deploy.sh all` | ~30s |
+| 修改 internal/ (Go 索引器) | `bash scripts/deploy.sh all --verify` | ~35s |
 | 怀疑部署状态异常 | `bash scripts/dev-verify.sh` | ~5s |
-| 彻底清理重来 | `bash scripts/deploy.sh all --uninstall --build --verify` | ~60s |
+| 彻底清理重来 | `bash scripts/deploy.sh all --uninstall --verify` | ~60s |
 
 ```bash
 bash scripts/deploy.sh all --uninstall                   # 卸载部署

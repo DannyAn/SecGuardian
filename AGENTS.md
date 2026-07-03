@@ -28,7 +28,7 @@ secguardian/                # v0.6.0, Go 1.25.3, parser + indexer 有 go test �
 ├── examples/               # 故意含漏洞的测试代码 (cpp-vuln-demo, python-vuln-demo, java-vuln-demo)
 │
 ├── scripts/                # 构建/部署/验证 脚本
-│   ├── deploy.sh all --build        #   ★ 日常唯一入口
+│   ├── deploy.sh all        #   ★ 日常唯一入口
 │   ├── dev-verify.sh       #   25 项部署健康检查
 │   ├── package.sh          #   跨平台编译 + 组装 extension 包 → dist/
 │   ├── deploy.sh           #   部署 dist/ → 三平台插件目录
@@ -42,11 +42,11 @@ secguardian/                # v0.6.0, Go 1.25.3, parser + indexer 有 go test �
 └── .codeagent/             # 扫描输出归档: secguard-secguardian/scans/<scan-id>/
 ```
 
-> **核心认知**: 这不是传统 SAST。只有 Go 索引器是编译代码，其余全部是 Markdown 知识文件，由 AI Agent 在扫描时动态加载。修改任何 `.md` → `deploy.sh all --build` → AI 重启即可生效。
+> **核心认知**: 这不是传统 SAST。只有 Go 索引器是编译代码，其余全部是 Markdown 知识文件，由 AI Agent 在扫描时动态加载。修改任何 `.md` → `deploy.sh all` → AI 重启即可生效。
 
 ## 开发守则第一条：SDD 规格驱动开发
 
-> ⚠️ **禁止收到开发需求后直接编码**。SecGuardian 采用 Spec-Driven Development (SDD) 方法论。**日常开发不只是跑 `deploy.sh all --build`**——在跑部署命令之前，必须先走 SDD 流程。
+> ⚠️ **禁止收到开发需求后直接编码**。SecGuardian 采用 Spec-Driven Development (SDD) 方法论。**日常开发不只是跑 `deploy.sh all`**——在跑部署命令之前，必须先走 SDD 流程。
 
 ### SDD 七环流程
 
@@ -85,14 +85,14 @@ secguardian/                # v0.6.0, Go 1.25.3, parser + indexer 有 go test �
 
 ## 构建与部署
 
-> **日常开发只需要记一条**: `bash scripts/deploy.sh all --build` — 改了什么文件都这个命令重建 + 部署。
+> **日常开发只需要记一条**: `bash scripts/deploy.sh all` — 改了什么文件都这个命令重建 + 部署。
 
 | 你做了什么 | 执行命令 | 耗时 |
 |-----------|---------|------|
-| 修改 skills/knowledge/commands | `bash scripts/deploy.sh all --build` | ~30s |
-| 修改 internal/ (Go 索引器) | `bash scripts/deploy.sh all --build --verify` | ~35s (含冒烟) |
+| 修改 skills/knowledge/commands | `bash scripts/deploy.sh all` | ~30s |
+| 修改 internal/ (Go 索引器) | `bash scripts/deploy.sh all --verify` | ~35s (含冒烟) |
 | 怀疑部署状态异常 | `bash scripts/dev-verify.sh` | ~5s |
-| 彻底清理重来 | `bash scripts/deploy.sh all --uninstall --build --verify` | ~60s (含验证) |
+| 彻底清理重来 | `bash scripts/deploy.sh all --uninstall --verify` | ~60s (含验证) |
 
 ```bash
 bash scripts/deploy.sh all --uninstall                   # 卸载部署（保留 .codeagent/ 扫描）
