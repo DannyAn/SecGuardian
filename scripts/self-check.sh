@@ -164,12 +164,13 @@ echo ""
 echo "§12. Markdown Lint"
 echo "  (run: markdownlint-cli2 '**/*.md' --config .markdownlint.jsonc --ignore .markdownlintignore)"
 if command -v npx &>/dev/null; then
-    if npx --yes markdownlint-cli2 '**/*.md' --config .markdownlint.jsonc --ignore .markdownlintignore 2>/dev/null; then
+    MDLINT_OUT=$(npx markdownlint-cli2 '**/*.md' --config .markdownlint.jsonc --ignore .markdownlintignore 2>&1) || true
+    if [ -z "$MDLINT_OUT" ]; then
         green "  All markdown files pass lint"
     else
-        echo ""
-        echo "  To view details: npx markdownlint-cli2 '**/*.md' --config .markdownlint.jsonc --ignore .markdownlintignore"
-        echo "  Skipping non-zero exit (rules may vary by environment)"
+        echo "  MarkdownLint found issues:"
+        echo "$MDLINT_OUT" | head -5
+        echo "  To view full: npx markdownlint-cli2 '**/*.md' --config .markdownlint.jsonc"
     fi
 else
     echo "  npx not available — install Node.js to run markdownlint locally"
