@@ -145,18 +145,8 @@ find_indexer() {
     echo "Using: $INDEXER"
 }
 find_indexer
-# 索引复用: 同路径扫描共享缓存，跳过重复构建
-cache_dir="<user-project>/.codeagent/secaudit-secguardian/cache"
-mkdir -p "$cache_dir"
-cache_key=$(echo "$(realpath "<path>" 2>/dev/null || echo "<path>")" | md5sum 2>/dev/null | head -c 8 || echo "<path>")
-if [ -f "$cache_dir/$cache_key.json" ]; then
-    cp "$cache_dir/$cache_key.json" "<user-project>/.codeagent/secaudit-secguardian/scans/<scan_id>/index.json"
-else
-    $INDEXER --path <path> --output <user-project>/.codeagent/secaudit-secguardian/scans/<scan_id>/index.json
-    if [ $? -eq 0 ]; then
-        cp "<user-project>/.codeagent/secaudit-secguardian/scans/<scan_id>/index.json" "$cache_dir/$cache_key.json"
-    fi
-fi
+# 缓存由 wrapper (scripts/secguardian-index) 透明处理：同路径复用 index.json
+$INDEXER --path <path> --output <user-project>/.codeagent/secaudit-secguardian/scans/<scan_id>/index.json
 if [ ! -f "<user-project>/.codeagent/secaudit-secguardian/scans/<scan_id>/index.json" ]; then
     echo "FATAL: Indexer failed — cannot continue"
     exit 1

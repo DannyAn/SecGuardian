@@ -1,34 +1,80 @@
 #!/bin/bash
-# SecGuardian — Indexer binary wrapper
+# SecGuardian — Indexer binary wrapper with transparent caching
 #
 # Invokes the canonical secguardian-index binary from bin/.
-# In release packages the binary is always named 'secguardian-index'
-# regardless of platform (darwin-arm64, linux-amd64, etc.).
-
-set -e
+# Caching: consecutive scans of the same source path reuse the index.json,
+# skipping the Tree-sitter parse (~15s saved per re-scan).
+# Cache location: <output-dir>/../cache/<path-md5>.json
+# Lifecycle: cache hit → copy; miss → build → cache; stale → binary handles it.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BIN_DIR="$SCRIPT_DIR/bin"
-CANONICAL="$BIN_DIR/secguardian-index"
 
-# 1. Canonical name (release packages, platform-specific deploy)
-if [ -f "$CANONICAL" ] && [ -x "$CANONICAL" ]; then
-    exec "$CANONICAL" "$@"
+# --- Parse --path / --output for caching ---
+SRC_PATH=""
+OUTPUT_PATH=""
+ARGS=()
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --path) SRC_PATH="$2"; ARGS+=("$1" "$2"); shift 2 ;;
+        --output) OUTPUT_PATH="$2"; ARGS+=("$1" "$2"); shift 2 ;;
+        *) ARGS+=("$1"); shift ;;
+    esac
+done
+set -- "${ARGS[@]}"
+
+# --- Transparent caching ---
+CACHE_HIT=0
+if [ -n "$SRC_PATH" ] && [ -n "$OUTPUT_PATH" ]; then
+    OUTPUT_DIR="$(dirname "$OUTPUT_PATH")"
+    SCAN_DIR="$(dirname "$OUTPUT_DIR")"
+    CACHE_DIR="$SCAN_DIR/cache"
+    mkdir -p "$CACHE_DIR"
+    RAW_PATH="$(realpath "$SRC_PATH" 2>/dev/null || echo "$SRC_PATH")"
+    CACHE_KEY=""
+    if command -v md5sum &>/dev/null; then
+        CACHE_KEY="$(echo "$RAW_PATH" | md5sum 2>/dev/null | cut -c1-8)"
+    elif command -v openssl &>/dev/null; then
+        CACHE_KEY="$(echo "$RAW_PATH" | openssl dgst -md5 2>/dev/null | cut -d' ' -f2 | cut -c1-8)"
+    fi
+    if [ -n "$CACHE_KEY" ] && [ -f "$CACHE_DIR/$CACHE_KEY.json" ]; then
+        cp "$CACHE_DIR/$CACHE_KEY.json" "$OUTPUT_PATH"
+        echo "INDEX CACHE HIT: $OUTPUT_PATH (from $CACHE_DIR/$CACHE_KEY.json)" >&2
+        CACHE_HIT=1
+    fi
 fi
 
-# 2. Platform-specific fallback (multi-platform dev builds)
-OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
-ARCH="$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')"
-PLATFORM_BIN="$BIN_DIR/secguardian-index-${OS}-${ARCH}"
-if [ -f "$PLATFORM_BIN" ] && [ -x "$PLATFORM_BIN" ]; then
-    exec "$PLATFORM_BIN" "$@"
+# --- Locate binary ---
+locate_binary() {
+    local c="$BIN_DIR/secguardian-index"
+    if [ -f "$c" ] && [ -x "$c" ]; then echo "$c"; return 0; fi
+    local os arch
+    os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+    arch="$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')"
+    local p="$BIN_DIR/secguardian-index-${os}-${arch}"
+    if [ -f "$p" ] && [ -x "$p" ]; then echo "$p"; return 0; fi
+    local d="$SCRIPT_DIR/../internal/secguardian-index"
+    if [ -f "$d" ] && [ -x "$d" ]; then echo "$d"; return 0; fi
+    return 1
+}
+BINARY="$(locate_binary)" || {
+    echo "Indexer binary not found. Expected: $BIN_DIR/secguardian-index or platform variant" >&2
+    exit 1
+}
+
+# --- Cache hit → done ---
+if [ "$CACHE_HIT" -eq 1 ]; then
+    exit 0
 fi
 
-# 3. Dev fallback: source repo internal/ build
-DEV_BIN="$SCRIPT_DIR/../internal/secguardian-index"
-if [ -f "$DEV_BIN" ] && [ -x "$DEV_BIN" ]; then
-    exec "$DEV_BIN" "$@"
+# --- Run binary ---
+"$BINARY" "$@"
+BINARY_EXIT=$?
+
+# --- On success, write to cache ---
+if [ "$BINARY_EXIT" -eq 0 ] && [ -n "$CACHE_KEY" ] && [ -n "$OUTPUT_PATH" ] && [ -f "$OUTPUT_PATH" ]; then
+    cp "$OUTPUT_PATH" "$CACHE_DIR/$CACHE_KEY.json"
+    echo "INDEX CACHED: $OUTPUT_PATH -> $CACHE_DIR/$CACHE_KEY.json" >&2
 fi
 
-echo "Indexer binary not found. Expected: $CANONICAL or $PLATFORM_BIN" >&2
-exit 1
+exit $BINARY_EXIT
