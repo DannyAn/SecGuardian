@@ -2,6 +2,70 @@
 
 All notable changes to SecGuardian.
 
+## [0.11.0] — 2026-07-03
+
+### ★ Audit Framework 架构职责收敛 (CHANGE-002)
+
+#### 重构
+- **知识去重** — 删除 `audit-framework/rulepacks/` (17 个规则与 `knowledge/` 完全重复)，`knowledge/audit-rules/` 成为唯一安全知识源 (SSOT)
+- **目录归位** — `audit-framework/` 从根级移至 `docs/`（后因冗余删除，架构设计移交 SDD 维护）
+- **CLI 入口统一** — 移除 `--rulepack` 参数，`/secaudit <path> <lang>` 与 `/secguard`、`/secreview` 一致
+- **框架纯化** — `audit-framework/` 不再包含任何安全规则副本
+
+### ★ SecAudit Domain Model 重构 (FEATURE-009)
+
+#### 领域模型
+- **分析方法降级为 AI 内部推理** — Taint Analysis、Data Flow、Attack Surface、Trust Boundary、State Machine 不再作为用户入口，由 AI Workflow 自动选择
+- **SecAudit 仅暴露安全审计域** — 13 个审计域 (Authentication、Cryptography、Input Validation 等)
+- **新增 information-exposure 域**
+
+#### Skills 收敛
+- **skills/secaudit/ 从 18 个降为 1 个** — 删除 16 个独立 skill 目录，仅保留 `skills/secaudit/SKILL.md`
+- **Skill 路径拍平** — `skills/secaudit/workflow-secaudit/` → `skills/secaudit/`
+- **引用文件迁移** — 2 个文件迁移至 `knowledge/standards/`
+
+### ★ 发布质量修复 (2026-07-03)
+
+#### 渲染器修复
+- **manifest.json command 字段错误** — renderer 写死了 `"command": "secguard"`，secaudit/secreview 的 manifest 也显示 secguard
+- **修复**: 新增 `--command` 参数，三个命令 Step 4c 分别传入 `--command secguard|secaudit|secreview`
+- **结果**: manifest.json 的 command 字段现在正确
+
+#### 输出路径修复
+- **`.codeagent/` 输出跑到了 SecGuardian 项目根** — 路径是相对于 AI 的 CWD 而非用户项目根
+- **修复**: 三个命令文件统一加"输出路径约定"，所有路径使用 `<user-project>/.codeagent/` 前缀
+- **索引器输出路径不一致** — 索引器写 `.codeagent/...`，渲染器读 `<user-project>/.codeagent/...`，scope 统计空白
+- **修复**: 索引器输出路径也改为 `<user-project>/.codeagent/...`
+- **secreview 索引器跑在 scan_id 之前** — 路径不含 scan_id → 渲染器找不到 index.json
+- **修复**: 强调 `Generate scan_id FIRST` + ALL 后续路径使用同一 scan_id
+
+#### 部署脚本修复
+- **`scripts/dev-deploy.sh` 删除** — 与 `deploy.sh` 重复维护，且文件头已自述弃用
+- **`deploy.sh` 默认不构建** — 用户需手动 `--build`，但大部分人不知道
+- **修复**: `deploy.sh all` 默认先构建再部署；新增 `--verify` 部署后自动验证
+- **`deploy.sh --user` 报错** — 第一参数 `--user` 被当作平台名解析
+- **修复**: 首参数以 `--` 开头时默认 `all`
+
+#### 发布产物修复
+- **GitHub Release 只有源码包** — `release.yml` 的 `files: dist/release/**/*.zip` 只上传 `.zip`
+- **修复**: 改为 `files: dist/release/**`，上传所有产物（5 平台二进制 + .sha256 + 3 插件 .zip + manifest.json）
+- **`package.sh` 未处理拍平 skill** — `skills/${cmd}/${skill_name}` 路径不存在（secaudit 的 skill 是拍平的）
+- **修复**: 新增 `flat_skill` 回退逻辑 + `references/` 目录复制
+
+#### 验证机制
+- **新增 cross-command 一致性检查** — `self-check.sh §11` + `ci-check.sh §6`
+- 验证所有 3 个命令文件同步包含：`--command <name>`、`<user-project>/` 前缀、scan_id 排序指令、无陈旧引用
+- **self-check 从 107 项扩展到 120 项**
+
+### 其他改进
+- `internal/main.go` — 版本号同步至 0.11.0
+- `commands/secaudit.md` — 移除"16 阶段审计"（过时）和 `skill_category: "analysis"`（改为 `"domain"`）
+- `commands/secreview.md` — 同步输出路径约定、scan_id 顺序、移除旧版 skill 路由引用
+- `scripts/sync-language-index.sh` — 新增 regenerated 文件提交
+- `knowledge/language-index.md` — 提交重构后版本的自动生成文件
+- **总代码量**: +874 / -3692 行 (净削 2818 行)
+
+
 ## [0.11.0] — 2026-07-02
 
 ### ★ Audit Framework 架构职责收敛 (CHANGE-002)
