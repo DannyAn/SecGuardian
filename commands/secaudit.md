@@ -102,7 +102,7 @@ Skill: aud-input-validation
 
 在执行任何审计步骤之前，必须逐项确认以下所有条件。**任一项未通过，审计不得开始，向用户报告具体错误。**
 
-- [ ] 定位索引器 wrapper：检查 `.opencode/extensions/secguardian/`（项目级）→ `~/.config/opencode/extensions/secguardian/`（用户级）→ `.gemini/` → `.claude/` → `scripts/` 回退（至少一个存在且可执行）
+- [ ] 定位索引器 wrapper：检查 `.opencode/extensions/secguardian/`（项目级）→ `~/.config/opencode/extensions/secguardian/`（用户级）→ `.gemini/` → `.claude/` → 执行 `find_indexer()` 自动搜索全部路径
 - [ ] 执行 `{indexer} --health` 通过（输出必须包含 `HEALTH:OK` 或 `HEALTH:WARN`，不接受 `HEALTH:FAIL`）
 - [ ] 目标路径 `<path>` 存在且包含至少一个源码文件
 - [ ] 确认不会启动 clangd/LSP/compile_commands.json/bear 等外部工具 — indexer (tree-sitter) 已提供符号表+调用图+文件清单，所有代码结构数据从 index.json 获取
@@ -139,6 +139,8 @@ find_indexer() {
             [ -x "$candidate" ] && [ -f "$candidate" ] && INDEXER="$candidate" && break 3
         done
     done
+    # Fallbacks for dev repo (only works from SecGuardian root; in production the user-level path is used)
+    # Dev fallback (repo root only; deployed indexer found via user-level paths above)
     for candidate in scripts/secguardian-index internal/secguardian-index; do
         [ -x "$candidate" ] && [ -f "$candidate" ] && INDEXER="$candidate" && break
     done

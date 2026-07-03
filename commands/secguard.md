@@ -133,7 +133,7 @@ Filters: memory.*, system.*
 
 在执行任何扫描步骤之前，必须逐项确认以下所有条件。**任一项未通过，扫描不得开始，向用户报告具体错误。**
 
-- [ ] 定位索引器 wrapper：优先查找项目级路径，其次用户级（`~/.config/opencode/`、`~/.gemini/`、`~/.claude/`），最后回退到 `scripts/secguardian-index` 或 `internal/secguardian-index`（至少一个存在且可执行）
+- [ ] 定位索引器 wrapper：优先查找项目级路径，其次用户级（`~/.config/opencode/`、`~/.gemini/`、`~/.claude/`），然后执行 `find_indexer()` 自动搜索全部路径（优先用户级部署，最后回退本地仓库）
 - [ ] 执行 `{indexer} --health` 通过（输出必须包含 `HEALTH:OK` 或 `HEALTH:WARN`，不接受 `HEALTH:FAIL`）
 - [ ] 目标路径 `<path>` 存在且包含至少一个源码文件
 - [ ] **语言推断（仅当用户未提供 `language` 参数时）**：检查 `<path>` 下源码文件扩展名 → `*.c/*.cpp/*.h` → `cpp`, `*.py` → `python`, `*.java` → `java`, `*.go` → `go`。无需询问用户，扩展名即可判定。
@@ -175,6 +175,7 @@ find_indexer() {
         done
     done
     # Legacy fallbacks (pre-plugin-format deploys)
+    # Dev fallback (repo root only; deployed indexer found via user-level paths above)
     for candidate in \
         scripts/secguardian-index \
         internal/secguardian-index; do

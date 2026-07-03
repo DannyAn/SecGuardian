@@ -115,7 +115,7 @@ You (the AI Agent) must follow these steps when executing `/secreview` to perfor
 
 Before starting any review, verify each condition below. **If any check fails, report the specific error and abort.**
 
-- [ ] Locate indexer wrapper: `.opencode/extensions/secguardian/` (project) -> `~/.config/opencode/extensions/secguardian/` (user) -> `.gemini/` -> `.claude/` -> `scripts/` fallback (at least one exists and is executable)
+- [ ] Locate indexer wrapper: `.opencode/extensions/secguardian/` (project) -> `~/.config/opencode/extensions/secguardian/` (user) -> `.gemini/` -> `.claude/` -> run `find_indexer()` which handles all paths automatically
 - [ ] Run `{indexer} --health` passes (output must contain `HEALTH:OK` or `HEALTH:WARN`; `HEALTH:FAIL` is not accepted)
 - [ ] Target `<path>` exists and contains at least one source file
 - [ ] **Language detection (only when user omits `language` parameter)** check source extensions in `<path>`: `*.c/*.cpp/*.h` -> `cpp`, `*.py` -> `python`, `*.java` -> `java`, `*.go` -> `go`. No need to ask the user.
@@ -152,6 +152,8 @@ find_indexer() {
             [ -x "$candidate" ] && [ -f "$candidate" ] && INDEXER="$candidate" && break 3
         done
     done
+    # Fallbacks for dev repo (only works from SecGuardian root; in production the user-level path is used)
+    # Dev fallback (repo root only; deployed indexer found via user-level paths above)
     for candidate in scripts/secguardian-index internal/secguardian-index; do
         [ -x "$candidate" ] && [ -f "$candidate" ] && INDEXER="$candidate" && break
     done
