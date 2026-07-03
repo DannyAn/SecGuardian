@@ -111,6 +111,7 @@ Output directory: <user-project>/.codeagent/secreview-secguardian/scans/pr-20260
 You (the AI Agent) must follow these steps when executing `/secreview` to perform the security code review.
 
 ### Pre-flight Checklist
+> ⛔ **DO NOT use Glob or Read tools to discover file paths**. All path checks must use bash commands (`[ -f ]`, `ls`, etc.). Always run `find_indexer` before `--health`.
 
 Before starting any review, verify each condition below. **If any check fails, report the specific error and abort.**
 

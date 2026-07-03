@@ -129,6 +129,7 @@ Filters: memory.*, system.*
 你（AI Agent）在接收到 `/secguard` 命令后，必须按以下步骤执行来构建索引并进行安全扫描。
 
 ### 前置检查（Pre-flight Checklist）
+> ⛔ **禁止使用 Glob 或 Read 工具探索文件路径**。所有路径检测必须通过 bash 命令（`[ -f ]`、`ls`）完成。先跑 `find_indexer` 再跑 `--health`。
 
 在执行任何扫描步骤之前，必须逐项确认以下所有条件。**任一项未通过，扫描不得开始，向用户报告具体错误。**
 
