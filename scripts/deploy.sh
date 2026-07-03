@@ -44,8 +44,8 @@ SecGuardian — 部署脚本
   bash scripts/deploy.sh all --project       # 项目级部署
   bash scripts/deploy.sh all --uninstall     # 卸载全部
   bash scripts/deploy.sh all --project --uninstall
-  bash scripts/deploy.sh all                     # 构建 + 部署全部
-  bash scripts/deploy.sh all --verify             # 构建 + 部署 + 验证  # 卸载用户级安装
+  bash scripts/deploy.sh all                     # 构建 + 部署到用户级（3 平台）
+  bash scripts/deploy.sh all --verify             # 构建 + 部署到用户级 + 验证
   bash scripts/deploy.sh cc                 # 项目级部署 Claude Code
 EOF
     exit 0
