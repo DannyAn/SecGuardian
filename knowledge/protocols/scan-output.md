@@ -1,9 +1,9 @@
 ---
 category: protocol
-version: "7.0"
+version: "8.0"
 ---
 
-# SecGuardian 扫描输出协议 7.0
+# SecGuardian 扫描输出协议 8.0
 
 所有 SecGuardian 命令（secguard、secaudit、secreview）的输出格式。v2.0 重新设计人读/机读分离架构。
 
@@ -25,6 +25,7 @@ version: "7.0"
 
 其余文件（index.json / dismissed.json / verification-audit.json）保持 v6.0 设计不变。
 
+> **v8.0 变更 (2026-07-03)**: 共享索引重构。index.json 从 per-scan 目录移至 `.codeagent/` 根级别，所有命令复用同一索引。输出目录从 `.codeagent/<ext>/scans/<scan-id>/` 简化为 `.codeagent/<command>/<scan-id>/`。
 > **v7.0 变更 (2026-06-26)**: 消费者导向设计重构。新增 `human/executive-summary.md`（统一入口 + 发现分布交叉表）。新增 `ai/remediation-pack.json`（AI 修复包 + 关联发现）。新增 `dashboard.html`（自动生成 HTML）。`report.md` 精简到 5 节（移除管理层摘要/验证漏斗/合规表）。移除 developer/by-file/ 和 ai/attack-graph.json（概念验证后确认无真实消费者）。findings/<ns>/<detector>/ 目录树保持为工程师核心工作流，不变。
 > **v5.0 变更 (2026-06-07)**: 单体 findings.json 重构为按 detector 组织的目录树。参见: [2026-06-07-findings-directory-tree-design.md](../../docs/superpowers/specs/2026-06-07-findings-directory-tree-design.md)
 > **v4.0 变更 (2026-06-06)**: 引入 AI/Renderer 分离架构。
@@ -69,29 +70,27 @@ Step 2: dashboard.html                 → 浏览器打开精美报告
 
 ---
 
-## 目录结构 (v7.0)
+## 目录结构 (v8.0 — 共享索引)
 
 ```
-.codeagent/<extension-name>/scans/<scan-id>/
-├── human/                          # ★ v7.0: 统一入口
-│   └── executive-summary.md         一页仪表盘：评分/发现分布/集中度/导航
-├── findings/                       # ★ 工程师核心工作流（v5.0 不变）
-│   └── <namespace>/<detector>/<finding-id>.json
-├── ai/                             # ★ v7.0: AI 可消费输出
-│   └── remediation-pack.json         AI 修复包（含 related_findings 关联发现）
-├── report.md                       # ★ v7.0: 安全工程师报告（精简 5 节）
-├── dashboard.html                     # ★ v7.0: 管理层仪表盘 仪表盘
-├── findings.json                   # 轻量索引（v5.0）
-├── results.sarif                   # SARIF 2.1.0 CI/CD（不变）
-├── summary.json                    # 仪表盘统计（不变）
-├── status.json                     # CI 门禁（不变）
-├── manifest.json                   # 扫描元数据（不变）
-├── delta.json                      # 增量对比（不变）
-├── index.json                      # 索引器输出（不变）
-├── dismissed.json                  # 验证管道（v6.0）
-├── verification-audit.json         # 验证管道（v6.0）
-└── latest → <scan-id>/             # 符号链接（不变）
+.codeagent/
+└── secguardian/
+    ├── index.json                      # ★ 共享索引（所有命令复用）
+    ├── secguard/scans/<scan-id>/        # secguard 扫描输出
+    ├── secaudit/scans/<scan-id>/       # secaudit 扫描输出
+    └── secreview/scans/<scan-id>/      # secreview 扫描输出
+        ├── human/executive-summary.md
+        ├── findings/<ns>/<det>/<sha12>_<file>-<line>.json
+        ├── ai/remediation-pack.json
+        ├── report.md, dashboard.html, findings.json, results.sarif
+        ├── summary.json, manifest.json, status.json, delta.json
+        ├── dismissed.json, verification-audit.json
+        └── latest → <scan-id>/
 ```
+
+index.json 在 `secguardian/` 目录内，跨命令共享。
+首次扫描自动生成，后续扫描自动复用。用 `--force` 强制重建。
+首次扫描自动生成，后续扫描自动复用。用 `--force` 强制重建。
 
 ### 文件命名规范
 
@@ -116,7 +115,7 @@ findings.json               # v4.0: 单体文件（所有 finding 内联，生�
 
 渲染器通过 `--findings` 读取 v4.0 格式，`--findings-dir` 读取 v5.0 目录树。
 
-- `<extension-name>`: `secguard-secguardian` / `secaudit-secguardian` / `secreview-secguardian`
+- `<command>`: `secguard` / `secaudit` / `secreview`
 - `<scan-id>`: `YYYY-MM-DDTHH-mm-ss-<6-char-uuid>`
 
 ## 用户使用流程

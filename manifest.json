@@ -1,17 +1,17 @@
 {
   "project": "secguardian",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "protocol": "1.3",
-  "description": "企业级白盒安全 AI Agent 辅助解决方案 — 以 AI 深度审计为核心的旗舰产品，67 个检测器覆盖 7 大安全分类",
+  "description": "\u4f01\u4e1a\u7ea7\u767d\u76d2\u5b89\u5168 AI Agent \u8f85\u52a9\u89e3\u51b3\u65b9\u6848 \u2014 \u4ee5 AI \u6df1\u5ea6\u5ba1\u8ba1\u4e3a\u6838\u5fc3\u7684\u65d7\u8230\u4ea7\u54c1\uff0c67 \u4e2a\u68c0\u6d4b\u5668\u8986\u76d6 7 \u5927\u5b89\u5168\u5206\u7c7b",
   "product_positioning": {
-    "flagship": "secaudit — AI 深度安全审计（企业年省 $50K+ 审计费用）",
-    "detection": "secguard — AI 引导的代码漏洞发现",
-    "review": "secreview — 安全编码规范与反模式审查"
+    "flagship": "secaudit \u2014 AI \u6df1\u5ea6\u5b89\u5168\u5ba1\u8ba1\uff08\u4f01\u4e1a\u5e74\u7701 $50K+ \u5ba1\u8ba1\u8d39\u7528\uff09",
+    "detection": "secguard \u2014 AI \u5f15\u5bfc\u7684\u4ee3\u7801\u6f0f\u6d1e\u53d1\u73b0",
+    "review": "secreview \u2014 \u5b89\u5168\u7f16\u7801\u89c4\u8303\u4e0e\u53cd\u6a21\u5f0f\u5ba1\u67e5"
   },
   "extensions": {
     "secaudit-secguardian": {
       "command": "secaudit",
-      "description": "★ 旗舰产品：AI 深度安全审计 — 13 个审计域覆盖全生命周期安全",
+      "description": "\u2605 \u65d7\u8230\u4ea7\u54c1\uff1aAI \u6df1\u5ea6\u5b89\u5168\u5ba1\u8ba1 \u2014 13 \u4e2a\u5ba1\u8ba1\u57df\u8986\u76d6\u5168\u751f\u547d\u5468\u671f\u5b89\u5168",
       "platforms": [
         "claude-code",
         "opencode",
@@ -22,13 +22,13 @@
         "secaudit": {
           "category": "workflow",
           "status": "active",
-          "desc": "AI 安全审计工作流 — 自动选择推理策略，按审计域执行检测"
+          "desc": "AI \u5b89\u5168\u5ba1\u8ba1\u5de5\u4f5c\u6d41 \u2014 \u81ea\u52a8\u9009\u62e9\u63a8\u7406\u7b56\u7565\uff0c\u6309\u5ba1\u8ba1\u57df\u6267\u884c\u68c0\u6d4b"
         }
       }
     },
     "secguard-secguardian": {
       "command": "secguard",
-      "description": "AI 引导的代码漏洞发现 — 67 个检测器覆盖 7 类安全 topic (memory/concurrency/system/crypto/web/error/resource)",
+      "description": "AI \u5f15\u5bfc\u7684\u4ee3\u7801\u6f0f\u6d1e\u53d1\u73b0 \u2014 67 \u4e2a\u68c0\u6d4b\u5668\u8986\u76d6 7 \u7c7b\u5b89\u5168 topic (memory/concurrency/system/crypto/web/error/resource)",
       "platforms": [
         "claude-code",
         "opencode",
@@ -61,13 +61,13 @@
           "language": "javascript",
           "category": "language-specific",
           "status": "active",
-          "note": "v0.5.0 新增"
+          "note": "v0.5.0 \u65b0\u589e"
         }
       }
     },
     "secreview-secguardian": {
       "command": "secreview",
-      "description": "安全编码规范审查 — 反模式识别 + 最佳实践合规 + 检测矩阵",
+      "description": "\u5b89\u5168\u7f16\u7801\u89c4\u8303\u5ba1\u67e5 \u2014 \u53cd\u6a21\u5f0f\u8bc6\u522b + \u6700\u4f73\u5b9e\u8df5\u5408\u89c4 + \u68c0\u6d4b\u77e9\u9635",
       "platforms": [
         "claude-code",
         "opencode",
@@ -99,13 +99,13 @@
           "language": "javascript",
           "category": "language-specific",
           "status": "active",
-          "note": "v0.5.0 新增"
+          "note": "v0.5.0 \u65b0\u589e"
         }
       }
     },
     "secfix-secguardian": {
       "command": "secfix",
-      "description": "🧪 Trial: Patch Generator — generates unified diff patches from findings",
+      "description": "\ud83e\uddea Trial: Patch Generator \u2014 generates unified diff patches from findings",
       "status": "trial",
       "platforms": [
         "claude-code",
@@ -198,17 +198,17 @@
         "covered": 10,
         "total": 10,
         "percentage": 100,
-        "note": "v0.5.0 新增完整覆盖"
+        "note": "v0.5.0 \u65b0\u589e\u5b8c\u6574\u8986\u76d6"
       }
     }
   },
   "output": {
     "base_dir": ".codeagent",
     "protocol": "scan-output/2.0",
-    "design": "人读/机读分离",
-    "human_readable": "report.md (Markdown 审计报告)",
-    "machine_readable": "results.sarif (SARIF 2.1.0, 始终生成, CI/CD 标准)",
-    "dashboard": "summary.json (轻量统计)",
+    "design": "\u4eba\u8bfb/\u673a\u8bfb\u5206\u79bb",
+    "human_readable": "report.md (Markdown \u5ba1\u8ba1\u62a5\u544a)",
+    "machine_readable": "results.sarif (SARIF 2.1.0, \u59cb\u7ec8\u751f\u6210, CI/CD \u6807\u51c6)",
+    "dashboard": "summary.json (\u8f7b\u91cf\u7edf\u8ba1)",
     "structure": {
       "secguard-secguardian": "scans/<scan-id>/report.md + results.sarif + summary.json + manifest.json",
       "secaudit-secguardian": "scans/<scan-id>/report.md + results.sarif + summary.json + manifest.json",
@@ -217,8 +217,8 @@
   },
   "integrations": {
     "ci_cd": {
-      "github_actions": "action.yml (upload-sarif → GitHub Code Scanning)",
-      "gitlab_ci": "artifacts:reports:sast → GitLab SAST Dashboard",
+      "github_actions": "action.yml (upload-sarif \u2192 GitHub Code Scanning)",
+      "gitlab_ci": "artifacts:reports:sast \u2192 GitLab SAST Dashboard",
       "azure_devops": "SARIF SAST Scans tab"
     }
   },
@@ -226,52 +226,52 @@
     "0.6.0": {
       "date": "2026-06-07",
       "changes": [
-        "★ Output Protocol v5.0 — Per-Finding File Directory Tree: 每个 finding 独立文件 + FindingsIndex 索引，增量扫描友好",
-        "★ Output Protocol v3.0/v4.0 — AI/Renderer Pipeline: findings.json (Schema v1.0) → render-report.py 渲染 report.md + results.sarif + summary.json + manifest.json + status.json + delta.json (6 文件)",
-        "★ L1-L5 Layered Verification System: self-check.sh (82+ checks)、ci-check.sh、dev-verify.sh (23 checks)、e2e-verify.sh (37 checks)、cwe-coverage.sh，覆盖设计→结构→部署→架构→全量五层验证",
-        "★ Manifest-Driven Token System: @secguardian 标记扩散 + sync-manifest.sh 自动同步，修改 detector 数量只需改 manifest.json（散弹式修改终结者）",
-        "★ CWE 覆盖率自动化验证: cwe-coverage.sh 自动验证 CWE Top 25 + OWASP Top 10 + OWASP API Top 10 覆盖率",
-        "render-report.py v1.0: --findings-dir 支持 v5.0 目录树（向后兼容），--ci 模式、--format sarif 独立生成",
-        "render-report.py 部署到全部 3 平台 (Claude Code + OpenCode + Gemini CLI)",
-        "Findings Schema v1.0: 四段式 (WHAT/HOW/FIX/VERIFY) 标准化 + SingleFindingFile + FindingsIndex",
-        "SARIF Output v1.1: partialFingerprints 去重 + GitHub/GitLab/Azure 三平台兼容",
-        "17 skills 四段式输出完整性要求 + 输出质量门禁检查清单（Step 4）",
-        "OpenCode: 插件注册自动化 + 命令脚本 + extension.json 格式修复",
-        "JavaScript: 综合漏洞示例代码仓库 (9 个漏洞) + indexer 支持",
-        "5 个 AI 入口文件 (CLAUDE.md/AGENTS.md/CODEBUDDY.md/COPILOT.md/GEMINI.md) L1-L5 验证流程统一",
-        "性能优化: 具体化 indexer 使用指令，消除 brute-force 扫描和 clangd 误用",
-        "修复: threat-catalog 同步 + detector 文件名统一 (67 个 namespace-name.md) + detector 数量动态化 + 版本号修正 (0.5.3→0.5.5)"
+        "\u2605 Output Protocol v5.0 \u2014 Per-Finding File Directory Tree: \u6bcf\u4e2a finding \u72ec\u7acb\u6587\u4ef6 + FindingsIndex \u7d22\u5f15\uff0c\u589e\u91cf\u626b\u63cf\u53cb\u597d",
+        "\u2605 Output Protocol v3.0/v4.0 \u2014 AI/Renderer Pipeline: findings.json (Schema v1.0) \u2192 render-report.py \u6e32\u67d3 report.md + results.sarif + summary.json + manifest.json + status.json + delta.json (6 \u6587\u4ef6)",
+        "\u2605 L1-L5 Layered Verification System: self-check.sh (82+ checks)\u3001ci-check.sh\u3001dev-verify.sh (23 checks)\u3001e2e-verify.sh (37 checks)\u3001cwe-coverage.sh\uff0c\u8986\u76d6\u8bbe\u8ba1\u2192\u7ed3\u6784\u2192\u90e8\u7f72\u2192\u67b6\u6784\u2192\u5168\u91cf\u4e94\u5c42\u9a8c\u8bc1",
+        "\u2605 Manifest-Driven Token System: @secguardian \u6807\u8bb0\u6269\u6563 + sync-manifest.sh \u81ea\u52a8\u540c\u6b65\uff0c\u4fee\u6539 detector \u6570\u91cf\u53ea\u9700\u6539 manifest.json\uff08\u6563\u5f39\u5f0f\u4fee\u6539\u7ec8\u7ed3\u8005\uff09",
+        "\u2605 CWE \u8986\u76d6\u7387\u81ea\u52a8\u5316\u9a8c\u8bc1: cwe-coverage.sh \u81ea\u52a8\u9a8c\u8bc1 CWE Top 25 + OWASP Top 10 + OWASP API Top 10 \u8986\u76d6\u7387",
+        "render-report.py v1.0: --findings-dir \u652f\u6301 v5.0 \u76ee\u5f55\u6811\uff08\u5411\u540e\u517c\u5bb9\uff09\uff0c--ci \u6a21\u5f0f\u3001--format sarif \u72ec\u7acb\u751f\u6210",
+        "render-report.py \u90e8\u7f72\u5230\u5168\u90e8 3 \u5e73\u53f0 (Claude Code + OpenCode + Gemini CLI)",
+        "Findings Schema v1.0: \u56db\u6bb5\u5f0f (WHAT/HOW/FIX/VERIFY) \u6807\u51c6\u5316 + SingleFindingFile + FindingsIndex",
+        "SARIF Output v1.1: partialFingerprints \u53bb\u91cd + GitHub/GitLab/Azure \u4e09\u5e73\u53f0\u517c\u5bb9",
+        "17 skills \u56db\u6bb5\u5f0f\u8f93\u51fa\u5b8c\u6574\u6027\u8981\u6c42 + \u8f93\u51fa\u8d28\u91cf\u95e8\u7981\u68c0\u67e5\u6e05\u5355\uff08Step 4\uff09",
+        "OpenCode: \u63d2\u4ef6\u6ce8\u518c\u81ea\u52a8\u5316 + \u547d\u4ee4\u811a\u672c + extension.json \u683c\u5f0f\u4fee\u590d",
+        "JavaScript: \u7efc\u5408\u6f0f\u6d1e\u793a\u4f8b\u4ee3\u7801\u4ed3\u5e93 (9 \u4e2a\u6f0f\u6d1e) + indexer \u652f\u6301",
+        "5 \u4e2a AI \u5165\u53e3\u6587\u4ef6 (CLAUDE.md/AGENTS.md/CODEBUDDY.md/COPILOT.md/GEMINI.md) L1-L5 \u9a8c\u8bc1\u6d41\u7a0b\u7edf\u4e00",
+        "\u6027\u80fd\u4f18\u5316: \u5177\u4f53\u5316 indexer \u4f7f\u7528\u6307\u4ee4\uff0c\u6d88\u9664 brute-force \u626b\u63cf\u548c clangd \u8bef\u7528",
+        "\u4fee\u590d: threat-catalog \u540c\u6b65 + detector \u6587\u4ef6\u540d\u7edf\u4e00 (67 \u4e2a namespace-name.md) + detector \u6570\u91cf\u52a8\u6001\u5316 + \u7248\u672c\u53f7\u4fee\u6b63 (0.5.3\u21920.5.5)"
       ]
     },
     "0.5.1": {
       "date": "2026-05-31",
       "changes": [
-        "★ 输出协议升级 v2.0: 人读/机读分离 — findings/*.json 废弃，改为 report.md + results.sarif + summary.json",
-        "report.md: Markdown 格式安全审计报告，含执行摘要/检出清单/详细发现/修复优先级",
-        "results.sarif: 始终生成（不再需要 --sarif flag），CI/CD 原生输入",
-        "summary.json: 轻量仪表盘统计 — 按严重度/命名空间/语言分组",
-        "manifest.json: 精简为元数据+检出索引，不再内联完整 finding",
-        "SARIF 生成规则: partialFingerprints 去重 + GitHub/GitLab/Azure 兼容"
+        "\u2605 \u8f93\u51fa\u534f\u8bae\u5347\u7ea7 v2.0: \u4eba\u8bfb/\u673a\u8bfb\u5206\u79bb \u2014 findings/*.json \u5e9f\u5f03\uff0c\u6539\u4e3a report.md + results.sarif + summary.json",
+        "report.md: Markdown \u683c\u5f0f\u5b89\u5168\u5ba1\u8ba1\u62a5\u544a\uff0c\u542b\u6267\u884c\u6458\u8981/\u68c0\u51fa\u6e05\u5355/\u8be6\u7ec6\u53d1\u73b0/\u4fee\u590d\u4f18\u5148\u7ea7",
+        "results.sarif: \u59cb\u7ec8\u751f\u6210\uff08\u4e0d\u518d\u9700\u8981 --sarif flag\uff09\uff0cCI/CD \u539f\u751f\u8f93\u5165",
+        "summary.json: \u8f7b\u91cf\u4eea\u8868\u76d8\u7edf\u8ba1 \u2014 \u6309\u4e25\u91cd\u5ea6/\u547d\u540d\u7a7a\u95f4/\u8bed\u8a00\u5206\u7ec4",
+        "manifest.json: \u7cbe\u7b80\u4e3a\u5143\u6570\u636e+\u68c0\u51fa\u7d22\u5f15\uff0c\u4e0d\u518d\u5185\u8054\u5b8c\u6574 finding",
+        "SARIF \u751f\u6210\u89c4\u5219: partialFingerprints \u53bb\u91cd + GitHub/GitLab/Azure \u517c\u5bb9"
       ]
     },
     "0.5.0": {
       "date": "2026-05-31",
       "changes": [
-        "★ 架构重构: concept+detector 双文件合并为自包含 detector (WHAT+HOW+FIX 一体化)",
-        "删除 knowledge/concepts/ 目录 (17 个零散文件)，替换为 knowledge/threat-catalog.md 单文件索引",
-        "每个 detector 现在自包含: 威胁定义 → 检测逻辑 → 修复指引 → 误报排除 → 模式汇总",
-        "新增 error 命名空间 (6 个检测器): stack-trace-leak, log-sensitive-data, exception-swallow, unified-error-format, debug-mode-production, panic-to-client",
-        "crypto 命名空间扩展 (4→9): 新增 aes-ecb-mode, tls-version, custom-crypto, password-storage, hardcoded-iv",
-        "system.command-injection + path-traversal 全语言扩展 (c,cpp → 全6语)",
-        "crypto.* 全语言扩展 (c,cpp → 全6语)",
-        "web 命名空间扩展 (17→22): 新增 mass-assignment, excessive-data-exposure, nosql-injection, prototype-pollution, ssti",
-        "新增 JavaScript/Node.js 语言支持: knowledge/languages/javascript.md + secguard-js + secreview-js",
-        "新增 4 个 knowledge/standards: SEI CERT C/C++/Java 映射 + OWASP Cheat Sheet 映射",
-        "secreview 反模式检测矩阵深化: 5 个语言全面升级为具体 detection patterns",
-        "CWE Top 25 覆盖率: 88% → 100%",
-        "OWASP API Top 10 覆盖率: 部分 → 100%",
-        "检测器总数: 45 → 60 (+33%)",
-        "多语言 detector 占比: 38% → 69% (+81%)"
+        "\u2605 \u67b6\u6784\u91cd\u6784: concept+detector \u53cc\u6587\u4ef6\u5408\u5e76\u4e3a\u81ea\u5305\u542b detector (WHAT+HOW+FIX \u4e00\u4f53\u5316)",
+        "\u5220\u9664 knowledge/concepts/ \u76ee\u5f55 (17 \u4e2a\u96f6\u6563\u6587\u4ef6)\uff0c\u66ff\u6362\u4e3a knowledge/threat-catalog.md \u5355\u6587\u4ef6\u7d22\u5f15",
+        "\u6bcf\u4e2a detector \u73b0\u5728\u81ea\u5305\u542b: \u5a01\u80c1\u5b9a\u4e49 \u2192 \u68c0\u6d4b\u903b\u8f91 \u2192 \u4fee\u590d\u6307\u5f15 \u2192 \u8bef\u62a5\u6392\u9664 \u2192 \u6a21\u5f0f\u6c47\u603b",
+        "\u65b0\u589e error \u547d\u540d\u7a7a\u95f4 (6 \u4e2a\u68c0\u6d4b\u5668): stack-trace-leak, log-sensitive-data, exception-swallow, unified-error-format, debug-mode-production, panic-to-client",
+        "crypto \u547d\u540d\u7a7a\u95f4\u6269\u5c55 (4\u21929): \u65b0\u589e aes-ecb-mode, tls-version, custom-crypto, password-storage, hardcoded-iv",
+        "system.command-injection + path-traversal \u5168\u8bed\u8a00\u6269\u5c55 (c,cpp \u2192 \u51686\u8bed)",
+        "crypto.* \u5168\u8bed\u8a00\u6269\u5c55 (c,cpp \u2192 \u51686\u8bed)",
+        "web \u547d\u540d\u7a7a\u95f4\u6269\u5c55 (17\u219222): \u65b0\u589e mass-assignment, excessive-data-exposure, nosql-injection, prototype-pollution, ssti",
+        "\u65b0\u589e JavaScript/Node.js \u8bed\u8a00\u652f\u6301: knowledge/languages/javascript.md + secguard-js + secreview-js",
+        "\u65b0\u589e 4 \u4e2a knowledge/standards: SEI CERT C/C++/Java \u6620\u5c04 + OWASP Cheat Sheet \u6620\u5c04",
+        "secreview \u53cd\u6a21\u5f0f\u68c0\u6d4b\u77e9\u9635\u6df1\u5316: 5 \u4e2a\u8bed\u8a00\u5168\u9762\u5347\u7ea7\u4e3a\u5177\u4f53 detection patterns",
+        "CWE Top 25 \u8986\u76d6\u7387: 88% \u2192 100%",
+        "OWASP API Top 10 \u8986\u76d6\u7387: \u90e8\u5206 \u2192 100%",
+        "\u68c0\u6d4b\u5668\u603b\u6570: 45 \u2192 60 (+33%)",
+        "\u591a\u8bed\u8a00 detector \u5360\u6bd4: 38% \u2192 69% (+81%)"
       ]
     }
   }

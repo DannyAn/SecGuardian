@@ -35,7 +35,7 @@
 | **CodeQL** `@precision` + `@problem.severity` | 检测器精度分级 (low→very-high)，经实测验证而非主观声明 |
 | **Semgrep Registry** `confidence` + `likelihood` + `impact` | 分离检测器质量 (confidence) 与漏洞危害 (severity) |
 | **SARIF 2.1.0** `codeFlows` / `stacks` / `suppressions` / `fingerprints` | 证据结构化：执行路径、调用栈、抑制审计追踪、跨版本匹配 |
-| **ZEROFalse** (北大, 2025) 证据门控推理 | 无充分证据→不报告；LLM 基于 SARIF 结构化契约裁决 SAST 结果 (F1=0.912) |
+| **ZEROFalse**(北大, 2025) 证据门控推理 | 无充分证据→不报告；LLM 基于 SARIF 结构化契约裁决 SAST 结果 (F1=0.912) |
 
 ### 1.3 超越竞品的关键差异
 
@@ -250,8 +250,8 @@ MATCH 区块的每条正则/模式必须注释对应的证据收集项，让 AI 
 |------|--------|---------|
 | **P0 (6个)** | resource-lock-misuse, resource-file-double-close, resource-refcount-misuse, resource-file-use-after-close, resource-socket-leak, system-secrets-detection | 从零补齐 FP 排除 + 证据收集 + 章节标准化 |
 | **P1 (~15个)** | 内容过短的检测器 (<80 行)：concurrency-*, error-*, resource-* | 补充 FP 排除 + 证据收集 + 检测逻辑丰富化 |
-| **P2 (~25个)** | 中等质量检测器：memory-*, system-*, crypto-* (部分) | 格式标准化 + FP 排除补充 + 证据收集 |
-| **P3 (~21个)** | 已较完整的检测器：web-* (大部分), crypto-* (已完善) | 格式标准化 + 新增 precision/confidence 元数据 |
+| **P2 (~25个)** | 中等质量检测器：memory-*, system-*, crypto-*(部分) | 格式标准化 + FP 排除补充 + 证据收集 |
+| **P3 (~21个)** | 已较完整的检测器：web-*(大部分), crypto-*(已完善) | 格式标准化 + 新增 precision/confidence 元数据 |
 
 ### 7.2 每批次执行流程
 

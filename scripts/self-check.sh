@@ -158,7 +158,11 @@ for cmd_dir in skills/secaudit skills/secguard skills/secreview; do
         red "$cmd_dir/ MISSING"
     fi
 done
-echo "  Total: $SKILL_COUNT skills"
+echo "  else
+    echo "  npx not available — install Node.js to run markdownlint locally"
+fi
+
+Total: $SKILL_COUNT skills"
 echo ""
 
 # ── 6. No dead references ──

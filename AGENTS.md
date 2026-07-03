@@ -39,7 +39,7 @@ secguardian/                # v0.6.0, Go 1.25.3, parser + indexer 有 go test �
 ├── dist/                   # 构建输出 → 被 deploy.sh 部署
 ├── manifest.json           # 项目注册表: 版本/产品/技能/检测器/覆盖率
 ├── CLAUDE.md               # 遗留指引 (部分过时，以本文件和 deploy.sh 源码为准)
-└── .codeagent/             # 扫描输出归档: secguard-secguardian/scans/<scan-id>/
+└── .codeagent/             # 扫描输出归档: secguard/scans/<scan-id>/
 ```
 
 > **核心认知**: 这不是传统 SAST。只有 Go 索引器是编译代码，其余全部是 Markdown 知识文件，由 AI Agent 在扫描时动态加载。修改任何 `.md` → `deploy.sh all` → AI 重启即可生效。
@@ -146,7 +146,7 @@ render-report.py (渲染 report.md + SARIF 2.1.0 + CI 门禁)
 **CLI 接口:**
 
 ```bash
-secguardian-index --path ./src --output .codeagent/index.json   # 完整索引
+secguardian-index --path ./src --output .codeagent/secguardian/index.json   # 完整索引
 secguardian-index --health                                       # 冒烟测试
 secguardian-index --version                                      # 打印版本号
 secguardian-index --lang cpp --path ./src                        # 语言过滤
@@ -237,7 +237,7 @@ kind := child.Kind()
 1. `secguardian-index --health` → HEALTH:OK/WARN
 2. `secguardian-index --path <path> --output .codeagent/.../index.json`
 3. AI Agent 读取 `index.json` → 加载 `skills/secguard/<lang>/SKILL.md` → 按 detector 执行
-4. 输出到 `.codeagent/secguard-secguardian/scans/<scan-id>/`
+4. 输出到 `.codeagent/secguardian/secguard/scans/scans/<scan-id>/`
 
 输出协议 v5.0 在 `knowledge/protocols/scan-output.md`（CLAUDE.md 中写的是 1.0，已过时）。
 
@@ -304,64 +304,110 @@ bash scripts/e2e-verify.sh --quick  # 跳过第 9 节 (多语言索引)，快速
 
 ## 版本发布流程
 
-> **每次发布版本必须按以下步骤执行**，缺一不可。AI Agent 执行时自动按步骤执行。
+> **⚠️ 禁止只靠 tag push 触发 Actions 自动发布**。GitHub 自动创建的草稿 release 只有源码包，没有构建产物。
+> **正确的做法**：本地构建 + 手动上传。每次发布必须按以下步骤执行。
 
-### 发布检查清单
-
-### 发布检查清单
-
-> **发布入口**: `git tag v<version> && git push origin --tags` 触发 GH Actions 自动构建。
-> 无需本地运行 release.sh — CI 会编译 5 平台二进制、打包扩展、创建 Release。
-> 本地 `bash scripts/release.sh` 仅用于测试构建产物。
+### 发布清单
 
 ```
-1. [ ] 所有验证通过（L1: self-check.sh + L4: e2e-verify.sh）
-2. [ ] 确认版本号已更新（manifest.json + extensions/*/extension.json）
-3. [ ] CHANGELOG.md 已更新（版本号 + 日期 + 完整变更记录）
-4. [ ] 检查 `.github/workflows/release.yml` — `files:` 必须是 `dist/release/**`（非 `**/*.zip`）
-5. [ ] 检查 `scripts/package.sh` — 处理拍平 skill（`flat_skill` 回退）
-6. [ ] 执行 `git tag v<version> && git push origin develop --tags` 触发 CI 构建
-7. [ ] 等待 GH Actions 完成（https://github.com/DannyAn/SecGuardian/actions）
-8. [ ] 验证 GitHub Release 页面：assets 包含 5 平台二进制 + .sha256 + 3 插件 zip + source.tar.gz + manifest.json
-9. [ ] 验证 Gitee Release 页面（https://gitee.com/jonyan/secguardian/releases）
+1. [ ] 确认版本号已更新（manifest.json + extensions/*/extension.json 全部一致）
+2. [ ] CHANGELOG.md 已更新（版本号 + 日期 + 完整变更记录）
+3. [ ] 运行 bash scripts/self-check.sh 确认所有检查通过
+4. [ ] 执行 bash scripts/release.sh <version>   ← 构建全部产物
+5. [ ] 确认产物齐全：ls dist/release/<version>/
+6. [ ] 创建 Git tag：git tag v<version> && git push origin v<version>
+7. [ ] 创建 GitHub Release 并上传所有产物（按下方 API 步骤）
+8. [ ] 验证 Release 页面：https://github.com/DannyAn/SecGuardian/releases
 ```
 
-> 关键配置:
-> - `.github/workflows/release.yml` — `files: dist/release/**` 控制哪些产物上传到 Release
-> - `scripts/package.sh` — `skills/${cmd}/${skill_name}` vs `flat_skill` 回退处理拍平 skill
-> - GitHub 自动生成 Source code (tar.gz) 和 Source code (zip)，不需要时可在 UI 中隐藏
+> 第 4 步 `release.sh` 调用 `package.sh`，跨平台 Go 编译索引器二进制（需要 CGO/tree-sitter）。
 
 ### 构建产物
 
-`bash scripts/release.sh <version>` 生成：
+`bash scripts/release.sh <version>` 生成到 `dist/release/<version>/`：
 
 ```
-dist/release/<version>/
-├── secguardian-index-<version>-{os}-{arch}          ← 索引器二进制
-├── secguardian-<version>-claude-code-{os}-{arch}.zip ← Claude Code 插件
-├── secguardian-<version>-opencode-{os}-{arch}.zip   ← OpenCode 插件
-├── secguardian-<version>-gemini-cli-{os}-{arch}.zip  ← Gemini CLI 插件
+├── secguardian-index-<version>-{os}-{arch}          ← 索引器二进制（5 平台）
+├── secguardian-<version>-{platform}-{os}-{arch}.zip ← 3 平台插件包
 ├── secguardian-<version>-source.tar.gz               ← 源码包
 └── manifest.json                                      ← 发布清单
 ```
 
-### Gitee 发布
+必须包含：darwin-arm64, darwin-amd64, linux-amd64, linux-arm64, windows-amd64（二进制）+ claude-code, opencode, gemini-cli（插件 zip）。
 
-`bash scripts/gitee-release.sh <version>` 需要 GITEE_TOKEN，从 macOS 钥匙串读取：
+### 发布步骤（手动 / AI Agent 执行）
 
 ```bash
-# 首次设置（可选，自动读取）
-security add-generic-password -a "$USER" -s secguardian-gitee-token -w "your-token-here"
-# Token 生成: https://gitee.com/profile/personal_access_tokens
+# Step 1-2: 确认版本号和 CHANGELOG
+grep '"0.12.0"' manifest.json && head -5 CHANGELOG.md
 
-# 发布
-bash scripts/release.sh 0.7.0       # 构建
-bash scripts/gitee-release.sh 0.7.0  # 发布到 Gitee
+# Step 3: 验证
+bash scripts/self-check.sh
+
+# Step 4: 构建产物（~2 分钟，CGO 编译 5 平台）
+bash scripts/release.sh 0.12.0   # 替换为实际版本号
+
+# Step 5: 确认产物齐全
+ls -lh dist/release/0.12.0/      # 替换为实际版本号
+
+# Step 6: 打 tag 并推送
+git tag v0.12.0                  # 替换为实际版本号
+git push origin v0.12.0
+
+# Step 7: 创建 GitHub Release + 上传产物
+# （GitHub 自动创建的草稿只有源码包，必须手动上传构建产物）
+TOKEN=$(security find-generic-password -a "DannyAn" -s "github-token" -w)
+
+# 7a. 创建 Release
+curl -s -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Accept: application/vnd.github.v3+json" \
+  https://api.github.com/repos/DannyAn/SecGuardian/releases \
+  -d '{"tag_name": "v0.12.0", "name": "SecGuardian v0.12.0",
+       "body": "详见 CHANGELOG.md", "draft": false, "prerelease": false}' \
+  > /tmp/release_resp.json
+
+RELEASE_ID=$(python3 -c "import json; print(json.load(open('/tmp/release_resp.json'))['id'])")
+
+# 7b. 上传每个产物
+for asset in dist/release/0.12.0/*; do
+  [ -f "$asset" ] || continue
+  curl -s -X POST \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/octet-stream" \
+    "https://uploads.github.com/repos/DannyAn/SecGuardian/releases/$RELEASE_ID/assets?name=$(basename "$asset")" \
+    --data-binary @"$asset" > /dev/null
+  echo "  Uploaded: $(basename "$asset")"
+done
+
+echo "Release v0.12.0: https://github.com/DannyAn/SecGuardian/releases/tag/v0.12.0"
+unset TOKEN RELEASE_ID
+
+# Step 8: 验证
+open "https://github.com/DannyAn/SecGuardian/releases/tag/v0.12.0"
 ```
 
-> Token 存储在 macOS 钥匙串中，AI Agent 可通过 `security find-generic-password` 读取，无需硬编码。
->
-> Gitee Release 需要手动验证：打开 https://gitee.com/jonyan/secguardian/releases
+### Gitee 发布
+
+```bash
+# Token 存储在 macOS 钥匙串，自动读取
+bash scripts/gitee-release.sh 0.12.0
+# 验证: https://gitee.com/jonyan/secguardian/releases
+```
+
+### 关键配置
+
+| 文件 | 作用 |
+|------|------|
+| `.github/workflows/release.yml` | 仅备份用途。`files: dist/release/**` 控制 CI 上传产物 |
+| `scripts/release.sh` | 本地方案入口。调用 `package.sh` 并打包 |
+| `scripts/package.sh` | 编译 Go 二进制 + 组装插件 zip。`SKIP_GO_BUILD=1` 跳过编译 |
+
+注意事项：
+- **构建产物完整性检查**：发布后确认 assets 包含二进制（5 平台）和插件 zip（3 平台×5 架构）
+- **Token** 存储在 macOS 钥匙串，AI Agent 通过 `security find-generic-password` 读取
+- **不依赖 CI**：Actions runner 经常排队，且自动草稿 release 只有源码包
+- 清理临时文件：`rm -f /tmp/release_resp.json`
 
 ## 注意事项
 
@@ -378,7 +424,7 @@ bash scripts/gitee-release.sh 0.7.0  # 发布到 Gitee
 修改 detector 数量时，只需改 `manifest.json`。构建时 `scripts/sync-manifest.sh` 自动更新所有文件中的 `NNN<!-- @secguardian:xxx -->` 标记。
 CI 验证：`bash scripts/sync-manifest.sh --check`（已集成到 self-check.sh §7.6）。
 
- ### GitHub Token
+### GitHub Token
 
  存储在 macOS 钥匙串中，读取方式同 Gitee token：
 

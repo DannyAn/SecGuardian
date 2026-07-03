@@ -58,7 +58,7 @@ bash scripts/deploy.sh all --uninstall --clean-scans    # 完全抹除
 ```
 /secguard ./src cpp          # 安全加固扫描（支持 cpp/go/java/python/js）
 /secguard ./src *            # 全量扫描，自动检测语言
-/secaudit taint-analysis     # 深度安全审计（17 项分析 skill）
+/secaudit ./src python    # 全量安全审计（13 个审计域）
 /secreview ./src java        # 安全编码规范检视
 ```
 

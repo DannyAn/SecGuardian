@@ -2,6 +2,20 @@
 
 All notable changes to SecGuardian.
 
+## [0.12.0] — 2026-07-03
+
+### ★ 共享索引重构
+
+#### 架构
+- **共享索引** — index.json 从 per-scan 目录移至 `.codeagent/secguardian/` 根级别，所有命令（secguard/secaudit/secreview）复用同一索引
+- **输出结构简化** — 从 `.codeagent/<ext>/scans/<scan-id>/` 改为 `.codeagent/secguardian/<command>/scans/<scan-id>/`
+- **wrapper 重写** — 移除缓存逻辑，改为共享索引存在性检查 + `--path` 一致性校验 + `--force` 强制重建
+- **路径校验** — 自动检测 `--path` 变更，不同路径自动重建索引
+
+#### 修复
+- **AI 探测修复** — 移除前置检查中 `scripts/` fallback 说明，防止 AI `ls scripts/` 错误探测
+- **FEATURE-006 回归修复** — 恢复被 squash merge 覆盖的共享索引设计（commit `1ba7e54`）
+
 ## [0.11.0] — 2026-07-03
 
 ### ★ Audit Framework 架构职责收敛 (CHANGE-002)
@@ -64,7 +78,6 @@ All notable changes to SecGuardian.
 - `scripts/sync-language-index.sh` — 新增 regenerated 文件提交
 - `knowledge/language-index.md` — 提交重构后版本的自动生成文件
 - **总代码量**: +874 / -3692 行 (净削 2818 行)
-
 
 ## [0.11.0] — 2026-07-02
 

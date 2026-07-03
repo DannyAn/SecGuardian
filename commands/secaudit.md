@@ -50,7 +50,7 @@ description: "AI Release Security Audit — 17-domain audit framework with knowl
 遵循 [Scan Output Protocol 3.0](../knowledge/protocols/scan-output.md)。人读/机读分离。
 
 ```
-.codeagent/secaudit-secguardian/scans/<scan-id>/
+.codeagent/secguardian/secaudit/scans/<scan-id>/
 ├── report.md               # ★ 人读审计报告 (Markdown)
 ├── results.sarif            # 机读: SARIF 2.1.0 (CI/CD)
 ├── summary.json             # 仪表盘统计
@@ -79,7 +79,7 @@ Skill: aud-input-validation
 | C-002 | Critical | File upload → os.system | src/upload.py:108 |
 | H-001 | High | Cookie → response.write | src/middleware.js:56 |
 
-输出目录: .codeagent/secaudit-secguardian/scans/sec-20260523-143000-b3c4/
+输出目录: .codeagent/secguardian/secaudit/scans/sec-20260523-143000-b3c4/
 
 💡 **如何使用审计结果？**
 - **快速看汇总** → 打开 `manifest.json`
@@ -102,7 +102,7 @@ Skill: aud-input-validation
 
 在执行任何审计步骤之前，必须逐项确认以下所有条件。**任一项未通过，审计不得开始，向用户报告具体错误。**
 
-- [ ] 定位索引器 wrapper：检查 `.opencode/extensions/secguardian/`（项目级）→ `~/.config/opencode/extensions/secguardian/`（用户级）→ `.gemini/` → `.claude/` → `scripts/` 回退（至少一个存在且可执行）
+- [ ] 定位索引器 wrapper：检查 `.opencode/extensions/secguardian/`（项目级）→ `~/.config/opencode/extensions/secguardian/`（用户级）→ `.gemini/` → `.claude/` → 执行 `find_indexer()` 自动搜索全部路径
 - [ ] 执行 `{indexer} --health` 通过（输出必须包含 `HEALTH:OK` 或 `HEALTH:WARN`，不接受 `HEALTH:FAIL`）
 - [ ] 目标路径 `<path>` 存在且包含至少一个源码文件
 - [ ] 确认不会启动 clangd/LSP/compile_commands.json/bear 等外部工具 — indexer (tree-sitter) 已提供符号表+调用图+文件清单，所有代码结构数据从 index.json 获取
@@ -115,7 +115,7 @@ Skill: aud-input-validation
 
 - **⏳ 首选生成 scan_id**（格式: `sec-YYYYMMDD-HHMMSS-xxxx`，`xxxx` 为随机4位字符）。
 - **scan_id 一旦生成，后续所有路径必须使用此 scan_id。**
-- 创建输出目录: `.codeagent/secaudit-secguardian/scans/<scan_id>/`。
+- 创建输出目录: `.codeagent/secguardian/secaudit/scans/<scan_id>/`。
 - 记录审计开始时间戳，用于 Step 4 计算 `duration_ms`。
 
 ### Step 2: 构建语义索引（必须执行，不可跳过）
@@ -123,6 +123,7 @@ Skill: aud-input-validation
 > ⚠️ 这是审计的**核心前置步骤**。索引器提供符号表、调用图、数据流路径，是后续深度审计的结构化上下文。**不执行此步骤将导致审计质量严重下降。**
 
 **2a. 执行索引器（阻塞等待完成）：**
+> 索引自动复用同路径缓存。加 `--force` 强制重建。
 
 ```bash
 # 定位 indexer wrapper — 项目级 + 用户级全覆盖
@@ -138,6 +139,8 @@ find_indexer() {
             [ -x "$candidate" ] && [ -f "$candidate" ] && INDEXER="$candidate" && break 3
         done
     done
+    # Fallbacks for dev repo (only works from SecGuardian root; in production the user-level path is used)
+    # Dev fallback (repo root only; deployed indexer found via user-level paths above)
     for candidate in scripts/secguardian-index internal/secguardian-index; do
         [ -x "$candidate" ] && [ -f "$candidate" ] && INDEXER="$candidate" && break
     done
@@ -145,19 +148,9 @@ find_indexer() {
     echo "Using: $INDEXER"
 }
 find_indexer
-# 索引复用: 同路径扫描共享缓存，跳过重复构建
-cache_dir="<user-project>/.codeagent/secaudit-secguardian/cache"
-mkdir -p "$cache_dir"
-cache_key=$(echo "$(realpath "<path>" 2>/dev/null || echo "<path>")" | md5sum 2>/dev/null | head -c 8 || echo "<path>")
-if [ -f "$cache_dir/$cache_key.json" ]; then
-    cp "$cache_dir/$cache_key.json" "<user-project>/.codeagent/secaudit-secguardian/scans/<scan_id>/index.json"
-else
-    $INDEXER --path <path> --output <user-project>/.codeagent/secaudit-secguardian/scans/<scan_id>/index.json
-    if [ $? -eq 0 ]; then
-        cp "<user-project>/.codeagent/secaudit-secguardian/scans/<scan_id>/index.json" "$cache_dir/$cache_key.json"
-    fi
-fi
-if [ ! -f "<user-project>/.codeagent/secaudit-secguardian/scans/<scan_id>/index.json" ]; then
+# 缓存由 wrapper 透明处理：同路径复用 index.json（加 --force 强制重建，刷新缓存）
+$INDEXER --path <path> --output <user-project>/.codeagent/secguardian/index.json
+if [ ! -f "<user-project>/.codeagent/secguardian/index.json" ]; then
     echo "FATAL: Indexer failed — cannot continue"
     exit 1
 fi
@@ -172,7 +165,7 @@ fi
 
 ```bash
 python3 scripts/validate-index.py \
-    --index .codeagent/secaudit-secguardian/scans/<scan_id>/index.json \
+    --index .codeagent/secguardian/index.json \
     --scan-id <scan_id>
 ```
 
@@ -247,7 +240,7 @@ python3 scripts/validate-index.py \
 
 **4b. 输出轻量 `findings.json` + 自检完整性：**
 
-同 secguard Step 4b-4c（见 `commands/secguard.md`）。路径使用 `secaudit-secguardian`。
+同 secguard Step 4b-4c（见 `commands/secguard.md`）。路径使用 `secaudit`。
 
 **4c. 调用渲染器生成所有输出：**
 
@@ -268,13 +261,12 @@ done
 
 python3 "$RENDERER" \
     --command secaudit \
-    --findings-dir .codeagent/secaudit-secguardian/scans/<scan_id>/findings/ \
-    --index .codeagent/secaudit-secguardian/scans/<scan_id>/index.json \
-    --output .codeagent/secaudit-secguardian/scans/<scan_id>/
+    --findings-dir .codeagent/secguardian/secaudit/scans/<scan_id>/findings/ \
+    --index .codeagent/secguardian/index.json \
+    --output .codeagent/secguardian/secaudit/scans/<scan_id>/
 ```
 
-> 渲染器自动执行 secaudit 质量门禁，未通过的 finding 会在 report.md 中标记 ⚠️。
-
+> 渲染器.*⚠️。
 > ⚠️ 如果渲染器不存在或执行失败，打印警告：`"Renderer unavailable — findings saved to findings/ directory tree only."`
 
 ### Step 5: 输出审计摘要

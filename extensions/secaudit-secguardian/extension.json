@@ -1,40 +1,40 @@
 {
-    "name": "secaudit-secguardian",
-    "version": "0.11.0",
-    "description": "★ 旗舰产品：AI 深度安全审计 — 13 个审计域覆盖全生命周期安全",
-    "author": "SecGuardian",
-    "command": "secaudit",
-    "protocol": "2.0",
-    "platforms": {
-        "claude-code": {
-            "entry": "commands/secaudit.md"
-        },
-        "opencode": {
-            "entry": "commands/secaudit.md"
-        },
-        "gemini-cli": {
-            "entry": "commands/secaudit.md"
-        }
+  "name": "secaudit-secguardian",
+  "version": "0.12.0",
+  "description": "\u2605 \u65d7\u8230\u4ea7\u54c1\uff1aAI \u6df1\u5ea6\u5b89\u5168\u5ba1\u8ba1 \u2014 13 \u4e2a\u5ba1\u8ba1\u57df\u8986\u76d6\u5168\u751f\u547d\u5468\u671f\u5b89\u5168",
+  "author": "SecGuardian",
+  "command": "secaudit",
+  "protocol": "2.0",
+  "platforms": {
+    "claude-code": {
+      "entry": "commands/secaudit.md"
     },
-    "skills": [
-        "secaudit"
-    ],
-    "knowledge": {
-        "protocols": [
-            "scan-output",
-            "sarif-output"
-        ],
-        "languages": [
-            "cpp",
-            "java",
-            "python",
-            "go",
-            "javascript"
-        ]
+    "opencode": {
+      "entry": "commands/secaudit.md"
     },
-    "output": {
-        "base_dir": ".codeagent",
-        "scans_dir": "scans",
-        "protocol": "scan-output/2.0"
+    "gemini-cli": {
+      "entry": "commands/secaudit.md"
     }
+  },
+  "skills": [
+    "secaudit"
+  ],
+  "knowledge": {
+    "protocols": [
+      "scan-output",
+      "sarif-output"
+    ],
+    "languages": [
+      "cpp",
+      "java",
+      "python",
+      "go",
+      "javascript"
+    ]
+  },
+  "output": {
+    "base_dir": ".codeagent",
+    "scans_dir": "scans",
+    "protocol": "scan-output/2.0"
+  }
 }

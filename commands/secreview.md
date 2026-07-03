@@ -41,7 +41,7 @@ Unlike traditional linters, SecReview reasons about code behavior, business logi
 Follows [Scan Output Protocol 5.0](../knowledge/protocols/scan-output.md). Human-readable and machine-readable separation.
 
 ```
-<user-project>/.codeagent/secreview-secguardian/scans/<scan-id>/
+<user-project>/.codeagent/secguardian/secreview/scans/<scan-id>/
 ├── human/                    # ★ v7.0: Unified entry point
 │   └── executive-summary.md    One-page dashboard + finding distribution + navigation
 ├── findings/                 # Per-detector organized finding directory tree
@@ -82,7 +82,7 @@ Mode: git diff main
 
 > Each finding includes exploit scenario, CWE mapping, severity assessment, CVE-like CVSS scoring, and fix recommendation.
 
-Output directory: <user-project>/.codeagent/secreview-secguardian/scans/pr-20260531-143000-a1b2/
+Output directory: <user-project>/.codeagent/secguardian/secreview/scans/pr-20260531-143000-a1b2/
 
 💡 **How to use review results?**
 - **Quick summary** -> `manifest.json`
@@ -115,7 +115,7 @@ You (the AI Agent) must follow these steps when executing `/secreview` to perfor
 
 Before starting any review, verify each condition below. **If any check fails, report the specific error and abort.**
 
-- [ ] Locate indexer wrapper: `.opencode/extensions/secguardian/` (project) -> `~/.config/opencode/extensions/secguardian/` (user) -> `.gemini/` -> `.claude/` -> `scripts/` fallback (at least one exists and is executable)
+- [ ] Locate indexer wrapper: `.opencode/extensions/secguardian/` (project) -> `~/.config/opencode/extensions/secguardian/` (user) -> `.gemini/` -> `.claude/` -> run `find_indexer()` which handles all paths automatically
 - [ ] Run `{indexer} --health` passes (output must contain `HEALTH:OK` or `HEALTH:WARN`; `HEALTH:FAIL` is not accepted)
 - [ ] Target `<path>` exists and contains at least one source file
 - [ ] **Language detection (only when user omits `language` parameter)** check source extensions in `<path>`: `*.c/*.cpp/*.h` -> `cpp`, `*.py` -> `python`, `*.java` -> `java`, `*.go` -> `go`. No need to ask the user.
@@ -128,7 +128,7 @@ Before starting any review, verify each condition below. **If any check fails, r
 ### Step 1: Create Output Directory
 
 - **⏳ Generate scan_id FIRST** (format: `pr-YYYYMMDD-HHMMSS-xxxx`, `xxxx` is 4 random chars).
-- Create output directory: `<user-project>/.codeagent/secreview-secguardian/scans/<scan_id>/`.
+- Create output directory: `<user-project>/.codeagent/secguardian/secreview/scans/<scan_id>/`.
 - **Once scan_id is generated, ALL subsequent paths must use this scan_id.**
 - Record review start timestamp for Step 4 `duration_ms` calculation.
 
@@ -137,6 +137,7 @@ Before starting any review, verify each condition below. **If any check fails, r
 > ⚠️ This is the **core prerequisite** for review. The indexer provides symbol table and call graph needed for structured security analysis. **Skipping this step will severely degrade review quality.**
 
 **2a. Execute indexer (blocking):**
+> Index caching is automatic. Add `--force` to force a rebuild.
 
 ```bash
 find_indexer() {
@@ -151,6 +152,8 @@ find_indexer() {
             [ -x "$candidate" ] && [ -f "$candidate" ] && INDEXER="$candidate" && break 3
         done
     done
+    # Fallbacks for dev repo (only works from SecGuardian root; in production the user-level path is used)
+    # Dev fallback (repo root only; deployed indexer found via user-level paths above)
     for candidate in scripts/secguardian-index internal/secguardian-index; do
         [ -x "$candidate" ] && [ -f "$candidate" ] && INDEXER="$candidate" && break
     done
@@ -158,19 +161,9 @@ find_indexer() {
     echo "Using: $INDEXER"
 }
 find_indexer
-# 索引复用: 同路径扫描共享缓存，跳过重复构建
-cache_dir="<user-project>/.codeagent/secreview-secguardian/cache"
-mkdir -p "$cache_dir"
-cache_key=$(echo "$(realpath "<path>" 2>/dev/null || echo "<path>")" | md5sum 2>/dev/null | head -c 8 || echo "<path>")
-if [ -f "$cache_dir/$cache_key.json" ]; then
-    cp "$cache_dir/$cache_key.json" "<user-project>/.codeagent/secreview-secguardian/scans/<scan_id>/index.json"
-else
-    $INDEXER --path <path> --output <user-project>/.codeagent/secreview-secguardian/scans/<scan_id>/index.json
-    if [ $? -eq 0 ]; then
-        cp "<user-project>/.codeagent/secreview-secguardian/scans/<scan_id>/index.json" "$cache_dir/$cache_key.json"
-    fi
-fi
-if [ ! -f "<user-project>/.codeagent/secreview-secguardian/scans/<scan_id>/index.json" ]; then
+# 缓存由 wrapper 透明处理：同路径复用 index.json（加 --force 强制重建，刷新缓存）
+$INDEXER --path <path> --output <user-project>/.codeagent/secguardian/index.json
+if [ ! -f "<user-project>/.codeagent/secguardian/index.json" ]; then
     echo "FATAL: Indexer failed — cannot continue"
     exit 1
 fi
@@ -180,7 +173,7 @@ fi
 
 ```bash
 python3 scripts/validate-index.py \
-    --index <user-project>/.codeagent/secreview-secguardian/scans/<scan_id>/index.json \
+    --index <user-project>/.codeagent/secguardian/index.json \
     --scan-id <scan_id>
 ```
 
@@ -282,16 +275,16 @@ Key requirements (secreview-specific):
 
 **5b. Output lightweight `findings.json` + self-check:**
 
-Same as secguard Step 4b-4c (see `commands/secguard.md`). Use `secreview-secguardian` paths.
+Same as secguard Step 4b-4c (see `commands/secguard.md`). Use `secreview` paths.
 
 **5c. Invoke renderer:**
 
 ```bash
 python3 "$RENDERER" \
     --command secreview \
-    --findings-dir <user-project>/.codeagent/secreview-secguardian/scans/<scan_id>/findings/ \
-    --index <user-project>/.codeagent/secreview-secguardian/scans/<scan_id>/index.json \
-    --output <user-project>/.codeagent/secreview-secguardian/scans/<scan_id>/
+    --findings-dir <user-project>/.codeagent/secguardian/secreview/scans/<scan_id>/findings/ \
+    --index <user-project>/.codeagent/secguardian/index.json \
+    --output <user-project>/.codeagent/secguardian/secreview/scans/<scan_id>/
 ```
 
 > ⚠️ If renderer unavailable: `"Renderer unavailable — findings saved to findings/ directory tree only."`

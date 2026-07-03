@@ -1,44 +1,44 @@
 {
-    "name": "secreview-secguardian",
-    "version": "0.11.0",
-    "description": "安全编码规范审查 — 反模式识别 + 最佳实践合规 + 检测矩阵",
-    "author": "SecGuardian",
-    "command": "secreview",
-    "protocol": "2.0",
-    "platforms": {
-        "claude-code": {
-            "entry": "commands/secreview.md"
-        },
-        "opencode": {
-            "entry": "commands/secreview.md"
-        },
-        "gemini-cli": {
-            "entry": "commands/secreview.md"
-        }
+  "name": "secreview-secguardian",
+  "version": "0.12.0",
+  "description": "\u5b89\u5168\u7f16\u7801\u89c4\u8303\u5ba1\u67e5 \u2014 \u53cd\u6a21\u5f0f\u8bc6\u522b + \u6700\u4f73\u5b9e\u8df5\u5408\u89c4 + \u68c0\u6d4b\u77e9\u9635",
+  "author": "SecGuardian",
+  "command": "secreview",
+  "protocol": "2.0",
+  "platforms": {
+    "claude-code": {
+      "entry": "commands/secreview.md"
     },
-    "skills": [
-        "cpp",
-        "java",
-        "python",
-        "go",
-        "js"
-    ],
-    "knowledge": {
-        "protocols": [
-            "scan-output",
-            "sarif-output"
-        ],
-        "languages": [
-            "cpp",
-            "java",
-            "python",
-            "go",
-            "javascript"
-        ]
+    "opencode": {
+      "entry": "commands/secreview.md"
     },
-    "output": {
-        "base_dir": ".codeagent",
-        "scans_dir": "scans",
-        "protocol": "scan-output/2.0"
+    "gemini-cli": {
+      "entry": "commands/secreview.md"
     }
+  },
+  "skills": [
+    "cpp",
+    "java",
+    "python",
+    "go",
+    "js"
+  ],
+  "knowledge": {
+    "protocols": [
+      "scan-output",
+      "sarif-output"
+    ],
+    "languages": [
+      "cpp",
+      "java",
+      "python",
+      "go",
+      "javascript"
+    ]
+  },
+  "output": {
+    "base_dir": ".codeagent",
+    "scans_dir": "scans",
+    "protocol": "scan-output/2.0"
+  }
 }

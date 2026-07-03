@@ -740,7 +740,7 @@ MD
     log_info "Gemini CLI 使用方式:"
     echo "    /skills reload     # 重新扫描 skills"
     echo "    /secguard ./src cpp"
-    echo "    /secaudit taint-analysis"
+    echo "    /secaudit ./src python"
     echo "    /secreview ./src java"
 }
 
