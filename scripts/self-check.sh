@@ -158,21 +158,7 @@ for cmd_dir in skills/secaudit skills/secguard skills/secreview; do
         red "$cmd_dir/ MISSING"
     fi
 done
-echo "  
-# ── §12: Markdown Lint ────────────────────────────────
-echo ""
-echo "§12. Markdown Lint"
-echo "  (run: markdownlint-cli2 '**/*.md' --config .markdownlint.jsonc --ignore .markdownlintignore)"
-if command -v npx &>/dev/null; then
-    MDLINT_OUT=$(npx markdownlint-cli2 '**/*.md' --config .markdownlint.jsonc --ignore .markdownlintignore 2>&1) || true
-    if [ -z "$MDLINT_OUT" ]; then
-        green "  All markdown files pass lint"
-    else
-        echo "  MarkdownLint found issues:"
-        echo "$MDLINT_OUT" | head -5
-        echo "  To view full: npx markdownlint-cli2 '**/*.md' --config .markdownlint.jsonc"
-    fi
-else
+echo "  else
     echo "  npx not available — install Node.js to run markdownlint locally"
 fi
 

@@ -424,7 +424,7 @@ bash scripts/gitee-release.sh 0.12.0
 修改 detector 数量时，只需改 `manifest.json`。构建时 `scripts/sync-manifest.sh` 自动更新所有文件中的 `NNN<!-- @secguardian:xxx -->` 标记。
 CI 验证：`bash scripts/sync-manifest.sh --check`（已集成到 self-check.sh §7.6）。
 
- ### GitHub Token
+### GitHub Token
 
  存储在 macOS 钥匙串中，读取方式同 Gitee token：
 
