@@ -74,20 +74,20 @@ Step 2: dashboard.html                 → 浏览器打开精美报告
 
 ```
 .codeagent/
-├── index.json                      # ★ 共享索引（所有命令复用）
-├── secguard/<scan-id>/             # secguard 输出
-│   ├── human/executive-summary.md
-│   ├── findings/<ns>/<det>/<sha12>_<file>-<line>.json
-│   ├── ai/remediation-pack.json
-│   ├── report.md, dashboard.html, findings.json, results.sarif
-│   ├── summary.json, manifest.json, status.json, delta.json
-│   ├── dismissed.json, verification-audit.json
-│   └── latest → <scan-id>/
-├── secaudit/<scan-id>/             # secaudit 输出（同上结构）
-└── secreview/<scan-id>/            # secreview 输出（同上结构）
+└── secguardian/
+    ├── index.json                      # ★ 共享索引（所有命令复用）
+    └── scans/<scan-id>/                # 扫描输出（所有命令共用 scans/，scan_id 前缀区分）
+        ├── human/executive-summary.md
+        ├── findings/<ns>/<det>/<sha12>_<file>-<line>.json
+        ├── ai/remediation-pack.json
+        ├── report.md, dashboard.html, findings.json, results.sarif
+        ├── summary.json, manifest.json, status.json, delta.json
+        ├── dismissed.json, verification-audit.json
+        └── latest → <scan-id>/
 ```
 
-index.json 从每个 scan 目录移至 `.codeagent/` 根级别，跨命令共享。
+index.json 在 `secguardian/` 目录内，跨命令共享。
+首次扫描自动生成，后续扫描自动复用。用 `--force` 强制重建。
 首次扫描自动生成，后续扫描自动复用。用 `--force` 强制重建。
 
 ### 文件命名规范

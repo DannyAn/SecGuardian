@@ -253,7 +253,7 @@ if [ $QUICK -eq 0 ]; then
     echo ""
     echo -e "${BOLD}4. Scan output directory${NC}"
 
-    SCANS_DIR="$PROJECT_ROOT/.codeagent/secguard"
+    SCANS_DIR="$PROJECT_ROOT/.codeagent/secguardian/scans"
     if [ -d "$SCANS_DIR" ]; then
         scan_count=$(ls -1 "$SCANS_DIR" 2>/dev/null | grep -v "^latest$" | wc -l | tr -d ' ')
         check "Scan directory exists (${scan_count} scans)" "[ -d '$SCANS_DIR' ]"

@@ -569,7 +569,7 @@ examples/
 /secguard examples/java-vuln-demo/src/ critical
 ```
 
-预期结果：检查 `.codeagent/secguard/scans/<scan-id>/manifest.json`，应检出对应语言中注释标注的漏洞。
+预期结果：检查 `.codeagent/secguardian/scans/scans/<scan-id>/manifest.json`，应检出对应语言中注释标注的漏洞。
 
 ### 验证 secaudit 命令
 

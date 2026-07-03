@@ -41,7 +41,7 @@ Unlike traditional linters, SecReview reasons about code behavior, business logi
 Follows [Scan Output Protocol 5.0](../knowledge/protocols/scan-output.md). Human-readable and machine-readable separation.
 
 ```
-<user-project>/.codeagent/secreview/<scan-id>/
+<user-project>/.codeagent/secguardian/scans/<scan-id>/
 ├── human/                    # ★ v7.0: Unified entry point
 │   └── executive-summary.md    One-page dashboard + finding distribution + navigation
 ├── findings/                 # Per-detector organized finding directory tree
@@ -82,7 +82,7 @@ Mode: git diff main
 
 > Each finding includes exploit scenario, CWE mapping, severity assessment, CVE-like CVSS scoring, and fix recommendation.
 
-Output directory: <user-project>/.codeagent/secreview/pr-20260531-143000-a1b2/
+Output directory: <user-project>/.codeagent/secguardian/scans/pr-20260531-143000-a1b2/
 
 💡 **How to use review results?**
 - **Quick summary** -> `manifest.json`
@@ -128,7 +128,7 @@ Before starting any review, verify each condition below. **If any check fails, r
 ### Step 1: Create Output Directory
 
 - **⏳ Generate scan_id FIRST** (format: `pr-YYYYMMDD-HHMMSS-xxxx`, `xxxx` is 4 random chars).
-- Create output directory: `<user-project>/.codeagent/secreview/<scan_id>/`.
+- Create output directory: `<user-project>/.codeagent/secguardian/scans/<scan_id>/`.
 - **Once scan_id is generated, ALL subsequent paths must use this scan_id.**
 - Record review start timestamp for Step 4 `duration_ms` calculation.
 
@@ -162,8 +162,8 @@ find_indexer() {
 }
 find_indexer
 # 缓存由 wrapper 透明处理：同路径复用 index.json（加 --force 强制重建，刷新缓存）
-$INDEXER --path <path> --output <user-project>/.codeagent/index.json
-if [ ! -f "<user-project>/.codeagent/index.json" ]; then
+$INDEXER --path <path> --output <user-project>/.codeagent/secguardian/index.json
+if [ ! -f "<user-project>/.codeagent/secguardian/index.json" ]; then
     echo "FATAL: Indexer failed — cannot continue"
     exit 1
 fi
@@ -173,7 +173,7 @@ fi
 
 ```bash
 python3 scripts/validate-index.py \
-    --index <user-project>/.codeagent/index.json \
+    --index <user-project>/.codeagent/secguardian/index.json \
     --scan-id <scan_id>
 ```
 
@@ -282,9 +282,9 @@ Same as secguard Step 4b-4c (see `commands/secguard.md`). Use `secreview` paths.
 ```bash
 python3 "$RENDERER" \
     --command secreview \
-    --findings-dir <user-project>/.codeagent/secreview/<scan_id>/findings/ \
-    --index <user-project>/.codeagent/index.json \
-    --output <user-project>/.codeagent/secreview/<scan_id>/
+    --findings-dir <user-project>/.codeagent/secguardian/scans/<scan_id>/findings/ \
+    --index <user-project>/.codeagent/secguardian/index.json \
+    --output <user-project>/.codeagent/secguardian/scans/<scan_id>/
 ```
 
 > ⚠️ If renderer unavailable: `"Renderer unavailable — findings saved to findings/ directory tree only."`

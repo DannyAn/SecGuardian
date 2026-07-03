@@ -146,7 +146,7 @@ render-report.py (渲染 report.md + SARIF 2.1.0 + CI 门禁)
 **CLI 接口:**
 
 ```bash
-secguardian-index --path ./src --output .codeagent/index.json   # 完整索引
+secguardian-index --path ./src --output .codeagent/secguardian/index.json   # 完整索引
 secguardian-index --health                                       # 冒烟测试
 secguardian-index --version                                      # 打印版本号
 secguardian-index --lang cpp --path ./src                        # 语言过滤
@@ -237,7 +237,7 @@ kind := child.Kind()
 1. `secguardian-index --health` → HEALTH:OK/WARN
 2. `secguardian-index --path <path> --output .codeagent/.../index.json`
 3. AI Agent 读取 `index.json` → 加载 `skills/secguard/<lang>/SKILL.md` → 按 detector 执行
-4. 输出到 `.codeagent/secguard/scans/<scan-id>/`
+4. 输出到 `.codeagent/secguardian/scans/scans/<scan-id>/`
 
 输出协议 v5.0 在 `knowledge/protocols/scan-output.md`（CLAUDE.md 中写的是 1.0，已过时）。
 

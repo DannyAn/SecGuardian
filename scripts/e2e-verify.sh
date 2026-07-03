@@ -878,7 +878,7 @@ fi
 # ── §12: v7.0 Consumer-Centric Output ─────────────────────────────
 echo ""
 echo "=== §12: Consumer-Centric Output ==="
-SCAN_DIR=".codeagent/secguard/latest"
+SCAN_DIR=".codeagent/secguardian/scans/latest"
 FAILED=0
 
 # 12.1 human/executive-summary.md
