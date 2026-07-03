@@ -1,0 +1,118 @@
+# SecGuardian — Gitee Go CI/CD 流水线
+# 最简配置：代码检出 → 完整性检查 → 编译验证
+#
+# 开通方式：
+#   1. 进入 Gitee 仓库 → 服务 → Gitee Go
+#   2. 新建流水线 → 选择 "代码源配置" (.gitee-ci.yml)
+#   3. 保存后每次 push 到 develop/main 自动触发
+#
+# 文档：https://help.gitee.com/gitee-go/pipeline/scheduling
+
+version: '1.0'
+name: secguardian-ci
+displayName: SecGuardian CI
+triggers:
+  push:
+    branches:
+      - develop
+      - main
+  pull_request:
+    branches:
+      - develop
+      - main
+
+stages:
+  # ── 阶段1：项目完整性检查 ─────────────────
+  - stage:
+      name: validate
+      displayName: 完整性检查
+      trigger: auto
+      strategy: fast
+      steps:
+        - step: git@checkout
+          name: checkout
+          displayName: 检出代码
+
+        - step: shell@command
+          name: check-structure
+          displayName: 项目结构验证
+          commands:
+            - echo "=== 知识库文件统计 ==="
+            - echo "Cheatsheets: $(ls knowledge/cheatsheets/*.md 2>/dev/null | wc -l)"
+            - echo "Languages: $(ls knowledge/languages/*.md 2>/dev/null | wc -l)"
+            - echo "Detectors: $(ls knowledge/detectors/*.md 2>/dev/null | wc -l)"
+            - echo "Protocols: $(ls knowledge/protocols/*.md 2>/dev/null | wc -l)"
+            - echo "Skills:    $(find skills -name SKILL.md -maxdepth 2 | wc -l)"
+            - echo "Commands:  $(ls commands/*.md 2>/dev/null | wc -l)"
+            - ""
+
+        - step: shell@command
+          name: validate-json
+          displayName: Extension JSON 格式验证
+          commands:
+            - |
+              for ext in secguard-secguardian secaudit-secguardian secreview-secguardian; do
+                f="extensions/$ext/extension.json"
+                if jq empty "$f" 2>/dev/null; then
+                  echo "  OK: $f"
+                else
+                  echo "  FAIL: $f"
+                  exit 1
+                fi
+              done
+            - echo "所有 extension.json 格式正确"
+
+        - step: shell@command
+          name: version-check
+          displayName: 版本号一致性
+          commands:
+            - |
+              VER=$(jq -r '.version' manifest.json)
+              echo "manifest.json: $VER"
+              for ext in secguard-secguardian secaudit-secguardian secreview-secguardian; do
+                ev=$(jq -r '.version' "extensions/$ext/extension.json")
+                if [ "$ev" != "$VER" ]; then
+                  echo "FAIL: $ext version=$ev, expected=$VER"
+                  exit 1
+                fi
+                echo "  OK: $ext=$ev"
+              done
+              echo "main.go: $(grep 'const version' internal/main.go)"
+            - echo "所有版本号一致"
+
+  # ── 阶段2：Go 编译 + 冒烟测试 ──────────────
+  - stage:
+      name: build
+      displayName: 编译与验证
+      trigger: auto
+      strategy: fast
+      steps:
+        - step: git@checkout
+          name: checkout
+          displayName: 检出代码
+
+        - step: shell@command
+          name: go-build
+          displayName: Go 编译
+          commands:
+            - cd internal
+            - go build -o ../scripts/bin/secguardian-index .
+            - echo "编译完成: $(file ../scripts/bin/secguardian-index)"
+
+        - step: shell@command
+          name: smoke-test
+          displayName: 冒烟测试
+          commands:
+            - scripts/bin/secguardian-index --version
+            - scripts/bin/secguardian-index --health
+            - scripts/bin/secguardian-index detectors | head -10
+            - scripts/bin/secguardian-index scan --path examples/cpp-vuln-demo/src --filters memory.*
+            - scripts/bin/secguardian-index audit --skill list
+
+        - step: shell@command
+          name: index-test
+          displayName: 索引器端到端测试
+          commands:
+            - scripts/bin/secguardian-index --path examples/cpp-vuln-demo/src --output /tmp/test-index.json
+            - python3 -c "import json; d=json.load(open('/tmp/test-index.json')); print(f'索引: {len(d[\"files\"])} 文件, {len(d[\"symbols\"][\"functions\"])} 函数, {len(d[\"call_graph\"][\"edges\"])} 调用边')"
+            - rm -f /tmp/test-index.json

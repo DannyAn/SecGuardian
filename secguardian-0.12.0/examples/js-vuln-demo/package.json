@@ -1,0 +1,48 @@
+{
+  "name": "js-vuln-demo",
+  "version": "1.0.0",
+  "description": "JavaScript/Node.js vulnerability examples for SecGuardian detector validation — 40+ vulnerabilities across 8 categories",
+  "main": "src/webapp.js",
+  "scripts": {
+    "start": "node src/webapp.js",
+    "scan": "echo 'Run: /secguard ./src all js' in your AI CLI"
+  },
+  "keywords": [
+    "security",
+    "vulnerability",
+    "demo",
+    "sast",
+    "secguardian",
+    "owasp-top-10",
+    "cwe"
+  ],
+  "author": "SecGuardian",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "express": "4.16.0",
+    "jsonwebtoken": "8.5.1",
+    "ejs": "3.1.9",
+    "lodash": "4.17.20",
+    "mongoose": "5.13.0",
+    "axios": "1.5.0",
+    "marked": "3.0.0",
+    "node-serialize": "0.0.4",
+    "libxmljs": "0.19.7",
+    "xml2js": "0.4.23",
+    "adm-zip": "0.4.16",
+    "winston": "3.3.3",
+    "morgan": "1.10.0",
+    "serialize-javascript": "3.1.0"
+  },
+  "comments": {
+    "express": "4.16.0 — has open redirect CVE-2024-29041, missing security headers",
+    "jsonwebtoken": "8.5.1 — vulnerable to algorithm confusion if not properly validated",
+    "ejs": "3.1.9 — SSTI risk if user input passed to render()",
+    "lodash": "4.17.20 — prototype pollution CVE-2020-8203 in _.set",
+    "mongoose": "5.13.0 — NoSQL injection possible with unsanitized queries",
+    "axios": "1.5.0 — SSRF vulnerability CVE-2023-45857",
+    "marked": "3.0.0 — multiple ReDoS vulnerabilities CVE-2022-21680",
+    "node-serialize": "0.0.4 — KNOWN RCE via unserialize()",
+    "adm-zip": "0.4.16 — Zip Slip path traversal vulnerability"
+  }
+}

@@ -1,0 +1,227 @@
+name: SecGuardian Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (without v prefix, e.g. 0.5.4)'
+        required: true
+        type: string
+
+jobs:
+  # ── Stage 1: Build binaries on native runners ──
+
+  build-linux-amd64:
+    name: Build linux-amd64 (tree-sitter)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.25' }
+      - name: Build
+        working-directory: internal
+        run: |
+          CGO_ENABLED=1 go build -o secguardian-index-linux-amd64 .
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-linux-amd64
+          path: internal/secguardian-index-linux-amd64
+
+  build-linux-arm64:
+    name: Build linux-arm64 (regex)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.25' }
+      - name: Build
+        working-directory: internal
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o secguardian-index-linux-arm64 .
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-linux-arm64
+          path: internal/secguardian-index-linux-arm64
+
+  build-darwin-amd64:
+    name: Build darwin-amd64 (tree-sitter)
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.25' }
+      - name: Build
+        working-directory: internal
+        run: |
+          CGO_ENABLED=1 go build -o secguardian-index-darwin-amd64 .
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-darwin-amd64
+          path: internal/secguardian-index-darwin-amd64
+
+  build-darwin-arm64:
+    name: Build darwin-arm64 (tree-sitter)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.25' }
+      - name: Build
+        working-directory: internal
+        run: |
+          CGO_ENABLED=1 go build -o secguardian-index-darwin-arm64 .
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-darwin-arm64
+          path: internal/secguardian-index-darwin-arm64
+
+  build-windows-amd64:
+    name: Build windows-amd64 (tree-sitter)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.25' }
+      - name: Build
+        working-directory: internal
+        run: |
+          $env:CGO_ENABLED = "1"
+          go build -o secguardian-index-windows-amd64.exe .
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-windows-amd64
+          path: internal/secguardian-index-windows-amd64.exe
+
+  # ── Stage 2: Package and release ──
+
+  package-release:
+    name: Package and Release
+    runs-on: ubuntu-latest
+    needs:
+      - build-linux-amd64
+      - build-linux-arm64
+      - build-darwin-amd64
+      - build-darwin-arm64
+      - build-windows-amd64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "value=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "value=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download all binaries
+        run: |
+          mkdir -p scripts/bin
+          echo "Downloading platform binaries..."
+        # Note: actions/download-artifact places each in a subdirectory.
+        # We'll download each and move the binary to scripts/bin/.
+
+      - name: Download linux-amd64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-linux-amd64
+          path: scripts/bin
+
+      - name: Download linux-arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-linux-arm64
+          path: scripts/bin
+
+      - name: Download darwin-amd64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-darwin-amd64
+          path: scripts/bin
+
+      - name: Download darwin-arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-darwin-arm64
+          path: scripts/bin
+
+      - name: Download windows-amd64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-windows-amd64
+          path: scripts/bin
+
+      - name: List binaries
+        run: |
+          echo "Binaries in scripts/bin/:"
+          ls -lh scripts/bin/
+
+      - name: Package extensions
+        run: |
+          export SKIP_GO_BUILD=1
+          bash scripts/package.sh
+
+      - name: Create release zips
+        run: |
+          VERSION="${{ steps.version.outputs.value }}"
+          echo "Packaging release v${VERSION}..."
+          bash scripts/release.sh "${VERSION}"
+
+      - name: Generate SHA256 checksums
+        run: |
+          cd dist/release
+          find . -type f \( -name "*.zip" -o -name "*.tar.gz" \) | while read f; do
+            sha256sum "$f" > "${f}.sha256"
+          done
+          echo "=== Checksums ==="
+          find . -name "*.sha256" -exec cat {} \;
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.value }}
+          name: SecGuardian v${{ steps.version.outputs.value }}
+          body: |
+            ## SecGuardian v${{ steps.version.outputs.value }}
+
+            ### 安装
+
+            ```bash
+            # 一键安装
+            curl -fsSL https://gitee.com/jonyan/secguardian/releases/download/v${{ steps.version.outputs.value }}/install.sh | bash
+            ```
+
+            ### 变更
+
+            见 [CHANGELOG.md](https://gitee.com/jonyan/secguardian/blob/develop/CHANGELOG.md)
+
+            ### 平台支持
+
+            | 平台 | 架构 | Parser |
+            |------|------|--------|
+            | Linux | amd64 | tree-sitter |
+            | Linux | arm64 | regex |
+            | macOS | amd64 | tree-sitter |
+            | macOS | arm64 | tree-sitter |
+            | Windows | amd64 | tree-sitter |
+
+            🤖 Generated with [Claude Code](https://claude.com/claude-code)
+          files: dist/release/**
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to Gitee Release
+        run: |
+          VERSION="${{ steps.version.outputs.value }}"
+          bash scripts/gitee-release.sh "${VERSION}"
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
