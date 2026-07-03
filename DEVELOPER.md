@@ -8,6 +8,8 @@
 - [规则微调](#规则微调)
 - [构建与部署](#构建与部署)
 - [发布流程](#发布流程)
+- [CI/CD](#cicd)
+- [PR 门禁与分支保护](#pr-门禁与分支保护)
 - [测试与验证](#测试与验证)
 - [常见任务](#常见任务)
 - [故障排除](#故障排除)
@@ -38,7 +40,7 @@ bash scripts/dev-deploy.sh
 # 4. 验证：执行扫描命令
 #    Claude Code / OpenCode 中运行：
 #      /secguard examples/python-vuln-demo/src/ critical
-#      /secaudit taint-analysis examples/python-vuln-demo/src/
+#      /secaudit examples/python-vuln-demo/src python
 #      /secreview examples/python-vuln-demo/src/
 ```
 
@@ -59,7 +61,7 @@ SecGuardian 是 **AI-native** 的安全扫描工具。它不包含传统的 SAST
 
 ```
 commands/          ← 入口层：3 个 slash command 定义
-skills/            ← 执行层：25 个 skill，每个定义扫描/审查/审计的提示词
+skills/            ← 执行层：11 个 skill（secaudit 1 + secguard 5 + secreview 5）
 knowledge/         ← 知识层：安全概念、语言画像、检测规则、输出协议
 extensions/        ← 打包层：3 个 extension 的 extension.json 清单
 scripts/           ← 工具层：构建、部署、打包脚本
@@ -70,39 +72,26 @@ examples/          ← 验证层：各语言漏洞示例代码
 
 | Extension | Command | 定位 | Skill 数量 | 覆盖语言 |
 |-----------|---------|------|-----------|---------|
-| secguard-secguardian | `/secguard` | 安全加固检查：API 级别的漏洞检测 | 4 | C++, Java, Python, Go |
-| secaudit-secguardian | `/secaudit` | 安全专项审计：纵深领域深入分析 | 17 | 语言无关 |
-| secreview-secguardian | `/secreview` | 安全规范审查：编码规范与反模式 | 4 | C++, Java, Python, Go |
+| secguard-secguardian | `/secguard` | 安全加固检查：API 级别的漏洞检测 | 5 | C++, Go, Java, Python, JS |
+| secaudit-secguardian | `/secaudit` | 全量安全审计：13 个审计域覆盖 | 1 | 语言无关 |
+| secreview-secguardian | `/secreview` | 安全编码审查：反模式与设计缺陷 | 5 | C++, Go, Java, Python, JS |
 
-- `/secguard` 关注 "这行 API 调用有没有漏洞"（精确）
-- `/secreview` 关注 "这段代码的设计模式是否安全"（语义）
-- `/secaudit` 关注 "这个安全领域有没有全面覆盖"（纵深）
+- `/secguard` 关注 "这行 API 调用有没有漏洞"（精确 — 5 语言）
+- `/secreview` 关注 "这段代码的设计模式是否安全"（语义 — 5 语言）
+- `/secaudit` 关注 "这个安全领域有没有全面覆盖"（纵深 — 1 workflow -> 13 审计域）
 
 ### 知识库结构
 
 ```
 knowledge/
-├── protocols/scan-output.md    ← 输出协议 1.0 → 2.0: 人读/机读分离 — report.md + results.sarif + summary.json
-├── concepts/                   ← 安全概念（10 个）：漏洞原理、检测策略、修复指南
-├── languages/                  ← 语言画像（4 个）：危险 API 列表、框架安全说明
-└── detectors/                  ← 检测规则（6 active + 20 planned）：详细检测逻辑
+├── audit-rules/         ← 13 个审计域规则（唯一安全知识源）
+├── guard-rules/         ← 67 个检测规则（7 安全分类）
+├── review-rules/        ← 5 语言审查规则
+├── standards/           ← 标准映射（OWASP ASVS、SEI CERT、CWE Mapping）
+├── protocols/           ← 输出协议（scan-output、SARIF 2.1.0）
+├── languages/           ← 语言画像（5 语言危险 API + 框架安全说明）
+└── threat-catalog.md    ← 威胁目录索引
 ```
-
-#### Detector 状态
-
-- **active (6)**: 实际参与扫描，在 `secguard-*` skill 中被加载
-- **planned (20)**: 规则已定义但尚未激活，需要完善后启用
-
-Active detectors（全部针对 C/C++ 内存安全）：
-
-| Detector | CWE | 严重度 |
-|----------|-----|--------|
-| null-dereference | CWE-476 | High |
-| double-free | CWE-415 | Critical |
-| use-after-free | CWE-416 | Critical |
-| buffer-overflow | CWE-120 | Critical |
-| format-string | CWE-134 | High |
-| integer-overflow | CWE-190 | High |
 
 ### 输出协议
 
@@ -149,15 +138,12 @@ bash scripts/dev-deploy.sh
 bash scripts/package.sh
 
 # 构建 + 部署到指定平台
-bash scripts/deploy.sh cc     # 仅 Claude Code
-bash scripts/deploy.sh nga    # 仅 OpenCode
-bash scripts/deploy.sh cac    # 仅 Gemini CLI
-
-# 用户级部署（推荐，跨项目共用）
-bash scripts/deploy.sh all --user
+bash scripts/deploy.sh cc      # Claude Code
+bash scripts/deploy.sh nga     # OpenCode
+bash scripts/deploy.sh cac     # Gemini CLI
 
 # 卸载
-bash scripts/deploy.sh all --uninstall
+bash scripts/deploy.sh --uninstall
 
 # 构建发布产物
 bash scripts/release.sh 0.4.0
@@ -331,20 +317,20 @@ scripts/package.sh                      → 组装 dist/
                               ↓
 dist/<extension-name>/                  → 构建产物
                               ↓
-scripts/deploy-{claude,opencode,gemini}.sh  → 平台部署
+scripts/deploy.sh {cc,nga,cac}  → 平台部署
 ```
 
 ### 单独部署到某个平台
 
 ```bash
 # Claude Code
-bash scripts/deploy-claude.sh
+bash scripts/deploy.sh cc
 
 # OpenCode
-bash scripts/deploy-opencode.sh
+bash scripts/deploy.sh nga
 
 # Gemini CLI
-bash scripts/deploy-gemini.sh
+bash scripts/deploy.sh cac
 ```
 
 ### 构建系统依赖
@@ -588,17 +574,16 @@ examples/
 ### 验证 secaudit 命令
 
 ```bash
-# 污点分析
-/secaudit taint-analysis examples/python-vuln-demo/src/webapp.py
+# 全量审计（自动加载所有 13 个审计域）
+/secaudit examples/python-vuln-demo/src python
 
-# 加密审计
-/secaudit cryptography examples/python-vuln-demo/src/crypto_utils.py
+# 单项聚焦
+/secaudit examples/python-vuln-demo/src python --focus cryptography
+/secaudit examples/java-vuln-demo/src java --focus auth-and-session
+/secaudit examples/python-vuln-demo/src python --focus input-validation
 
-# 认证审计
-/secaudit auth-and-session examples/java-vuln-demo/src/AuthController.java
-
-# 攻击面分析
-/secaudit attack-surface-analysis examples/python-vuln-demo/src/
+# 仅查看可用审计域
+/secaudit
 ```
 
 ### 验证 secreview 命令
@@ -718,7 +703,7 @@ Manifest 的结构：
 
 1. 检查漏洞是否在当前 active detector 的覆盖范围内
 2. 检查对应的 knowledge/languages 文件是否列出了相关危险 API
-3. 检查对应的 knowledge/concepts 文件的检测策略是否覆盖该模式
+3. 检查对应的 knowledge/guard-rules 文件的检测策略是否覆盖该模式
 4. 尝试降低扫描范围（仅扫描单文件而非整个目录）
 5. 调整对应 skill 的 SKILL.md，增加更明确的检测指令
 
@@ -776,7 +761,7 @@ done
 - 检测器索引: `knowledge/language-index.md`
 - 各语言速查表: `skills/<cmd>-<lang>/references/<lang>-security-cheatsheet.md`
 - 各语言反模式: `skills/secreview-<lang>/references/<lang>-anti-patterns.md`
-- OWASP ASVS 认证参考: `skills/secaudit-auth-and-session/references/owasp-asvs-auth.md`
+- OWASP ASVS 认证参考: `knowledge/standards/owasp-asvs-auth.md`
 
 ---
 
