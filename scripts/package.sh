@@ -162,8 +162,12 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
             cp -r "$skill_dir" "$dist_dir/skills/"
             skill_count=$((skill_count + 1))
         elif [ -f "$flat_skill" ]; then
-            mkdir -p "$dist_dir/skills/${skill_name}"
-            cp "$flat_skill" "$dist_dir/skills/${skill_name}/"
+           mkdir -p "$dist_dir/skills/${skill_name}"
+           cp "$flat_skill" "$dist_dir/skills/${skill_name}/"
+            # 复制 references/ 目录（如果存在，如 secaudit 的分析方法参考）
+            if [ -d "$PROJECT_ROOT/skills/${cmd}/references" ]; then
+                cp -r "$PROJECT_ROOT/skills/${cmd}/references" "$dist_dir/skills/${skill_name}/"
+            fi
             echo "    [FLAT] ${cmd}/${skill_name}/SKILL.md (flat → dir)"
             skill_count=$((skill_count + 1))
         else
