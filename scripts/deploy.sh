@@ -52,8 +52,14 @@ EOF
 }
 
 # ── 解析参数 ──────────────────────────────────
-PLATFORM="${1:-all}"
-shift 2>/dev/null || true
+# 第一个参数可以是平台名(all/cc/nga/cac)或选项(--user等)
+case "${1:-}" in
+    all|cc|nga|cac) PLATFORM="$1"; shift 2>/dev/null || true ;;
+    -h|--help|help) show_help ;;
+    --*)            PLATFORM="all" ;;   # 选项当第一个参数 → 默认全平台
+    "")             PLATFORM="all" ;;
+    *) echo "未知参数: $1"; exit 1 ;;
+esac
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -65,16 +71,6 @@ while [[ $# -gt 0 ]]; do
         *) shift ;;
     esac
 done
-
-case "$PLATFORM" in
-    -h|--help|help) show_help ;;
-    all|cc|nga|cac) ;;
-    *)
-        echo "未知参数: $PLATFORM"
-        echo "用法: bash scripts/deploy.sh [all|cc|nga|cac|-h]"
-        exit 1
-        ;;
-esac
 
 # ── 前置构建（默认执行，--uninstall 时跳过）───
 if ! $DO_UNINSTALL; then
