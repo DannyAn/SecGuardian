@@ -1,6 +1,6 @@
 #!/bin/bash
 # SecGuardian — 统一部署脚本
-# 用法: bash scripts/deploy.sh <platform> [--user] [--zip] [--verify]
+# 用法: bash scripts/deploy.sh <platform> [--project] [--zip] [--verify]
 #       bash scripts/deploy.sh all
 #       bash scripts/deploy.sh cc|nga|cac
 #
@@ -11,7 +11,7 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="$PROJECT_ROOT/dist"
-DEPLOY_USER=false     # 默认项目级，--user 切换为用户级
+DEPLOY_USER=true      # 默认用户级，--project 切换为项目级
 DO_UNINSTALL=false
 DO_ZIP=false
 DO_BUILD=false
@@ -25,25 +25,25 @@ SecGuardian — 部署脚本
 将构建好的 dist/ 部署到 AI CLI 平台。
 
 用法:
-  bash scripts/deploy.sh <platform> [--user] [--zip]
+  bash scripts/deploy.sh <platform> [--project] [--zip]
   bash scripts/deploy.sh <platform> --uninstall
 
 平台:
   all      三平台全部 (默认)
   cc       Claude Code    → .claude/plugins/secguardian/
-  nga      OpenCode       → .opencode/plugins/ + extensions/ (project) / ~/.config/opencode/plugins/ + extensions/ (user)
-  cac      Gemini CLI     → .gemini/extensions/secguardian/ (project) / ~/.gemini/extensions/secguardian/ (user)
+  nga      OpenCode       → ~/.config/opencode/plugins/ + extensions/ (user, 默认) / .opencode/plugins/ + extensions/ (project)
+  cac      Gemini CLI     → ~/.gemini/extensions/secguardian/ (user, 默认) / .gemini/extensions/secguardian/ (project)
 
 选项:
-  --user       部署到用户家目录（推荐，跨项目共用）
+  --project    部署到项目级目录（.opencode/ 等）
   --uninstall  卸载已安装的 secguardian 文件
   --zip        部署后生成发布压缩包 → dist/archives/
   --verify     部署后运行 dev-verify.sh 验证健康
 
 示例:
-  bash scripts/deploy.sh all --user          # 用户级部署
+  bash scripts/deploy.sh all --project       # 项目级部署
   bash scripts/deploy.sh all --uninstall     # 卸载全部
-  bash scripts/deploy.sh all --user --uninstall
+  bash scripts/deploy.sh all --project --uninstall
   bash scripts/deploy.sh all                     # 构建 + 部署全部
   bash scripts/deploy.sh all --verify             # 构建 + 部署 + 验证  # 卸载用户级安装
   bash scripts/deploy.sh cc                 # 项目级部署 Claude Code
@@ -52,7 +52,7 @@ EOF
 }
 
 # ── 解析参数 ──────────────────────────────────
-# 第一个参数可以是平台名(all/cc/nga/cac)或选项(--user等)
+# 第一个参数可以是平台名(all/cc/nga/cac)或选项(--project等)
 case "${1:-}" in
     all|cc|nga|cac) PLATFORM="$1"; shift 2>/dev/null || true ;;
     -h|--help|help) show_help ;;
@@ -63,7 +63,7 @@ esac
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --user) DEPLOY_USER=true; shift ;;
+        --project) DEPLOY_USER=false; shift ;;
         --uninstall) DO_UNINSTALL=true; shift ;;
         --zip) DO_ZIP=true; shift ;;
         --verify) DO_VERIFY=true; shift ;;
