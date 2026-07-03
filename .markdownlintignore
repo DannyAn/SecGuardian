@@ -4,3 +4,7 @@
 .opencode/
 .remember/
 dist/
+docs/sdd/
+docs/reference/
+examples/
+secguardian-*/

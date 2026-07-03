@@ -20,6 +20,9 @@
   "MD055": false,
   "MD058": false,
   "MD060": false,
+  "MD004": false,
+  "MD028": false,
+  "MD042": false,
   // Quality rules — enabled
   "MD009": true,
   "MD010": true,

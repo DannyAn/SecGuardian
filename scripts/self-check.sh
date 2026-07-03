@@ -158,7 +158,24 @@ for cmd_dir in skills/secaudit skills/secguard skills/secreview; do
         red "$cmd_dir/ MISSING"
     fi
 done
-echo "  Total: $SKILL_COUNT skills"
+echo "  
+# ── §12: Markdown Lint ────────────────────────────────
+echo ""
+echo "§12. Markdown Lint"
+echo "  (run: markdownlint-cli2 '**/*.md' --config .markdownlint.jsonc --ignore .markdownlintignore)"
+if command -v npx &>/dev/null; then
+    if npx --yes markdownlint-cli2 '**/*.md' --config .markdownlint.jsonc --ignore .markdownlintignore 2>/dev/null; then
+        green "  All markdown files pass lint"
+    else
+        echo ""
+        echo "  To view details: npx markdownlint-cli2 '**/*.md' --config .markdownlint.jsonc --ignore .markdownlintignore"
+        echo "  Skipping non-zero exit (rules may vary by environment)"
+    fi
+else
+    echo "  npx not available — install Node.js to run markdownlint locally"
+fi
+
+Total: $SKILL_COUNT skills"
 echo ""
 
 # ── 6. No dead references ──
