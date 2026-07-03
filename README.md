@@ -3,9 +3,9 @@
 > **AI-Native Security Workflow for the Entire Software Development Lifecycle**
 
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)](https://github.com/secguardian/secguardian)
-[![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)](https://github.com/secguardian/secguardian/blob/develop/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.12.0-blue.svg)](https://github.com/secguardian/secguardian/blob/master/CHANGELOG.md)
 [![Go](https://img.shields.io/badge/Go-1.25%2B-00ADD8.svg)](https://go.dev)
-[![Detectors](https://img.shields.io/badge/detectors-60-brightgreen.svg)](https://github.com/secguardian/secguardian/blob/develop/knowledge/language-index.md)
+[![Detectors](https://img.shields.io/badge/detectors-67-brightgreen.svg)](https://github.com/secguardian/secguardian/blob/develop/knowledge/language-index.md)
 [![CWE Top 25](https://img.shields.io/badge/CWE_Top_25-100%25-brightgreen.svg)](https://github.com/secguardian/secguardian/blob/develop/knowledge/language-index.md)
 
 SecGuardian is an enterprise-grade AI application security framework. It integrates AI reasoning with security engineering practices to help teams build, review, fix, and release secure software through **four automated security gates**.
@@ -24,9 +24,9 @@ Download the plugin zip for your AI agent from [Releases](https://github.com/Dan
 
 | If you use... | Download this file |
 |---|---|
-| Claude Code | `secguardian-0.10.0-claude-code-<os>-<arch>.zip` |
-| OpenCode | `secguardian-0.10.0-opencode-<os>-<arch>.zip` |
-| Gemini CLI | `secguardian-0.10.0-gemini-cli-<os>-<arch>.zip` |
+| Claude Code | `secguardian-0.12.0-claude-code-<os>-<arch>.zip` |
+| OpenCode | `secguardian-0.12.0-opencode-<os>-<arch>.zip` |
+| Gemini CLI | `secguardian-0.12.0-gemini-cli-<os>-<arch>.zip` |
 
 Extract the zip into your agent's plugin directory, or install it through your agent's extension manager. Then use:
 
@@ -39,7 +39,7 @@ Extract the zip into your agent's plugin directory, or install it through your a
 
 ### Source tarball (with deploy.sh)
 
-Download `secguardian-0.10.0-source.tar.gz` from [Releases](https://github.com/DannyAn/SecGuardian/releases), extract, then:
+Download `secguardian-0.12.0-source.tar.gz` from [Releases](https://github.com/DannyAn/SecGuardian/releases), extract, then:
 
 ```bash
 bash scripts/deploy.sh          # Install for all supported platforms
@@ -119,17 +119,19 @@ commands/secaudit.md   ← /secaudit <path> <lang>
 
 All three commands (`/secguard`, `/secreview`, `/secaudit`) share the same invocation pattern: `<path> <language>`. Knowledge is always loaded from `knowledge/` at scan time.
 
+Shared index (`index.json`) is built once per project at `.codeagent/secguardian/index.json` and reused across all commands — no repeated Tree-sitter parsing. Use `--force` to rebuild.
+
 ### Current coverage
 
 CWE Top 25: **100%** coverage. OWASP Top 10: **100%** coverage.
 
-60 detectors across 7 security namespaces, supporting C/C++/Java/Python/Go/JavaScript:
+67 detectors across 7 security namespaces, supporting C/C++/Java/Python/Go/JavaScript:
 
 | Namespace | Count | Coverage |
 | --- | --- | --- |
 | memory | 13 | Buffer overflow, UAF, double-free, null dereference |
 | concurrency | 4 | Race conditions, deadlocks |
-| system | 7 | Command injection, path traversal |
+| system | 8 | Command injection, path traversal |
 | crypto | 9 | Weak algorithms, hardcoded keys |
 | web | 21 | XSS, SQLi, SSRF, CSRF, prototype pollution |
 | resource | 6 | File/socket/resource leaks, lock misuse |
