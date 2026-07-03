@@ -33,7 +33,7 @@
 cd /path/to/secguardian
 
 # 2. 一键构建 + 部署到所有平台
-bash scripts/dev-deploy.sh
+bash scripts/deploy.sh all --build
 
 # 3. 重启 AI CLI（Claude Code / OpenCode / Gemini CLI）
 
@@ -121,7 +121,7 @@ knowledge/
 
 ```
 1. 修改源码（skills/knowledge/commands 等）
-2. bash scripts/dev-deploy.sh    ← 一键构建 + 部署
+2. bash scripts/deploy.sh all --build    ← 一键构建 + 部署
 3. 重启 AI CLI
 4. 运行 /secaudit 或 /secguard 对 examples/ 执行扫描
 5. 检查 .codeagent/ 下的输出结果
@@ -132,7 +132,7 @@ knowledge/
 
 ```bash
 # 一键构建 + 全平台部署（开发首选）
-bash scripts/dev-deploy.sh
+bash scripts/deploy.sh all --build
 
 # 仅构建，不部署
 bash scripts/package.sh
@@ -153,15 +153,15 @@ bash scripts/release.sh 0.4.0
 
 | 修改位置 | 影响范围 | 需要重新部署 |
 |----------|---------|------------|
-| `knowledge/threat-catalog.md*.md` | 所有 3 个 extension | `dev-deploy.sh` |
-| `knowledge/languages/*.md` | 所有 3 个 extension | `dev-deploy.sh` |
-| `knowledge/guard-rules/*.md` | 仅 secguard | `dev-deploy.sh` |
-| `knowledge/protocols/*.md` | 所有 3 个 extension | `dev-deploy.sh` |
-| `skills/<cmd>-*/SKILL.md` | 仅对应 extension | `dev-deploy.sh` |
-| `skills/<cmd>-*/references/*.md` | 仅对应 extension | `dev-deploy.sh` |
-| `commands/<cmd>.md` | 仅对应 extension | `dev-deploy.sh` |
-| `extensions/*/extension.json` | 仅对应 extension | `dev-deploy.sh` |
-| `commands/gemini/*.toml` | 仅 Gemini CLI | `dev-deploy.sh` |
+| `knowledge/threat-catalog.md*.md` | 所有 3 个 extension | `deploy.sh all --build` |
+| `knowledge/languages/*.md` | 所有 3 个 extension | `deploy.sh all --build` |
+| `knowledge/guard-rules/*.md` | 仅 secguard | `deploy.sh all --build` |
+| `knowledge/protocols/*.md` | 所有 3 个 extension | `deploy.sh all --build` |
+| `skills/<cmd>-*/SKILL.md` | 仅对应 extension | `deploy.sh all --build` |
+| `skills/<cmd>-*/references/*.md` | 仅对应 extension | `deploy.sh all --build` |
+| `commands/<cmd>.md` | 仅对应 extension | `deploy.sh all --build` |
+| `extensions/*/extension.json` | 仅对应 extension | `deploy.sh all --build` |
+| `commands/gemini/*.toml` | 仅 Gemini CLI | `deploy.sh all --build` |
 
 ### 部署后的目录结构
 
@@ -275,7 +275,7 @@ secguardian/                      ← 项目根目录
 1. 编写 `knowledge/guard-rules/<new-detector>.md`（参考已有 detector 格式）
 2. 在 `manifest.json` 的 `knowledge.detectors` 中添加条目
 3. 在对应 `extensions/secguard-secguardian/extension.json` 的 `knowledge.detectors` 中添加
-4. 重新部署：`bash scripts/dev-deploy.sh`
+4. 重新部署：`bash scripts/deploy.sh all --build`
 5. 用 examples/ 验证检测效果
 
 ### 添加新安全概念
@@ -366,7 +366,7 @@ bash scripts/sync-version.sh 0.5.0
 
 - [ ] 所有版本号一致（运行 `bash scripts/ci-check.sh` 验证）
 - [ ] 用 examples/ 验证 3 个命令均能正常输出
-- [ ] 运行 `bash scripts/dev-deploy.sh` 确认构建和部署无报错
+- [ ] 运行 `bash scripts/deploy.sh all --build` 确认构建和部署无报错
 - [ ] 检查 `.codeagent/` 下的输出符合 Scan Output Protocol 2.0
 
 ### 构建发布产物并发布到 Gitee
@@ -622,7 +622,7 @@ examples/
 6. 在 extensions/secreview-secguardian/extension.json 中注册（可选）
 7. 更新 manifest.json
 8. 创建 examples/rust-vuln-demo/ 测试用例
-9. bash scripts/dev-deploy.sh
+9. bash scripts/deploy.sh all --build
 10. 验证：/secguard examples/rust-vuln-demo/src/
 ```
 
@@ -632,7 +632,7 @@ examples/
 1. 编写 skills/secaudit-<name>/SKILL.md（参考 cryptography 等格式）
 2. 在 extensions/secaudit-secguardian/extension.json 的 skills 数组中添加
 3. 更新 manifest.json 的 secaudit skill 列表
-4. bash scripts/dev-deploy.sh
+4. bash scripts/deploy.sh all --build
 ```
 
 ### 修改命令输出格式
@@ -648,7 +648,7 @@ examples/
 ```bash
 # manifest.json 是项目的中心注册表，修改后需要重新部署
 vim manifest.json
-bash scripts/dev-deploy.sh
+bash scripts/deploy.sh all --build
 ```
 
 Manifest 的结构：
@@ -685,7 +685,7 @@ Manifest 的结构：
 1. 在 AI CLI 中直接粘贴 SKILL.md 内容作为 prompt 执行
 2. 观察输出是否匹配预期格式
 3. 调整 SKILL.md 提示词，重新测试
-4. 满意后 `bash scripts/dev-deploy.sh` 正式部署
+4. 满意后 `bash scripts/deploy.sh all --build` 正式部署
 
 ---
 

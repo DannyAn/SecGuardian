@@ -19,7 +19,7 @@ By moving beyond raw AI code generation and introducing **Rule Packs**, SecGuard
 
 ```bash
 # One-command deployment for supported CLI platforms
-bash scripts/dev-deploy.sh
+bash scripts/deploy.sh all --build
 
 # Or install for a specific environment:
 bash scripts/deploy.sh cc     # Claude Code

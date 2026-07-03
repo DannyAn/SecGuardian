@@ -151,7 +151,7 @@ kind := child.Kind()
 
 ```bash
 # 一键构建 + 三平台部署
-bash scripts/dev-deploy.sh
+bash scripts/deploy.sh all --build
 
 # 单独部署到某个平台
 bash scripts/deploy.sh cc --user     # Claude Code → ~/.claude/plugins/secguardian/
@@ -246,7 +246,7 @@ secguardian/
 │   └── java-vuln-demo/    # Java (8 个漏洞)
 ├── scripts/
 │   ├── package.sh         # 构建 dist/
-│   ├── dev-deploy.sh      # 一键构建 + 三平台部署
+│   ├── deploy.sh all --build    # 构建 + 部署
 │   ├── deploy.sh          # 统一部署入口（核心脚本）
 │   ├── deploy-claude.sh   # 部署到 Claude Code（调用 deploy.sh cc）
 │   └── deploy-opencode.sh # 部署到 OpenCode（调用 deploy.sh nga）
@@ -257,7 +257,7 @@ secguardian/
 
 ```
 1. 修改 skills/knowledge/commands 源码
-2. bash scripts/dev-deploy.sh   → 一键构建 + 部署三平台
+2. bash scripts/deploy.sh all --build   → 一键构建 + 部署三平台
 3. 重启 AI CLI
 4. 测试命令验证:
    - /secguard ./src            # 短命令
@@ -344,7 +344,7 @@ bash scripts/e2e-verify.sh --quick  # 跳过第 9 节 (多语言索引)，快速
 
 ## 添加新 Skill / Detector
 
-参见 manifest.json 中的 knowledge 和 extensions 字段，修改后重新运行 dev-deploy.sh。
+参见 manifest.json 中的 knowledge 和 extensions 字段，修改后重新运行 deploy.sh all --build。
 
 ## Manifest-Driven Tokens（散弹式修改终结者）
 

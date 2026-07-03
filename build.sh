@@ -46,7 +46,7 @@ SecGuardian — 统一构建 + 部署 + 打包脚本
   - 构建阶段会尝试跨平台编译 Go 索引器 (darwin-arm64/amd64, linux-amd64, windows-amd64)
   - 如果 Go 不可用，索引器二进制不会被编译，但 wrapper 脚本和 knowledge 仍会正常打包
   - 发布包在 dist/archives/ 下
-  - 对于日常开发，推荐使用 bash scripts/dev-deploy.sh
+  - 对于日常开发，推荐使用 bash scripts/deploy.sh all --build
 EOF
     exit 0
 fi
