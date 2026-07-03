@@ -137,6 +137,7 @@ Before starting any review, verify each condition below. **If any check fails, r
 > ⚠️ This is the **core prerequisite** for review. The indexer provides symbol table and call graph needed for structured security analysis. **Skipping this step will severely degrade review quality.**
 
 **2a. Execute indexer (blocking):**
+> Index caching is automatic. Add `--force` to force a rebuild.
 
 ```bash
 find_indexer() {
@@ -158,7 +159,7 @@ find_indexer() {
     echo "Using: $INDEXER"
 }
 find_indexer
-# 缓存由 wrapper (scripts/secguardian-index) 透明处理：同路径复用 index.json
+# 缓存由 wrapper 透明处理：同路径复用 index.json（加 --force 强制重建，刷新缓存）
 $INDEXER --path <path> --output <user-project>/.codeagent/secreview-secguardian/scans/<scan_id>/index.json
 if [ ! -f "<user-project>/.codeagent/secreview-secguardian/scans/<scan_id>/index.json" ]; then
     echo "FATAL: Indexer failed — cannot continue"

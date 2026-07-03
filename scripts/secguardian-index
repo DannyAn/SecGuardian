@@ -13,31 +13,34 @@ BIN_DIR="$SCRIPT_DIR/bin"
 # --- Parse --path / --output for caching ---
 SRC_PATH=""
 OUTPUT_PATH=""
+FORCE_REBUILD=0
 ARGS=()
 while [ $# -gt 0 ]; do
     case "$1" in
         --path) SRC_PATH="$2"; ARGS+=("$1" "$2"); shift 2 ;;
         --output) OUTPUT_PATH="$2"; ARGS+=("$1" "$2"); shift 2 ;;
+        --force) FORCE_REBUILD=1; shift ;;
         *) ARGS+=("$1"); shift ;;
     esac
 done
 set -- "${ARGS[@]}"
 
-# --- Transparent caching ---
+# --- Transparent caching (--force skips cache check, always rebuilds) ---
 CACHE_HIT=0
+CACHE_KEY=""
+CACHE_DIR=""
 if [ -n "$SRC_PATH" ] && [ -n "$OUTPUT_PATH" ]; then
     OUTPUT_DIR="$(dirname "$OUTPUT_PATH")"
     SCAN_DIR="$(dirname "$OUTPUT_DIR")"
     CACHE_DIR="$SCAN_DIR/cache"
     mkdir -p "$CACHE_DIR"
     RAW_PATH="$(realpath "$SRC_PATH" 2>/dev/null || echo "$SRC_PATH")"
-    CACHE_KEY=""
     if command -v md5sum &>/dev/null; then
         CACHE_KEY="$(echo "$RAW_PATH" | md5sum 2>/dev/null | cut -c1-8)"
     elif command -v openssl &>/dev/null; then
         CACHE_KEY="$(echo "$RAW_PATH" | openssl dgst -md5 2>/dev/null | cut -d' ' -f2 | cut -c1-8)"
     fi
-    if [ -n "$CACHE_KEY" ] && [ -f "$CACHE_DIR/$CACHE_KEY.json" ]; then
+    if [ "$FORCE_REBUILD" -ne 1 ] && [ -n "$CACHE_KEY" ] && [ -f "$CACHE_DIR/$CACHE_KEY.json" ]; then
         cp "$CACHE_DIR/$CACHE_KEY.json" "$OUTPUT_PATH"
         echo "INDEX CACHE HIT: $OUTPUT_PATH (from $CACHE_DIR/$CACHE_KEY.json)" >&2
         CACHE_HIT=1

@@ -155,6 +155,7 @@ Filters: memory.*, system.*
 > ⚠️ 这是扫描的**核心前置步骤**。索引器提供符号表、调用图、alloc/free 配对，是后续检测器执行的结构化上下文。**不执行此步骤将导致扫描质量严重下降。**
 
 **2a. 执行索引器（阻塞等待完成）：**
+> 索引自动复用同路径缓存。加 `--force` 强制重建。
 
 ```bash
 # 定位 indexer wrapper — 项目级 + 用户级全覆盖
@@ -190,7 +191,7 @@ TIMEOUT_CMD=""
 if command -v timeout &>/dev/null; then TIMEOUT_CMD="timeout 120"
 elif command -v gtimeout &>/dev/null; then TIMEOUT_CMD="gtimeout 120"
 fi
-# 缓存由 wrapper (scripts/secguardian-index) 透明处理：同路径复用 index.json
+# 缓存由 wrapper 透明处理：同路径复用 index.json（加 --force 强制重建，刷新缓存）
 $TIMEOUT_CMD $INDEXER --lang <language> --path <path> --output <user-project>/.codeagent/secguard-secguardian/scans/<scan_id>/index.json
 if [ ! -f "<user-project>/.codeagent/secguard-secguardian/scans/<scan_id>/index.json" ]; then
     echo "FATAL: Indexer failed — cannot continue"
