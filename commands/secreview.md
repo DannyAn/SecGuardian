@@ -265,6 +265,7 @@ Same as secguard Step 4b-4c (see `commands/secguard.md`). Use `secreview-secguar
 
 ```bash
 python3 "$RENDERER" \
+    --command secreview \
     --findings-dir .codeagent/secreview-secguardian/scans/<scan_id>/findings/ \
     --index .codeagent/secreview-secguardian/scans/<scan_id>/index.json \
     --output .codeagent/secreview-secguardian/scans/<scan_id>/

@@ -20,7 +20,7 @@ description: "AI Release Security Audit — 17-domain audit framework with knowl
 
 ```
 # ★ 零参数缺省调用（推荐）
-/secaudit                                            # 扫描当前目录，自动检测语言，运行完整 16 阶段审计
+/secaudit                                            # 扫描当前目录，自动检测语言，执行全量审计
 
 # 显式指定路径和语言
 /secaudit ./src python                              # Python 完整安全审计
@@ -34,6 +34,16 @@ description: "AI Release Security Audit — 17-domain audit framework with knowl
 # SARIF 输出
 /secaudit ./src python --sarif                      # 输出 SARIF 格式（CI/CD）
 ```
+
+## 输出路径约定
+
+> ⚠️ 扫描输出的 `.codeagent/` 目录必须放在**用户项目根目录**下，不能放在 SecGuardian 项目根。
+>
+> 从 `<path>` 参数确定用户项目根目录：
+> - 将 `<path>` 解析为绝对路径，取其**父目录**作为用户项目根
+> - 例如 `/secaudit examples/myapp/src python` → 用户项目根 = `examples/myapp/`
+> - 所有 `.codeagent/` 路径前面加上 `<user-project>/.codeagent/`
+> - 不要使用相对路径 `.codeagent/`（会跑到 SecGuardian 项目下）
 
 ## 输出
 
@@ -204,7 +214,7 @@ python3 scripts/validate-index.py \
     },
     "secaudit_specific": {
       "skill_name": "input-validation",
-      "skill_category": "analysis",
+      "skill_category": "domain",
       "analysis_paths": 15,
       "complete_chains": 4
     }
@@ -241,6 +251,7 @@ done
 [ -z "$RENDERER" ] && [ -f "scripts/render-report.py" ] && RENDERER="scripts/render-report.py"
 
 python3 "$RENDERER" \
+    --command secaudit \
     --findings-dir .codeagent/secaudit-secguardian/scans/<scan_id>/findings/ \
     --index .codeagent/secaudit-secguardian/scans/<scan_id>/index.json \
     --output .codeagent/secaudit-secguardian/scans/<scan_id>/

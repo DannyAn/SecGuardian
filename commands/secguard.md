@@ -36,6 +36,16 @@ SARIF 输出 (CI/CD 集成):
   /secguard ./src cpp memory.* --sarif               # 过滤 + SARIF
 ```
 
+## 输出路径约定
+
+> ⚠️ 扫描输出的 `.codeagent/` 目录必须放在**用户项目根目录**下，不能放在 SecGuardian 项目根。
+>
+> 从 `<path>` 参数确定用户项目根目录：
+> - 将 `<path>` 解析为绝对路径，取其**父目录**作为用户项目根
+> - 例如 `/secaudit examples/myapp/src python` → 用户项目根 = `examples/myapp/`
+> - 所有 `.codeagent/` 路径前面加上 `<user-project>/.codeagent/`
+> - 不要使用相对路径 `.codeagent/`（会跑到 SecGuardian 项目下）
+
 ## 输出
 
 遵循 [Scan Output Protocol 3.0](../knowledge/protocols/scan-output.md)。人读/机读分离。
@@ -529,6 +539,7 @@ done
 [ -z "$RENDERER" ] && [ -f "scripts/render-report.py" ] && RENDERER="scripts/render-report.py"
 
 python3 "$RENDERER" \
+    --command secguard \
     --findings-dir .codeagent/secguard-secguardian/scans/<scan_id>/findings/ \
     --index .codeagent/secguard-secguardian/scans/<scan_id>/index.json \
     --output .codeagent/secguard-secguardian/scans/<scan_id>/

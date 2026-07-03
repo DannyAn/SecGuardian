@@ -1267,6 +1267,8 @@ Examples:
     parser.add_argument("--ci", action="store_true", help="CI mode: set exit_code in status.json")
     parser.add_argument("--format", choices=["all", "report", "sarif", "summary", "manifest", "status", "delta"],
                         default="all", help="Generate only specific files (default: all)")
+    parser.add_argument("--command",
+                        help="Command name (secguard/secaudit/secreview). Overrides findings_data.")
     parser.add_argument("--quality-gate", action="store_true", default=True,
                         help="Run 4-segment quality gate validation (default: on)")
     parser.add_argument("--no-quality-gate", action="store_false", dest="quality_gate",
@@ -1285,7 +1287,7 @@ Examples:
         findings_data = {
             "schema_version": "1.0",
             "scan_id": "unknown",
-            "command": "secguard",
+            "command": args.command or "secguard",
             "started_at": "",
             "completed_at": "",
             "findings": findings,
