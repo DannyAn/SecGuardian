@@ -308,14 +308,28 @@ bash scripts/e2e-verify.sh --quick  # 跳过第 9 节 (多语言索引)，快速
 
 ### 发布检查清单
 
+### 发布检查清单
+
+> **发布入口**: `git tag v<version> && git push origin --tags` 触发 GH Actions 自动构建。
+> 无需本地运行 release.sh — CI 会编译 5 平台二进制、打包扩展、创建 Release。
+> 本地 `bash scripts/release.sh` 仅用于测试构建产物。
+
 ```
 1. [ ] 所有验证通过（L1: self-check.sh + L4: e2e-verify.sh）
 2. [ ] 确认版本号已更新（manifest.json + extensions/*/extension.json）
 3. [ ] CHANGELOG.md 已更新（版本号 + 日期 + 完整变更记录）
-4. [ ] 执行 bash scripts/release.sh <version> 构建发布产物
-5. [ ] 执行 bash scripts/gitee-release.sh <version> 发布到 Gitee
-6. [ ] 验证 Gitee Release 页面（https://gitee.com/jonyan/secguardian/releases）
+4. [ ] 检查 `.github/workflows/release.yml` — `files:` 必须是 `dist/release/**`（非 `**/*.zip`）
+5. [ ] 检查 `scripts/package.sh` — 处理拍平 skill（`flat_skill` 回退）
+6. [ ] 执行 `git tag v<version> && git push origin develop --tags` 触发 CI 构建
+7. [ ] 等待 GH Actions 完成（https://github.com/DannyAn/SecGuardian/actions）
+8. [ ] 验证 GitHub Release 页面：assets 包含 5 平台二进制 + .sha256 + 3 插件 zip + source.tar.gz + manifest.json
+9. [ ] 验证 Gitee Release 页面（https://gitee.com/jonyan/secguardian/releases）
 ```
+
+> 关键配置:
+> - `.github/workflows/release.yml` — `files: dist/release/**` 控制哪些产物上传到 Release
+> - `scripts/package.sh` — `skills/${cmd}/${skill_name}` vs `flat_skill` 回退处理拍平 skill
+> - GitHub 自动生成 Source code (tar.gz) 和 Source code (zip)，不需要时可在 UI 中隐藏
 
 ### 构建产物
 
@@ -392,4 +406,3 @@ CI 验证：`bash scripts/sync-manifest.sh --check`（已集成到 self-check.sh
  - **改默认分支**: `PATCH /repos/DannyAn/SecGuardian` with `{"default_branch":"master"}`
  - **获取 check runs**: `GET /repos/DannyAn/SecGuardian/commits/{sha}/check-runs`
  - **获取 annotations**: `GET /repos/DannyAn/SecGuardian/check-runs/{id}/annotations`
-
