@@ -28,9 +28,22 @@ set -- "${ARGS[@]}"
 # --- Shared index: if --output path already exists, skip build ---
 # This makes index.json a shared asset — once built, all commands reuse it.
 # Use --force to force rebuild even if the file exists.
-if [ "$FORCE_REBUILD" -ne 1 ] && [ -n "$OUTPUT_PATH" ] && [ -f "$OUTPUT_PATH" ]; then
-    echo "INDEX EXISTS: $OUTPUT_PATH (use --force to rebuild)" >&2
-    exit 0
+# If the file exists, verify the stored --path matches the current one.
+if [ "$FORCE_REBUILD" -ne 1 ] && [ -n "$OUTPUT_PATH" ] && [ -f "$OUTPUT_PATH" ] && [ -n "$SRC_PATH" ]; then
+    STORED_PATH=$(python3 -c "
+import json
+try:
+    d = json.load(open('$OUTPUT_PATH'))
+    print(d.get('path', ''))
+except: print('')
+" 2>/dev/null)
+    RESOLVED_PATH="$(realpath "$SRC_PATH" 2>/dev/null || echo "$SRC_PATH")"
+    if [ "$STORED_PATH" = "$RESOLVED_PATH" ]; then
+        echo "INDEX EXISTS: $OUTPUT_PATH (path matches, use --force to rebuild)" >&2
+        exit 0
+    elif [ -n "$STORED_PATH" ]; then
+        echo "INDEX PATH MISMATCH: stored=$STORED_PATH vs current=$RESOLVED_PATH — rebuilding" >&2
+    fi
 fi
 
 # --- Locate binary ---
