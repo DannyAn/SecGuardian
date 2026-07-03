@@ -42,7 +42,7 @@ description: "AI Release Security Audit — 17-domain audit framework with knowl
 > 从 `<path>` 参数确定用户项目根目录：
 > - 将 `<path>` 解析为绝对路径，取其**父目录**作为用户项目根
 > - 例如 `/secaudit examples/myapp/src python` → 用户项目根 = `examples/myapp/`
-> - 所有 `.codeagent/` 路径前面加上 `<user-project>/.codeagent/`
+> - 所有输出路径使用 `<user-project>/.codeagent/` 前缀（包括索引器、查找结果、渲染器）
 > - 不要使用相对路径 `.codeagent/`（会跑到 SecGuardian 项目下）
 
 ## 输出
@@ -143,7 +143,7 @@ find_indexer() {
     echo "Using: $INDEXER"
 }
 find_indexer
-$INDEXER --path <path> --output .codeagent/secaudit-secguardian/scans/<scan_id>/index.json
+$INDEXER --path <path> --output <user-project>/.codeagent/secaudit-secguardian/scans/<scan_id>/index.json
 if [ $? -ne 0 ]; then echo "FATAL: Indexer failed — cannot continue"; exit 1; fi
 ```
 
