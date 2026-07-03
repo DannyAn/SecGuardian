@@ -218,10 +218,10 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 当前 `skills/secguard/cpp/SKILL.md` 第 107 行有 `### Phase 5: 持久化输出`。在其 `遵循...` 行之后增加完整性要求段落：
 
-在文件中找到 `> 遵循 `knowledge/protocols/scan-output.md` (v2.0，人读/机读分离)。` 这行（约第 105 行），替换为：
+在文件中找到 `> 遵循`knowledge/protocols/scan-output.md`(v2.0，人读/机读分离)。` 这行（约第 105 行），替换为：
 
 ```markdown
-> **输出协议**: 遵循 `knowledge/protocols/scan-output.md` (v2.0，人读/机读分离)。
+> **输出协议**: 遵循 `knowledge/protocols/scan-output.md`(v2.0，人读/机读分离)。
 >
 > **每个检出必须满足四段式完整性**（Command 层 Step 4b 质量门禁强制检查）：
 > 1. **📍 Location** — 文件路径 + 行号 + 函数名 + 代码行内容

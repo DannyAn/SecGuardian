@@ -266,8 +266,7 @@ python3 "$RENDERER" \
     --output .codeagent/secguardian/secaudit/scans/<scan_id>/
 ```
 
-> 渲染器自动执行 secaudit 质量门禁，未通过的 finding 会在 report.md 中标记 ⚠️。
-
+> 渲染器.*⚠️。
 > ⚠️ 如果渲染器不存在或执行失败，打印警告：`"Renderer unavailable — findings saved to findings/ directory tree only."`
 
 ### Step 5: 输出审计摘要

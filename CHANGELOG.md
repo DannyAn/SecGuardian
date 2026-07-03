@@ -79,7 +79,6 @@ All notable changes to SecGuardian.
 - `knowledge/language-index.md` — 提交重构后版本的自动生成文件
 - **总代码量**: +874 / -3692 行 (净削 2818 行)
 
-
 ## [0.11.0] — 2026-07-02
 
 ### ★ Audit Framework 架构职责收敛 (CHANGE-002)
