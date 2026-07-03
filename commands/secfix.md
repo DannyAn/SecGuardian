@@ -1,6 +1,6 @@
 ---
 name: secfix
-description: "AI Remediation — generate ready-to-apply patches from findings (MVP: scripts/secfix.py)"
+description: "🧪 Trial: AI Remediation — generate unified diff patches from findings"
 ---
 
 # /secfix - AI Remediation
@@ -13,13 +13,13 @@ Designed for developers who know a fix needs to be applied but would rather revi
 
 ```
 # ★ 零参数缺省调用（推荐）
-/secfix                                              # 自动发现最近扫描结果，生成 patches
+/secfix                                              # 自动发现最近扫描，生成 patches
 
 # 指定扫描结果目录
-/secfix --findings-dir .codeagent/secreview-*/scans/<id>/findings/
+/secfix --findings-dir .codeagent/*/scans/<scan-id>/findings/
 
 # 指定 scan ID
-/secfix --scan-id pr-20260630-143000-a1b2
+/secfix --findings-dir .codeagent/*/scans/<scan-id>/findings/
 ```
 
 ## How It Works
@@ -42,13 +42,15 @@ Developer applies:  git apply *.patch
 
 ## Output
 
+Patches are written to a `fixes/` subdirectory alongside the scan findings:
+
 ```
-<output>/
-├── index.json                  <- Patch manifest
-├── <detector>/
-│   ├── <sha12>_<file>-<line>.patch      <- unified diff
-│   └── <sha12>_<file>-<line>.patch.meta  <- metadata
-└── ...
+.codeagent/<source-ext>/scans/<scan-id>/
+└── fixes/
+    ├── index.json                  <- Patch manifest
+    └── <detector>/
+        ├── <sha>_<file>-<line>.patch      <- unified diff
+        └── <sha>_<file>-<line>.patch.meta  <- metadata
 ```
 
 ### Patch Format
@@ -83,7 +85,7 @@ Each `.patch.meta` file contains traceability info:
   "file": "src/main.py",
   "line": 42,
   "description": "Use parameterized query",
-  "patch_file": "<output>/web.sql-injection/<SHA>_main-42.patch"
+  "patch_file": "fixes/web.sql-injection/<SHA>_main-42.patch"
 }
 ```
 

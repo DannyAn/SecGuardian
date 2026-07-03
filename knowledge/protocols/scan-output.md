@@ -17,6 +17,7 @@ version: "7.0"
 | `ai/remediation-pack.json` | AI Agent | JSON | 结构化修复包（含 finding 关联） |
 | `results.sarif` | CI/CD | SARIF 2.1.0 | GitHub Code Scanning / GitLab SAST |
 | `summary.json` | 仪表盘/程序 | JSON | 机读统计 |
+| `fixes/` | 工程师（🧪 Trial） | Unified diff | 自动生成的修复 patch（via /secfix）|
 | `status.json` | CI 门禁 | JSON | pass/fail 判定 |
 | `delta.json` | 趋势分析 | JSON | 增量对比 |
 | `manifest.json` | 元数据 | JSON | 扫描元数据 |
