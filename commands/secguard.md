@@ -293,7 +293,22 @@ INDEX_FILE 输出示例:
 
 #### 3b 读取语言索引
 
-读取 `knowledge/language-index.md`，直接定位到 `## {language}` 节（如 `## cpp`）。
+用 bash 定位并读取文件（禁止 Glob/Read）：
+
+```bash
+LANG_INDEX=""
+# 本地开发路径
+[ -f "knowledge/language-index.md" ] && LANG_INDEX="knowledge/language-index.md"
+# 用户级部署路径
+[ -z "$LANG_INDEX" ] && [ -f "$HOME/.config/opencode/extensions/secguardian/knowledge/language-index.md" ] && LANG_INDEX="$HOME/.config/opencode/extensions/secguardian/knowledge/language-index.md"
+# 项目级路径
+[ -z "$LANG_INDEX" ] && [ -f ".config/opencode/extensions/secguardian/knowledge/language-index.md" ] && LANG_INDEX=".config/opencode/extensions/secguardian/knowledge/language-index.md"
+[ -z "$LANG_INDEX" ] && echo "WARNING: language-index.md not found" && LANG_INDEX="/dev/null"
+data=$(cat "$LANG_INDEX")
+echo "$data"
+```
+
+然后用 `echo "$data" | grep ...` 定位到 `## {language}` 节。
 
 该文件按语言预分组了所有适用的规则。示例：cpp 节包含 `guard-rules/buffer-overflow`、`audit-rules/cryptography`、`review-rules/cpp` 等。
 
