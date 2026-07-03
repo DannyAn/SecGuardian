@@ -23,6 +23,14 @@ while [ $# -gt 0 ]; do
         *) ARGS+=("$1"); shift ;;
     esac
 done
+# Resolve --path to absolute BEFORE running (match Go indexer's stored path)
+if [ -n "$SRC_PATH" ]; then
+    ABS_PATH="$(python3 -c "import os; print(os.path.abspath('$SRC_PATH'))" 2>/dev/null)"
+    if [ -n "$ABS_PATH" ]; then
+        SRC_PATH="$ABS_PATH"
+
+    fi
+fi
 set -- "${ARGS[@]}"
 
 # --- Shared index: if --output path already exists, skip build ---
@@ -37,7 +45,7 @@ try:
     print(d.get('path', ''))
 except: print('')
 " 2>/dev/null)
-    RESOLVED_PATH="$(realpath "$SRC_PATH" 2>/dev/null || echo "$SRC_PATH")"
+    RESOLVED_PATH="$SRC_PATH"  # Use raw path (Go indexer stores it as-is)
     if [ "$STORED_PATH" = "$RESOLVED_PATH" ]; then
         echo "INDEX EXISTS: $OUTPUT_PATH (path matches, use --force to rebuild)" >&2
         exit 0
