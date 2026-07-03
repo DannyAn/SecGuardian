@@ -76,7 +76,9 @@ Step 2: dashboard.html                 → 浏览器打开精美报告
 .codeagent/
 └── secguardian/
     ├── index.json                      # ★ 共享索引（所有命令复用）
-    └── scans/<scan-id>/                # 扫描输出（所有命令共用 scans/，scan_id 前缀区分）
+    ├── secguard/scans/<scan-id>/        # secguard 扫描输出
+    ├── secaudit/scans/<scan-id>/       # secaudit 扫描输出
+    └── secreview/scans/<scan-id>/      # secreview 扫描输出
         ├── human/executive-summary.md
         ├── findings/<ns>/<det>/<sha12>_<file>-<line>.json
         ├── ai/remediation-pack.json

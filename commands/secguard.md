@@ -51,7 +51,7 @@ SARIF 输出 (CI/CD 集成):
 遵循 [Scan Output Protocol 3.0](../knowledge/protocols/scan-output.md)。人读/机读分离。
 
 ```
-.codeagent/secguardian/scans/<scan-id>/
+.codeagent/secguardian/secguard/scans/<scan-id>/
 ├── human/                    # ★ v7.0: 统一入口
 │   └── executive-summary.md   一页仪表盘 + 发现分布 + 导航
 ├── findings/                 # 按检测器组织的发现目录树
@@ -91,12 +91,12 @@ Filters: memory.*, system.*
 
 > 文件命名: `<SHA12>_<FILE_SLUG>-<LINE>.json` — 前 12 位 SHA-256 确保唯一性，后缀 _file-line 帮助定位。
 
-📋 统一入口: `.codeagent/secguardian/scans/sc-20260531-143000-a1b2/human/executive-summary.md`
-📄 完整报告: `.codeagent/secguardian/scans/sc-20260531-143000-a1b2/report.md`
-🌐 仪表盘: `.codeagent/secguardian/scans/sc-20260531-143000-a1b2/dashboard.html`
-🤖 AI 修复包: `.codeagent/secguardian/scans/sc-20260531-143000-a1b2/ai/remediation-pack.json`
-📊 SARIF: `.codeagent/secguardian/scans/sc-20260531-143000-a1b2/results.sarif`
-📋 索引: `.codeagent/secguardian/scans/sc-20260531-143000-a1b2/manifest.json`
+📋 统一入口: `.codeagent/secguardian/secguard/scans/sc-20260531-143000-a1b2/human/executive-summary.md`
+📄 完整报告: `.codeagent/secguardian/secguard/scans/sc-20260531-143000-a1b2/report.md`
+🌐 仪表盘: `.codeagent/secguardian/secguard/scans/sc-20260531-143000-a1b2/dashboard.html`
+🤖 AI 修复包: `.codeagent/secguardian/secguard/scans/sc-20260531-143000-a1b2/ai/remediation-pack.json`
+📊 SARIF: `.codeagent/secguardian/secguard/scans/sc-20260531-143000-a1b2/results.sarif`
+📋 索引: `.codeagent/secguardian/secguard/scans/sc-20260531-143000-a1b2/manifest.json`
 
 💡 **如何使用扫描结果？**
 - **快速看汇总** → 打开 `manifest.json`（JSON 索引，列出所有检出 ID/严重度/文件/行号）
@@ -147,7 +147,7 @@ Filters: memory.*, system.*
 
 - **⏳ 首选生成 scan_id**（格式: `sc-YYYYMMDD-HHMMSS-xxxx`，`xxxx` 为随机4位字符）。
 - **scan_id 一旦生成，后续所有路径必须使用此 scan_id。**
-- 创建输出目录: `.codeagent/secguardian/scans/<scan_id>/`。
+- 创建输出目录: `.codeagent/secguardian/secguard/scans/<scan_id>/`。
 - 记录扫描开始时间戳，用于 Step 4 计算 `duration_ms`。
 
 ### Step 2: 构建语义索引（必须执行，不可跳过）
@@ -368,7 +368,7 @@ fi
 写入两个新文件到 scan root：
 
 ```bash
-SCAN_DIR=".codeagent/secguardian/scans/<scan_id>"
+SCAN_DIR=".codeagent/secguardian/secguard/scans/<scan_id>"
 
 # dismissed.json — 被抑制的 Finding + 原因 + 轮次
 # verification-audit.json — 完整验证链 + 每轮收敛统计
@@ -377,7 +377,7 @@ SCAN_DIR=".codeagent/secguardian/scans/<scan_id>"
 **3.5f. 自检完整性：**
 
 ```bash
-SCAN_DIR=".codeagent/secguardian/scans/<scan_id>"
+SCAN_DIR=".codeagent/secguardian/secguard/scans/<scan_id>"
 export SCAN_DIR
 python3 << 'PYEOF'
 import json, os, sys
@@ -516,7 +516,7 @@ findings/crypto/password-storage/f6e5d4c3b2a1_crypto_utils-20.json
 对所有 finding 执行前置校验。校验发现的问题会用警告列出。
 
 ```bash
-SCAN_DIR=".codeagent/secguardian/scans/<scan_id>"
+SCAN_DIR=".codeagent/secguardian/secguard/scans/<scan_id>"
 python3 scripts/validate-findings.py --findings-dir "$SCAN_DIR/findings/"
 VALIDATE_EXIT=$?
 if [ $VALIDATE_EXIT -eq 0 ]; then
@@ -548,9 +548,9 @@ done
 
 python3 "$RENDERER" \
     --command secguard \
-    --findings-dir .codeagent/secguardian/scans/<scan_id>/findings/ \
+    --findings-dir .codeagent/secguardian/secguard/scans/<scan_id>/findings/ \
     --index .codeagent/secguardian/index.json \
-    --output .codeagent/secguardian/scans/<scan_id>/
+    --output .codeagent/secguardian/secguard/scans/<scan_id>/
 ```
 
 渲染器自动生成: `report.md` + `results.sarif` + `summary.json` + `manifest.json` + `status.json` + `delta.json`。

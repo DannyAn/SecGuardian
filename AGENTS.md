@@ -237,7 +237,7 @@ kind := child.Kind()
 1. `secguardian-index --health` → HEALTH:OK/WARN
 2. `secguardian-index --path <path> --output .codeagent/.../index.json`
 3. AI Agent 读取 `index.json` → 加载 `skills/secguard/<lang>/SKILL.md` → 按 detector 执行
-4. 输出到 `.codeagent/secguardian/scans/scans/<scan-id>/`
+4. 输出到 `.codeagent/secguardian/secguard/scans/scans/<scan-id>/`
 
 输出协议 v5.0 在 `knowledge/protocols/scan-output.md`（CLAUDE.md 中写的是 1.0，已过时）。
 

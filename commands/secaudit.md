@@ -50,7 +50,7 @@ description: "AI Release Security Audit — 17-domain audit framework with knowl
 遵循 [Scan Output Protocol 3.0](../knowledge/protocols/scan-output.md)。人读/机读分离。
 
 ```
-.codeagent/secguardian/scans/<scan-id>/
+.codeagent/secguardian/secaudit/scans/<scan-id>/
 ├── report.md               # ★ 人读审计报告 (Markdown)
 ├── results.sarif            # 机读: SARIF 2.1.0 (CI/CD)
 ├── summary.json             # 仪表盘统计
@@ -79,7 +79,7 @@ Skill: aud-input-validation
 | C-002 | Critical | File upload → os.system | src/upload.py:108 |
 | H-001 | High | Cookie → response.write | src/middleware.js:56 |
 
-输出目录: .codeagent/secguardian/scans/sec-20260523-143000-b3c4/
+输出目录: .codeagent/secguardian/secaudit/scans/sec-20260523-143000-b3c4/
 
 💡 **如何使用审计结果？**
 - **快速看汇总** → 打开 `manifest.json`
@@ -115,7 +115,7 @@ Skill: aud-input-validation
 
 - **⏳ 首选生成 scan_id**（格式: `sec-YYYYMMDD-HHMMSS-xxxx`，`xxxx` 为随机4位字符）。
 - **scan_id 一旦生成，后续所有路径必须使用此 scan_id。**
-- 创建输出目录: `.codeagent/secguardian/scans/<scan_id>/`。
+- 创建输出目录: `.codeagent/secguardian/secaudit/scans/<scan_id>/`。
 - 记录审计开始时间戳，用于 Step 4 计算 `duration_ms`。
 
 ### Step 2: 构建语义索引（必须执行，不可跳过）
@@ -261,9 +261,9 @@ done
 
 python3 "$RENDERER" \
     --command secaudit \
-    --findings-dir .codeagent/secguardian/scans/<scan_id>/findings/ \
+    --findings-dir .codeagent/secguardian/secaudit/scans/<scan_id>/findings/ \
     --index .codeagent/secguardian/index.json \
-    --output .codeagent/secguardian/scans/<scan_id>/
+    --output .codeagent/secguardian/secaudit/scans/<scan_id>/
 ```
 
 > 渲染器自动执行 secaudit 质量门禁，未通过的 finding 会在 report.md 中标记 ⚠️。
