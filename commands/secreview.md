@@ -27,12 +27,21 @@ Unlike traditional linters, SecReview reasons about code behavior, business logi
 /secreview ./src java --sarif                        # Append SARIF 2.1.0 output
 ```
 
+## Output Path Convention
+
+> ⚠️ The `.codeagent/` output directory must be placed in the **user's project root**, not in SecGuardian's project root.
+>
+> Determine the user project root from the `<path>` argument:
+> - Resolve `<path>` to an absolute path, use its **parent** as the user project root
+> - All output paths must use `<user-project>/.codeagent/` prefix
+> - Do NOT use bare `.codeagent/` (it resolves to SecGuardian's root)
+
 ## Output
 
 Follows [Scan Output Protocol 5.0](../knowledge/protocols/scan-output.md). Human-readable and machine-readable separation.
 
 ```
-.codeagent/secreview-secguardian/scans/<scan-id>/
+<user-project>/.codeagent/secreview-secguardian/scans/<scan-id>/
 ├── human/                    # ★ v7.0: Unified entry point
 │   └── executive-summary.md    One-page dashboard + finding distribution + navigation
 ├── findings/                 # Per-detector organized finding directory tree
@@ -73,7 +82,7 @@ Mode: git diff main
 
 > Each finding includes exploit scenario, CWE mapping, severity assessment, CVE-like CVSS scoring, and fix recommendation.
 
-Output directory: .codeagent/secreview-secguardian/scans/pr-20260531-143000-a1b2/
+Output directory: <user-project>/.codeagent/secreview-secguardian/scans/pr-20260531-143000-a1b2/
 
 💡 **How to use review results?**
 - **Quick summary** -> `manifest.json`
@@ -99,8 +108,6 @@ Output directory: .codeagent/secreview-secguardian/scans/pr-20260531-143000-a1b2
 
 ## Dispatch Rules & Execution Steps
 
-> **Isolation constraint**: This command may ONLY load skills with `secreview-*` prefix from the `skills/` extension. Loading `secguard-*` or `secaudit-*` prefixed files is strictly prohibited.
-
 You (the AI Agent) must follow these steps when executing `/secreview` to perform the security code review.
 
 ### Pre-flight Checklist
@@ -119,8 +126,9 @@ Before starting any review, verify each condition below. **If any check fails, r
 
 ### Step 1: Create Output Directory
 
-- Generate `scan_id` (format: `pr-YYYYMMDD-HHMMSS-xxxx`, where `xxxx` is 4 random alphanumeric characters).
-- Create output directory: `.codeagent/secreview-secguardian/scans/<scan_id>/`.
+- **⏳ Generate scan_id FIRST** (format: `pr-YYYYMMDD-HHMMSS-xxxx`, `xxxx` is 4 random chars).
+- Create output directory: `<user-project>/.codeagent/secreview-secguardian/scans/<scan_id>/`.
+- **Once scan_id is generated, ALL subsequent paths must use this scan_id.**
 - Record review start timestamp for Step 4 `duration_ms` calculation.
 
 ### Step 2: Build Semantic Index (Required)
@@ -149,7 +157,7 @@ find_indexer() {
     echo "Using: $INDEXER"
 }
 find_indexer
-$INDEXER --path <path> --output .codeagent/secreview-secguardian/scans/<scan_id>/index.json
+$INDEXER --path <path> --output <user-project>/.codeagent/secreview-secguardian/scans/<scan_id>/index.json
 if [ $? -ne 0 ]; then echo "FATAL: Indexer failed"; exit 1; fi
 ```
 
@@ -157,7 +165,7 @@ if [ $? -ne 0 ]; then echo "FATAL: Indexer failed"; exit 1; fi
 
 ```bash
 python3 scripts/validate-index.py \
-    --index .codeagent/secreview-secguardian/scans/<scan_id>/index.json \
+    --index <user-project>/.codeagent/secreview-secguardian/scans/<scan_id>/index.json \
     --scan-id <scan_id>
 ```
 
@@ -266,9 +274,9 @@ Same as secguard Step 4b-4c (see `commands/secguard.md`). Use `secreview-secguar
 ```bash
 python3 "$RENDERER" \
     --command secreview \
-    --findings-dir .codeagent/secreview-secguardian/scans/<scan_id>/findings/ \
-    --index .codeagent/secreview-secguardian/scans/<scan_id>/index.json \
-    --output .codeagent/secreview-secguardian/scans/<scan_id>/
+    --findings-dir <user-project>/.codeagent/secreview-secguardian/scans/<scan_id>/findings/ \
+    --index <user-project>/.codeagent/secreview-secguardian/scans/<scan_id>/index.json \
+    --output <user-project>/.codeagent/secreview-secguardian/scans/<scan_id>/
 ```
 
 > ⚠️ If renderer unavailable: `"Renderer unavailable — findings saved to findings/ directory tree only."`
