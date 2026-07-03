@@ -21,7 +21,7 @@ Designed for developers who know a fix needs to be applied but would rather revi
 /secfix secguard                                     # 用 secguard 的最新扫描
 
 # 精确指定某次扫描的 findings 目录
-/secfix .codeagent/secguard-secguardian/scans/sec-20260701-120000-abcd/findings/
+/secfix .codeagent/secguard/sec-20260701-120000-abcd/findings/
 ```
 
 ### 扫描来源选择逻辑

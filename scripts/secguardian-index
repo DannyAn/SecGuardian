@@ -1,11 +1,11 @@
 #!/bin/bash
-# SecGuardian — Indexer binary wrapper with transparent caching
+# SecGuardian — Indexer binary wrapper (shared index)
 #
-# Invokes the canonical secguardian-index binary from bin/.
-# Caching: consecutive scans of the same source path reuse the index.json,
-# skipping the Tree-sitter parse (~15s saved per re-scan).
-# Cache location: <output-dir>/../cache/<path-md5>.json
-# Lifecycle: cache hit → copy; miss → build → cache; stale → binary handles it.
+# All commands (secguard/secaudit/secreview) share one index.json at
+# the project root (.codeagent/index.json). If the file already exists,
+# the build is skipped. Use --force to force rebuild.
+#
+
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BIN_DIR="$SCRIPT_DIR/bin"
@@ -25,26 +25,12 @@ while [ $# -gt 0 ]; do
 done
 set -- "${ARGS[@]}"
 
-# --- Transparent caching (--force skips cache check, always rebuilds) ---
-CACHE_HIT=0
-CACHE_KEY=""
-CACHE_DIR=""
-if [ -n "$SRC_PATH" ] && [ -n "$OUTPUT_PATH" ]; then
-    OUTPUT_DIR="$(dirname "$OUTPUT_PATH")"
-    SCAN_DIR="$(dirname "$OUTPUT_DIR")"
-    CACHE_DIR="$SCAN_DIR/cache"
-    mkdir -p "$CACHE_DIR"
-    RAW_PATH="$(realpath "$SRC_PATH" 2>/dev/null || echo "$SRC_PATH")"
-    if command -v md5sum &>/dev/null; then
-        CACHE_KEY="$(echo "$RAW_PATH" | md5sum 2>/dev/null | cut -c1-8)"
-    elif command -v openssl &>/dev/null; then
-        CACHE_KEY="$(echo "$RAW_PATH" | openssl dgst -md5 2>/dev/null | cut -d' ' -f2 | cut -c1-8)"
-    fi
-    if [ "$FORCE_REBUILD" -ne 1 ] && [ -n "$CACHE_KEY" ] && [ -f "$CACHE_DIR/$CACHE_KEY.json" ]; then
-        cp "$CACHE_DIR/$CACHE_KEY.json" "$OUTPUT_PATH"
-        echo "INDEX CACHE HIT: $OUTPUT_PATH (from $CACHE_DIR/$CACHE_KEY.json)" >&2
-        CACHE_HIT=1
-    fi
+# --- Shared index: if --output path already exists, skip build ---
+# This makes index.json a shared asset — once built, all commands reuse it.
+# Use --force to force rebuild even if the file exists.
+if [ "$FORCE_REBUILD" -ne 1 ] && [ -n "$OUTPUT_PATH" ] && [ -f "$OUTPUT_PATH" ]; then
+    echo "INDEX EXISTS: $OUTPUT_PATH (use --force to rebuild)" >&2
+    exit 0
 fi
 
 # --- Locate binary ---
@@ -65,19 +51,8 @@ BINARY="$(locate_binary)" || {
     exit 1
 }
 
-# --- Cache hit → done ---
-if [ "$CACHE_HIT" -eq 1 ]; then
-    exit 0
-fi
-
 # --- Run binary ---
 "$BINARY" "$@"
 BINARY_EXIT=$?
-
-# --- On success, write to cache ---
-if [ "$BINARY_EXIT" -eq 0 ] && [ -n "$CACHE_KEY" ] && [ -n "$OUTPUT_PATH" ] && [ -f "$OUTPUT_PATH" ]; then
-    cp "$OUTPUT_PATH" "$CACHE_DIR/$CACHE_KEY.json"
-    echo "INDEX CACHED: $OUTPUT_PATH -> $CACHE_DIR/$CACHE_KEY.json" >&2
-fi
 
 exit $BINARY_EXIT

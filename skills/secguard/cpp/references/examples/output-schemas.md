@@ -77,7 +77,7 @@ SARIF result 核心字段映射：
   "scan": {
     "id": "sc-20260603-143000-a1b2",
     "command": "secguard",
-    "extension": "secguard-secguardian",
+    "extension": "secguard",
     "timestamp": "2026-06-03T14:30:00Z",
     "duration_ms": 2300,
     "status": "completed"

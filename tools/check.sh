@@ -39,7 +39,7 @@ echo ""
 
 # ── 2. extension.json 格式检查 ───────────────────
 echo "2. Extension 清单格式"
-EXTS=(secguard-secguardian secaudit-secguardian secreview-secguardian)
+EXTS=(secguard secaudit-secguardian secreview-secguardian)
 for ext in "${EXTS[@]}"; do
     jf="$PROJECT_ROOT/extensions/$ext/extension.json"
     if jq empty "$jf" 2>/dev/null; then
@@ -70,7 +70,7 @@ echo ""
 
 # ── 4. Detector 文件存在性 ───────────────────────
 echo "4. Detector 文件检查"
-jf="$PROJECT_ROOT/extensions/secguard-secguardian/extension.json"
+jf="$PROJECT_ROOT/extensions/secguard/extension.json"
 if jq -e '.knowledge.detectors' "$jf" > /dev/null 2>&1; then
     for det in $(jq -r '.knowledge.detectors[]' "$jf"); do
         df="$PROJECT_ROOT/knowledge/detectors/${det}.md"
