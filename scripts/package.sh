@@ -157,11 +157,17 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
     skill_count=0
     for skill_name in $(jq -r '.skills[]' "$ext_json"); do
         skill_dir="$PROJECT_ROOT/skills/${cmd}/${skill_name}"
+        flat_skill="$PROJECT_ROOT/skills/${cmd}/SKILL.md"
         if [ -d "$skill_dir" ]; then
             cp -r "$skill_dir" "$dist_dir/skills/"
             skill_count=$((skill_count + 1))
+        elif [ -f "$flat_skill" ]; then
+            mkdir -p "$dist_dir/skills/${skill_name}"
+            cp "$flat_skill" "$dist_dir/skills/${skill_name}/"
+            echo "    [FLAT] ${cmd}/${skill_name}/SKILL.md (flat → dir)"
+            skill_count=$((skill_count + 1))
         else
-            echo "    [WARN] skill dir not found: ${cmd}-${skill_name}"
+            echo "    [WARN] skill not found: ${cmd} (checked dir and flat SKILL.md)"
         fi
     done
     echo "    skills: $skill_count"

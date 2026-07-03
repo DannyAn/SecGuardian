@@ -214,7 +214,7 @@ jobs:
             | Windows | amd64 | tree-sitter |
 
             🤖 Generated with [Claude Code](https://claude.com/claude-code)
-          files: dist/release/**/*.zip
+          files: dist/release/**
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
