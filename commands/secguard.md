@@ -72,6 +72,7 @@ SARIF 输出 (CI/CD 集成):
 ## secguard 扫描完成
 
 Scan ID: sc-20260531-143000-a1b2
+Workspace: <user-project>
 Path: ./src
 Mode: full
 Filters: memory.*, system.*
