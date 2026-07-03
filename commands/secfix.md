@@ -9,18 +9,30 @@ Generate unified diff patches from findings produced by `/secreview`, `/secguard
 
 Designed for developers who know a fix needs to be applied but would rather review a patch than write one.
 
-## Usage
+## Usage: 告诉 /secfix 修哪个扫描的结果
 
 ```
-# ★ 零参数缺省调用（推荐）
-/secfix                                              # 自动发现最近扫描，生成 patches
+# ★ 默认：自动选最新的扫描结果
+/secfix                                              # 遍历所有命令的 latest/，选最新的生成 patches
 
-# 指定扫描结果目录
-/secfix --findings-dir .codeagent/*/scans/<scan-id>/findings/
+# 指定命令的最近一次扫描
+/secfix secaudit                                     # 用 secaudit 的最新扫描
+/secfix secreview                                    # 用 secreview 的最新扫描
+/secfix secguard                                     # 用 secguard 的最新扫描
 
-# 指定 scan ID
-/secfix --findings-dir .codeagent/*/scans/<scan-id>/findings/
+# 精确指定某次扫描的 findings 目录
+/secfix .codeagent/secguard-secguardian/scans/sec-20260701-120000-abcd/findings/
 ```
+
+### 扫描来源选择逻辑
+
+| 参数 | 行为 |
+|------|------|
+| 无参数 | 遍历 `.codeagent/*/scans/` 下所有命令的 `latest/` 符号链接，选时间戳最新的一条 |
+| `secaudit` / `secreview` / `secguard` | 只在该命令的 `latest/` 下找 |
+| 路径 | 精确指定 findings 目录，跳过自动发现 |
+
+扫描完成后 AI 会自动创建 `latest → <scan-id>/` 符号链接，所以无参数调用总是使用最近执行的那一次扫描——不论是 secguard、secreview 还是 secaudit。
 
 ## How It Works
 
