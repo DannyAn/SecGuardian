@@ -144,7 +144,8 @@ Filters: memory.*, system.*
 
 ### Step 1: 建立输出目录
 
-- 生成 `scan_id`（格式: `sc-YYYYMMDD-HHMMSS-xxxx`，其中 `xxxx` 为随机4位字符）。
+- **⏳ 首选生成 scan_id**（格式: `sc-YYYYMMDD-HHMMSS-xxxx`，`xxxx` 为随机4位字符）。
+- **scan_id 一旦生成，后续所有路径必须使用此 scan_id。**
 - 创建输出目录: `.codeagent/secguard-secguardian/scans/<scan_id>/`。
 - 记录扫描开始时间戳，用于 Step 4 计算 `duration_ms`。
 

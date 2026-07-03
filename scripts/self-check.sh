@@ -269,6 +269,60 @@ if [ -f "scripts/validate-index.py" ] && [ -f "scripts/secguardian-index" ]; the
     echo ""
 fi
 
+# ── 11. Cross-command consistency ──
+echo "11. Cross-command consistency"
+XC_FAIL=0
+XC_PASS=0
+for cmd in secguard secaudit secreview; do
+    f="commands/${cmd}.md"
+    if [ ! -f "$f" ]; then
+        red "  ${cmd}: commands/${cmd}.md MISSING"
+        XC_FAIL=$((XC_FAIL + 1))
+        continue
+    fi
+    ok=1
+    # --command <cmd> present
+    if grep -q -- "--command ${cmd}" "$f"; then
+        XC_PASS=$((XC_PASS + 1))
+    else
+        red "  ${cmd}: MISSING '--command ${cmd}' in renderer call"
+        ok=0
+    fi
+    # <user-project> prefix used
+    if grep -q '<user-project>/\.codeagent' "$f"; then
+        XC_PASS=$((XC_PASS + 1))
+    else
+        red "  ${cmd}: MISSING '<user-project>/' prefix in output paths"
+        ok=0
+    fi
+    # scan_id ordering instruction
+    if grep -qE "scan_id FIRST|首选生成 scan_id|Generate scan_id FIRST" "$f"; then
+        XC_PASS=$((XC_PASS + 1))
+    else
+        red "  ${cmd}: MISSING scan_id ordering instruction"
+        ok=0
+    fi
+    # No stale references
+    stale=$(grep -cE "16 阶段|Isolation constraint|Routing rules" "$f" 2>/dev/null || echo 0)
+    if [ "$stale" -gt 0 ]; then
+        red "  ${cmd}: ${stale} stale reference(s) found"
+        ok=0
+    fi
+    if [ "$ok" -eq 1 ]; then
+        green "  ${cmd}: all checks passed"
+    else
+        XC_FAIL=$((XC_FAIL + 1))
+    fi
+done
+if [ "$XC_FAIL" -eq 0 ]; then
+    green "  All 3 commands are in sync"
+else
+    red "  ${XC_FAIL} commands have consistency issues"
+fi
+PASS=$((PASS + XC_PASS))
+FAIL=$((FAIL + XC_FAIL))
+echo ""
+
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 printf "  Passed: %d  Failed: %d\n" "$PASS" "$FAIL"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

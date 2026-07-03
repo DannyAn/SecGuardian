@@ -168,3 +168,56 @@ else
 fi
 echo ""
 exit $ERRORS
+
+# ── 6. Cross-command consistency ──
+echo ""
+echo "──────────────────────────────────────"
+echo -e "${BOLD}[6/6] 跨命令一致性验证${NC}"
+
+XC_ERR=0
+for cmd in secguard secaudit secreview; do
+    f="commands/${cmd}.md"
+    if [ ! -f "$f" ]; then
+        echo -e "  ${RED}✗${NC} ${cmd}: commands/${cmd}.md MISSING"
+        XC_ERR=$((XC_ERR + 1)); continue
+    fi
+    
+    # 1) --command <cmd> present
+    if grep -q -- "--command ${cmd}" "$f"; then
+        echo -e "  ${GREEN}✓${NC} ${cmd}: --command ${cmd}"
+    else
+        echo -e "  ${RED}✗${NC} ${cmd}: MISSING --command ${cmd}"
+        XC_ERR=$((XC_ERR + 1))
+    fi
+    
+    # 2) <user-project> prefix
+    if grep -q '<user-project>/\.codeagent' "$f"; then
+        echo -e "  ${GREEN}✓${NC} ${cmd}: <user-project>/ prefix"
+    else
+        echo -e "  ${RED}✗${NC} ${cmd}: MISSING <user-project>/ prefix"
+        XC_ERR=$((XC_ERR + 1))
+    fi
+    
+    # 3) scan_id ordering instruction
+    if grep -qE "scan_id FIRST|首选生成 scan_id|Generate scan_id FIRST" "$f"; then
+        echo -e "  ${GREEN}✓${NC} ${cmd}: scan_id order"
+    else
+        echo -e "  ${RED}✗${NC} ${cmd}: MISSING scan_id ordering"
+        XC_ERR=$((XC_ERR + 1))
+    fi
+    
+    # 4) No stale references
+    stale=$(grep -cE "16 阶段|Isolation constraint|Routing rules" "$f" 2>/dev/null || echo 0)
+    if [ "$stale" -eq 0 ]; then
+        echo -e "  ${GREEN}✓${NC} ${cmd}: no stale refs"
+    else
+        echo -e "  ${RED}✗${NC} ${cmd}: ${stale} stale ref(s)"
+        XC_ERR=$((XC_ERR + 1))
+    fi
+done
+
+ERRORS=$((ERRORS + XC_ERR))
+
+if [ "$XC_ERR" -eq 0 ]; then
+    echo -e "  ${GREEN}✓${NC} 3 个命令文件一致"
+fi
