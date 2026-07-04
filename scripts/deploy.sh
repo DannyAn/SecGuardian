@@ -250,7 +250,7 @@ JSON
     deploy_indexer_binary "$plugin_dir/scripts/bin"
 
     # ── Write .secguardian-env ──────────────────
-    echo "export SECGUARDIAN_HOME=$plugin_dir" > "$plugin_dir/.secguardian-env"
+    echo 'export SECGUARDIAN_HOME=$HOME/.claude/plugins/secguardian' > "$plugin_dir/.secguardian-env"
 
     # ── Register plugin with Claude Code ──────────────
     # Claude Code v2.1.x requires plugins to be installed via marketplace.
@@ -619,7 +619,7 @@ JSON
     deploy_indexer_binary "$scripts_dir/bin"
 
     # ── Write .secguardian-env ──────────────────
-    echo "export SECGUARDIAN_HOME=$ext_dir" > "$ext_dir/.secguardian-env"
+    echo 'export SECGUARDIAN_HOME=$HOME/.config/opencode/extensions/secguardian' > "$ext_dir/.secguardian-env"
 
     echo ""
     log_info "OpenCode 使用方式（重启后生效）:"
@@ -706,7 +706,7 @@ JSON
     deploy_indexer_binary "$ext_dir/scripts/bin"
 
     # ── Write .secguardian-env ──────────────────
-    echo "export SECGUARDIAN_HOME=$ext_dir" > "$ext_dir/.secguardian-env"
+    echo 'export SECGUARDIAN_HOME=$HOME/.gemini/extensions/secguardian' > "$ext_dir/.secguardian-env"
     chmod +x "$ext_dir/scripts/bin/"* 2>/dev/null || true
 
     # 生成 Gemini 上下文文件

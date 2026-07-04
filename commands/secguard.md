@@ -133,7 +133,19 @@ Filters: memory.*, system.*
 ### 前置检查（Pre-flight Checklist）
 
 # ── Resolve SECGUARDIAN_HOME ─────────────────
-# Tries known deployment paths, then falls back to repo-relative paths.
+# Step 1: Detect current platform by environment markers.
+if [ -n "$ANTHROPIC_API_KEY" ]; then
+    _sg_env="$HOME/.claude/plugins/secguardian/.secguardian-env"
+elif [ -f "$HOME/.config/opencode/opencode.json" ]; then
+    _sg_env="$HOME/.config/opencode/extensions/secguardian/.secguardian-env"
+elif [ -f "$HOME/.gemini/settings.json" ]; then
+    _sg_env="$HOME/.gemini/extensions/secguardian/.secguardian-env"
+fi
+if [ -n "$_sg_env" ] && [ -f "$_sg_env" ]; then
+    source "$_sg_env"
+fi
+
+# Step 2: Fallback — search all known deployment paths.
 if [ -z "$SECGUARDIAN_HOME" ]; then
     for _sg_root in "$HOME/.claude/plugins/secguardian" \
                     "$HOME/.config/opencode/extensions/secguardian" \
@@ -432,6 +444,16 @@ python3 "$RECORDER" \
 ```
 
 输出：`findings/<ns>/<detector>/<sha12>_<file>-<line>.json`
+> ⚠️ Shell 安全：当 fix 代码含 `"` `'` `;` 等 shell 特殊字符时，
+> 先用 heredoc 写入文件再传 `--fix-before-file` / `--fix-after-file`：
+> ```bash
+> cat > /tmp/fix_before.txt << 'EOF'
+> String query = "SELECT * FROM users WHERE id = " + input;
+> EOF
+> python3 "$RECORDER" --command secguard --detector web.sql-injection \
+>     --fix-before-file /tmp/fix_before.txt --fix-after-file /tmp/fix_after.txt
+> ```
+
 
 **4a. 按 detector 分组，以 SHA 前缀为文件名逐文件输出（每个文件 2-4KB）：**
 

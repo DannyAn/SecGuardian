@@ -115,7 +115,19 @@ You (the AI Agent) must follow these steps when executing `/secreview` to perfor
 ### Pre-flight Checklist
 
 # ── Resolve SECGUARDIAN_HOME ─────────────────
-# Tries known deployment paths, then falls back to repo-relative paths.
+# Step 1: Detect current platform by environment markers.
+if [ -n "$ANTHROPIC_API_KEY" ]; then
+    _sg_env="$HOME/.claude/plugins/secguardian/.secguardian-env"
+elif [ -f "$HOME/.config/opencode/opencode.json" ]; then
+    _sg_env="$HOME/.config/opencode/extensions/secguardian/.secguardian-env"
+elif [ -f "$HOME/.gemini/settings.json" ]; then
+    _sg_env="$HOME/.gemini/extensions/secguardian/.secguardian-env"
+fi
+if [ -n "$_sg_env" ] && [ -f "$_sg_env" ]; then
+    source "$_sg_env"
+fi
+
+# Step 2: Fallback — search all known deployment paths.
 if [ -z "$SECGUARDIAN_HOME" ]; then
     for _sg_root in "$HOME/.claude/plugins/secguardian" \
                     "$HOME/.config/opencode/extensions/secguardian" \
