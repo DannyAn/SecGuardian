@@ -121,7 +121,7 @@ fi
 
 在执行任何审计步骤之前，必须逐项确认以下所有条件。**任一项未通过，审计不得开始，向用户报告具体错误。**
 
-- [ ] 定位索引器 wrapper：检查 `.claude/plugins/secguardian/`（项目级）→ `~/.claude/plugins/secguardian/`（用户级）→ `.opencode/extensions/secguardian/` → `.config/opencode/extensions/secguardian/` → `.gemini/extensions/secguardian/` → 执行 `find_indexer()` 自动搜索全部路径
+- [ ] 定位索引器：由 `SECGUARDIAN_HOME` env var 或 `.secguardian-env` 文件确定路径，无需多平台搜索
 - [ ] 执行 `{indexer} --health` 通过（输出必须包含 `HEALTH:OK` 或 `HEALTH:WARN`，不接受 `HEALTH:FAIL`）
 - [ ] 目标路径 `<path>` 存在且包含至少一个源码文件
 - [ ] 确认不会启动 clangd/LSP/compile_commands.json/bear 等外部工具 — indexer (tree-sitter) 已提供符号表+调用图+文件清单，所有代码结构数据从 index.json 获取

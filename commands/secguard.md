@@ -337,15 +337,8 @@ AI 只需读取 `## cpp` 以下至下一个 `##` 之间的内容即获得完整�
 
 ```bash
 find_protocol() {
-    PROTOCOL=""
-    for base in "." "$HOME"; do
-        for path in             ".claude/plugins/secguardian/knowledge/protocols/verification-protocol.md"             ".opencode/extensions/secguardian/knowledge/protocols/verification-protocol.md"             ".config/opencode/extensions/secguardian/knowledge/protocols/verification-protocol.md"             ".gemini/extensions/secguardian/knowledge/protocols/verification-protocol.md"; do
-            candidate="$base/$path"
-            [ -f "$candidate" ] && PROTOCOL="$candidate" && break 3
-        done
-    done
-    [ -z "$PROTOCOL" ] && [ -f "knowledge/protocols/verification-protocol.md" ] && PROTOCOL="knowledge/protocols/verification-protocol.md"
-    echo "$PROTOCOL"
+    PROTOCOL="$SECGUARDIAN_HOME/knowledge/protocols/verification-protocol.md"
+    [ -f "$PROTOCOL" ] && echo "$PROTOCOL" || echo ""
 }
 if [ -n "$(find_protocol)" ]; then
     echo "Using: $(find_protocol)"

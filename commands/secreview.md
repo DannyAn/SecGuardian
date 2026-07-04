@@ -134,7 +134,7 @@ fi
 
 Before starting any review, verify each condition below. **If any check fails, report the specific error and abort.**
 
-- [ ] Locate indexer wrapper: `.claude/plugins/secguardian/` (project) -> `~/.claude/plugins/secguardian/` (user) -> `.opencode/extensions/secguardian/` -> `.config/opencode/extensions/secguardian/` -> `.gemini/extensions/secguardian/` -> run `find_indexer()` which handles all paths automatically
+- [ ] Locate indexer: resolved via `SECGUARDIAN_HOME` env var or `.secguardian-env` file — no multi-platform search needed
 - [ ] Run `{indexer} --health` passes (output must contain `HEALTH:OK` or `HEALTH:WARN`; `HEALTH:FAIL` is not accepted)
 - [ ] Target `<path>` exists and contains at least one source file
 - [ ] **Language detection (only when user omits `language` parameter)** check source extensions in `<path>`: `*.c/*.cpp/*.h` -> `cpp`, `*.py` -> `python`, `*.java` -> `java`, `*.go` -> `go`. No need to ask the user.
