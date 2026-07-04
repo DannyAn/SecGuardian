@@ -1,0 +1,15 @@
+{
+  "name": "secguardian",
+  "version": "0.12.0",
+  "description": "SecGuardian — 自验证工作流（AI Agent 端到端验证）",
+  "skills": {
+    "codex-verify": {
+      "description": "自验证：构建 + 部署 + 全语言扫描 + 输出结构检查",
+      "path": "skills/codex-verify/SKILL.md"
+    },
+    "codex-scan": {
+      "description": "手动对指定语言样例执行扫描验证",
+      "path": "skills/codex-scan/SKILL.md"
+    }
+  }
+}
