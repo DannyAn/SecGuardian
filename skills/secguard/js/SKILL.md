@@ -11,7 +11,7 @@ topic: [web, crypto, system]
 对 JavaScript/TypeScript 代码进行安全加固项排查，扫描代码和 PR 中需要安全加固的问题。
 
 ## 🎯 Detector Selection (Skill Layer)
-### ⚙️ Engine Instructions
+## ⚙️ Engine Instructions
 
 > 以下执行指令属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行。未来 Engine 实现后将被 Engine 取代。
 

@@ -8,6 +8,8 @@
 [![Detectors](https://img.shields.io/badge/detectors-67-brightgreen.svg)](https://github.com/secguardian/secguardian/blob/develop/knowledge/language-index.md)
 [![CWE Top 25](https://img.shields.io/badge/CWE_Top_25-100%25-brightgreen.svg)](https://github.com/secguardian/secguardian/blob/develop/knowledge/language-index.md)
 
+SecGuardian is an AI-native Application Security Platform that transforms security expertise into executable workflows, measurable engineering practices, and continuous security intelligence across the software development lifecycle.
+
 SecGuardian is an enterprise-grade AI application security framework. It integrates AI reasoning with security engineering practices to help teams build, review, fix, and release secure software through **four automated security gates**.
 
 By moving beyond raw AI code generation and introducing **Rule Packs**, SecGuardian translates standards like OWASP ASVS, NIST SSDF, and PCI DSS into machine-executable audit rules that run in your CLI and CI/CD pipelines.

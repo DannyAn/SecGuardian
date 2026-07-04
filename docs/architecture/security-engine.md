@@ -233,7 +233,7 @@ Agent may generate explanations + patches
 
 CI does not inject into or modify the strategy layer. CI evaluates
 the artifacts the pipeline produces (SARIF, status.json, summary.json)
-as a verification constraint layer. See [runtime-model.md](runtime-model.md) for execution context, [engine_contract.md](../internal/engine/engine_contract.md) for engine boundaries, and [output_contract.md](../internal/output/output_contract.md) for output formatting protocol.
+as a verification constraint layer. See [runtime-model.md](runtime-model.md) for execution context, `internal/engine/engine_contract.md` for engine boundaries, and `internal/output/output_contract.md` for output formatting protocol.
 
 ---
 

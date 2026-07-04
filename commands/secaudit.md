@@ -102,7 +102,6 @@ Skill: aud-input-validation
 - **🤖 AI Agent 修复** → 读取 `ai/remediation-pack.json` 自动修复：`读取 report.md §4，按每个发现的 🔧 Fix 方案修改代码`
 ```
 
-## 🛠️ Engine Layer (continued)
 
 > 以下内容属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行执行。未来 Engine 实现后，此处内容将被 Engine 取代。
 

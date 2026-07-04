@@ -18,7 +18,7 @@ topic: [memory, concurrency, system, crypto]
 
 > **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
 
-## 🛠️ Execution Layer
+## ⚙️ Engine Instructions
 ### Engine Instructions
 
 > 以下执行指令属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行。未来 Engine 实现后将被 Engine 取代。
@@ -139,7 +139,6 @@ SARIF 格式要求（[GitHub 2025-07 起强制](https://github.blog/changelog/20
 
 向用户输出扫描摘要并告知输出目录路径。
 
-## 🛠️ Execution Layer (continued)
 
 
 
