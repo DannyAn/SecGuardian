@@ -1,3 +1,5 @@
+package com.secguardian.demo;
+
 // P2 — Counter-Evidence: 反证搜寻，应被抑制
 import java.util.concurrent.locks.*;
 import java.util.concurrent.atomic.*;

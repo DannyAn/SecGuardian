@@ -56,3 +56,6 @@ __pycache__/
 secguardian-*
 .codex-plugin/
 alldir.md
+
+# Example project cached scan artifacts (generated)
+examples/**/.codeagent/

@@ -1,3 +1,5 @@
+package com.secguardian.demo;
+
 /**
  * AuthController.java — Authentication & web security vulnerability examples
  *

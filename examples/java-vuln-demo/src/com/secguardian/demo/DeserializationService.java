@@ -1,3 +1,5 @@
+package com.secguardian.demo;
+
 /**
  * DeserializationService.java — Object deserialization (demonstrates unsafe deserialization)
  *

@@ -1,3 +1,5 @@
+package com.secguardian.demo;
+
 // P3 — Edge Cases: 部分保护不充分，标记为 suspected
 
 public class p3_edge_case {

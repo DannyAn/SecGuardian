@@ -1,3 +1,5 @@
+package com.secguardian.demo;
+
 // P1 — Semantic Verification: 项目安全框架抑制误报
 import java.sql.*;
 

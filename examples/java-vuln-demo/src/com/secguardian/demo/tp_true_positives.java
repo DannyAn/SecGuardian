@@ -1,3 +1,5 @@
+package com.secguardian.demo;
+
 // TP — True Positives: 真实漏洞，必须检出
 import java.sql.*;
 

@@ -1,3 +1,5 @@
+package com.secguardian.demo;
+
 /**
  * UserController.java — Web security vulnerability examples (Java)
  *

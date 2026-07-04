@@ -1,3 +1,5 @@
+package com.secguardian.demo;
+
 // P0 — 安全函数，不应产生 Finding
 import java.sql.*;
 import java.security.*;
