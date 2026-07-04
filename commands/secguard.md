@@ -429,6 +429,10 @@ PYEOF
 
 ### Step 4: 输出结构化 findings（遵循 Findings Protocol v5.0）
 
+> **禁止**：不要在 `/tmp/` 或任何临时目录下创建脚本（`.py`、`.sh` 等）来批量生成 finding 文件。
+> **必须**：对每个匹配的检测器，读取其 `.md` 文件，分析源码，然后用 **Write 工具** 逐个写出 finding JSON 文件。
+> 禁止跳过检测器执行步骤直接生成 findings。
+
 > ⚠️ **v5.0 关键变更**: AI **不再输出单体 findings.json**。改为按 detector 分类，**每个 finding 输出一个独立文件**到 `findings/` 目录树下。最后输出轻量 `findings.json`（同名升级，不含四段式，仅元数据+索引）。渲染器通过 `--findings-dir` 聚合所有 finding 文件生成报告。**禁止直接写 report.md / results.sarif / 任何其他输出文件** — 这些由渲染器生成。
 
 **4a. 按 detector 分组，以 SHA 前缀为文件名逐文件输出（每个文件 2-4KB）：**
