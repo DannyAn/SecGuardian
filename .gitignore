@@ -54,3 +54,4 @@ commands/gemini/*.toml
 # Python bytecode cache
 __pycache__/
 secguardian-*
+.codex-plugin/
