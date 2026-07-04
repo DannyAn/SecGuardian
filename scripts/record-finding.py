@@ -42,13 +42,13 @@ def main():
         ''')
 
     # Core required fields
-    p.add_argument('--command', required=True,
+    p.add_argument('--command', default='',
                    choices=['secguard', 'secaudit', 'secreview'],
-                   help='Command type: controls detector naming validation')
+                   help='[logging only] Command type identifier')
     p.add_argument('--scan-dir', required=True,
                    help='Scan output directory (parent of findings/)')
     p.add_argument('--detector', required=True,
-                   help='Detector ID. secguard/secreview: namespace.name, secaudit: audit.{skill-name}')
+                   help='Detector name (e.g. web.sql-injection, audit.cryptography)')
     p.add_argument('--severity', required=True,
                    choices=['Critical', 'High', 'Medium', 'Low', 'Info'])
     p.add_argument('--cwe', required=True, help='CWE ID, e.g. CWE-89')
@@ -90,24 +90,6 @@ def main():
                    help='[secreview] Comma-separated review focus areas')
 
     args = p.parse_args()
-
-    # ── Validation ──────────────────────────────
-    ns = args.detector.split('.')[0]
-    if args.command == 'secaudit' and ns != 'audit':
-        p.error(
-            "secaudit detector must use 'audit.{skill-name}' format, "
-            f"got: '{args.detector}'"
-        )
-    if args.command in ('secguard', 'secreview'):
-        valid_ns = {
-            'memory', 'concurrency', 'system',
-            'resource', 'crypto', 'web', 'error'
-        }
-        if ns not in valid_ns:
-            p.error(
-                f"Invalid namespace '{ns}' for {args.command}. "
-                f"Valid: {', '.join(sorted(valid_ns))}"
-            )
 
     # ── Compute finding ID ──────────────────────
     raw = f"{args.detector}:{args.file}:{args.line}:{args.cwe}"
