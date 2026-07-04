@@ -104,7 +104,7 @@ Skill: aud-input-validation
 
 在执行任何审计步骤之前，必须逐项确认以下所有条件。**任一项未通过，审计不得开始，向用户报告具体错误。**
 
-- [ ] 定位索引器 wrapper：检查 `.opencode/extensions/secguardian/`（项目级）→ `~/.config/opencode/extensions/secguardian/`（用户级）→ `.gemini/` → `.claude/` → 执行 `find_indexer()` 自动搜索全部路径
+- [ ] 定位索引器 wrapper：检查 `.claude/plugins/secguardian/`（项目级）→ `~/.claude/plugins/secguardian/`（用户级）→ `.opencode/extensions/secguardian/` → `.config/opencode/extensions/secguardian/` → `.gemini/extensions/secguardian/` → 执行 `find_indexer()` 自动搜索全部路径
 - [ ] 执行 `{indexer} --health` 通过（输出必须包含 `HEALTH:OK` 或 `HEALTH:WARN`，不接受 `HEALTH:FAIL`）
 - [ ] 目标路径 `<path>` 存在且包含至少一个源码文件
 - [ ] 确认不会启动 clangd/LSP/compile_commands.json/bear 等外部工具 — indexer (tree-sitter) 已提供符号表+调用图+文件清单，所有代码结构数据从 index.json 获取
@@ -133,10 +133,10 @@ find_indexer() {
     INDEXER=""
     for base in "." "$HOME"; do
         for path in \
+            ".claude/plugins/secguardian/scripts/secguardian-index" \
             ".opencode/extensions/secguardian/scripts/secguardian-index" \
             ".config/opencode/extensions/secguardian/scripts/secguardian-index" \
-            ".gemini/extensions/secguardian/scripts/secguardian-index" \
-            ".claude/plugins/secguardian/scripts/secguardian-index"; do
+            ".gemini/extensions/secguardian/scripts/secguardian-index"; do
             candidate="$base/$path"
             [ -x "$candidate" ] && [ -f "$candidate" ] && INDEXER="$candidate" && break 3
         done
@@ -191,48 +191,44 @@ python3 scripts/validate-index.py \
 > 不得使用裸名 (如 `cryptography`)，否则 SARIF 生成器会报 `IndexError`。
 
 每个 finding 写入独立文件，路径格式如 secguard Step 4a（见 `commands/secguard.md`），额外包含 `secaudit_specific` 字段：
+每个 finding 写入独立文件，路径格式如 secguard Step 4a，额外包含 `secaudit_specific` 字段。
+使用 `record-finding.py`（通过多路径搜索定位）记录每个 finding，无需手写 JSON：
 
-```json
-{
-  "schema_version": "1.0",
-  "finding": {
-    # no "id" field — identity is SHA-256(detector:file:line:cwe)
-    "severity": "Critical",
-    "cwe": "CWE-89",
-    "detector": "audit.input-validation",
-    "file": "src/webapp.py",
-    "line": 47,
-    "location": {
-      "file_path": "src/webapp.py",
-      "start_line": 47,
-      "end_line": 48,
-      "function_name": "get_user",
-      "snippet": "cursor.execute(f\"SELECT * FROM users WHERE id = {user_id}\")"
-    },
-    "evidence": {
-      "code_context": "cursor.execute(f\"...{user_id}...")",
-      "judgment_rationale": "用户输入直接拼接 SQL — 违反 OWASP Top 10 A03:2021",
-      "data_flow_path": "HTTP param → get_user() → f-string → cursor.execute"
-    },
-    "impact": {
-      "attack_scenario": "攻击者通过 SQL 注入窃取所有用户数据",
-      "cvss_score": 9.8
-    },
-    "fix": {
-      "description": "使用参数化查询替代 f-string",
-      "before_code": "cursor.execute(f\"SELECT * FROM users WHERE id = {user_id}\")",
-      "after_code": "cursor.execute(\"SELECT * FROM users WHERE id = ?\", (user_id,))"
-    },
-    "secaudit_specific": {
-      "skill_name": "input-validation",
-      "skill_category": "domain",
-      "analysis_paths": 15,
-      "complete_chains": 4
-    }
-  }
-}
+```bash
+RECORDER=""
+for base in "." "$HOME"; do
+    for path in \
+        ".claude/plugins/secguardian/scripts/record-finding.py" \
+        ".opencode/extensions/secguardian/scripts/record-finding.py" \
+        ".config/opencode/extensions/secguardian/scripts/record-finding.py" \
+        ".gemini/extensions/secguardian/scripts/record-finding.py"; do
+        candidate="$base/$path"
+        [ -f "$candidate" ] && RECORDER="$candidate" && break 3
+    done
+done
+[ -z "$RECORDER" ] && RECORDER="scripts/record-finding.py"
+
+python3 "$RECORDER" \
+    --command secaudit \
+    --scan-dir .codeagent/secguardian/secaudit/scans/<scan_id> \
+    --detector audit.input-validation \
+    --severity Critical --cwe CWE-89 \
+    --file src/webapp.py --line 47 \
+    --end-line 48 \
+    --function get_user \
+    --snippet "cursor.execute(f\"SELECT * FROM users WHERE id = {user_id}\")" \
+    --rationale "用户输入直接拼接 SQL — 违反 OWASP Top 10 A03:2021" \
+    --data-flow-path "HTTP param → get_user() → f-string → cursor.execute" \
+    --attack-scenario "攻击者通过 SQL 注入窃取所有用户数据" \
+    --cvss 9.8 \
+    --title "使用参数化查询替代 f-string" \
+    --fix-before "cursor.execute(f\"SELECT * FROM users WHERE id = {user_id}\")" \
+    --fix-after "cursor.execute(\"SELECT * FROM users WHERE id = ?\", (user_id,))" \
+    --skill-name input-validation --skill-category domain \
+    --analysis-paths 15 --complete-chains 4
 ```
 
+输出：`findings/<ns>/<detector>/<sha12>_<file>-<line>.json`
 关键要求（secaudit 独有）：
 - **必须包含** `file`、`line`、`location`、`evidence`、`impact`、`fix` 字段（与 secguard 格式一致）。
   仅提供 `secaudit_specific` 会导致渲染器 `KeyError`。
@@ -251,10 +247,10 @@ python3 scripts/validate-index.py \
 RENDERER=""
 for base in "." "$HOME"; do
     for path in \
+        ".claude/plugins/secguardian/scripts/render-report.py" \
         ".opencode/extensions/secguardian/scripts/render-report.py" \
         ".config/opencode/extensions/secguardian/scripts/render-report.py" \
-        ".gemini/extensions/secguardian/scripts/render-report.py" \
-        ".claude/plugins/secguardian/scripts/render-report.py"; do
+        ".gemini/extensions/secguardian/scripts/render-report.py"; do
         candidate="$base/$path"
         [ -f "$candidate" ] && RENDERER="$candidate" && break 3
     done

@@ -267,6 +267,7 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
     fi
 
     # Copy shared utility scripts
+    cp "$PROJECT_ROOT/scripts/record-finding.py" "$dist_dir/scripts/record-finding.py"
     cp "$PROJECT_ROOT/scripts/validate-index.py" "$dist_dir/scripts/validate-index.py"
     cp "$PROJECT_ROOT/scripts/validate-findings.py" "$dist_dir/scripts/validate-findings.py"
 

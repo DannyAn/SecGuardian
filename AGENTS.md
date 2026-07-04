@@ -419,6 +419,32 @@ bash scripts/gitee-release.sh 0.12.0
 - `scripts/` 下的 `secguardian-index` 是源码文件（git 跟踪），卸载操作不应删除它
 - AI Agent 进入项目后应该 **先跑 `bash scripts/self-check.sh`** 确认环境完整性，再开始工作
 
+
+
+### Codex 工作守则（2026-07-04 定稿）
+
+> 以下守则基于项目历史教训总结，Codex 每次执行开发任务必须遵守。
+
+#### 原则：不临时起意，不丢三落四
+
+1. **查设计再动手** — 任何改动前先查 SDD 是否有相关 Feature/CHANGE/ADR。有则沿用，无则建档。
+2. **改完先展示** — 代码改完后不提交，先给用户看 diff，确认后再继续。
+3. **改完必须验证** — 至少跑 `bash scripts/self-check.sh` + 受影响功能的手动测试。不验证不提交。
+4. **部署全链路检查** — 新增脚本/文件时，检查 `package.sh` 和 `deploy.sh` 是否覆盖，确认部署包完整。
+5. **不堆commit** — 一次改动一个 commit，粒度小到可独立回退。
+6. **不跳过 SDD** — Bug fix 和拼写修正可直接改。涉及架构、行为、新功能，必须先走 SDD。
+
+#### 每次 commit 前自检清单
+
+```
+□ 查过 SDD 了？（无冲突设计 / 有记录可循）
+□ diff 给用户看了？（用户确认过）
+□ self-check 跑过了？（120 checks 全绿）
+□ 受影响功能测过了？（索引构建 / 扫描输出 / 缓存命中）
+□ 部署检查了？（package.sh 覆盖 / deploy.sh 覆盖）
+□ 提交说明清晰了？（原因 + 改了啥 + 验证结果）
+```
+
 ## Manifest-Driven Tokens（散弹式修改终结者）
 
 修改 detector 数量时，只需改 `manifest.json`。构建时 `scripts/sync-manifest.sh` 自动更新所有文件中的 `NNN<!-- @secguardian:xxx -->` 标记。

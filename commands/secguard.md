@@ -135,7 +135,7 @@ Filters: memory.*, system.*
 
 在执行任何扫描步骤之前，必须逐项确认以下所有条件。**任一项未通过，扫描不得开始，向用户报告具体错误。**
 
-- [ ] 定位索引器 wrapper：优先查找项目级路径，其次用户级（`~/.config/opencode/`、`~/.gemini/`、`~/.claude/`），然后执行 `find_indexer()` 自动搜索全部路径（优先用户级部署，最后回退本地仓库）
+- [ ] 定位索引器 wrapper：优先查找项目级路径，其次用户级（`~/.claude/plugins/`、`~/.opencode/extensions/`、`~/.config/opencode/extensions/`、`~/.gemini/extensions/`），然后执行 `find_indexer()` 自动搜索全部路径（优先用户级部署，最后回退本地仓库）
 - [ ] 执行 `{indexer} --health` 通过（输出必须包含 `HEALTH:OK` 或 `HEALTH:WARN`，不接受 `HEALTH:FAIL`）
 - [ ] 目标路径 `<path>` 存在且包含至少一个源码文件
 - [ ] **语言推断（仅当用户未提供 `language` 参数时）**：检查 `<path>` 下源码文件扩展名 → `*.c/*.cpp/*.h` → `cpp`, `*.py` → `python`, `*.java` → `java`, `*.go` → `go`。无需询问用户，扩展名即可判定。
@@ -166,10 +166,10 @@ find_indexer() {
     # Search user-level paths FIRST (extension deployed to user config, not project level)
     for base in "$HOME" "."; do
         for path in \
-            ".config/opencode/extensions/secguardian/scripts/secguardian-index" \
-            ".gemini/extensions/secguardian/scripts/secguardian-index" \
             ".claude/plugins/secguardian/scripts/secguardian-index" \
-            ".opencode/extensions/secguardian/scripts/secguardian-index"; do
+            ".opencode/extensions/secguardian/scripts/secguardian-index" \
+            ".config/opencode/extensions/secguardian/scripts/secguardian-index" \
+            ".gemini/extensions/secguardian/scripts/secguardian-index"; do
             candidate="$base/$path"
             if [ -f "$candidate" ]; then
                 INDEXER="$candidate" && break 3
@@ -346,7 +346,7 @@ AI 只需读取 `## cpp` 以下至下一个 `##` 之间的内容即获得完整�
 find_protocol() {
     PROTOCOL=""
     for base in "." "$HOME"; do
-        for path in             ".opencode/extensions/secguardian/knowledge/protocols/verification-protocol.md"             ".config/opencode/extensions/secguardian/knowledge/protocols/verification-protocol.md"             ".gemini/extensions/secguardian/knowledge/protocols/verification-protocol.md"             ".claude/plugins/secguardian/knowledge/protocols/verification-protocol.md"; do
+        for path in             ".claude/plugins/secguardian/knowledge/protocols/verification-protocol.md"             ".opencode/extensions/secguardian/knowledge/protocols/verification-protocol.md"             ".config/opencode/extensions/secguardian/knowledge/protocols/verification-protocol.md"             ".gemini/extensions/secguardian/knowledge/protocols/verification-protocol.md"; do
             candidate="$base/$path"
             [ -f "$candidate" ] && PROTOCOL="$candidate" && break 3
         done
@@ -431,10 +431,24 @@ PYEOF
 
 > ⚠️ **v5.0 关键变更**: AI **不再输出单体 findings.json**。改为按 detector 分类，**每个 finding 输出一个独立文件**到 `findings/` 目录树下。最后输出轻量 `findings.json`（同名升级，不含四段式，仅元数据+索引）。渲染器通过 `--findings-dir` 聚合所有 finding 文件生成报告。**禁止直接写 report.md / results.sarif / 任何其他输出文件** — 这些由渲染器生成。
 >
-> 调用 `scripts/record-finding.py` 记录每个 finding（替代手动写 JSON）：
+> 调用 `record-finding.py`（通过多路径搜索定位）记录每个 finding：
 
 ```bash
-python3 scripts/record-finding.py \
+RECORDER=""
+for base in "." "$HOME"; do
+    for path in \
+        ".claude/plugins/secguardian/scripts/record-finding.py" \
+        ".opencode/extensions/secguardian/scripts/record-finding.py" \
+        ".config/opencode/extensions/secguardian/scripts/record-finding.py" \
+        ".gemini/extensions/secguardian/scripts/record-finding.py"; do
+        candidate="$base/$path"
+        [ -f "$candidate" ] && RECORDER="$candidate" && break 3
+    done
+done
+[ -z "$RECORDER" ] && RECORDER="scripts/record-finding.py"
+
+python3 "$RECORDER" \
+    --command secguard \
     --scan-dir .codeagent/secguardian/secguard/scans/<scan_id> \
     --detector <namespace.name> \
     --severity Critical --cwe CWE-89 \
@@ -567,10 +581,10 @@ fi
 RENDERER=""
 for base in "." "$HOME"; do
     for path in \
+        ".claude/plugins/secguardian/scripts/render-report.py" \
         ".opencode/extensions/secguardian/scripts/render-report.py" \
         ".config/opencode/extensions/secguardian/scripts/render-report.py" \
-        ".gemini/extensions/secguardian/scripts/render-report.py" \
-        ".claude/plugins/secguardian/scripts/render-report.py"; do
+        ".gemini/extensions/secguardian/scripts/render-report.py"; do
         candidate="$base/$path"
         [ -f "$candidate" ] && RENDERER="$candidate" && break 3
     done

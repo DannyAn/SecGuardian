@@ -117,7 +117,7 @@ You (the AI Agent) must follow these steps when executing `/secreview` to perfor
 
 Before starting any review, verify each condition below. **If any check fails, report the specific error and abort.**
 
-- [ ] Locate indexer wrapper: `.opencode/extensions/secguardian/` (project) -> `~/.config/opencode/extensions/secguardian/` (user) -> `.gemini/` -> `.claude/` -> run `find_indexer()` which handles all paths automatically
+- [ ] Locate indexer wrapper: `.claude/plugins/secguardian/` (project) -> `~/.claude/plugins/secguardian/` (user) -> `.opencode/extensions/secguardian/` -> `.config/opencode/extensions/secguardian/` -> `.gemini/extensions/secguardian/` -> run `find_indexer()` which handles all paths automatically
 - [ ] Run `{indexer} --health` passes (output must contain `HEALTH:OK` or `HEALTH:WARN`; `HEALTH:FAIL` is not accepted)
 - [ ] Target `<path>` exists and contains at least one source file
 - [ ] **Language detection (only when user omits `language` parameter)** check source extensions in `<path>`: `*.c/*.cpp/*.h` -> `cpp`, `*.py` -> `python`, `*.java` -> `java`, `*.go` -> `go`. No need to ask the user.
@@ -146,10 +146,10 @@ find_indexer() {
     INDEXER=""
     for base in "." "$HOME"; do
         for path in \
+            ".claude/plugins/secguardian/scripts/secguardian-index" \
             ".opencode/extensions/secguardian/scripts/secguardian-index" \
             ".config/opencode/extensions/secguardian/scripts/secguardian-index" \
-            ".gemini/extensions/secguardian/scripts/secguardian-index" \
-            ".claude/plugins/secguardian/scripts/secguardian-index"; do
+            ".gemini/extensions/secguardian/scripts/secguardian-index"; do
             candidate="$base/$path"
             [ -x "$candidate" ] && [ -f "$candidate" ] && INDEXER="$candidate" && break 3
         done
@@ -232,40 +232,39 @@ Evaluate against language-specific anti-patterns (from the skill file):
 
 Each finding written to `<scan_dir>/findings/<detector>/<sha12>_<file_slug>-<line>.json`:
 
-```json
-{
-  "schema_version": "1.0",
-  "finding": {
-    "severity": "High",
-    "cwe": "CWE-089",
-    "detector": "web.sql-injection",
-    "file": "src/service/UserService.java",
-    "line": 89,
-    "location": {
-      "file_path": "src/service/UserService.java",
-      "start_line": 89,
-      "end_line": 92,
-      "function_name": "findUser",
-      "snippet": "String qry = \"SELECT * FROM users WHERE id=\" + userId;"
-    },
-    "evidence": {
-      "judgment_rationale": "String concatenation in SQL query with direct user input — violates OWASP Top 10 A03:2021 Injection"
-    },
-    "impact": {
-      "attack_scenario": "Attacker provides userId=1 OR 1=1 to bypass authentication and retrieve all users",
-      "cvss_score": 8.2
-    },
-    "fix": {
-      "description": "Use PreparedStatement for parameterized query",
-      "before_code": "String qry = \"SELECT * FROM users WHERE id=\" + userId;",
-      "after_code": "PreparedStatement ps = conn.prepareStatement(\"SELECT * FROM users WHERE id=?\"); ps.setInt(1, userId);"
-    },
-    "secreview_specific": {
-      "review_pass": "vulnerability_detection",
-      "review_focus": ["input-validation", "injection-prevention"]
-    }
-  }
-}
+Each finding is recorded via `record-finding.py` (multi-path search).
+
+```bash
+RECORDER=""
+for base in "." "$HOME"; do
+    for path in \
+        ".claude/plugins/secguardian/scripts/record-finding.py" \
+        ".opencode/extensions/secguardian/scripts/record-finding.py" \
+        ".config/opencode/extensions/secguardian/scripts/record-finding.py" \
+        ".gemini/extensions/secguardian/scripts/record-finding.py"; do
+        candidate="$base/$path"
+        [ -f "$candidate" ] && RECORDER="$candidate" && break 3
+    done
+done
+[ -z "$RECORDER" ] && RECORDER="scripts/record-finding.py"
+
+python3 "$RECORDER" \
+    --command secreview \
+    --scan-dir .codeagent/secguardian/secreview/scans/<scan_id> \
+    --detector web.sql-injection \
+    --severity High --cwe CWE-089 \
+    --file "src/service/UserService.java" --line 89 \
+    --end-line 92 \
+    --function findUser \
+    --snippet 'String qry = "SELECT * FROM users WHERE id=" + userId;' \
+    --rationale "String concatenation in SQL query — violates OWASP A03:2021" \
+    --attack-scenario "Attacker provides userId=1 OR 1=1 to bypass auth" \
+    --cvss 8.2 \
+    --title "Use PreparedStatement for parameterized query" \
+    --fix-before 'String qry = "SELECT * FROM users WHERE id=" + userId;' \
+    --fix-after 'PreparedStatement ps = conn.prepareStatement("SELECT * FROM users WHERE id=?"); ps.setInt(1, userId);' \
+    --review-pass vulnerability_detection \
+    --review-focus "input-validation,injection-prevention"
 ```
 
 Key requirements (secreview-specific):
