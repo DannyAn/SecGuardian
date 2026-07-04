@@ -444,7 +444,7 @@ python3 "$RECORDER" \
 ```
 
 输出：`findings/<ns>/<detector>/<sha12>_<file>-<line>.json`
-> ⚠️ Shell 安全：当 fix 代码含 `"` `'` `;` 等 shell 特殊字符时，
+> ⚠️ Shell 安全：当 fix 代码含 `"` `'` `;` 或路径字符（如 `/etc/`）时，
 > 先用 heredoc 写入文件再传 `--fix-before-file` / `--fix-after-file`：
 > ```bash
 > cat > /tmp/fix_before.txt << 'EOF'

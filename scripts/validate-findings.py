@@ -82,7 +82,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--findings-dir', required=True)
     parser.add_argument('--quiet', action='store_true')
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
 
     if not os.path.isdir(args.findings_dir):
         print(f"FATAL: findings directory not found: {args.findings_dir}")

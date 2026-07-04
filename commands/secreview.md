@@ -279,7 +279,16 @@ Key requirements (secreview-specific):
 
 **5b. Self-check + renderer auto-generates findings.json:**
 
-Same as secguard Step 4b-4c (see `commands/secguard.md`). Use `secreview` paths.
+**5b. Self-check + renderer auto-generates findings.json：**
+
+```bash
+SCAN_DIR=".codeagent/secguardian/secreview/scans/<scan_id>"
+python3 scripts/validate-findings.py --findings-dir "$SCAN_DIR/findings/"
+VALIDATE_EXIT=$?
+if [ $VALIDATE_EXIT -ne 0 ]; then
+    echo "  ⚠️  Findings validation completed with warnings — proceeding to renderer"
+fi
+```
 
 **5c. Invoke renderer:**
 
@@ -297,15 +306,6 @@ python3 "$RENDERER" \
 
 - After renderer completes, read `manifest.json` for review statistics.
 - Output a Markdown review summary to the user, containing: scan_id, language, mode (full vs git diff), total findings by severity/type, and top findings with exploit scenarios.
-- **Demo code detection**: If `<path>` contains `examples/` (demo/test code directory), append a note at the end:
-  "Path contains demo/test code (examples/). The detected vulnerabilities are intentionally placed for testing purposes.
-  CI gate zero-tolerance thresholds (Critical=0, High=0) are designed for production code
-  and do not affect demo code used in test environments."
-- **Demo code detection**: If `<path>` contains `examples/` (demo/test code directory), append a note at the end:
-  "Path contains demo/test code (examples/). The detected vulnerabilities are intentionally placed for testing purposes.
-  CI gate zero-tolerance thresholds (Critical=0, High=0) are designed for production code
-  and do not affect demo code used in test environments."
-
 ## 🔒 secreview Review Complete
 
 **Scan ID:** `<scan-id>`

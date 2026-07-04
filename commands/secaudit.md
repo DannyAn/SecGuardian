@@ -232,7 +232,7 @@ python3 "$RECORDER" \
 ```
 
 输出：`findings/<ns>/<detector>/<sha12>_<file>-<line>.json`
-> ⚠️ Shell 安全：当 fix 代码含 `"` `'` `;` 等 shell 特殊字符时，
+> ⚠️ Shell 安全：当 fix 代码含 `"` `'` `;` 或路径字符（如 `/etc/`）时，
 > 先用 heredoc 写入文件再传 `--fix-before-file` / `--fix-after-file`：
 > ```bash
 > cat > /tmp/fix_before.txt << 'EOF'
@@ -251,7 +251,20 @@ python3 "$RECORDER" \
 
 **4b. 自检完整性 + 渲染器自动生成 findings.json：**
 
-同 secguard Step 4b-4c（见 `commands/secguard.md`）。路径使用 `secaudit`。
+**4b. 自检完整性 + 渲染器自动生成 findings.json：**
+
+对所有 finding 执行前置校验。校验发现的问题会用警告列出。
+
+```bash
+SCAN_DIR=".codeagent/secguardian/secaudit/scans/<scan_id>"
+python3 scripts/validate-findings.py --findings-dir "$SCAN_DIR/findings/"
+VALIDATE_EXIT=$?
+if [ $VALIDATE_EXIT -ne 0 ]; then
+    echo "  ⚠️  Findings validation completed with warnings — proceeding to renderer"
+fi
+```
+
+> 校验结果不阻塞渲染。validate-findings.py 的警告项可通过后续手动检查确认。
 
 **4c. 调用渲染器生成所有输出：**
 
