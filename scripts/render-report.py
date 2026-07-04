@@ -36,14 +36,14 @@ from collections import Counter
 # ── Constants ───────────────────────────────────
 
 def load_detector_index_from_files(detectors_dir=None):
-    """Build detector -> {index, cwe} mapping from knowledge/detectors/*.md files.
+    """Build detector -> {index, cwe} mapping from knowledge/guard-rules/*.md files.
 
     Dynamically reads detector files to avoid hardcoding the DETECTOR_RULE_INDEX.
     Falls back to builtin DETECTOR_RULE_INDEX_FALLBACK if files are unavailable.
     """
     if detectors_dir is None:
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        detectors_dir = os.path.join(script_dir, "..", "knowledge", "detectors")
+        detectors_dir = os.path.join(script_dir, "..", "knowledge", "guard-rules")
 
     if not os.path.isdir(detectors_dir):
         return None  # caller should use fallback
@@ -156,7 +156,6 @@ else:
     "system.secrets-detection":        {"index": 65, "cwe": ["CWE-798"]},
     "system.symlink-attack":           {"index": 66, "cwe": ["CWE-61"]},
     "system.toctou":                   {"index": 67, "cwe": ["CWE-367"]},
-    "web.jwt-misuse":                  {"index": 8,  "cwe": ["CWE-347"]},
 }  # DETECTOR_RULE_INDEX_FALLBACK — used only when detector files unavailable
 
 

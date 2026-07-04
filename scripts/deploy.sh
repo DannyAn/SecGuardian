@@ -10,6 +10,8 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# 全局版本号：从 manifest.json 读取，单一来源
+SECGUARDIAN_VERSION=$(python3 -c "import json; print(json.load(open(os.path.expanduser("~/.secguardian/manifest.json")))["version"])" 2>/dev/null || echo "0.12.0")
 DIST="$PROJECT_ROOT/dist"
 DEPLOY_USER=true      # 默认用户级，--project 切换为项目级
 DO_UNINSTALL=false
@@ -187,14 +189,10 @@ deploy_claude() {
              "$plugin_dir/scripts/bin"
 
     # Write official plugin.json
-    # NOTE: version "0.5.4" below should match manifest.json version
-    cat > "$plugin_dir/.claude-plugin/plugin.json" << JSON
-{
-  "name": "secguardian",
-  "version": "0.5.4",
+    # 版本号从 manifest.json 读取，单一来源
   "description": "SecGuardian XuanWu — 企业级白盒安全 AI Agent 辅助解决方案。60 检测器、17 审计技能、5 语言安全检视。",
-  "author": { "name": "SecGuardian", "url": "https://gitee.com/jonyan/secguardian" },
-  "homepage": "https://gitee.com/jonyan/secguardian",
+  "author": { "name": "SecGuardian", "url": "https://github.com/DannyAn/SecGuardian" },
+  "homepage": "https://github.com/DannyAn/SecGuardian",
   "keywords": ["security", "sast", "audit", "code-review", "vulnerability"]
 }
 JSON
@@ -300,7 +298,7 @@ register_claude_plugin() {
       "version": "$plugin_version",
       "source": "./plugins/secguardian",
       "category": "security",
-      "homepage": "https://gitee.com/jonyan/secguardian",
+      "homepage": "https://github.com/DannyAn/SecGuardian",
       "author": { "name": "SecGuardian" },
       "keywords": ["security", "sast", "audit", "code-review", "vulnerability"]
     }
@@ -562,7 +560,7 @@ deploy_opencode() {
     cat > "$ext_dir/codeagent-extension.json" << JSON
 {
   "name": "$brand",
-  "version": "0.5.5",
+  "version": "$(python3 -c "import json; print(json.load(open(\"${PROJECT_ROOT:-.}/manifest.json\"))[\"version\"])" 2>/dev/null || echo "0.0.0")",
   "description": "SecGuardian XuanWu — 企业级白盒安全 AI Agent 辅助解决方案"
 }
 JSON
@@ -652,14 +650,10 @@ deploy_gemini() {
              "$ext_dir/scripts/bin"
 
     # Write official gemini-extension.json
-    # NOTE: version "0.5.4" below should match manifest.json version
-    cat > "$ext_dir/gemini-extension.json" << JSON
-{
-  "name": "secguardian",
-  "version": "0.5.4",
+    # 版本号从 manifest.json 读取，单一来源
   "description": "SecGuardian XuanWu — 企业级白盒安全 AI Agent 辅助解决方案",
   "author": "SecGuardian",
-  "homepage": "https://gitee.com/jonyan/secguardian",
+  "homepage": "https://github.com/DannyAn/SecGuardian",
   "commands": ["commands/secaudit.toml", "commands/secguard.toml", "commands/secreview.toml"]
 }
 JSON

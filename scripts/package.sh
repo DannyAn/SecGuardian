@@ -124,8 +124,6 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
              "$dist_dir/knowledge/guard-rules" \
              "$dist_dir/knowledge/audit-rules" \
              "$dist_dir/knowledge/review-rules" \
-             "$dist_dir/knowledge/audit-rules" \
-             "$dist_dir/knowledge/review-rules" \
              "$dist_dir/knowledge/protocols" \
              "$dist_dir/knowledge/standards" \
              "$dist_dir/scripts/bin"
@@ -279,6 +277,10 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
         if [ -f "$bin_file" ]; then
             cp "$bin_file" "$dist_dir/scripts/bin/"
             chmod +x "$dist_dir/scripts/bin/$(basename "$bin_file")" 2>/dev/null || true
+    # OpenCode plugin registration script
+    if [ -f "$src_scripts_dir/opencode-plugin.js" ]; then
+        cp "$src_scripts_dir/opencode-plugin.js" "$dist_dir/scripts/"
+    fi
             bin_count=$((bin_count + 1))
         fi
     done

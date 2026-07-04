@@ -113,7 +113,8 @@ ARCH="$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')"
 PLATFORM_BIN_NAME="secguardian-index-${OS}-${ARCH}"
 
 # Expected version
-EXPECTED_VER="0.5.5"
+# 版本号从 manifest.json 读取，单一来源
+EXPECTED_VER=$(python3 -c "import json; print(json.load(open(\"${PROJECT_ROOT:-.}/manifest.json\"))[\"version\"])" 2>/dev/null || echo "0.0.0")
 
 echo ""
 echo -e "${BOLD}╔══════════════════════════════════════════════╗${NC}"
