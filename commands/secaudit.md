@@ -100,7 +100,7 @@ Skill: aud-input-validation
 你（AI Agent）在接收到 `/secaudit` 命令后，必须按以下步骤执行来构建索引并进行安全审计。
 
 ### 前置检查（Pre-flight Checklist）
-> ⛔ **禁止使用 Glob 或 Read 工具探索文件路径或读取文件内容（包括 index.json、knowledge 文件、protocol 文件等）。所有文件访问必须通过 bash 命令（`[ -f ]`、`cat`、`head`、`ls`）完成**。所有路径检测必须通过 bash 命令（`[ -f ]`、`ls`）完成。先跑 `find_indexer` 再跑 `--health`。
+> ⛔ **禁止使用 Glob 或 Read 工具探索文件路径（搜索文件）。已知路径的文件可以用 `cat` 或 `head` 读取（扩展目录下的文件不用 Read 工具，避免权限弹窗）**。所有路径检测必须通过 bash 命令（`[ -f ]`、`ls`）完成。先跑 `find_indexer` 再跑 `--health`。
 
 在执行任何审计步骤之前，必须逐项确认以下所有条件。**任一项未通过，审计不得开始，向用户报告具体错误。**
 
