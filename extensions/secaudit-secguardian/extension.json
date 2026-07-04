@@ -22,7 +22,8 @@
   "knowledge": {
     "protocols": [
       "scan-output",
-      "sarif-output"
+      "sarif-output",
+      "verification-protocol"
     ],
     "languages": [
       "cpp",

@@ -70,6 +70,10 @@ def main():
                    help='CVSS score (0.0-10.0)')
     p.add_argument('--fix-before', default='', help='Vulnerable code')
     p.add_argument('--fix-after', default='', help='Fixed code')
+p.add_argument('--fix-before-file', default='',
+               help='[secaudit/secreview] File path containing vulnerable code (avoids shell quoting)')
+p.add_argument('--fix-after-file', default='',
+               help='[secaudit/secreview] File path containing fixed code (avoids shell quoting)')
 
     # secaudit-specific
     p.add_argument('--data-flow-path', default='',
@@ -90,6 +94,14 @@ def main():
                    help='[secreview] Comma-separated review focus areas')
 
     args = p.parse_args()
+
+    # Read fix from files if specified (avoids shell quoting issues with inline args)
+    if args.fix_before_file and os.path.isfile(args.fix_before_file):
+        with open(args.fix_before_file, 'r') as f:
+            args.fix_before = f.read().rstrip('\n')
+    if args.fix_after_file and os.path.isfile(args.fix_after_file):
+        with open(args.fix_after_file, 'r') as f:
+            args.fix_after = f.read().rstrip('\n')
 
     # ── Compute finding ID ──────────────────────
     raw = f"{args.detector}:{args.file}:{args.line}:{args.cwe}"
@@ -134,8 +146,8 @@ def main():
             },
             "fix": {
                 "description": args.title,
-                "before_code": args.fix_before,
-                "after_code": args.fix_after
+                "before_code": args.fix_before_file or args.fix_before,
+                "after_code": args.fix_after_file or args.fix_after
             }
         }
     }

@@ -26,7 +26,8 @@
   "knowledge": {
     "protocols": [
       "scan-output",
-      "sarif-output"
+      "sarif-output",
+      "verification-protocol"
     ],
     "threat_catalog": "knowledge/threat-catalog.md",
     "languages": [

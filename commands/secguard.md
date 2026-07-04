@@ -408,28 +408,28 @@ with open(os.path.join(scan_dir, 'dismissed.json')) as f:
     dismissed = json.load(f)
 for d in dismissed['dismissed']:
     assert d['finding_id'], f"Missing finding_id in dismissed entry"
-    assert d['dismissed_at_round'] in ('P1', 'P2', 'P3'), f"Invalid round: {d['dismissed_at_round']}"
-    assert d['dismiss_reason'], f"Missing dismiss_reason for {d['finding_id']}"
+    assert d['dismissed_at_round'] in ('P1', 'P2', 'P3'), "Invalid round: %s" % d['dismissed_at_round']
+    assert d['dismiss_reason'], "Missing dismiss_reason for %s" % d['finding_id']
 
 # Check verification-audit.json
 with open(os.path.join(scan_dir, 'verification-audit.json')) as f:
     audit = json.load(f)
 for round_key in ('p1_semantic', 'p2_counter_evidence', 'p3_court'):
-    assert round_key in audit['rounds'], f"Missing round: {round_key}"
+    assert round_key in audit['rounds'], "Missing round: %s" % round_key
 
 certified = audit['certified_count']
 dismissed_total = audit['dismissed_count']
 findings_total = len(json.load(open(os.path.join(scan_dir, 'findings.json'))).get('findings', []))
 assert certified + dismissed_total == findings_total, \
-    f"Count mismatch: {certified} + {dismissed_total} != {findings_total}"
+    "Count mismatch: %s + %s != %s" % (certified, dismissed_total, findings_total)
 
-print(f"✅ Verification audit: {findings_total} findings → {certified} certified, {dismissed_total} dismissed")
+print("✅ Verification audit: %s findings → %s certified, %s dismissed" % (findings_total, certified, dismissed_total))
 PYEOF
 ```
 
 ### Step 4: 输出结构化 findings（遵循 Findings Protocol v5.0）
 
-> ⚠️ **v5.0 关键变更**: AI **不再输出单体 findings.json**。改为按 detector 分类，**每个 finding 输出一个独立文件**到 `findings/` 目录树下。最后输出轻量 `findings.json`（同名升级，不含四段式，仅元数据+索引）。渲染器通过 `--findings-dir` 聚合所有 finding 文件生成报告。**禁止直接写 report.md / results.sarif / 任何其他输出文件** — 这些由渲染器生成。
+> ⚠️ **v5.0 关键变更**: AI **不再输出单体 findings.json**。改为按 detector 分类，**每个 finding 输出一个独立文件**到 `findings/` 目录树下。`findings.json` 由渲染器自动生成（不含四段式，仅元数据+索引）。AI 只负责通过 `record-finding.py` 录制独立 finding 文件，渲染器调用时自动聚合 `findings_index`。渲染器通过 `--findings-dir` 聚合所有 finding 文件生成报告。**禁止直接写 report.md / results.sarif / 任何其他输出文件** — 这些由渲染器生成。
 >
 > 调用 `record-finding.py`（通过多路径搜索定位）记录每个 finding：
 
@@ -503,10 +503,10 @@ findings/crypto/password-storage/f6e5d4c3b2a1_crypto_utils-20.json
       "file_path": "src/webapp.py",
       "start_line": 47,
       "function_name": "get_user",
-      "snippet": "cursor.execute(f\"SELECT * FROM users WHERE id = {user_id}\")"
+      "snippet": "cursor.execute(f\"SELECT * FROM users WHERE id = USER_INPUT\")"
     },
     "evidence": {
-      "code_context": "cursor.execute(f\"...{user_id}...\")",
+      "code_context": "cursor.execute(f\"...USER_INPUT...\")",
       "judgment_rationale": "用户输入直接拼接 SQL — 违反 OWASP A03:2021"
     },
     "impact": {
@@ -515,7 +515,7 @@ findings/crypto/password-storage/f6e5d4c3b2a1_crypto_utils-20.json
     },
     "fix": {
       "description": "使用参数化查询替代 f-string 拼接",
-      "before_code": "cursor.execute(f\"...{user_id}\")",
+      "before_code": "cursor.execute(f\"...USER_INPUT\")",
       "after_code": "cursor.execute(\"SELECT * FROM users WHERE id = ?\", (user_id,))"
     }
   }
@@ -524,38 +524,13 @@ findings/crypto/password-storage/f6e5d4c3b2a1_crypto_utils-20.json
 
 **Critical 优先输出**：按 Critical → High → Medium → Low 顺序输出，确保用户最关心的问题先落盘。
 
-**4b. 输出轻量 `findings.json`（同名升级，不含四段式）：**
+**4b. 轻量 `findings.json` — 由渲染器自动生成：**
 
-所有 finding 输出完毕后，写入轻量索引文件（scan root，与 `index.json` 同级）：
-
-```json
-{
-  "scan_id": "<scan-id>",
-  "command": "secguard",
-  "path": "./src",
-  "mode": "full",
-  "language": "python",
-  "timing": { "started": "<iso>", "completed": "<iso>", "duration_ms": 76000 },
-  "scope": { "files": 3, "lines": 295, "functions": 15, "call_edges": 1 },
-  "detectors": { "matched": 27, "executed": 27, "namespaces_used": [...] },
-  "findings_index": [
-    {
-      "seq": 1,
-      "sha": "a1b2c3d4e5f6",
-      "severity": "High",
-      "cwe": "CWE-89",
-      "detector": "web.sql-injection",
-      "file": "src/webapp.py",
-      "line": 47,
-      "function": "get_user",
-      "title": "SQL injection via f-string query construction",
-      "path": "findings/web/sql-injection/a1b2c3d4e5f6_webapp-47.json"
-    }
-  ]
-}
-```
-
-> 索引文件不含四段式详情，仅含导航字段。企业级项目（1000+ finding）索引约 300KB，AI Agent 可直接读取。
+> `render-report.py` 会在 `--output` 目录下自动生成 `findings.json`，
+> 从 `findings/` 目录树聚合 `findings_index`。
+> AI 无需手动编写 findings.json，只需录制 finding 文件后调用渲染器即可。
+>
+> 索引文件不含四段式详情，仅含导航字段。企业级项目（1000+ finding）索引约 300KB。
 
 **4c. 自检完整性：**
 

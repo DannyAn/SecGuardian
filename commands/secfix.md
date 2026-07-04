@@ -80,7 +80,7 @@ Each `.patch` file is a standard unified diff:
 --- a/src/main.py
 +++ b/src/main.py
 @@ -1 +1 @@
--cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")
+-cursor.execute(f"SELECT * FROM users WHERE id = USER_INPUT")
 +cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
 ```
 

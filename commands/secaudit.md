@@ -182,7 +182,7 @@ python3 scripts/validate-index.py \
 ### Step 4: 输出结构化 findings（遵循 Findings Protocol v5.0）
 
 > **v6.0**: secaudit 命令同样适用三轮验证管道（`commands/secguard.md` Step 3.5）。`--no-verify` 跳过验证。
-> ⚠️ **v5.0 关键变更**: AI **不再输出单体 findings.json**。改为按 detector 分类，**每个 finding 输出一个独立文件**到 `findings/` 目录树下。最后输出轻量 `findings.json`（同名升级，不含四段式，仅元数据+索引）。渲染器通过 `--findings-dir` 聚合所有 finding 文件生成报告。**禁止直接写 report.md / results.sarif / 任何其他输出文件**。
+> ⚠️ **v5.0 关键变更**: AI **不再输出单体 findings.json**。改为按 detector 分类，**每个 finding 输出一个独立文件**到 `findings/` 目录树下。`findings.json` 由渲染器自动生成（不含四段式，仅元数据+索引）。AI 只负责通过 `record-finding.py` 录制独立 finding 文件，渲染器调用时自动聚合 `findings_index`。渲染器通过 `--findings-dir` 聚合所有 finding 文件生成报告。**禁止直接写 report.md / results.sarif / 任何其他输出文件**。
 
 **4a. 按 detector 分组，以 SHA 前缀为文件名逐文件输出：**
 
@@ -216,13 +216,13 @@ python3 "$RECORDER" \
     --file src/webapp.py --line 47 \
     --end-line 48 \
     --function get_user \
-    --snippet "cursor.execute(f\"SELECT * FROM users WHERE id = {user_id}\")" \
+    --snippet "cursor.execute(\"SELECT * FROM users WHERE id = ?\")" \
     --rationale "用户输入直接拼接 SQL — 违反 OWASP Top 10 A03:2021" \
     --data-flow-path "HTTP param → get_user() → f-string → cursor.execute" \
     --attack-scenario "攻击者通过 SQL 注入窃取所有用户数据" \
     --cvss 9.8 \
     --title "使用参数化查询替代 f-string" \
-    --fix-before "cursor.execute(f\"SELECT * FROM users WHERE id = {user_id}\")" \
+    --fix-before "cursor.execute(\"SELECT * FROM users WHERE id = ?\")" \
     --fix-after "cursor.execute(\"SELECT * FROM users WHERE id = ?\", (user_id,))" \
     --skill-name input-validation --skill-category domain \
     --analysis-paths 15 --complete-chains 4
@@ -236,7 +236,7 @@ python3 "$RECORDER" \
 - `secaudit_specific.skill_name` — 本次审计的 skill 名称
 - `secaudit_specific.analysis_paths` / `complete_chains` — 数据流分析统计
 
-**4b. 输出轻量 `findings.json` + 自检完整性：**
+**4b. 自检完整性 + 渲染器自动生成 findings.json：**
 
 同 secguard Step 4b-4c（见 `commands/secguard.md`）。路径使用 `secaudit`。
 

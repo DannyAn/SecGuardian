@@ -1415,5 +1415,49 @@ Examples:
         print("⚠️  Quality gate warnings present — see report.md header for details")
 
 
+    # ── Auto-generate findings.json (v5.0 findings-dir mode) ────
+    # Eliminates AI needing to remember the findings.json schema.
+    # Only runs in v5.0 mode (--findings-dir, not legacy --findings).
+    if args.findings_dir and findings:
+        findings_idx = []
+        for idx, f in enumerate(findings, 1):
+            det = f.get('detector', '')
+            file_ = f.get('file', '')
+            line = f.get('line', 0)
+            cwe = f.get('cwe', '')
+            raw = f"{det}:{file_}:{line}:{cwe}"
+            sha = hashlib.sha256(raw.encode()).hexdigest()[:12]
+            slug = os.path.splitext(os.path.basename(file_))[0]
+            ns = det.split('.')[0]
+            det_name = det.split('.', 1)[1] if '.' in det else ''
+            findings_idx.append({
+                "seq": idx, "sha": sha,
+                "severity": f.get('severity', ''),
+                "cwe": cwe, "detector": det,
+                "file": file_, "line": line,
+                "function": f.get('function', '') or '',
+                "title": f.get('title', '') or '',
+                "path": f"findings/{ns}/{det_name}/{sha}_{slug}-{line}.json"
+            })
+        index_meta = {
+            "scan_id": findings_data.get("scan_id", "unknown"),
+            "command": findings_data.get("command", args.command or "secguard"),
+            "path": findings_data.get("path", ""),
+            "mode": findings_data.get("mode", "full"),
+            "language": findings_data.get("language", ""),
+            "timing": {
+                "started": findings_data.get("started_at", ""),
+                "completed": findings_data.get("completed_at", ""),
+                "duration_ms": findings_data.get("duration_ms", 0)
+            },
+            "scope": findings_data.get("scope", {}),
+            "detectors": findings_data.get("detectors", {}),
+            "findings_index": findings_idx
+        }
+        findings_json_path = os.path.join(args.output, "findings.json")
+        with open(findings_json_path, 'w', encoding='utf-8') as fout:
+            json.dump(index_meta, fout, indent=2, ensure_ascii=False)
+        print(f"  \u2713 findings.json ({len(findings)} findings in index)")
+
 if __name__ == "__main__":
     main()
