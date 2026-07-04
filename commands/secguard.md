@@ -430,6 +430,19 @@ PYEOF
 ### Step 4: 输出结构化 findings（遵循 Findings Protocol v5.0）
 
 > ⚠️ **v5.0 关键变更**: AI **不再输出单体 findings.json**。改为按 detector 分类，**每个 finding 输出一个独立文件**到 `findings/` 目录树下。最后输出轻量 `findings.json`（同名升级，不含四段式，仅元数据+索引）。渲染器通过 `--findings-dir` 聚合所有 finding 文件生成报告。**禁止直接写 report.md / results.sarif / 任何其他输出文件** — 这些由渲染器生成。
+>
+> 调用 `scripts/record-finding.py` 记录每个 finding（替代手动写 JSON）：
+
+```bash
+python3 scripts/record-finding.py \
+    --scan-dir .codeagent/secguardian/secguard/scans/<scan_id> \
+    --detector <namespace.name> \
+    --severity Critical --cwe CWE-89 \
+    --file src/UserController.java --line 52 \
+    --fix-before "<bad_code>" --fix-after "<good_code>"
+```
+
+输出：`findings/<ns>/<detector>/<sha12>_<file>-<line>.json`
 
 **4a. 按 detector 分组，以 SHA 前缀为文件名逐文件输出（每个文件 2-4KB）：**
 

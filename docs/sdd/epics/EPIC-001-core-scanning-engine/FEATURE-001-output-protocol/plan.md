@@ -1657,3 +1657,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ---
 
 *关联文档: [spec.md](../spec.md), [brainstorm-log](../../../brainstorm-log.md)*
+
+### TASK-005: record-finding.py
+
+AI 记录 finding 的辅助工具。详见 [tasks/TASK-005-record-finding-helper.md](tasks/TASK-005-record-finding-helper.md)。

@@ -38,3 +38,5 @@
 建立了 AI/Renderer 分离架构：
 - AI 职责：语义分析 → 输出结构化 findings
 - Renderer 职责：模板渲染 → 安全评分 → CI 门禁 → 格式化输出
+
+| 5 | TASK-005: record-finding.py | ✅ Done | 2026-07-04 | 2026-07-04 | FEATURE-001 |
