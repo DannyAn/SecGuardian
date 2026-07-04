@@ -115,24 +115,8 @@ You (the AI Agent) must follow these steps when executing `/secreview` to perfor
 ### Pre-flight Checklist
 
 # ── Resolve SECGUARDIAN_HOME ─────────────────
-# Step 1: Detect current platform by environment markers.
-if [ -n "$ANTHROPIC_API_KEY" ]; then
-    _sg_env="$HOME/.claude/plugins/secguardian/.secguardian-env"
-elif [ -f "$HOME/.config/opencode/opencode.json" ]; then
-    _sg_env="$HOME/.config/opencode/extensions/secguardian/.secguardian-env"
-elif [ -f "$HOME/.gemini/settings.json" ]; then
-    _sg_env="$HOME/.gemini/extensions/secguardian/.secguardian-env"
-fi
-if [ -n "$_sg_env" ] && [ -f "$_sg_env" ]; then
-    source "$_sg_env"
-fi
-
-# Step 2: Fallback — search all known deployment paths.
 if [ -z "$SECGUARDIAN_HOME" ]; then
-    for _sg_root in "$HOME/.claude/plugins/secguardian" \
-                    "$HOME/.config/opencode/extensions/secguardian" \
-                    "$HOME/.gemini/extensions/secguardian" \
-                    ".claude/plugins/secguardian" \
+    for _sg_root in ".claude/plugins/secguardian" \
                     ".config/opencode/extensions/secguardian" \
                     ".gemini/extensions/secguardian"; do
         if [ -f "$_sg_root/.secguardian-env" ]; then
@@ -141,6 +125,7 @@ if [ -z "$SECGUARDIAN_HOME" ]; then
         fi
     done
 fi
+SECGUARDIAN_HOME="${SECGUARDIAN_HOME:-scripts/..}"
 
 > ⛔ **DO NOT use Glob or Read tools to discover file paths**. All path checks must use bash commands (`[ -f ]`, `ls`, etc.). Always run `find_indexer` before `--health`.
 
@@ -199,7 +184,7 @@ python3 scripts/validate-index.py \
 
 - Extract `primary_language` from the summary.
 - Load the corresponding skill: `../skills/secreview/{language}/SKILL.md`.
-- Reference `../knowledge/languages/{language}.md` for dangerous API lists and framework security notes.
+- Reference `$SECGUARDIAN_HOME/knowledge/languages/{language}.md` for dangerous API lists and framework security notes.
 - **Use index.json symbol table to locate review targets**, rather than traversing files.
 
 ### Step 4: AI Security Code Review — Three Reasoning Dimensions

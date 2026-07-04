@@ -126,31 +126,15 @@ Filters: memory.*, system.*
 
 ## 派发规则与执行步骤
 
-> **隔离约束**: 本命令只能加载 `skills/` 扩展下的 `secguard-*` 前缀 skill，禁止加载 `secaudit-*` 或 `secreview-*` 前缀的任何文件。知识文件仅从 `knowledge/guard-rules/` 和 `knowledge/languages/` 加载。
+> **隔离约束**: 本命令只能加载 `$SECGUARDIAN_HOME/skills/` 下的 `secguard-*` 前缀 skill，禁止加载 `secaudit-*` 或 `secreview-*` 前缀的任何文件。知识文件仅从 `$SECGUARDIAN_HOME/knowledge/guard-rules/` 和 `$SECGUARDIAN_HOME/knowledge/languages/` 加载。
 
 你（AI Agent）在接收到 `/secguard` 命令后，必须按以下步骤执行来构建索引并进行安全扫描。
 
 ### 前置检查（Pre-flight Checklist）
 
 # ── Resolve SECGUARDIAN_HOME ─────────────────
-# Step 1: Detect current platform by environment markers.
-if [ -n "$ANTHROPIC_API_KEY" ]; then
-    _sg_env="$HOME/.claude/plugins/secguardian/.secguardian-env"
-elif [ -f "$HOME/.config/opencode/opencode.json" ]; then
-    _sg_env="$HOME/.config/opencode/extensions/secguardian/.secguardian-env"
-elif [ -f "$HOME/.gemini/settings.json" ]; then
-    _sg_env="$HOME/.gemini/extensions/secguardian/.secguardian-env"
-fi
-if [ -n "$_sg_env" ] && [ -f "$_sg_env" ]; then
-    source "$_sg_env"
-fi
-
-# Step 2: Fallback — search all known deployment paths.
 if [ -z "$SECGUARDIAN_HOME" ]; then
-    for _sg_root in "$HOME/.claude/plugins/secguardian" \
-                    "$HOME/.config/opencode/extensions/secguardian" \
-                    "$HOME/.gemini/extensions/secguardian" \
-                    ".claude/plugins/secguardian" \
+    for _sg_root in ".claude/plugins/secguardian" \
                     ".config/opencode/extensions/secguardian" \
                     ".gemini/extensions/secguardian"; do
         if [ -f "$_sg_root/.secguardian-env" ]; then
@@ -159,6 +143,7 @@ if [ -z "$SECGUARDIAN_HOME" ]; then
         fi
     done
 fi
+SECGUARDIAN_HOME="${SECGUARDIAN_HOME:-scripts/..}"
 
 > ⛔ **禁止使用 Glob 或 Read 工具探索文件路径（搜索文件）。已知路径的文件可以用 `cat` 或 `head` 读取（扩展目录下的文件不用 Read 工具，避免权限弹窗）**。所有路径检测必须通过 bash 命令（`[ -f ]`、`ls`）完成。先跑 `find_indexer` 再跑 `--health`。
 
@@ -325,7 +310,7 @@ AI 只需读取 `## cpp` 以下至下一个 `##` 之间的内容即获得完整�
 - `namespace.*`（如 `memory.*`）→ 只保留该命名空间的 guard-rules
 - `namespace.name`（如 `memory.null-dereference`）→ 只加载单个检测器
 - 逗号分隔（如 `memory.*,system.*`）→ 取并集
-- 检测器文件路径：`../../knowledge/guard-rules/{namespace-name}.md`
+- 检测器文件路径：`$SECGUARDIAN_HOME/knowledge/guard-rules/{namespace-name}.md`
 
 #### 3d 精确加载
 

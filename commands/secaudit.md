@@ -102,24 +102,8 @@ Skill: aud-input-validation
 ### 前置检查（Pre-flight Checklist）
 
 # ── Resolve SECGUARDIAN_HOME ─────────────────
-# Step 1: Detect current platform by environment markers.
-if [ -n "$ANTHROPIC_API_KEY" ]; then
-    _sg_env="$HOME/.claude/plugins/secguardian/.secguardian-env"
-elif [ -f "$HOME/.config/opencode/opencode.json" ]; then
-    _sg_env="$HOME/.config/opencode/extensions/secguardian/.secguardian-env"
-elif [ -f "$HOME/.gemini/settings.json" ]; then
-    _sg_env="$HOME/.gemini/extensions/secguardian/.secguardian-env"
-fi
-if [ -n "$_sg_env" ] && [ -f "$_sg_env" ]; then
-    source "$_sg_env"
-fi
-
-# Step 2: Fallback — search all known deployment paths.
 if [ -z "$SECGUARDIAN_HOME" ]; then
-    for _sg_root in "$HOME/.claude/plugins/secguardian" \
-                    "$HOME/.config/opencode/extensions/secguardian" \
-                    "$HOME/.gemini/extensions/secguardian" \
-                    ".claude/plugins/secguardian" \
+    for _sg_root in ".claude/plugins/secguardian" \
                     ".config/opencode/extensions/secguardian" \
                     ".gemini/extensions/secguardian"; do
         if [ -f "$_sg_root/.secguardian-env" ]; then
@@ -128,6 +112,7 @@ if [ -z "$SECGUARDIAN_HOME" ]; then
         fi
     done
 fi
+SECGUARDIAN_HOME="${SECGUARDIAN_HOME:-scripts/..}"
 
 > ⛔ **禁止使用 Glob 或 Read 工具探索文件路径（搜索文件）。已知路径的文件可以用 `cat` 或 `head` 读取（扩展目录下的文件不用 Read 工具，避免权限弹窗）**。所有路径检测必须通过 bash 命令（`[ -f ]`、`ls`）完成。先跑 `find_indexer` 再跑 `--health`。
 
