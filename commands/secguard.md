@@ -131,11 +131,28 @@ Filters: memory.*, system.*
 你（AI Agent）在接收到 `/secguard` 命令后，必须按以下步骤执行来构建索引并进行安全扫描。
 
 ### 前置检查（Pre-flight Checklist）
+
+# ── Resolve SECGUARDIAN_HOME ─────────────────
+# Tries known deployment paths, then falls back to repo-relative paths.
+if [ -z "$SECGUARDIAN_HOME" ]; then
+    for _sg_root in "$HOME/.claude/plugins/secguardian" \
+                    "$HOME/.config/opencode/extensions/secguardian" \
+                    "$HOME/.gemini/extensions/secguardian" \
+                    ".claude/plugins/secguardian" \
+                    ".config/opencode/extensions/secguardian" \
+                    ".gemini/extensions/secguardian"; do
+        if [ -f "$_sg_root/.secguardian-env" ]; then
+            source "$_sg_root/.secguardian-env"
+            break
+        fi
+    done
+fi
+
 > ⛔ **禁止使用 Glob 或 Read 工具探索文件路径（搜索文件）。已知路径的文件可以用 `cat` 或 `head` 读取（扩展目录下的文件不用 Read 工具，避免权限弹窗）**。所有路径检测必须通过 bash 命令（`[ -f ]`、`ls`）完成。先跑 `find_indexer` 再跑 `--health`。
 
 在执行任何扫描步骤之前，必须逐项确认以下所有条件。**任一项未通过，扫描不得开始，向用户报告具体错误。**
 
-- [ ] 定位索引器 wrapper：优先查找项目级路径，其次用户级（`~/.claude/plugins/`、`~/.opencode/extensions/`、`~/.config/opencode/extensions/`、`~/.gemini/extensions/`），然后执行 `find_indexer()` 自动搜索全部路径（优先用户级部署，最后回退本地仓库）
+- [ ] 定位索引器 wrapper：由 `SECGUARDIAN_HOME` env var 或 `.secguardian-env` 文件定位，不再多路径搜索，然后执行 `find_indexer()` 自动搜索全部路径（优先用户级部署，最后回退本地仓库）
 - [ ] 执行 `{indexer} --health` 通过（输出必须包含 `HEALTH:OK` 或 `HEALTH:WARN`，不接受 `HEALTH:FAIL`）
 - [ ] 目标路径 `<path>` 存在且包含至少一个源码文件
 - [ ] **语言推断（仅当用户未提供 `language` 参数时）**：检查 `<path>` 下源码文件扩展名 → `*.c/*.cpp/*.h` → `cpp`, `*.py` → `python`, `*.java` → `java`, `*.go` → `go`。无需询问用户，扩展名即可判定。
@@ -161,34 +178,16 @@ Filters: memory.*, system.*
 
 ```bash
 # 定位 indexer wrapper — 项目级 + 用户级全覆盖
-find_indexer() {
-    INDEXER=""
-    # Search user-level paths FIRST (extension deployed to user config, not project level)
-    for base in "$HOME" "."; do
-        for path in \
-            ".claude/plugins/secguardian/scripts/secguardian-index" \
-            ".opencode/extensions/secguardian/scripts/secguardian-index" \
-            ".config/opencode/extensions/secguardian/scripts/secguardian-index" \
-            ".gemini/extensions/secguardian/scripts/secguardian-index"; do
-            candidate="$base/$path"
-            if [ -f "$candidate" ]; then
-                INDEXER="$candidate" && break 3
-            fi
-        done
-    done
-    # Legacy fallbacks (pre-plugin-format deploys)
-    # Dev fallback (repo root only; deployed indexer found via user-level paths above)
-    for candidate in \
-        scripts/secguardian-index \
-        internal/secguardian-index; do
-        if [ -f "$candidate" ]; then
-            INDEXER="$candidate" && break
-        fi
-    done
-    [ -z "$INDEXER" ] && echo "FATAL: secguardian-index not found (checked all paths)" && exit 1
-    echo "Using: $INDEXER"
-}
-find_indexer
+INDEXER="$SECGUARDIAN_HOME/scripts/secguardian-index"
+if [ ! -f "$INDEXER" ] && [ ! -f "$INDEXER" ]; then
+    # Dev fallback: try repo-relative path
+    INDEXER="scripts/secguardian-index"
+fi
+if [ ! -f "$INDEXER" ]; then
+    echo "FATAL: secguardian-index not found"
+    exit 1
+fi
+echo "Using: $INDEXER"
 # timeout: GNU timeut not available on macOS; use gtimeout if available or skip
 TIMEOUT_CMD=""
 if command -v timeout &>/dev/null; then TIMEOUT_CMD="timeout 120"
@@ -296,14 +295,8 @@ INDEX_FILE 输出示例:
 用 bash 定位并读取文件（禁止 Glob/Read）：
 
 ```bash
-LANG_INDEX=""
-# 本地开发路径
-[ -f "knowledge/language-index.md" ] && LANG_INDEX="knowledge/language-index.md"
-# 用户级部署路径
-[ -z "$LANG_INDEX" ] && [ -f "$HOME/.config/opencode/extensions/secguardian/knowledge/language-index.md" ] && LANG_INDEX="$HOME/.config/opencode/extensions/secguardian/knowledge/language-index.md"
-# 项目级路径
-[ -z "$LANG_INDEX" ] && [ -f ".config/opencode/extensions/secguardian/knowledge/language-index.md" ] && LANG_INDEX=".config/opencode/extensions/secguardian/knowledge/language-index.md"
-[ -z "$LANG_INDEX" ] && echo "WARNING: language-index.md not found" && LANG_INDEX="/dev/null"
+LANG_INDEX="$SECGUARDIAN_HOME/knowledge/language-index.md"
+[ ! -f "$LANG_INDEX" ] && echo "WARNING: language-index.md not found" && LANG_INDEX="/dev/null"
 data=$(cat "$LANG_INDEX")
 echo "$data"
 ```
@@ -434,18 +427,7 @@ PYEOF
 > 调用 `record-finding.py`（通过多路径搜索定位）记录每个 finding：
 
 ```bash
-RECORDER=""
-for base in "." "$HOME"; do
-    for path in \
-        ".claude/plugins/secguardian/scripts/record-finding.py" \
-        ".opencode/extensions/secguardian/scripts/record-finding.py" \
-        ".config/opencode/extensions/secguardian/scripts/record-finding.py" \
-        ".gemini/extensions/secguardian/scripts/record-finding.py"; do
-        candidate="$base/$path"
-        [ -f "$candidate" ] && RECORDER="$candidate" && break 3
-    done
-done
-[ -z "$RECORDER" ] && RECORDER="scripts/record-finding.py"
+RECORDER="$SECGUARDIAN_HOME/scripts/record-finding.py"
 
 python3 "$RECORDER" \
     --command secguard \
@@ -553,19 +535,7 @@ fi
 
 ```bash
 # 定位渲染器（与索引器相同查找策略）
-RENDERER=""
-for base in "." "$HOME"; do
-    for path in \
-        ".claude/plugins/secguardian/scripts/render-report.py" \
-        ".opencode/extensions/secguardian/scripts/render-report.py" \
-        ".config/opencode/extensions/secguardian/scripts/render-report.py" \
-        ".gemini/extensions/secguardian/scripts/render-report.py"; do
-        candidate="$base/$path"
-        [ -f "$candidate" ] && RENDERER="$candidate" && break 3
-    done
-done
-# Fallback: project source
-[ -z "$RENDERER" ] && [ -f "scripts/render-report.py" ] && RENDERER="scripts/render-report.py"
+RENDERER="$SECGUARDIAN_HOME/scripts/render-report.py"
 
 python3 "$RENDERER" \
     --command secguard \

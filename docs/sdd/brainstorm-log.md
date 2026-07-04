@@ -909,3 +909,28 @@ ChatGPT 指出核心风险：**"AI 比传统 SAST 更聪明"这个卖点的生�
 - skills/secaudit/: 18→1 目录（仅保留 workflow-secaudit）
 - commands/secaudit.md: 大幅简化
 - manifest.json: 更新计数
+
+---
+
+## 2026-07-04: 部署根路径设计 (Deployment Home Path)
+
+**背景**: 当前 commands/*.md 中搜索脚本/知识文件的 find_indexer()/RECORDER/RENDERER 等函数使用多路径搜索（4 条平台路径 × 2 种 base × 5 处搜索 = 40 条硬编码路径）。在部署树完全清晰的情况下，这种搜索是过度设计。
+
+**三平台部署树对比**:
+
+| 平台 | 部署根 | settings 文件 |
+|------|--------|-------------|
+| Claude Code | `~/.claude/plugins/secguardian/` | `~/.claude/settings.json` |
+| OpenCode | `~/.config/opencode/extensions/secguardian/` | `~/.config/opencode/opencode.json` |
+| Gemini CLI | `~/.gemini/extensions/secguardian/` | `~/.gemini/settings.json` |
+
+三棵树内部结构完全一致：commands/ + knowledge/ + scripts/ + skills/。只有根路径不同。
+
+**提案**: deploy.sh 在部署时向各平台 settings.json 写入 `SECGUARDIAN_HOME` 环境变量。命令中用 `${SECGUARDIAN_HOME:-scripts}/name` 替代多路径搜索。
+
+**否决方案**:
+- 保留多路径搜索 → 40 条路径维护负担，优先级排序仍有出错空间
+- 符号链接 → 需要 root/sudo
+- 项目级配置 → AI Agent 跨项目运行时失效
+
+**关联参考**: Issue #7 (路径搜索优先级修复是临时方案)

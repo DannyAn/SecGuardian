@@ -100,6 +100,23 @@ Skill: aud-input-validation
 你（AI Agent）在接收到 `/secaudit` 命令后，必须按以下步骤执行来构建索引并进行安全审计。
 
 ### 前置检查（Pre-flight Checklist）
+
+# ── Resolve SECGUARDIAN_HOME ─────────────────
+# Tries known deployment paths, then falls back to repo-relative paths.
+if [ -z "$SECGUARDIAN_HOME" ]; then
+    for _sg_root in "$HOME/.claude/plugins/secguardian" \
+                    "$HOME/.config/opencode/extensions/secguardian" \
+                    "$HOME/.gemini/extensions/secguardian" \
+                    ".claude/plugins/secguardian" \
+                    ".config/opencode/extensions/secguardian" \
+                    ".gemini/extensions/secguardian"; do
+        if [ -f "$_sg_root/.secguardian-env" ]; then
+            source "$_sg_root/.secguardian-env"
+            break
+        fi
+    done
+fi
+
 > ⛔ **禁止使用 Glob 或 Read 工具探索文件路径（搜索文件）。已知路径的文件可以用 `cat` 或 `head` 读取（扩展目录下的文件不用 Read 工具，避免权限弹窗）**。所有路径检测必须通过 bash 命令（`[ -f ]`、`ls`）完成。先跑 `find_indexer` 再跑 `--health`。
 
 在执行任何审计步骤之前，必须逐项确认以下所有条件。**任一项未通过，审计不得开始，向用户报告具体错误。**
@@ -129,27 +146,12 @@ Skill: aud-input-validation
 
 ```bash
 # 定位 indexer wrapper — 项目级 + 用户级全覆盖
-find_indexer() {
-    INDEXER=""
-    for base in "." "$HOME"; do
-        for path in \
-            ".claude/plugins/secguardian/scripts/secguardian-index" \
-            ".opencode/extensions/secguardian/scripts/secguardian-index" \
-            ".config/opencode/extensions/secguardian/scripts/secguardian-index" \
-            ".gemini/extensions/secguardian/scripts/secguardian-index"; do
-            candidate="$base/$path"
-            [ -x "$candidate" ] && [ -f "$candidate" ] && INDEXER="$candidate" && break 3
-        done
-    done
-    # Fallbacks for dev repo (only works from SecGuardian root; in production the user-level path is used)
-    # Dev fallback (repo root only; deployed indexer found via user-level paths above)
-    for candidate in scripts/secguardian-index internal/secguardian-index; do
-        [ -x "$candidate" ] && [ -f "$candidate" ] && INDEXER="$candidate" && break
-    done
-    [ -z "$INDEXER" ] && echo "FATAL: secguardian-index not found (checked project + user paths)" && exit 1
-    echo "Using: $INDEXER"
-}
-find_indexer
+INDEXER="$SECGUARDIAN_HOME/scripts/secguardian-index"
+if [ ! -f "$INDEXER" ]; then
+    echo "FATAL: secguardian-index not found at $INDEXER"
+    exit 1
+fi
+echo "Using: $INDEXER"
 # 缓存由 wrapper 透明处理：同路径复用 index.json（加 --force 强制重建，刷新缓存）
 $INDEXER --path <path> --output <user-project>/.codeagent/secguardian/index.json
 if [ ! -f "<user-project>/.codeagent/secguardian/index.json" ]; then
@@ -195,18 +197,7 @@ python3 scripts/validate-index.py \
 使用 `record-finding.py`（通过多路径搜索定位）记录每个 finding，无需手写 JSON：
 
 ```bash
-RECORDER=""
-for base in "." "$HOME"; do
-    for path in \
-        ".claude/plugins/secguardian/scripts/record-finding.py" \
-        ".opencode/extensions/secguardian/scripts/record-finding.py" \
-        ".config/opencode/extensions/secguardian/scripts/record-finding.py" \
-        ".gemini/extensions/secguardian/scripts/record-finding.py"; do
-        candidate="$base/$path"
-        [ -f "$candidate" ] && RECORDER="$candidate" && break 3
-    done
-done
-[ -z "$RECORDER" ] && RECORDER="scripts/record-finding.py"
+RECORDER="$SECGUARDIAN_HOME/scripts/record-finding.py"
 
 python3 "$RECORDER" \
     --command secaudit \
@@ -244,18 +235,7 @@ python3 "$RECORDER" \
 
 ```bash
 # 定位渲染器（同 secguard）
-RENDERER=""
-for base in "." "$HOME"; do
-    for path in \
-        ".claude/plugins/secguardian/scripts/render-report.py" \
-        ".opencode/extensions/secguardian/scripts/render-report.py" \
-        ".config/opencode/extensions/secguardian/scripts/render-report.py" \
-        ".gemini/extensions/secguardian/scripts/render-report.py"; do
-        candidate="$base/$path"
-        [ -f "$candidate" ] && RENDERER="$candidate" && break 3
-    done
-done
-[ -z "$RENDERER" ] && [ -f "scripts/render-report.py" ] && RENDERER="scripts/render-report.py"
+RENDERER="$SECGUARDIAN_HOME/scripts/render-report.py"
 
 python3 "$RENDERER" \
     --command secaudit \

@@ -113,6 +113,23 @@ Output directory: <user-project>/.codeagent/secguardian/secreview/scans/pr-20260
 You (the AI Agent) must follow these steps when executing `/secreview` to perform the security code review.
 
 ### Pre-flight Checklist
+
+# ── Resolve SECGUARDIAN_HOME ─────────────────
+# Tries known deployment paths, then falls back to repo-relative paths.
+if [ -z "$SECGUARDIAN_HOME" ]; then
+    for _sg_root in "$HOME/.claude/plugins/secguardian" \
+                    "$HOME/.config/opencode/extensions/secguardian" \
+                    "$HOME/.gemini/extensions/secguardian" \
+                    ".claude/plugins/secguardian" \
+                    ".config/opencode/extensions/secguardian" \
+                    ".gemini/extensions/secguardian"; do
+        if [ -f "$_sg_root/.secguardian-env" ]; then
+            source "$_sg_root/.secguardian-env"
+            break
+        fi
+    done
+fi
+
 > ⛔ **DO NOT use Glob or Read tools to discover file paths**. All path checks must use bash commands (`[ -f ]`, `ls`, etc.). Always run `find_indexer` before `--health`.
 
 Before starting any review, verify each condition below. **If any check fails, report the specific error and abort.**
@@ -142,27 +159,12 @@ Before starting any review, verify each condition below. **If any check fails, r
 > Index caching is automatic. Add `--force` to force a rebuild.
 
 ```bash
-find_indexer() {
-    INDEXER=""
-    for base in "." "$HOME"; do
-        for path in \
-            ".claude/plugins/secguardian/scripts/secguardian-index" \
-            ".opencode/extensions/secguardian/scripts/secguardian-index" \
-            ".config/opencode/extensions/secguardian/scripts/secguardian-index" \
-            ".gemini/extensions/secguardian/scripts/secguardian-index"; do
-            candidate="$base/$path"
-            [ -x "$candidate" ] && [ -f "$candidate" ] && INDEXER="$candidate" && break 3
-        done
-    done
-    # Fallbacks for dev repo (only works from SecGuardian root; in production the user-level path is used)
-    # Dev fallback (repo root only; deployed indexer found via user-level paths above)
-    for candidate in scripts/secguardian-index internal/secguardian-index; do
-        [ -x "$candidate" ] && [ -f "$candidate" ] && INDEXER="$candidate" && break
-    done
-    [ -z "$INDEXER" ] && echo "FATAL: secguardian-index not found (checked project + user paths)" && exit 1
-    echo "Using: $INDEXER"
-}
-find_indexer
+INDEXER="$SECGUARDIAN_HOME/scripts/secguardian-index"
+if [ ! -f "$INDEXER" ]; then
+    echo "FATAL: secguardian-index not found at $INDEXER"
+    exit 1
+fi
+echo "Using: $INDEXER"
 # 缓存由 wrapper 透明处理：同路径复用 index.json（加 --force 强制重建，刷新缓存）
 $INDEXER --path <path> --output <user-project>/.codeagent/secguardian/index.json
 if [ ! -f "<user-project>/.codeagent/secguardian/index.json" ]; then
@@ -235,18 +237,7 @@ Each finding written to `<scan_dir>/findings/<detector>/<sha12>_<file_slug>-<lin
 Each finding is recorded via `record-finding.py` (multi-path search).
 
 ```bash
-RECORDER=""
-for base in "." "$HOME"; do
-    for path in \
-        ".claude/plugins/secguardian/scripts/record-finding.py" \
-        ".opencode/extensions/secguardian/scripts/record-finding.py" \
-        ".config/opencode/extensions/secguardian/scripts/record-finding.py" \
-        ".gemini/extensions/secguardian/scripts/record-finding.py"; do
-        candidate="$base/$path"
-        [ -f "$candidate" ] && RECORDER="$candidate" && break 3
-    done
-done
-[ -z "$RECORDER" ] && RECORDER="scripts/record-finding.py"
+RECORDER="$SECGUARDIAN_HOME/scripts/record-finding.py"
 
 python3 "$RECORDER" \
     --command secreview \
