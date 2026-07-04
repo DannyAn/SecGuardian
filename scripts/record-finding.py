@@ -70,10 +70,10 @@ def main():
                    help='CVSS score (0.0-10.0)')
     p.add_argument('--fix-before', default='', help='Vulnerable code')
     p.add_argument('--fix-after', default='', help='Fixed code')
-p.add_argument('--fix-before-file', default='',
-               help='[secaudit/secreview] File path containing vulnerable code (avoids shell quoting)')
-p.add_argument('--fix-after-file', default='',
-               help='[secaudit/secreview] File path containing fixed code (avoids shell quoting)')
+    p.add_argument('--fix-before-file', default='',
+                   help='[secaudit/secreview] File path containing vulnerable code (avoids shell quoting)')
+    p.add_argument('--fix-after-file', default='',
+                   help='[secaudit/secreview] File path containing fixed code (avoids shell quoting)')
 
     # secaudit-specific
     p.add_argument('--data-flow-path', default='',

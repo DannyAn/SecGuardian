@@ -276,7 +276,7 @@ python3 "$RENDERER" \
 - 如果 quality gate 未通过，明确列出不完整的 finding ID。
   不影响示例代码在测试环境中的使用。"
 
-## secguard 扫描完成
+## secaudit 审计完成
 
 Scan ID: <scan-id>
 Project: <project-name>
