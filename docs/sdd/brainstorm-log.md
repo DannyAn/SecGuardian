@@ -934,3 +934,65 @@ ChatGPT 指出核心风险：**"AI 比传统 SAST 更聪明"这个卖点的生�
 - 项目级配置 → AI Agent 跨项目运行时失效
 
 **关联参考**: Issue #7 (路径搜索优先级修复是临时方案)
+
+---
+
+## 2026-07-04 — EPIC-005 FEATURE-002: 架构合约落地
+
+### 背景
+
+FEATURE-001 定义了架构文档和合约（engine_contract.md, output_contract.md, ci-cd-interface.md），
+描述了 Command → Skill → Engine 三层职责分离的理想状态。
+
+但实际 production 代码（commands/*.md, skills/*/SKILL.md）与架构定义之间存在鸿沟：
+- commands/secguard.md 包含 5 步执行管线（594 行），远多于"parse + dispatch + output path"
+- skills/secguard/cpp/SKILL.md 包含 Phase 1-5 执行流程（141 行），混合了"detector 选择"和"执行指令"
+- 三层职责在代码层面混在一起
+
+### 核心难题
+
+当前系统没有真正的 Engine 层。LLM prompt 本身就是 execution engine。
+如果直接从 commands/skills 中删除执行逻辑，AI Agent 将失去执行扫描的指令。
+
+### 讨论要点
+
+**方案 A：完全接管（Round 3 最初方案）**
+- 将 commands → 50 行 thin dispatcher
+- 将 skills → detector planner
+- 结果：Agent 无法执行扫描（无 Engine 替代）
+
+否决原因：破坏了系统可用性。Engine 还不存在，LLM prompt 是唯一的执行引擎。
+
+**方案 B：渐进式架构注入（选中方案）**
+- 不删除任何执行内容
+- 在 commands/skills 中增加架构分层标记，将内容按架构层重组
+- Phase 1-5 / Steps 1-5 标记为 "Engine Layer"（引擎层指令）
+- 检测器列表和选择规则标记为 "Skill Layer"（技能层职责）
+- 参数解析和输出路径标记为 "Command Layer"（命令层职责）
+
+选中理由：Agent 保持可用，架构可见性立即提升，后续 Engine 实现时知道提取什么。
+
+**方案 C：先建 Engine 再改 commands/skills**
+- 先实现 Security Engine（即使最小版本）
+- 将 commands/skills 中的执行逻辑 1:1 迁移到 Engine
+- 再将 commands/skills 改为 thin dispatcher / detector planner
+
+否决原因：Engine 实现需要 IR 层和结构化规则支持，
+indexer 当前是 text-approximate 级别，不足以支撑独立 Engine。
+
+### 最终方案
+
+**渐进式架构注入**：
+1. 不删除 commands/skills 中的任何执行内容
+2. 在 commands 中增加架构分层标记（Command Layer / Engine Layer 分组）
+3. 在 skills 中将内容分为 "Detector Selection"（Skill 职责）和 "Execution Instructions"（Engine 职责）
+4. 所有 Engine 层内容标注 → 引用 engine_contract.md
+5. 行为零变化——扫描结果与之前完全一致
+
+### 影响范围
+
+- commands/*.md（4 个文件）
+- skills/*/SKILL.md（11 个SKILL文件）
+- 不涉及 Go 代码
+- 不涉及 knowledge/
+- 不涉及 detector 内容

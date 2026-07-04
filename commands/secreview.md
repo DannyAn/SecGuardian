@@ -5,6 +5,9 @@ description: "AI Security Code Review — 5-language PR security review with exp
 
 # /secreview - AI Security Code Review for Pull Requests
 
+## ⚙️ Command Layer
+
+
 AI-powered security code review designed for pull requests, repositories and completed implementations.
 
 Unlike traditional linters, SecReview reasons about code behavior, business logic and exploitability.
@@ -107,6 +110,11 @@ Output directory: <user-project>/.codeagent/secguardian/secreview/scans/pr-20260
 | Output | CWE + CVSS + detection detail | CWE + exploit scenario + business logic impact |
 | Severity | Critical -> Info | High -> Info (PR-blocking semantics) |
 | Typical Mode | Full codebase scan | Git diff / PR changeset |
+
+
+## 🛠️ Engine Layer
+
+> 以下内容属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行执行。未来 Engine 实现后，此处内容将被 Engine 取代。
 
 ## Dispatch Rules & Execution Steps
 
@@ -291,6 +299,10 @@ python3 "$RENDERER" \
 
 - After renderer completes, read `manifest.json` for review statistics.
 - Output a Markdown review summary to the user, containing: scan_id, language, mode (full vs git diff), total findings by severity/type, and top findings with exploit scenarios.
+## 📄 Output Layer
+
+> 以下输出格式遵循 `internal/output/output_contract.md`。
+
 ## 🔒 secreview Review Complete
 
 **Scan ID:** `<scan-id>`

@@ -5,11 +5,19 @@ description: "AI Release Security Audit — 17-domain audit framework with knowl
 
 # /secaudit - AI Release Security Audit
 
+## ⚙️ Command Layer
+
+
 针对安全专项问题进行深度审计分析。自动识别用户意图，路由到对应的分析或领域审计 skill。
 
 ## 使用方式
 
 ```
+
+## 🛠️ Engine Layer
+
+> 以下内容属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行执行。未来 Engine 实现后，此处内容将被 Engine 取代。
+
 ## Audit Framework
 
 安全规则统一存放在 `knowledge/audit-rules/` 中，AI Agent 按 workflow 加载对应域的知识文件进行检测。
@@ -34,6 +42,10 @@ description: "AI Release Security Audit — 17-domain audit framework with knowl
 # SARIF 输出
 /secaudit ./src python --sarif                      # 输出 SARIF 格式（CI/CD）
 ```
+
+## 📄 Output Layer
+
+> 以下输出格式遵循 `internal/output/output_contract.md`。
 
 ## 输出路径约定
 
@@ -89,6 +101,10 @@ Skill: aud-input-validation
 - **CI/CD 集成** → 消费 `results.sarif`
 - **🤖 AI Agent 修复** → 读取 `ai/remediation-pack.json` 自动修复：`读取 report.md §4，按每个发现的 🔧 Fix 方案修改代码`
 ```
+
+## 🛠️ Engine Layer (continued)
+
+> 以下内容属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行执行。未来 Engine 实现后，此处内容将被 Engine 取代。
 
 ## 可用审计域
 

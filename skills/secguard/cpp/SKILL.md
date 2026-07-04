@@ -10,9 +10,18 @@ topic: [memory, concurrency, system, crypto]
 
 对 C/C++ 代码进行安全加固排查。编排 26 个检测器，支持全量/增量扫描和命名空间过滤。
 
+## 📄 Output Protocol
+
+> 以下输出格式遵循 `internal/output/output_contract.md`。
+
 ## 输出协议
 
 > **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
+
+## 🛠️ Execution Layer
+### Engine Instructions
+
+> 以下执行指令属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行。未来 Engine 实现后将被 Engine 取代。
 
 ## 执行流程
 
@@ -130,11 +139,19 @@ SARIF 格式要求（[GitHub 2025-07 起强制](https://github.blog/changelog/20
 
 向用户输出扫描摘要并告知输出目录路径。
 
+## 🛠️ Execution Layer (continued)
+
+
+
 ## 错误处理
 
 - 部分检测器执行失败 → `scan.status = "partial"`，在 manifest 中记录失败的 detector
 - git diff 失败（非 git 仓库）→ 降级为 `mode: "full"`
 - 没有 active 检测器 → 提前返回，无 findings
+
+## 🎯 Detector Selection (Skill Layer)
+
+> 以下检测器选择规则属于 Skill 层职责。Skill 决定 WHICH detectors 运行，不决定 HOW 运行。
 
 ## 可用检测器
 

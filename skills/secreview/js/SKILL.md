@@ -14,6 +14,10 @@ Focus areas: prototype pollution, async error handling, NoSQL injection, framewo
 
 > **Prerequisite**: Command layer has executed `secguardian-index` to generate `index.json`. Use symbol table for review target identification rather than file-by-file traversal.
 
+## ⚙️ Engine Instructions
+
+> 以下执行指令属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行。未来 Engine 实现后将被 Engine 取代。
+
 ## Execution Phases
 
 ### Phase 1: Load Context
@@ -70,6 +74,10 @@ Follows `knowledge/protocols/scan-output.md` (v5.0). Each finding:
 - CVSS severity assessment
 - Fix recommendation (before/after code)
 
+## 🎯 Review Focus (Skill Layer)
+
+> 以下内容定义了 review 的关注领域和规则，属于 Skill 层职责。
+
 ## Difference from secguard-js
 
 | Dimension | secguard (Secure Coding) | secreview (Code Review) |
@@ -79,6 +87,10 @@ Follows `knowledge/protocols/scan-output.md` (v5.0). Each finding:
 | Primary Output | Vulnerability location + CVSS | CWE mapping + exploit scenario + business logic risk |
 | Coverage | CWE Top 25 + detectors | OWASP + Node.js security + React/Next.js + anti-patterns |
 | Typical Mode | Full codebase scan | Git diff / PR changeset |
+
+## 📄 Output Protocol
+
+> 以下输出格式遵循 `internal/output/output_contract.md`。
 
 ## Output Completeness Requirements
 

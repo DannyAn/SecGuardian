@@ -5,6 +5,9 @@ description: "安全加固项排查 — 67<!-- @secguardian:detector_count --> �
 
 # /secguard - 安全加固项排查
 
+## ⚙️ Command Layer
+
+
 对源码执行安全加固扫描。支持全量扫描和 Git diff 增量扫描，支持命名空间过滤和逗号组合。
 
 ## 使用方式
@@ -123,6 +126,11 @@ Filters: memory.*, system.*
 | `error` | 错误处理 + 信息泄露 | 6<!-- @secguardian:namespace:error --> |
 | `critical` | 所有 Critical 严重度 | 跨 namespace |
 | `*` (默认) | 全部 | 67<!-- @secguardian:detector_count --> |
+
+
+## 🛠️ Engine Layer
+
+> 以下内容属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行执行。未来 Engine 实现后，此处内容将被 Engine 取代。
 
 ## 派发规则与执行步骤
 
@@ -554,6 +562,10 @@ python3 "$RENDERER" \
 - 向用户输出 Markdown 格式的扫描摘要，包含：scan_id、检出总数、按严重度分组、Top 5 key findings。
 - `duration_ms` 由渲染器根据 `findings.json` 中的时间戳自动计算。
   不影响示例代码在测试环境中的使用。"
+
+## 📄 Output Layer
+
+> 以下输出格式遵循 `internal/output/output_contract.md`。
 
 ## secguard 扫描完成
 

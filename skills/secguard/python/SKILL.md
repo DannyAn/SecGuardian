@@ -10,6 +10,11 @@ topic: [web, crypto, system]
 
 对 Python 代码进行安全加固项排查，扫描代码和 PR 中需要安全加固的问题。
 
+## 🎯 Detector Selection (Skill Layer)
+### ⚙️ Engine Instructions
+
+> 以下执行指令属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行。未来 Engine 实现后将被 Engine 取代。
+
 ## 执行流程
 
 > **前置条件**: Command 层面已完成 `secguardian-index` 索引器调用，`index.json` 已生成在扫描输出目录下。包含 `symbols.functions`（函数→文件:行号）、`call_graph.edges`（调用关系）、`files`（文件清单）。
@@ -43,6 +48,10 @@ topic: [web, crypto, system]
 - FastAPI (依赖注入, Pydantic, Response)
 - SQLAlchemy (ORM, Core, text())
 - Celery (任务序列化安全)
+
+## 📄 Output Protocol
+
+> 以下输出格式遵循 `internal/output/output_contract.md`。
 
 ## 输出完整性要求
 
