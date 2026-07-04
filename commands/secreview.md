@@ -305,3 +305,38 @@ python3 "$RENDERER" \
   "Path contains demo/test code (examples/). The detected vulnerabilities are intentionally placed for testing purposes.
   CI gate zero-tolerance thresholds (Critical=0, High=0) are designed for production code
   and do not affect demo code used in test environments."
+
+## 🔒 secreview Review Complete
+
+**Scan ID:** `<scan-id>`
+**Project:** `<project-name>`
+**Workspace:** `<user-project>`
+**Path:** `./src`
+**Mode:** full codebase | Language: python
+
+### Results
+- Files reviewed: 3
+- Review dimensions: 3 passes
+- Total findings: N (Critical: X, High: Y, Medium: Z)
+
+### Findings
+| # | Severity | CWE | File | Summary |
+|---|----------|-----|------|---------|
+
+### Output Files
+📋 Unified entry: `.codeagent/.../human/executive-summary.md`
+📄 Full report: `.codeagent/.../report.md`
+🌐 Dashboard: `.codeagent/.../dashboard.html`
+🤖 AI Remediation: `.codeagent/.../ai/remediation-pack.json`
+📊 SARIF: `.codeagent/.../results.sarif`
+📋 Index: `.codeagent/.../manifest.json`
+
+💡 **How to Use Results**
+- Quick summary → manifest.json
+- ★ Unified entry → human/executive-summary.md
+- Engineer remediation → findings/<detector>/
+- Management dashboard → dashboard.html
+- Full report → report.md
+- AI Agent fix → /secfix <scan-id>
+- CI/CD integration → results.sarif
+

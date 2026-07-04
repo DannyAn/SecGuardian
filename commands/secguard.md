@@ -569,3 +569,41 @@ python3 "$RENDERER" \
 - 向用户输出 Markdown 格式的扫描摘要，包含：scan_id、检出总数、按严重度分组、Top 5 key findings。
 - `duration_ms` 由渲染器根据 `findings.json` 中的时间戳自动计算。
   不影响示例代码在测试环境中的使用。"
+
+## secguard 扫描完成
+
+Scan ID: <scan-id>
+Project: <project-name>
+Workspace: <user-project>
+Path: ./src
+Mode: full | Language: python | Filters: all
+
+### 结果
+- 扫描文件: 3, 扫描行: 295
+- 检测器匹配: N matched, M executed
+- 检出: N (Critical: X, High: Y, Medium: Z)
+- 安全评分: XX/100
+
+### 检出
+| # | Severity | Detector | File | 修复建议 |
+|---|---|---|---|---|
+| #1 | 🔴 Critical | web.sql-injection | UserController.java:47 | 使用 PreparedStatement |
+| ... | ... | ... | ... | ... |
+
+### 输出文件
+📋 统一入口: `.codeagent/.../human/executive-summary.md`
+📄 完整报告: `.codeagent/.../report.md`
+🌐 仪表盘: `.codeagent/.../dashboard.html`
+🤖 AI 修复包: `.codeagent/.../ai/remediation-pack.json`
+📊 SARIF: `.codeagent/.../results.sarif`
+📋 索引: `.codeagent/.../manifest.json`
+
+💡 **如何使用扫描结果？**
+- **快速看汇总** → 打开 `manifest.json`
+- **★ 统一入口** → `human/executive-summary.md`
+- **👨‍💻 工程师修复** → 按检测器：`findings/<检测器>/`
+- **🌐 管理层仪表盘** → 浏览器打开 `dashboard.html`
+- **📄 安全工程师** → 打开 `report.md`
+- **🤖 AI Agent 修复** → `/secfix <scan-id>` 自动修复
+- **📊 CI/CD 集成** → 消费 `results.sarif`
+
