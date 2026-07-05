@@ -142,11 +142,37 @@ SECGUARDIAN_HOME="${SECGUARDIAN_HOME:-scripts/..}"
 
 ---
 
+### 🔒 跨 Shell 状态传递规则（Step 1 之后的所有 bash 调用必须遵守）
+
+> **每个 bash 调用都是独立 shell，变量不共享。禁止用 `/tmp/` 或任何系统临时目录传状态。**
+
+Step 1 末尾将 `SCAN_ID`、`SCAN_DIR`、`USER_PROJECT` 持久化到 `.codeagent/secguardian/.scan_state`。
+从 Step 2 开始，**每个 bash 调用第一行必须是**：
+```bash
+source .codeagent/secguardian/.scan_state
+```
+此后直接使用 `$SCAN_DIR`、`$SCAN_ID`、`$USER_PROJECT`。禁止使用 `$(cat /tmp/*.txt)`。
+
+---
+
 ### Step 1: 建立输出目录
 
 - **⏳ 首选生成 scan_id**（格式: `sec-YYYYMMDD-HHMMSS-xxxx`，`xxxx` 为随机4位字符）。
 - **scan_id 一旦生成，后续所有路径必须使用此 scan_id。**
 - 创建输出目录: `.codeagent/secguardian/secaudit/scans/<scan_id>/`。
+- **持久化状态供跨 shell 使用：**
+```bash
+USER_PROJECT="$(pwd)"
+SCAN_ID="sec-$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 2)"
+SCAN_DIR="$USER_PROJECT/.codeagent/secguardian/secaudit/scans/$SCAN_ID"
+mkdir -p "$SCAN_DIR"
+cat > "$USER_PROJECT/.codeagent/secguardian/.scan_state" << STATEEOF
+SCAN_ID="$SCAN_ID"
+USER_PROJECT="$USER_PROJECT"
+SCAN_DIR="$SCAN_DIR"
+STATEEOF
+echo "SCAN_DIR=$SCAN_DIR"
+```
 - 记录审计开始时间戳，用于 Step 4 计算 `duration_ms`。
 
 ### Step 2: 构建语义索引（必须执行，不可跳过）
@@ -208,27 +234,44 @@ python3 scripts/validate-index.py \
 每个 finding 写入独立文件，路径格式如 secguard Step 4a，额外包含 `secaudit_specific` 字段。
 使用 `record-finding.py`（通过多路径搜索定位）记录每个 finding，无需手写 JSON：
 
+> **🔗 锚定+证据约束 (engine_contract.md Rule A + Rule B):**
+> - 每个 finding 的 `file`+`line` MUST 可追溯到 index.json 的符号或文件列表
+> - MUST 提供 `--snippet`、`--code-context`、`--rationale`、`--attack-scenario`
+> - MUST 传 `--index-json` 进行锚定校验
+
 ```bash
 RECORDER="$SECGUARDIAN_HOME/scripts/record-finding.py"
 
+# ⚠️ MUST use heredoc with --from-stdin. NEVER pass code as inline CLI args.
 python3 "$RECORDER" \
     --command secaudit \
     --scan-dir .codeagent/secguardian/secaudit/scans/<scan_id> \
-    --detector audit.input-validation \
-    --severity Critical --cwe CWE-89 \
-    --file src/webapp.py --line 47 \
-    --end-line 48 \
-    --function get_user \
-    --snippet "cursor.execute(\"SELECT * FROM users WHERE id = ?\")" \
-    --rationale "用户输入直接拼接 SQL — 违反 OWASP Top 10 A03:2021" \
-    --data-flow-path "HTTP param → get_user() → f-string → cursor.execute" \
-    --attack-scenario "攻击者通过 SQL 注入窃取所有用户数据" \
-    --cvss 9.8 \
-    --title "使用参数化查询替代 f-string" \
-    --fix-before "cursor.execute(\"SELECT * FROM users WHERE id = ?\")" \
-    --fix-after "cursor.execute(\"SELECT * FROM users WHERE id = ?\", (user_id,))" \
-    --skill-name input-validation --skill-category domain \
-    --analysis-paths 15 --complete-chains 4
+    --from-stdin << 'RECEOF'
+{
+  "command": "secaudit",
+  "detector": "audit.input-validation",
+  "severity": "Critical",
+  "cwe": "CWE-89",
+  "file": "src/webapp.py",
+  "line": 47,
+  "end_line": 48,
+  "function": "get_user",
+  "title": "使用参数化查询替代 f-string",
+  "snippet": "cursor.execute(\"SELECT * FROM users WHERE id = ?\")",
+  "code_context": "def get_user(user_id):\n    cursor.execute(f\"SELECT * FROM users WHERE id = {user_id}\")",
+  "rationale": "用户输入直接拼接 SQL — 违反 OWASP Top 10 A03:2021",
+  "attack_scenario": "攻击者通过 SQL 注入窃取所有用户数据",
+  "data_flow_path": "HTTP param → get_user() → f-string → cursor.execute",
+  "cvss": 9.8,
+  "fix_before": "cursor.execute(f\"SELECT * FROM users WHERE id = {user_id}\")",
+  "fix_after": "cursor.execute(\"SELECT * FROM users WHERE id = ?\", (user_id,))",
+  "skill_name": "input-validation",
+  "skill_category": "domain",
+  "analysis_paths": 15,
+  "complete_chains": 4,
+  "index_json": ".codeagent/secguardian/index.json"
+}
+RECEOF
 ```
 
 输出：`findings/<ns>/<detector>/<sha12>_<file>-<line>.json`

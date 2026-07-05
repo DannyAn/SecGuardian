@@ -147,12 +147,46 @@ Filters: memory.*, system.*
 
 ❌ health 检查失败时输出错误信息并终止。运行时依赖不在前置阶段检查，
 在对应步骤（渲染器、知识加载）执行时按需检查并报错。
+
+### 🔒 跨 Shell 状态传递规则（Step 1 之后的所有 bash 调用必须遵守）
+
+> **每个 bash 调用都是独立 shell，变量不共享。禁止用 `/tmp/` 或任何系统临时目录传状态。**
+
+Step 1 末尾将 `SCAN_ID`、`SCAN_DIR`、`USER_PROJECT` 持久化到 `.codeagent/secguardian/.scan_state`。
+从 Step 2 开始，**每个 bash 调用第一行必须是**：
+```bash
+source .codeagent/secguardian/.scan_state
+```
+此后直接使用 `$SCAN_DIR`、`$SCAN_ID`、`$USER_PROJECT`。禁止使用 `$(cat /tmp/*.txt)`。
+`/tmp/` 在 Windows 不可用、触发 macOS 确权弹窗、且多用户不安全。
+
 ### Step 1: 建立输出目录
 
 - **⏳ 首选生成 scan_id**（格式: `sc-YYYYMMDD-HHMMSS-xxxx`，`xxxx` 为随机4位字符）。
 - **scan_id 一旦生成，后续所有路径必须使用此 scan_id。**
 - 创建输出目录: `.codeagent/secguardian/secguard/scans/<scan_id>/`。
-- 记录扫描开始时间戳，用于 Step 4 计算 `duration_ms`。
+- **🚫 绝对禁止使用 `/tmp/` 或任何系统临时目录存储状态。** `/tmp/` 在 Windows 不可用、触发确权弹窗、且多用户不安全。
+- **跨 shell 状态传递**: 将 `SCAN_DIR` 写入 `.codeagent/secguardian/.scan_state`，后续步骤 `source` 该文件获取变量。
+
+```bash
+# Step 1 末尾: 持久化状态（唯一一次写入 .scan_state）
+USER_PROJECT="$(pwd)"
+SCAN_ID="sc-$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 2)"
+SCAN_DIR="$USER_PROJECT/.codeagent/secguardian/secguard/scans/$SCAN_ID"
+mkdir -p "$SCAN_DIR"
+cat > "$USER_PROJECT/.codeagent/secguardian/.scan_state" << STATEEOF
+SCAN_ID="$SCAN_ID"
+USER_PROJECT="$USER_PROJECT"
+SCAN_DIR="$SCAN_DIR"
+STATEEOF
+echo "SCAN_DIR=$SCAN_DIR"
+```
+
+> 后续每个 Step 的 bash 调用**第一行必须是**:
+> ```bash
+> source .codeagent/secguardian/.scan_state
+> ```
+> 此后 `$SCAN_DIR`、`$SCAN_ID`、`$USER_PROJECT` 即可用。**禁止用 `cat /tmp/*.txt`**。
 
 ### Step 2: 构建语义索引（必须执行，不可跳过）
 
@@ -179,8 +213,8 @@ if command -v timeout &>/dev/null; then TIMEOUT_CMD="timeout 120"
 elif command -v gtimeout &>/dev/null; then TIMEOUT_CMD="gtimeout 120"
 fi
 # 缓存由 wrapper 透明处理：同路径复用 index.json（加 --force 强制重建，刷新缓存）
-$TIMEOUT_CMD $INDEXER --lang <language> --path <path> --output <user-project>/.codeagent/secguardian/index.json
-if [ ! -f "<user-project>/.codeagent/secguardian/index.json" ]; then
+$TIMEOUT_CMD $INDEXER --lang <language> --path <path> --output "$USER_PROJECT/.codeagent/secguardian/index.json"
+if [ ! -f ""$USER_PROJECT/.codeagent/secguardian/index.json"" ]; then
     echo "FATAL: Indexer failed — cannot continue"
     exit 1
 fi
@@ -250,20 +284,33 @@ INDEX_FILE 输出示例:
 - `alloc_free.pairs` — 分配/释放对
 - `lock_graph.mutexes` — 锁使用记录
 
-#### 2.5b 构建检测目标映射（为后续执行加速）
+#### 2.5b 确定读取范围 — index.json 符号表即唯一扫描清单
 
-预扫描 index.json，建立检测器 → 目标位置的映射。目的：后续 Step 4 执行检测时，AI 带着精确坐标跳转，不盲目遍历文件。
+> ⚠️ **index.json.symbols.functions 已是完整的函数→文件:行号 映射。不需要衍生文件。**
 
-| 检测器类型 | 预查索引数据源 |
-|-----------|--------------|
-| 内存安全（`memory.*`） | `alloc_free.pairs` 中的分配点、`symbols.functions` 中 unsafe 内存操作 |
-| 并发安全（`concurrency.*`） | `lock_graph.mutexes` 中的锁位置、`symbols.variables` 中共享变量 |
-| 加密安全（`crypto.*`） | `symbols.functions` 中加密函数调用点 |
-| Web 安全（`web.*`） | `symbols.functions` + `call_graph.edges` 中的 SQL/模板/用户输入处理 |
-| 系统/资源（`system.*`/`resource.*`） | `symbols.functions` 中系统调用/文件操作 |
+读取 index.json 后，`symbols.functions` 就是 LLM 的唯一定位依据：
 
-> **关键约束**：此步骤构建的映射**仅用于加速执行**，不跳过任何已确定的检测器。
-> 即使某检测器在 index.json 中无直接匹配，AI 仍需执行它（确认代码中是否以其他方式实现了类似功能）。
+```json
+// index.json 已包含:
+{
+  "symbols": {
+    "functions": [
+      {"name": "parse_task_name", "file": "src/parser.c", "start_line": 26, "end_line": 50},
+      {"name": "format_task_desc", "file": "src/parser.c", "start_line": 39, "end_line": 65}
+    ]
+  },
+  "alloc_free": {"pairs": [...]},
+  "lock_graph": {"mutexes": [...]}
+}
+```
+
+> **🔒 强制读取规则 (NON-NEGOTIABLE):**
+>
+> 1. **读取范围 = `index.json.symbols.functions` 中的所有条目。** 每个条目的 `file`+`start_line` 即读取起点。读取 ±10 行上下文。
+> 2. **不读符号表外的代码。** `symbols.functions` 中没有的文件 → 不读。符号表中没有的函数 → 不分析。
+> 3. **检测器预筛基于函数名。** 对每个检测器，在 `symbols.functions` 中查找关联函数名（如 `strcpy`→buffer-overflow，`system`→command-injection）。无关联函数 → 跳过该检测器，报告 "Skipped: no matching symbol in index"。
+> 4. **alloc_free + lock_graph 作为补充信号。** 内存检测器查阅 `alloc_free.pairs`，并发检测器查阅 `lock_graph.mutexes`。
+> 5. **`--no-signal-filter`**: 用户可加此标志跳过预筛，执行全部检测器 + 读取全部文件。
 
 ### Step 3: 语言与检测器匹配
 
@@ -398,38 +445,53 @@ print("✅ Verification audit: %s findings → %s certified, %s dismissed" % (fi
 PYEOF
 ```
 
-### Step 4: 输出结构化 findings（批量模式）
-
-> ⚠️ **I/O 优化要求**: 所有 findings 必须一次性输出到 `findings.json`。禁止按严重度分批写入。
-> 批量输出: `python3 render-report.py --findings <dir>/findings.json --output <dir>`
-> 参见 `internal/output/output_contract.md`。
-
 ### Step 4: 输出结构化 findings（遵循 Findings Protocol v5.0）
 
-> ⚠️ **性能优化**: 所有 findings 统一写入 `findings.json`（v4.0 单文件格式），
-> 由 `render-report.py` 拆分为 per-detector 文件和各类报告。
-> **禁止直接写 report.md / results.sarif / 任何其他输出文件** — 这些由渲染器生成。
-> 渲染器调用方式: `python3 render-report.py --findings <dir>/findings.json --output <dir>`
+> ⚠️ **唯一输出路径**: 所有 findings 必须通过 `record-finding.py` 逐条录制到 `findings/` 目录树下。
+> **禁止 AI 手写 `findings.json`。** `findings.json` 由 `render-report.py` 从 `findings/` 目录树自动聚合生成。
+> 渲染器调用: `python3 render-report.py --findings-dir <dir>/findings/ --output <dir>`
 > 参见 `internal/output/output_contract.md`。
 >
 > 调用 `record-finding.py`（通过多路径搜索定位）记录每个 finding：
+>
+> **🔗 锚定+证据约束 (engine_contract.md Rule A + Rule B):**
+> - 每个 finding 的 `file`+`line` MUST 可追溯到 index.json 的符号或文件列表
+> - 每个 finding MUST 提供 `--snippet`（漏洞代码行）、`--code-context`（上下文）、`--rationale`（判断依据）
+> - MUST 传 `--index-json` 进行锚定校验
+> - 无 index 锚点的 finding MUST 标记 `confidence: low` 并说明原因
 
 ```bash
 RECORDER="$SECGUARDIAN_HOME/scripts/record-finding.py"
 
+# ⚠️ MUST use heredoc with --from-stdin. NEVER pass code as inline CLI args.
+# The 'RECEOF' delimiter is single-quoted → zero shell expansion → zero quoting bugs.
 python3 "$RECORDER" \
     --command secguard \
     --scan-dir .codeagent/secguardian/secguard/scans/<scan_id> \
-    --detector <namespace.name> \
-    --severity Critical --cwe CWE-89 \
-    --file src/UserController.java --line 52 \
-    --fix-before "<bad_code>" --fix-after "<good_code>"
+    --from-stdin << 'RECEOF'
+{
+  "command": "secguard",
+  "detector": "<namespace.name>",
+  "severity": "Critical",
+  "cwe": "CWE-89",
+  "file": "src/UserController.java",
+  "line": 52,
+  "function": "getUser",
+  "title": "SQL injection via string concatenation",
+  "snippet": "String query = \"SELECT * FROM users WHERE name = '\" + username + \"'\";",
+  "code_context": "public User getUser(String username) {\n    String query = \"SELECT * FROM users WHERE name = '\" + username + \"'\";\n    return jdbcTemplate.query(query, ...);\n}",
+  "rationale": "User input concatenated into SQL — violates OWASP A03:2021 Injection",
+  "attack_scenario": "Attacker provides ' OR '1'='1' -- to bypass auth and dump all users",
+  "cvss": 9.8,
+  "fix_before": "String query = \"SELECT * FROM users WHERE name = '\" + username + \"'\";",
+  "fix_after": "String query = \"SELECT * FROM users WHERE name = ?\";\nPreparedStatement ps = conn.prepareStatement(query);\nps.setString(1, username);",
+  "index_json": ".codeagent/secguardian/index.json"
+}
+RECEOF
 ```
 
 输出：`findings/<ns>/<detector>/<sha12>_<file>-<line>.json`
-> 📄 批量输出：所有 findings 统一写入 `findings.json`（v4.0 单文件格式），
-> 由 `render-report.py` 拆分为 per-detector 文件和各类报告。
-> 参见 `internal/output/output_contract.md`。
+> `findings.json` 由渲染器从 `findings/` 目录树自动聚合。禁止 AI 手写。
 
 
 **4a. 按 detector 分组，以 SHA 前缀为文件名逐文件输出（每个文件 2-4KB）：**

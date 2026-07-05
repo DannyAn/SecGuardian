@@ -42,6 +42,18 @@ Designed for developers who know a fix needs to be applied but would rather revi
 
 > 以下内容属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行执行。未来 Engine 实现后，此处内容将被 Engine 取代。
 
+### 🔒 跨 Shell 状态传递
+
+> **每个 bash 调用都是独立 shell，变量不共享。禁止用 `/tmp/` 传状态。**
+
+secfix 读取已有扫描结果生成 patch。定位扫描目录时使用 `latest` 符号链接：
+```bash
+# 查找最新扫描（无参数时）
+ls -td .codeagent/secguardian/*/scans/*/findings/ 2>/dev/null | head -1
+```
+需要持久化状态时，使用 `.codeagent/secguardian/.scan_state`（与其他命令共享）。
+禁止使用 `/tmp/` 或系统临时目录。
+
 ## How It Works
 
 ```

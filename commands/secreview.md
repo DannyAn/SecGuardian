@@ -149,11 +149,38 @@ Before starting any review, verify each condition below. **If any check fails, r
 
 ---
 
+### 🔒 Cross-Shell State Passing (ALL bash calls after Step 1 MUST follow)
+
+> **Each bash call is an independent shell — variables are not shared. NEVER use `/tmp/` for state.**
+> `/tmp/` breaks on Windows, triggers macOS permission prompts, and is multi-user unsafe.
+
+Step 1 writes `SCAN_ID`, `SCAN_DIR`, `USER_PROJECT` to `.codeagent/secguardian/.scan_state`.
+From Step 2 onward, **every bash call MUST start with**:
+```bash
+source .codeagent/secguardian/.scan_state
+```
+Then use `$SCAN_DIR`, `$SCAN_ID`, `$USER_PROJECT` directly. NEVER use `$(cat /tmp/*.txt)`.
+
+---
+
 ### Step 1: Create Output Directory
 
 - **⏳ Generate scan_id FIRST** (format: `pr-YYYYMMDD-HHMMSS-xxxx`, `xxxx` is 4 random chars).
 - Create output directory: `<user-project>/.codeagent/secguardian/secreview/scans/<scan_id>/`.
 - **Once scan_id is generated, ALL subsequent paths must use this scan_id.**
+- **Persist state for cross-shell use:**
+```bash
+USER_PROJECT="$(pwd)"
+SCAN_ID="pr-$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 2)"
+SCAN_DIR="$USER_PROJECT/.codeagent/secguardian/secreview/scans/$SCAN_ID"
+mkdir -p "$SCAN_DIR"
+cat > "$USER_PROJECT/.codeagent/secguardian/.scan_state" << STATEEOF
+SCAN_ID="$SCAN_ID"
+USER_PROJECT="$USER_PROJECT"
+SCAN_DIR="$SCAN_DIR"
+STATEEOF
+echo "SCAN_DIR=$SCAN_DIR"
+```
 - Record review start timestamp for Step 4 `duration_ms` calculation.
 
 ### Step 2: Build Semantic Index (Required)
@@ -241,26 +268,42 @@ Each finding written to `<scan_dir>/findings/<detector>/<sha12>_<file_slug>-<lin
 
 Each finding is recorded via `record-finding.py` (multi-path search).
 
+> **🔗 锚定+证据约束 (engine_contract.md Rule A + Rule B):**
+> - 每个 finding 的 `file`+`line` MUST 可追溯到 index.json 的符号或文件列表
+> - MUST 提供 `--snippet`、`--code-context`、`--rationale`、`--attack-scenario`
+> - MUST 传 `--index-json` 进行锚定校验
+> - 无 index 锚点时 MUST 标记 `confidence: low`
+
 ```bash
 RECORDER="$SECGUARDIAN_HOME/scripts/record-finding.py"
 
+# ⚠️ MUST use heredoc with --from-stdin. NEVER pass code as inline CLI args.
 python3 "$RECORDER" \
     --command secreview \
     --scan-dir .codeagent/secguardian/secreview/scans/<scan_id> \
-    --detector web.sql-injection \
-    --severity High --cwe CWE-089 \
-    --file "src/service/UserService.java" --line 89 \
-    --end-line 92 \
-    --function findUser \
-    --snippet 'String qry = "SELECT * FROM users WHERE id=" + userId;' \
-    --rationale "String concatenation in SQL query — violates OWASP A03:2021" \
-    --attack-scenario "Attacker provides userId=1 OR 1=1 to bypass auth" \
-    --cvss 8.2 \
-    --title "Use PreparedStatement for parameterized query" \
-    --fix-before 'String qry = "SELECT * FROM users WHERE id=" + userId;' \
-    --fix-after 'PreparedStatement ps = conn.prepareStatement("SELECT * FROM users WHERE id=?"); ps.setInt(1, userId);' \
-    --review-pass vulnerability_detection \
-    --review-focus "input-validation,injection-prevention"
+    --from-stdin << 'RECEOF'
+{
+  "command": "secreview",
+  "detector": "web.sql-injection",
+  "severity": "High",
+  "cwe": "CWE-089",
+  "file": "src/service/UserService.java",
+  "line": 89,
+  "end_line": 92,
+  "function": "findUser",
+  "title": "Use PreparedStatement for parameterized query",
+  "snippet": "String qry = \"SELECT * FROM users WHERE id=\" + userId;",
+  "code_context": "public User findUser(String userId) { String qry = \"SELECT * FROM users WHERE id=\" + userId; return jdbcTemplate.query(qry, ...); }",
+  "rationale": "String concatenation in SQL query — violates OWASP A03:2021",
+  "attack_scenario": "Attacker provides userId=1 OR 1=1 to bypass auth",
+  "cvss": 8.2,
+  "fix_before": "String qry = \"SELECT * FROM users WHERE id=\" + userId;",
+  "fix_after": "PreparedStatement ps = conn.prepareStatement(\"SELECT * FROM users WHERE id=?\"); ps.setInt(1, userId);",
+  "review_pass": "vulnerability_detection",
+  "review_focus": "input-validation,injection-prevention",
+  "index_json": ".codeagent/secguardian/index.json"
+}
+RECEOF
 ```
 
 Key requirements (secreview-specific):
