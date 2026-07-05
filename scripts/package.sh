@@ -96,6 +96,14 @@ elif [ -f "$PROJECT_ROOT/internal/go.mod" ] && command -v go &>/dev/null; then
         CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o "$BUILD_BIN_DIR/secguardian-index-windows-amd64.exe" . 2>/dev/null && \
         echo "    [OK] windows-amd64 (regex)" || echo "    [WARN] windows-amd64 build failed") &
     wait
+    # Track build results — report all failures
+    BUILD_FAILED=0
+    for pid in "$(jobs -p)"; do
+        wait "$pid" || BUILD_FAILED=$((BUILD_FAILED + 1))
+    done
+    if [ "$BUILD_FAILED" -gt 0 ]; then
+        echo "    [WARN] $BUILD_FAILED platform(s) failed to build"
+    fi
     echo "  → Compilation done. Binaries in: $BUILD_BIN_DIR/"
     ls -lh "$BUILD_BIN_DIR/" 2>/dev/null | grep -v "^total" | awk '{print "    " $NF " (" $5 ")"}' || true
     echo "  → Note: tree-sitter (CGO) on native platform, pure-Go regex fallback on cross-compiled platforms."

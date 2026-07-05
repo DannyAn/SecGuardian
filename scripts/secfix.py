@@ -167,9 +167,9 @@ def run(args):
                 "detector": detector,
                 "severity": finding.get("severity", ""),
                 "cwe": finding.get("cwe", ""),
-                "file": file_path if "file_path" in locals() else "",
-                "line": line if "line" in locals() else 0,
-                "description": description if "description" in locals() else "",
+                "file": file_path or "",
+                "line": line or 0,
+                "description": description or "",
                 "patch_file": str(patch_path),
             }
             meta_path = patch_path.with_name(patch_name.replace(".patch", ".patch.meta"))

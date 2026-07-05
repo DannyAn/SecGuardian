@@ -47,8 +47,20 @@ except: print('')
 " 2>/dev/null)
     RESOLVED_PATH="$SRC_PATH"  # Use raw path (Go indexer stores it as-is)
     if [ "$STORED_PATH" = "$RESOLVED_PATH" ]; then
-        echo "INDEX EXISTS: $OUTPUT_PATH (path matches, use --force to rebuild)" >&2
-        exit 0
+        # Quick integrity check: compare source file count (catches added/removed files)
+        SRC_COUNT=$(find "$SRC_PATH" -type f 2>/dev/null | wc -l)
+        if [ -f "$OUTPUT_PATH" ]; then
+            STORED_FILES=$(python3 -c "import json; d=json.load(open('$OUTPUT_PATH')); print(len(d.get('files',[])))" 2>/dev/null || echo "0")
+        else
+            STORED_FILES="0"
+        fi
+        if [ "$SRC_COUNT" = "$STORED_FILES" ] || [ "$STORED_FILES" = "0" ]; then
+            echo "INDEX EXISTS: $OUTPUT_PATH (path + file count match, use --force to rebuild)" >&2
+            exit 0
+        else
+            echo "INDEX FILE COUNT MISMATCH: source=$SRC_COUNT vs index=$STORED_FILES — rebuilding" >&2
+        fi
+    elif [ -n "$STORED_PATH" ]; then
     elif [ -n "$STORED_PATH" ]; then
         echo "INDEX PATH MISMATCH: stored=$STORED_PATH vs current=$RESOLVED_PATH — rebuilding" >&2
     fi
