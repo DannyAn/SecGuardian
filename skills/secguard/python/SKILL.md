@@ -43,6 +43,29 @@ topic: [web, crypto, system]
 | Medium | XSS | render_template_string vs render_template / mark_safe |
 
 ### 框架覆盖
+
+## 执行指令（I/O 优化版）
+
+> 以下执行方式遵循 `engine_contract.md` 和 `output_contract.md` 的性能要求。
+
+### 源文件读取（index 驱动，非逐文件全读）
+
+读取 `index.json` 后：
+1. 从 `symbols.functions` 获取函数→文件映射表
+2. 对每个检测器，按符号表定位目标函数所在的文件+行号
+3. **只读取定位到的代码段**（前后 10 行作为上下文），不读无关文件全文
+
+### 检测器加载（批量 + 按需）
+
+1. 加载 `knowledge/language-index.md`（57 行，包含所有检测器清单）
+2. 先做符号匹配快速过滤，仅加载匹配到的 detector 详情
+
+### Finding 输出（批量）
+
+1. 将所有 findings 收集到临时结构
+2. 用 `python3 render-report.py --findings <dir>/findings.json --output <dir>` 批量输出
+
+## 输出完整性要求
 - Django (ORM, 模板, 安全中间件)
 - Flask (Jinja2, Flask-Login, WTForms)
 - FastAPI (依赖注入, Pydantic, Response)

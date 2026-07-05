@@ -142,6 +142,26 @@ SARIF 格式要求（[GitHub 2025-07 起强制](https://github.blog/changelog/20
 
 
 
+## 执行指令（I/O 优化版）
+
+> 以下执行方式遵循 `engine_contract.md` 和 `output_contract.md` 的性能要求。
+
+### 源文件读取（index 驱动）
+
+1. 从 `index.json` -> `symbols.functions` / `call_graph.edges` / `alloc_free.pairs` 获取符号定位
+2. 对每个检测器，只读取定位到的代码段（前后 10 行），不读无关文件全文
+
+### 检测器加载（批量 + 按需）
+
+1. 先加载 `knowledge/language-index.md`（57 行）获取全量检测器清单
+2. 按符号匹配过滤（快速排除不匹配的检测器）
+3. 仅对匹配的检测器加载详情
+
+### Finding 输出（批量）
+
+1. 所有 findings 收集到临时结构
+2. 用 `python3 render-report.py --findings <dir>/findings.json --output <dir>` 批量输出
+
 ## 错误处理
 
 - 部分检测器执行失败 → `scan.status = "partial"`，在 manifest 中记录失败的 detector

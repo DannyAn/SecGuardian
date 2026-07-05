@@ -138,35 +138,15 @@ Filters: memory.*, system.*
 
 你（AI Agent）在接收到 `/secguard` 命令后，必须按以下步骤执行来构建索引并进行安全扫描。
 
-### 前置检查（Pre-flight Checklist）
+### 前置检查（Pre-flight）
 
-# ── Resolve SECGUARDIAN_HOME ─────────────────
-if [ -z "$SECGUARDIAN_HOME" ]; then
-    for _sg_root in ".claude/plugins/secguardian" \
-                    ".config/opencode/extensions/secguardian" \
-                    ".gemini/extensions/secguardian"; do
-        if [ -f "$_sg_root/.secguardian-env" ]; then
-            source "$_sg_root/.secguardian-env"
-            break
-        fi
-    done
-fi
-SECGUARDIAN_HOME="${SECGUARDIAN_HOME:-scripts/..}"
+执行 `/secguard` 前，完成以下前置验证：
 
-> ⛔ **禁止使用 Glob 或 Read 工具探索文件路径（搜索文件）。已知路径的文件可以用 `cat` 或 `head` 读取（扩展目录下的文件不用 Read 工具，避免权限弹窗）**。所有路径检测必须通过 bash 命令（`[ -f ]`、`ls`）完成。先跑 `find_indexer` 再跑 `--health`。
+1. [ ] **索引器健康检查**：`secguardian-index --health`（验证 binary、python3、渲染器等运行时依赖）
+2. [ ] **扫描路径确认**：`test -d <path>`（确认目标路径存在）
 
-在执行任何扫描步骤之前，必须逐项确认以下所有条件。**任一项未通过，扫描不得开始，向用户报告具体错误。**
-
-- [ ] 定位索引器 wrapper：由 `SECGUARDIAN_HOME` env var 或 `.secguardian-env` 文件定位，不再多路径搜索，然后执行 `find_indexer()` 自动搜索全部路径（优先用户级部署，最后回退本地仓库）
-- [ ] 执行 `{indexer} --health` 通过（输出必须包含 `HEALTH:OK` 或 `HEALTH:WARN`，不接受 `HEALTH:FAIL`）
-- [ ] 目标路径 `<path>` 存在且包含至少一个源码文件
-- [ ] **语言推断（仅当用户未提供 `language` 参数时）**：检查 `<path>` 下源码文件扩展名 → `*.c/*.cpp/*.h` → `cpp`, `*.py` → `python`, `*.java` → `java`, `*.go` → `go`。无需询问用户，扩展名即可判定。
-- [ ] 确认不会启动 clangd/LSP/compile_commands.json/bear 等外部工具 — indexer (tree-sitter) 已提供符号表+调用图+文件清单，所有代码结构数据从 index.json 获取
-
-> 若未通过，报告具体哪一项失败并终止。不要降级为手工逐文件扫描。
-
----
-
+❌ health 检查失败时输出错误信息并终止。运行时依赖不在前置阶段检查，
+在对应步骤（渲染器、知识加载）执行时按需检查并报错。
 ### Step 1: 建立输出目录
 
 - **⏳ 首选生成 scan_id**（格式: `sc-YYYYMMDD-HHMMSS-xxxx`，`xxxx` 为随机4位字符）。
@@ -420,7 +400,11 @@ PYEOF
 
 ### Step 4: 输出结构化 findings（遵循 Findings Protocol v5.0）
 
-> ⚠️ **v5.0 关键变更**: AI **不再输出单体 findings.json**。改为按 detector 分类，**每个 finding 输出一个独立文件**到 `findings/` 目录树下。`findings.json` 由渲染器自动生成（不含四段式，仅元数据+索引）。AI 只负责通过 `record-finding.py` 录制独立 finding 文件，渲染器调用时自动聚合 `findings_index`。渲染器通过 `--findings-dir` 聚合所有 finding 文件生成报告。**禁止直接写 report.md / results.sarif / 任何其他输出文件** — 这些由渲染器生成。
+> ⚠️ **性能优化**: 所有 findings 统一写入 `findings.json`（v4.0 单文件格式），
+> 由 `render-report.py` 拆分为 per-detector 文件和各类报告。
+> **禁止直接写 report.md / results.sarif / 任何其他输出文件** — 这些由渲染器生成。
+> 渲染器调用方式: `python3 render-report.py --findings <dir>/findings.json --output <dir>`
+> 参见 `internal/output/output_contract.md`。
 >
 > 调用 `record-finding.py`（通过多路径搜索定位）记录每个 finding：
 
@@ -437,15 +421,9 @@ python3 "$RECORDER" \
 ```
 
 输出：`findings/<ns>/<detector>/<sha12>_<file>-<line>.json`
-> ⚠️ Shell 安全：当 fix 代码含 `"` `'` `;` 或路径字符（如 `/etc/`）时，
-> 先用 heredoc 写入文件再传 `--fix-before-file` / `--fix-after-file`：
-> ```bash
-> cat > /tmp/fix_before.txt << 'EOF'
-> String query = "SELECT * FROM users WHERE id = " + input;
-> EOF
-> python3 "$RECORDER" --command secguard --detector web.sql-injection \
->     --fix-before-file /tmp/fix_before.txt --fix-after-file /tmp/fix_after.txt
-> ```
+> 📄 批量输出：所有 findings 统一写入 `findings.json`（v4.0 单文件格式），
+> 由 `render-report.py` 拆分为 per-detector 文件和各类报告。
+> 参见 `internal/output/output_contract.md`。
 
 
 **4a. 按 detector 分组，以 SHA 前缀为文件名逐文件输出（每个文件 2-4KB）：**

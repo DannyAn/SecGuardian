@@ -996,3 +996,41 @@ indexer 当前是 text-approximate 级别，不足以支撑独立 Engine。
 - 不涉及 Go 代码
 - 不涉及 knowledge/
 - 不涉及 detector 内容
+
+---
+
+## 2026-07-05 — FEATURE-004: 扫描性能优化（基于实测数据）
+
+### 背景
+
+对 `examples/go-vuln-demo`（8 个 Go 文件）执行 `/secguard ./src go`，
+实测总耗时 **16m 47s**。
+
+扫描过程分 6 个阶段，各阶段耗时：
+
+| 阶段 | 耗时 | Shell 指令数 | 瓶颈 |
+|------|------|-------------|------|
+| 前置检查 | 27s | 9 | 每次独立 check |
+| 索引构建 | 1s | 1 | ✅ 快 |
+| 读取源文件 | 19s | 8 (read) | 逐个文件全读 |
+| 加载检测器 | 10s | 2+ | 逐个 .md 加载 |
+| 记录 findings | 19s | 16 | 每条 finding 独立写入 |
+| 渲染 | 15s | — | 部署版 import 缺失，AI 自修 |
+
+### 根本原因
+
+每个 shell command / file read 操作在 Claude Code 中约耗时 1-3s（含上下文切换）。
+并非 AI 推理慢，而是 I/O 操作次数太多。
+
+### 方案
+
+1. **前置检查**: 9 次独立 check → 1 次 `--health` + 1 次路径确认
+2. **源文件读取**: 逐个 read 8 次 → index.json 符号定位后批量读取
+3. **检测器加载**: 逐个加载 .md → 一次加载 language-index.md（57 行，含所有检测器）
+4. **Finding 记录**: 16 次独立写入 → 1 次 findings.json 批量写入 + renderer 统一渲染
+5. **渲染器**: 修复 import 缺失，避免 AI 运行时自修
+
+### 预期效果
+
+- 8 文件扫描: 16m47s → ~1-2min（90%+ 减少）
+- 100 文件扫描: 不可用 → 5-8min（可用）
