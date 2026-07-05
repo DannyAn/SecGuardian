@@ -107,7 +107,8 @@ topic: [memory, concurrency, system, crypto]
 Critical detectors → High detectors → Medium detectors
 ```
 
-每个 detector 读取 `knowledge/guard-rules/<name>.md`，利用 Phase 2 加载的 index.json 符号表定位检测目标，而非遍历文件。
+对每个匹配到的检测器，加载 `knowledge/guard-rules/<name>.md` 详情，用于分析。注意：匹配到的检测器指经过 Phase 3 语言过滤+符号过滤后的子集，不是全部 67 个。
+注意：匹配到的检测器指经过 Phase 3 语言过滤+符号过滤后的子集，不是全部 67 个。，利用 Phase 2 加载的 index.json 符号表定位检测目标，而非遍历文件。
 
 ### Phase 5: 持久化输出
 
