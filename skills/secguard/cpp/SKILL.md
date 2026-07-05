@@ -99,7 +99,7 @@ topic: [memory, concurrency, system, crypto]
 
 1. 加载 `../../../knowledge/language-index.md` 获取命名空间映射
 2. 逗号分割 filter → 每个 filter 匹配命名空间 → 去重合并
-3. 仅加载 `active` 状态的检测器 (跳过 `planned`)
+3. 先通过 index.json 符号表匹配过滤（跳过不包含相关符号的检测器）后，仅加载匹配到的 `active` 状态检测器详情
 
 ### Phase 4: 按严重度排序执行
 
