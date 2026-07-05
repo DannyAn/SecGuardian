@@ -25,7 +25,7 @@ SecGuardian models these roles. Each command corresponds to one role.
 | Aspect | Today (v0.12) | Direction (v0.16+) |
 |--------|--------------|-------------------|
 | Role model | Implicit in commands | Explicit architecture boundary |
-| Execution | Skill → LLM prompt → Finding | LLM-assisted strategy (primary), deterministic matcher (research) |
+| Execution | Skill → LLM prompt → Finding | Signal-LLM collaboration (signals anchor + LLM reasons) |
 | LLM dependence | High (core logic in prompt) | Still primary; deterministic parts extracted incrementally |
 | Knowledge loading | Via SKILL.md prompt | Via knowledge layer (same source) |
 | Report rendering | render-report.py | Same output layer |
@@ -66,20 +66,24 @@ The architecture is organized into four layers plus one strategy note.
                           │
                           ▼
 ┌──────────────────────────────────────────────────────┐
-│              STRATEGY NOTE (Future)                   │
+│            EXECUTION STRATEGY LAYER                    │
 │                                                       │
-│  There is NO separate Security Engine today.          │
+│  ┌─────────────────┐  ┌──────────────────┐           │
+│  │ 确定性信号层      │  │  LLM 推理层       │           │
+│  │ (Indexer)        │  │ (AI Agent)       │           │
+│  │                  │  │                  │           │
+│  │ 锚定 + 预筛      │  │ 语义分析 + 补丁  │           │
+│  │ + 去重           │  │ + 解释说明       │           │
+│  └────────┬─────────┘  └────────┬─────────┘           │
+│           └──────────┬───────────┘                    │
+│                      ▼                                │
+│               findings.json                           │
 │                                                       │
-│  All execution logic lives in LLM prompts inside      │
-│  each skill's SKILL.md.                               │
-│                                                       │
-│  Future research: deterministic rule matching         │
-│  that can produce base findings without LLM.          │
-│  When it arrives, it will be a strategy switch        │
-│  within the pipeline, not a new system.               │
+│  No separate Engine binary. Indexer + AI Agent        │
+│  collaborate through index.json.                      │
 │                                                       │
 │  See docs/architecture/security-engine.md for         │
-│  the strategy definition.                             │
+│  the Signal-LLM collaboration model.                  │
 └──────────────────────────────────────────────────────┘
                           │
                           ▼
@@ -237,15 +241,15 @@ stage breakdown.
 
 ### Future Direction (Strategy Evolution)
 
-If deterministic rule matching is explored (future research), it will be
-a **strategy switch within the same pipeline**, not a separate system:
+If signal enhancement enables richer pre-filtering (future versions), it will be
+a **data-quality improvement within the same pipeline**, not a separate system:
 
 ```
 Source Code → indexer → knowledge rules
                            │
                     ┌──────┴──────┐
                     ▼              ▼
-         LLM-assisted strategy   Deterministic matcher (research)
+         Signal-LLM collaboration   Enhanced signals (future)
                     │              │
                     └──────┬──────┘
                            ▼
@@ -280,35 +284,39 @@ the previous. Engine/systems-level abstraction is explicitly avoided.
 
 **Code changes**: None.
 
-### Phase 2: Knowledge Extraction (v0.14)
+### Phase 2: Signal Enhancement R1 (v0.14)
 
-**What**: Extract structured metadata from detector rules incrementally.
-No engine. No DSL. Just better rule structure for LLM consumption.
+**What**: Enhance deterministic signal quality — cross-file call graphs and type
+hierarchy extraction. No engine. No DSL. Just better indexer output.
 
-| Change | Today | Tomorrow |
-|--------|-------|----------|
-| Rule metadata | Pure Markdown | Markdown + optional YAML frontmatter |
-| Knowledge loading | Via prompt only | Via prompt + structured extract |
-| Index matching | LLM reads index.json | Reference matcher for simple patterns |
+| Change | Today | Target |
+|--------|-------|--------|
+| Call graph scope | Same-file `strings.Contains` | Cross-file global symbol table matching |
+| Type information | Names only | Inheritance chains, interface implementations, Go embedding |
+| Index output | Current `call_graph.edges` | New `type_hierarchy.nodes` + `type_hierarchy.edges` |
 
-**Coexistence**: LLM-assisted strategy remains primary. Structured metadata
-is optional — rules still work as pure Markdown.
+**Impact**: Detectors that need call-chain analysis (taint tracking) get more
+accurate pre-filtering. Type-based detectors get reliable type relationships.
+LLM reasoning is not replaced — it benefits from richer, more accurate signal input.
 
-### Phase 3: Strategy Exploration (v0.15)
+### Phase 3: Signal Enhancement R2 (v0.15)
 
-**What**: Explore whether 1-2 unambiguous detectors (e.g., hardcoded-credentials)
-can produce deterministic findings without an LLM. **Research phase** —
-not a production engine.
+**What**: Data-flow pre-analysis and CI fast gate. Research phase —
+may require IR beyond Tree-sitter AST capability.
 
 | Component | Approach |
 |-----------|----------|
-| Detector selection | Pick patterns with low false-positive risk |
-| Implementation | Standalone script, not a shared interface |
-| Validation | Engine output vs LLM output on same codebase |
-| Decision | If match rate > 95%, promote to optional strategy |
+| Source-sink pairing | Function parameter → sensitive operation mapping |
+| Variable reachability | Which functions can reach which variable assignments |
+| CI fast gate | Anchor check + pre-filter match rate (no LLM) |
 
 **Constraint**: No SecurityEngine interface, no API, no telemetry schema.
-Just a concrete function that matches one rule.
+Signal enhancements are concrete indexer improvements. CI fast gate reads
+artifacts; it does not execute analysis.
+
+> ⚠️ **Research phase**: Data-flow analysis may need an IR layer beyond
+> Tree-sitter AST. This milestone will be re-evaluated after v0.14 signals
+> are validated in production.
 
 ### Phase 4: Consumption Mode Expansion (v0.16+)
 
@@ -356,7 +364,7 @@ version of these invariants.
 |--------------------|-----------------|-------|
 | Runtime | `.claude/plugins/secguardian/` | Same across agents |
 | Command | `commands/sec*.md` | 4 command definitions |
-| Security Engine | (does not exist) | Strategy note in docs; not a system |
+| Security Engine | (no separate binary) | Indexer signals + LLM reasoning collaborate through index.json |
 | Knowledge | `knowledge/{detectors,languages,protocols,standards}/` | Version-controlled Markdown |
 | Indexer | `internal/` | Go binary, Tree-sitter + Regex |
 | Output | `render-report.py` + scan output directory | v5.0 protocol |
@@ -370,7 +378,7 @@ version of these invariants.
 
 | Risk | Impact | Mitigation |
 |------|--------|-----------|
-| Premature engine abstraction | Wasted effort, divergent output | engineering-principles.md EP-1 forbids this |
+| Signal quality insufficient for anchoring | Weak pre-filtering, missed findings | Phase 2 progressively enhances indexer output |
 | Rule structure assumption | DSL before need | EP-5: knowledge stays Markdown until proven otherwise |
 | CI pipeline split | Debug hell | EP-6: one pipeline, CI is artifact consumer |
-| LLM dependency too deep | Hard to evolve | Phase 2 starts incremental knowledge extraction |
+| LLM variability across platforms | Inconsistent findings | Anchor + evidence constraints ensure traceability; pre-filter scopes LLM attention |

@@ -124,6 +124,44 @@ Pipeline → results.sarif + status.json + summary.json
 
 ---
 
+### 4.1 Deterministic Fast Gate (Future: v0.16+)
+
+When deterministic signal quality reaches sufficient maturity (post v0.15
+data-flow pre-analysis), CI can run a **fast gate** without invoking the LLM.
+The fast gate does not detect vulnerabilities — it performs hygiene checks
+on the scan process itself:
+
+```
+Pipeline → results.sarif + summary.json + status.json
+                                      ↓
+                          CI Fast Gate evaluates:
+                          1. Anchor check: do all findings have valid index anchors?
+                             - Unanchored finding ratio > threshold → WARN
+                          2. Pre-filter match rate: what % of detector activations
+                             were pre-flagged by deterministic signals?
+                             - Match rate < threshold → possible missed detections
+                          3. De-duplication: are there duplicate findings at the
+                             same code location?
+                             - Duplicate ratio > threshold → signal grouping issue
+```
+
+**The fast gate does NOT replace the LLM scan.** It provides a quick health
+check before or alongside the full pipeline. If the fast gate flags anomalies
+(e.g., high unanchored finding ratio), the team knows the LLM may be
+hallucinating findings and should re-run with tighter constraints.
+
+**Fast gate vs. full scan**:
+
+| Aspect | Fast Gate | Full LLM Scan |
+|--------|-----------|---------------|
+| LLM required | No | Yes |
+| Detection quality | N/A (hygiene only) | Full CWE/CERT coverage |
+| Determinism | 100% (signal arithmetic) | Variable (LLM reasoning) |
+| Duration | <1s | 1-5 min |
+| Use case | Pre-commit hook, CI health check | PR review, release audit |
+
+---
+
 ## 5. Implications
 
 ### Impact on Skill Design

@@ -259,7 +259,7 @@ interaction quality for CI compatibility.
 
 ---
 
-## ADR-007: Execution Strategy Convergence
+## ADR-007: Signal-LLM Collaboration Model (Updated 2026-07-05)
 
 ### Context
 
@@ -267,53 +267,97 @@ Today, security analysis logic is distributed across:
 - `commands/sec*.md` — Command definitions
 - `skills/*/SKILL.md` — AI agent workflows and prompt templates
 - `knowledge/detectors/*.md` — Detection rules (consumed through prompts)
-- `knowledge/protocols/` — Output schemas
 
-There is no unified execution model. Each skill file re-describes how to
-run detectors. Each command re-describes its execution flow.
+The original ADR-007 (2026-07-04) described this as "Execution Strategy
+Convergence" — the idea that execution logic should eventually converge into
+a single strategy definition. This was correct in spirit but was interpreted
+by some readers as "build a unified Security Engine."
 
-This distribution means:
-- Cannot unit-test a detector without running an LLM
-- Cannot add a new detector without modifying a skill prompt
-- Execution behavior varies between platforms
+After EPIC-005 R2 review (2026-07-05), we recognized that:
+- There is no separate Engine binary, and there shouldn't be one
+- The indexer already provides deterministic signals (symbols, call graph, alloc/free)
+- The AI Agent already provides LLM reasoning (semantic analysis, patch generation)
+- These two components collaborate directly through `index.json` — no third component needed
 
 ### Decision
 
-The current execution logic should eventually converge into a single
-**execution strategy definition**. This is NOT a system or engine.
-It is a shared understanding of:
+The execution strategy is a **collaboration between two existing layers**,
+not a new component:
 
-1. **How rules are loaded** — from knowledge/detectors/ (currently Markdown)
-2. **How rules are matched** — against index.json (currently LLM reasoning)
-3. **How findings are generated** — structured output (currently LLM tool calls)
+1. **Deterministic Signal Layer** (Indexer):
+   - Provides anchors: every finding must reference an index symbol or file+line
+   - Provides pre-filters: scope detector applicability based on signal presence
+   - Provides de-duplication: merge findings at the same code location
 
-The convergence direction is "strategy" not "system":
+2. **LLM Reasoning Layer** (AI Agent):
+   - Performs semantic analysis, context reasoning, patch generation
+   - Bound by two constraints: Anchor Rule (location must trace to index) +
+     Evidence Rule (must quote code snippet)
+   - Retains full intelligence — can discover vulnerabilities that traditional
+     SAST would miss
 
-```
-Current:                Future:
-skills/secguard/        execution strategy layer
-  SKILL.md (prompt)       LLM-assisted strategy (current)
-skills/secaudit/          deterministic strategy (research, optional)
-  SKILL.md (prompt)       shared rule loading
-                          shared index matching
-```
+There is no third "Engine" component between them. The collaboration is
+data-driven: `index.json` (signals) → LLM processing → `findings.json` (anchored findings).
 
-**Important**: The current LLM-assisted strategy is the ONLY implemented
-strategy. Deterministic matching is a research direction. No engine,
-interface, or API should be abstracted before a second strategy exists.
-See [engineering-principles.md](engineering-principles.md) EP-1 for the
-premature abstraction constraint.
+### Rejected Alternatives
+
+| 方案 | 否决原因 |
+|------|---------|
+| **独立 Security Engine 二进制** | 在索引器和 LLM 之间插入第三组件增加延迟而无价值；需要索引器尚不支持的 IR 抽象；在第二个策略存在之前抽象接口违反 EP-1 |
+| **LLM 完全不受约束** | 无法做 CI 门禁、无法保证可溯源性、不同模型输出差异无法控制 |
 
 ### Consequences
 
-- **Positive**: Strategy definitions make execution logic reviewable
-- **Positive**: When a second strategy arrives, it is a concrete addition,
-  not an interface extraction
-- **Work to do**: Document the current strategy clearly (done:
-  [execution-model-current.md](execution-model-current.md))
-- **Risk**: This ADR might still be interpreted as "build an engine"
-- **Mitigation**: `engineering-principles.md` explicitly forbids premature
-  kernel abstraction; any engine design requires 2+ production use cases
-- **Risk**: Strategy divergence between skills
-- **Mitigation**: The common pattern (indexer → knowledge → LLM → findings)
-  is already shared; strategy documents codify what already exists
+- **Positive**: Architecture description matches code reality — no fictional components
+- **Positive**: LLM retains its core value (semantic analysis, intelligent discovery)
+- **Positive**: Anchor + evidence constraints provide traceability for CI and audits
+- **Positive**: Progressive signal enhancement is concrete and verifiable
+- **Work to do**: Inject anchor/evidence constraints into commands/skills (FEATURE-006)
+- **Risk**: Signal quality today is limited (same-file call graph, no type hierarchy)
+- **Mitigation**: Phase 2 (v0.14) enhances cross-file call graph + type hierarchy;
+  until then, anchor constraint is permissive (allow `confidence: low` for unanchored findings)
+
+---
+
+## ADR-008: Progressive Signal Enhancement
+
+### Context
+
+The quality of deterministic signals directly affects the quality of
+anchoring and pre-filtering. The indexer currently provides text-approximate
+signals (same-file call graph, alloc/free within one file, no type hierarchy).
+
+We need a clear, progressive path to improve these signals without introducing
+architectural abstraction layers.
+
+### Decision
+
+Indexer enhancements follow a progressive, concrete path:
+
+| Phase | Enhancement | Index Output |
+|-------|------------|--------------|
+| v0.14 | Cross-file call graph | Global symbol table matching across all files |
+| v0.14 | Type hierarchy | `type_hierarchy.nodes` + `type_hierarchy.edges` |
+| v0.15 | Data-flow pre-analysis (research) | Source-sink candidate pairs |
+| v0.16+ | CI fast gate | Anchor check + pre-filter match rate (no LLM) |
+
+Each phase is a concrete indexer capability improvement — a new field in
+`index.json`, not a new architecture abstraction. Each phase can be built,
+tested, and released independently.
+
+### Rejected Alternatives
+
+| 方案 | 否决原因 |
+|------|---------|
+| **一次性构建完整 IR 层** | 年级别的工程投入，违反渐进原则；在 v0.14-0.15 能力被验证前不值得 |
+| **结构化规则 DSL + 编译器** | 违反 EP-5；Markdown 规则格式当前工作良好，结构化只会增加工具开销 |
+| **跳过信号增强直接做 CI** | CI 的质量依赖信号质量；信号不足时 CI 门禁不可靠 |
+
+### Consequences
+
+- **Positive**: Each step is independently buildable, testable, releasable
+- **Positive**: No architecture-level abstraction changes needed between steps
+- **Positive**: Richer `index.json` benefits both signal pre-filtering and LLM context
+- **Risk**: Data-flow pre-analysis (v0.15) may require IR beyond Tree-sitter AST
+- **Mitigation**: v0.15 is explicitly marked as research; scope will be re-evaluated
+  after v0.14 signals are validated in production

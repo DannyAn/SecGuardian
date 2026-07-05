@@ -7,7 +7,7 @@
 
 ---
 
-## Principle EP-1: No Premature Execution Kernel Abstraction
+## Principle EP-1: Signal Anchoring Over Engine Abstraction
 
 ### Statement
 
@@ -15,19 +15,41 @@ Do not design or implement a "Security Engine," "Execution Kernel,"
 "Rule Runtime," or any system that abstracts the current LLM-driven
 execution path into a pluggable or replaceable component.
 
+Instead, strengthen **deterministic signal anchoring**: make the indexer's
+output (symbols, call graph, alloc/free, lock graph) the anchor points
+that constrain and verify LLM reasoning. This improves traceability and
+pre-filtering without introducing an intermediate abstraction layer.
+
 ### Rationale
 
-The current system has exactly **one execution strategy**: LLM-assisted.
-Extracting a kernel interface before a second strategy exists creates:
-- An abstract interface with one implementation (useless abstraction)
+The current system has exactly **one execution strategy**: deterministic
+signals (from the indexer) + LLM reasoning (from the AI Agent). These two
+collaborate directly through `index.json`. Extracting an Engine interface
+between them creates:
+- An abstract interface with no implementation (useless abstraction)
 - Maintenance burden for zero benefit
-- Design decisions that constrain future strategy implementation
-- A false sense of modularity (the interface implies two strategies exist)
+- Design decisions that constrain future signal enhancement
+- A false sense of modularity (the interface implies a second strategy exists)
+
+Signal anchoring achieves the same goals (traceability, verifiability,
+reduced LLM variability) through a **data constraint** rather than a
+**code abstraction**.
 
 ### What to Do Instead
 
-When a second execution strategy (e.g., deterministic matching) is ready
-for production, extract it from real, tested code — not from a design doc.
+Instead of abstracting the execution path behind an Engine interface,
+strengthen the deterministic signals that anchor LLM reasoning:
+
+1. **Signal anchoring**: Every finding must reference an index.json symbol or file+line.
+   This is a data constraint, not an execution abstraction.
+2. **Signal pre-filtering**: Use index signals to scope detector applicability.
+   Reduces LLM context waste and improves finding consistency.
+3. **Signal enhancement**: Progressively improve indexer output (cross-file call graph,
+   type hierarchy, data-flow pre-analysis). Each improvement is a concrete, verifiable
+   change to what `index.json` contains.
+
+These are data-level improvements — richer `index.json` fields — that both
+deterministic pre-filtering and LLM reasoning benefit from. No Engine interface needed.
 
 ### Violation Example
 
@@ -42,12 +64,16 @@ type SecurityEngine interface {
 ### Non-Violation Example
 
 ```go
-// ✅ Acceptable — concrete, not abstract
-func runLLMAssistedScan(index Index, rules []Rule, llm LLMClient) (*Result, error) {
-    // Build prompt, call LLM, parse response.
+// ✅ Acceptable — signal anchoring, not engine abstraction
+// index.json provides deterministic anchors; LLM reasoning is constrained
+// to produce findings that reference these anchors.
+type FindingAnchor struct {
+    SymbolName string `json:"symbol_name,omitempty"`
+    File       string `json:"file"`
+    Line       int    `json:"line"`
 }
-// When deterministic strategy arrives, add runDeterministicScan() —
-// no interface needed until 3+ strategies share common logic.
+// The anchor is a data constraint — it ensures traceability without
+// abstracting execution behind an interface.
 ```
 
 ---
@@ -218,7 +244,7 @@ not as implementation plans.
 
 | # | Principle | Enforcement |
 |---|-----------|-------------|
-| EP-1 | No premature execution kernel abstraction | No SecurityEngine interface or API |
+| EP-1 | Signal anchoring over engine abstraction | No SecurityEngine interface; use data constraints instead |
 | EP-2 | No unimplemented runtime | No CI Runtime as entity |
 | EP-3 | CI/CD artifact-based | CI reads output artifacts, not pipeline |
 | EP-4 | Engine abstraction needs 2+ use cases | No shared interfaces before 2nd strategy |
