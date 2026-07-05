@@ -11,7 +11,7 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # 全局版本号：从 manifest.json 读取，单一来源
-SECGUARDIAN_VERSION=$(python3 -c "import json; print(json.load(open(os.path.expanduser("~/.secguardian/manifest.json")))["version"])" 2>/dev/null || echo "0.12.0")
+SECGUARDIAN_VERSION=$(python3 -c "import json; print(json.load(open(os.path.expandvars("${PROJECT_ROOT:-.}/manifest.json")))["version"])" 2>/dev/null || echo "0.12.0")
 DIST="$PROJECT_ROOT/dist"
 DEPLOY_USER=true      # 默认用户级，--project 切换为项目级
 DO_UNINSTALL=false

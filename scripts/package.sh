@@ -286,12 +286,15 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
             cp "$bin_file" "$dist_dir/scripts/bin/"
             chmod +x "$dist_dir/scripts/bin/$(basename "$bin_file")" 2>/dev/null || true
     # OpenCode plugin registration script
-    if [ -f "$src_scripts_dir/opencode-plugin.js" ]; then
-        cp "$src_scripts_dir/opencode-plugin.js" "$dist_dir/scripts/"
-    fi
             bin_count=$((bin_count + 1))
         fi
     done
+
+    # OpenCode plugin registration script
+    if [ -f "$PROJECT_ROOT/scripts/opencode-plugin.js" ]; then
+        cp "$PROJECT_ROOT/scripts/opencode-plugin.js" "$dist_dir/scripts/"
+    fi
+
     echo "    binaries: $bin_count platform(s) in scripts/bin/"
 
     echo "    packaged: $dist_dir"
