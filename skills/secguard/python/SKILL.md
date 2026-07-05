@@ -11,9 +11,16 @@ topic: [web, crypto, system]
 对 Python 代码进行安全加固项排查，扫描代码和 PR 中需要安全加固的问题。
 
 ## 🎯 Detector Selection (Skill Layer)
+
+> **📊 信号预筛 (engine_contract.md Rule C):** 基于 index.json 信号触发检测器：`symbols.functions` 含 `os.system`/`subprocess.call`→command-injection；含 `execute`/`cursor.execute`→sql-injection；含 `hashlib.md5`/`md5`→weak-crypto；含 `requests.get`/`urllib`→ssrf。无信号匹配时 MUST 标记 `confidence: low`。
+
 ## ⚙️ Engine Instructions
 
 > 以下执行指令属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行。未来 Engine 实现后将被 Engine 取代。
+>
+> **🔗 锚定+证据约束 (Rule A + Rule B):** 每个 finding 的 `file`+`line` MUST 可追溯到 index.json 的符号或文件列表。每个 finding MUST 包含 `--snippet`、`--code-context`、`--rationale`、`--attack-scenario`。调用 `record-finding.py` 时必须传 `--index-json` 进行锚定校验。无 index 锚点时 MUST 标记 `confidence: low`。
+>
+> **🔒 读取范围 = index.json.symbols.functions (NON-NEGOTIABLE):** `symbols.functions` 已是完整的函数→文件:行号 映射。LLM 只读取符号表中列出的位置（`start_line`±10行）。不在符号表中的文件 → 不读。不在符号表中的函数 → 不分析。符号表中无关联函数名的检测器 → 跳过。
 
 ## 执行流程
 
@@ -48,12 +55,9 @@ topic: [web, crypto, system]
 
 > 以下执行方式遵循 `engine_contract.md` 和 `output_contract.md` 的性能要求。
 
-### 源文件读取（index 驱动，非逐文件全读）
+### 源文件读取（index.json.symbols.functions 驱动）
 
-读取 `index.json` 后：
-1. 从 `symbols.functions` 获取函数→文件映射表
-2. 对每个检测器，按符号表定位目标函数所在的文件+行号
-3. **禁止逐文件阅读全文**。只能通过 index.json 符号表定位目标函数后，按需读取该行及其前后 10 行作为上下文。不得读取未出现在符号表中的文件。
+> **🔒 读取范围 = index.json.symbols.functions:** `symbols.functions` 已是函数→文件:行号 映射。LLM 只读取符号表中的位置（±10行）。不在符号表中的文件 → 不读。不在符号表中的函数 → 不分析。
 
 ### 检测器加载（批量 + 按需）
 

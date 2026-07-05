@@ -22,6 +22,10 @@ topic: [memory, concurrency, system, crypto]
 ### Engine Instructions
 
 > 以下执行指令属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行。未来 Engine 实现后将被 Engine 取代。
+>
+> **🔗 锚定+证据约束 (Rule A + Rule B):** 每个 finding 的 `file`+`line` MUST 可追溯到 index.json 的符号或文件列表。每个 finding MUST 包含 `--snippet`、`--code-context`、`--rationale`、`--attack-scenario`。调用 `record-finding.py` 时必须传 `--index-json` 进行锚定校验。无 index 锚点时 MUST 标记 `confidence: low`。
+>
+> **🚫 强制 index 驱动读取 (Mandatory):** MUST NOT 用 `cat`/`head`/`tail`/`read` 读取完整源文件。MUST 从 `symbols.functions` 查表定位目标函数 → 只读取该函数所在行及其前后 10 行。MUST NOT 读取未出现在符号表中的文件。
 
 ## 执行流程
 
@@ -147,10 +151,12 @@ SARIF 格式要求（[GitHub 2025-07 起强制](https://github.blog/changelog/20
 
 > 以下执行方式遵循 `engine_contract.md` 和 `output_contract.md` 的性能要求。
 
-### 源文件读取（index 驱动）
+### 源文件读取（index.json.symbols.functions 驱动）
 
-1. 从 `index.json` -> `symbols.functions` / `call_graph.edges` / `alloc_free.pairs` 获取符号定位
-2. **禁止逐文件阅读全文**。只能通过 index.json 符号表定位目标函数后，按需读取该行及其前后 10 行作为上下文。不得读取未出现在符号表中的文件。
+> **🔒 读取范围 = index.json.symbols.functions (NON-NEGOTIABLE):** `symbols.functions` 已是完整的函数→文件:行号 映射。LLM 只读取符号表中列出的位置（`start_line`±10行）。不在符号表中的文件 → 不读。不在符号表中的函数 → 不分析。符号表中无关联函数名的检测器 → 跳过。
+
+1. 从 `index.json` -> `symbols.functions` 获取完整的函数→文件:行号 映射
+2. 对每个检测器，先在符号表中查关联函数名 → 有则定位读取该函数±10行 → 无则跳过
 
 ### 检测器加载（批量 + 按需）
 
@@ -170,6 +176,8 @@ SARIF 格式要求（[GitHub 2025-07 起强制](https://github.blog/changelog/20
 - 没有 active 检测器 → 提前返回，无 findings
 
 ## 🎯 Detector Selection (Skill Layer)
+
+> **📊 信号预筛 (engine_contract.md Rule C):** 基于 index.json 信号触发检测器：`symbols.functions` 含 `malloc`/`realloc` 无 `free`→memory-leak；含 `strcpy`/`sprintf`/`gets`→buffer-overflow；含 `system`/`popen`/`exec`→command-injection；含 `MD5_Init`/`SHA1`→weak-crypto。无信号匹配时 MUST 标记 `confidence: low`。
 
 > 以下检测器选择规则属于 Skill 层职责。Skill 决定 WHICH detectors 运行，不决定 HOW 运行。
 
