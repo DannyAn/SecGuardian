@@ -1,6 +1,6 @@
 {
   "name": "secfix-secguardian",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "\ud83e\uddea Trial: AI Remediation Patch Generator \u2014 generates unified diff patches from scan findings. MVP via scripts/secfix.py.",
   "author": "SecGuardian",
   "command": "secfix",

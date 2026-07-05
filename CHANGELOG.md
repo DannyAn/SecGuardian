@@ -2,6 +2,32 @@
 
 All notable changes to SecGuardian.
 
+## [0.13.0] — 2026-07-05
+
+### ★ Architecture Refactoring — Signal-LLM Collaboration Model
+
+#### 架构文档 (6 docs rewritten)
+- **Signal-LLM 协作模型** — 取消独立 Security Engine 概念，改为确定性信号层（索引器）+ LLM 推理层（AI Agent）通过 index.json 直接协作
+- **执行策略合约** — engine_contract.md 重写为行为约束合约（Anchor Rule + Evidence Rule + Pre-Filter Rule），不再定义 Engine API
+- **渐进式信号增强路线** — v0.14 跨文件调用图+类型继承 → v0.15 数据流预分析 → v0.16+ CI 快速门禁
+- **7 条工程约束 (EP-1~EP-7)** — 防止过度设计，确保架构演进渐进可控
+
+#### 命令层 (4 commands)
+- **锚定+证据约束** — 每个 finding 的 file+line 必须可追溯到 index.json 符号，必须包含 snippet/code-context/rationale/attack-scenario
+- **跨 shell 状态传递** — `.codeagent/.scan_state` 替代 `/tmp/` 临时文件，消除确权弹窗，跨平台可用
+- **heredoc --from-stdin** — record-finding.py 支持 stdin JSON 输入，彻底消除 shell 引号逃逸问题
+- **强制信号预筛** — Step 2.5b 改为 mandatory first-pass filter，无信号检测器跳过
+
+#### 技能层 (11 skills)
+- 全部 11 个技能文件注入锚定+证据约束 + 语言特定信号预筛规则 + index.json.symbols.functions 驱动读取
+
+#### 工具链
+- **record-finding.py** — snippet/code-context/rationale/attack-scenario 改为必填参数；新增 --index-json 锚定校验 (ANCHOR_OK/FAIL/INFO)；新增 --from-stdin heredoc 支持；修复 null 值处理 bug
+- **SDD Feature Package** — 完整 FEATURE-005 包（spec + 2 ADR + plan + 7 CHANGE + 15 tasks）
+
+#### README
+- 重写为 Security Roles 模型 + Signal-LLM 架构 + 角色使用指南 + CI/CD 快速门禁文档
+
 ## [0.12.0] — 2026-07-03
 
 ### ★ 共享索引重构
