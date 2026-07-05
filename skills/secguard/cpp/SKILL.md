@@ -149,7 +149,7 @@ SARIF 格式要求（[GitHub 2025-07 起强制](https://github.blog/changelog/20
 ### 源文件读取（index 驱动）
 
 1. 从 `index.json` -> `symbols.functions` / `call_graph.edges` / `alloc_free.pairs` 获取符号定位
-2. 对每个检测器，只读取定位到的代码段（前后 10 行），不读无关文件全文
+2. **禁止逐文件阅读全文**。只能通过 index.json 符号表定位目标函数后，按需读取该行及其前后 10 行作为上下文。不得读取未出现在符号表中的文件。
 
 ### 检测器加载（批量 + 按需）
 

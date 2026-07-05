@@ -885,7 +885,7 @@ def render_executive_summary(findings_data, output_dir):
     
     # Calculate severity distribution from raw findings
 
-    sev_count = _Counter(f.get("severity", "Info") for f in findings)
+    sev_count = Counter(f.get("severity", "Info") for f in findings)
     total = len(findings)
     
     # Calculate score if not present (same formula as calc_score)

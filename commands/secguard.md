@@ -398,6 +398,12 @@ print("✅ Verification audit: %s findings → %s certified, %s dismissed" % (fi
 PYEOF
 ```
 
+### Step 4: 输出结构化 findings（批量模式）
+
+> ⚠️ **I/O 优化要求**: 所有 findings 必须一次性输出到 `findings.json`。禁止按严重度分批写入。
+> 批量输出: `python3 render-report.py --findings <dir>/findings.json --output <dir>`
+> 参见 `internal/output/output_contract.md`。
+
 ### Step 4: 输出结构化 findings（遵循 Findings Protocol v5.0）
 
 > ⚠️ **性能优化**: 所有 findings 统一写入 `findings.json`（v4.0 单文件格式），

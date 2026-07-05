@@ -61,7 +61,6 @@ except: print('')
             echo "INDEX FILE COUNT MISMATCH: source=$SRC_COUNT vs index=$STORED_FILES — rebuilding" >&2
         fi
     elif [ -n "$STORED_PATH" ]; then
-    elif [ -n "$STORED_PATH" ]; then
         echo "INDEX PATH MISMATCH: stored=$STORED_PATH vs current=$RESOLVED_PATH — rebuilding" >&2
     fi
 fi
