@@ -140,22 +140,46 @@ Filters: memory.*, system.*
 
 ### 前置检查（Pre-flight）
 
-执行 `/secguard` 前，完成以下前置验证：
+> ⚠️ `$SECGUARDIAN_HOME` 在部分平台（如 OpenCode）可能未设置。必须在第一步之前自动发现。
 
-1. [ ] **索引器健康检查**：`secguardian-index --health`（验证 binary、python3、渲染器等运行时依赖）
+```bash
+# SECGUARDIAN_HOME 自动发现（多路径搜索）
+if [ -z "$SECGUARDIAN_HOME" ] || [ ! -d "$SECGUARDIAN_HOME/scripts" ]; then
+    for candidate in \
+        "/root/.config/opencode/extensions/secguardian" \
+        "$HOME/.config/opencode/extensions/secguardian" \
+        "$HOME/.claude/plugins/secguardian" \
+        "$HOME/.gemini/extensions/secguardian" \
+        "$(dirname "$(dirname "$(realpath "$0")")")" \
+        "."; do
+        if [ -f "$candidate/scripts/record-finding.py" ]; then
+            export SECGUARDIAN_HOME="$candidate"
+            echo "SECGUARDIAN_HOME=$SECGUARDIAN_HOME"
+            break
+        fi
+    done
+fi
+if [ -z "$SECGUARDIAN_HOME" ] || [ ! -d "$SECGUARDIAN_HOME/scripts" ]; then
+    echo "FATAL: Cannot locate secguardian installation (no SECGUARDIAN_HOME with scripts/)"
+    echo "  Tried: /root/.config/opencode/extensions/secguardian, ~/.config/opencode/extensions/secguardian, ..."
+    exit 1
+fi
+```
+
+执行 `/secguard` 前，完成以下前置验证：
+1. [ ] **索引器健康检查**：`$SECGUARDIAN_HOME/scripts/secguardian-index --health`
 2. [ ] **扫描路径确认**：`test -d <path>`（确认目标路径存在）
 
-❌ health 检查失败时输出错误信息并终止。运行时依赖不在前置阶段检查，
-在对应步骤（渲染器、知识加载）执行时按需检查并报错。
+❌ health 检查失败时输出错误信息并终止。`SECGUARDIAN_HOME` 发现失败时输出具体搜索路径并终止。
 
 ### 🔒 跨 Shell 状态传递规则（Step 1 之后的所有 bash 调用必须遵守）
 
 > **每个 bash 调用都是独立 shell，变量不共享。禁止用 `/tmp/` 或任何系统临时目录传状态。**
 
-Step 1 末尾将 `SCAN_ID`、`SCAN_DIR`、`USER_PROJECT` 持久化到 `.codeagent/secguardian/.scan_state`。
+Step 1 末尾将 `SCAN_ID`、`SCAN_DIR`、`USER_PROJECT` 持久化到 `.codeagent/secguardian/.scan_state.secguard`。
 从 Step 2 开始，**每个 bash 调用第一行必须是**：
 ```bash
-source .codeagent/secguardian/.scan_state
+source .codeagent/secguardian/.scan_state.secguard
 ```
 此后直接使用 `$SCAN_DIR`、`$SCAN_ID`、`$USER_PROJECT`。禁止使用 `$(cat /tmp/*.txt)`。
 `/tmp/` 在 Windows 不可用、触发 macOS 确权弹窗、且多用户不安全。
@@ -166,15 +190,15 @@ source .codeagent/secguardian/.scan_state
 - **scan_id 一旦生成，后续所有路径必须使用此 scan_id。**
 - 创建输出目录: `.codeagent/secguardian/secguard/scans/<scan_id>/`。
 - **🚫 绝对禁止使用 `/tmp/` 或任何系统临时目录存储状态。** `/tmp/` 在 Windows 不可用、触发确权弹窗、且多用户不安全。
-- **跨 shell 状态传递**: 将 `SCAN_DIR` 写入 `.codeagent/secguardian/.scan_state`，后续步骤 `source` 该文件获取变量。
+- **跨 shell 状态传递**: 将 `SCAN_DIR` 写入 `.codeagent/secguardian/.scan_state.secguard`，后续步骤 `source` 该文件获取变量。
 
 ```bash
-# Step 1 末尾: 持久化状态（唯一一次写入 .scan_state）
+# Step 1 末尾: 持久化状态（唯一一次写入 .scan_state.secguard）
 USER_PROJECT="$(pwd)"
 SCAN_ID="sc-$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 2)"
 SCAN_DIR="$USER_PROJECT/.codeagent/secguardian/secguard/scans/$SCAN_ID"
 mkdir -p "$SCAN_DIR"
-cat > "$USER_PROJECT/.codeagent/secguardian/.scan_state" << STATEEOF
+cat > "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard" << STATEEOF
 SCAN_ID="$SCAN_ID"
 USER_PROJECT="$USER_PROJECT"
 SCAN_DIR="$SCAN_DIR"
@@ -184,7 +208,7 @@ echo "SCAN_DIR=$SCAN_DIR"
 
 > 后续每个 Step 的 bash 调用**第一行必须是**:
 > ```bash
-> source .codeagent/secguardian/.scan_state
+> source .codeagent/secguardian/.scan_state.secguard
 > ```
 > 此后 `$SCAN_DIR`、`$SCAN_ID`、`$USER_PROJECT` 即可用。**禁止用 `cat /tmp/*.txt`**。
 
@@ -196,14 +220,10 @@ echo "SCAN_DIR=$SCAN_DIR"
 > 索引自动复用同路径缓存。加 `--force` 强制重建。
 
 ```bash
-# 定位 indexer wrapper — 项目级 + 用户级全覆盖
+# SECGUARDIAN_HOME 已在 Pre-flight 中自动发现
 INDEXER="$SECGUARDIAN_HOME/scripts/secguardian-index"
-if [ ! -f "$INDEXER" ] && [ ! -f "$INDEXER" ]; then
-    # Dev fallback: try repo-relative path
-    INDEXER="scripts/secguardian-index"
-fi
 if [ ! -f "$INDEXER" ]; then
-    echo "FATAL: secguardian-index not found"
+    echo "FATAL: secguardian-index not found at $INDEXER"
     exit 1
 fi
 echo "Using: $INDEXER"
@@ -229,7 +249,7 @@ fi
 > 对 `None`/`null` 值安全。如果索引文件路径不对，会 exit 1。
 
 ```bash
-python3 scripts/validate-index.py \
+python3 "$SECGUARDIAN_HOME/scripts/validate-index.py" \
     --index .codeagent/secguardian/index.json \
     --scan-id <scan_id>
 ```
@@ -319,7 +339,9 @@ INDEX_FILE 输出示例:
 
 #### 3a 语言确定
 
-- 如果用户在命令中提供了 `language` 参数（如 `/secguard ./src cpp`），直接使用 `cpp`
+- 如果用户在命令中提供了 `language` 参数（如 `/secguard ./src cpp` 或 `/secguard ./src c`），直接使用该值
+  - ⚠️ `c` 和 `cpp` 共享同一套检测器规则，language-index.md 中包含 `## c` 和 `## cpp` 两个等价节
+  - 如果用户说 `c`，从 `## c` 节读取规则；如果用户说 `cpp`，从 `## cpp` 节读取
 - 如果用户未显式提供，从 Step 2b 生成的 index.json 摘要中的 `primary_language` 自动推断
 
 #### 3b 读取语言索引
@@ -357,6 +379,14 @@ AI 只需读取 `## cpp` 以下至下一个 `##` 之间的内容即获得完整�
 - 增量模式（`git diff`）下，仅分析由 diff 识别的变更行
 
 > **不要向用户确认**，直接进入后续步骤。默认无 filter = 全量扫描。
+
+> ⚠️ **🚫 禁止将检测执行委托给子代理 (NON-NEGOTIABLE):**
+> YOU are the detection engine. Your analysis (reading index.json symbols + loading guard-rules + reading target functions) IS the scanner.
+> - ❌ 不允许启动 background task / sub-agent 来执行检测器
+> - ❌ 不允许用 grep/find 全文件扫描（必须通过 index.json 符号表定位目标函数）
+> - ✅ 正确做法：在当前上下文中，逐一读取 guard-rules → 查 index.json 符号表找到关联函数 → 读取该函数代码 → 应用检测逻辑 → 用 record-finding.py 记录 finding
+>
+> **为什么？** sub-agent 无法访问 index.json 和 guard-rules，只能全量 grep 642 个文件，完全绕过了索引器体系。
 
 ### Step 3.5: 三轮验证管道（误报消减）
 

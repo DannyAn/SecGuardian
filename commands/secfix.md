@@ -51,7 +51,7 @@ secfix 读取已有扫描结果生成 patch。定位扫描目录时使用 `lates
 # 查找最新扫描（无参数时）
 ls -td .codeagent/secguardian/*/scans/*/findings/ 2>/dev/null | head -1
 ```
-需要持久化状态时，使用 `.codeagent/secguardian/.scan_state`（与其他命令共享）。
+需要持久化状态时，使用命令对应的 `.scan_state.secguard` / `.scan_state.secreview` / `.scan_state.secaudit`。
 禁止使用 `/tmp/` 或系统临时目录。
 
 ## How It Works

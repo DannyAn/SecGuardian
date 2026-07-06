@@ -123,23 +123,27 @@ You (the AI Agent) must follow these steps when executing `/secreview` to perfor
 ### Pre-flight Checklist
 
 # ── Resolve SECGUARDIAN_HOME ─────────────────
-if [ -z "$SECGUARDIAN_HOME" ]; then
-    for _sg_root in ".claude/plugins/secguardian" \
-                    ".config/opencode/extensions/secguardian" \
-                    ".gemini/extensions/secguardian"; do
-        if [ -f "$_sg_root/.secguardian-env" ]; then
-            source "$_sg_root/.secguardian-env"
+if [ -z "$SECGUARDIAN_HOME" ] || [ ! -d "$SECGUARDIAN_HOME/scripts" ]; then
+    for _sg_root in "$HOME/.claude/plugins/secguardian" \
+                    "$HOME/.config/opencode/extensions/secguardian" \
+                    "$HOME/.gemini/extensions/secguardian" \
+                    "/root/.config/opencode/extensions/secguardian"; do
+        if [ -f "$_sg_root/scripts/record-finding.py" ]; then
+            export SECGUARDIAN_HOME="$_sg_root"
             break
         fi
     done
 fi
-SECGUARDIAN_HOME="${SECGUARDIAN_HOME:-scripts/..}"
+if [ -z "$SECGUARDIAN_HOME" ] || [ ! -d "$SECGUARDIAN_HOME/scripts" ]; then
+    echo "FATAL: Cannot locate secguardian installation"
+    exit 1
+fi
 
 > ⛔ **DO NOT use Glob or Read tools to discover file paths**. All path checks must use bash commands (`[ -f ]`, `ls`, etc.). Always run `find_indexer` before `--health`.
 
 Before starting any review, verify each condition below. **If any check fails, report the specific error and abort.**
 
-- [ ] Locate indexer: resolved via `SECGUARDIAN_HOME` env var or `.secguardian-env` file — no multi-platform search needed
+- [ ] Locate indexer: resolved via `SECGUARDIAN_HOME` env var or auto-discovery from `$HOME/.claude/plugins/secguardian`, `$HOME/.config/opencode/extensions/secguardian`
 - [ ] Run `{indexer} --health` passes (output must contain `HEALTH:OK` or `HEALTH:WARN`; `HEALTH:FAIL` is not accepted)
 - [ ] Target `<path>` exists and contains at least one source file
 - [ ] **Language detection (only when user omits `language` parameter)** check source extensions in `<path>`: `*.c/*.cpp/*.h` -> `cpp`, `*.py` -> `python`, `*.java` -> `java`, `*.go` -> `go`. No need to ask the user.
@@ -154,10 +158,10 @@ Before starting any review, verify each condition below. **If any check fails, r
 > **Each bash call is an independent shell — variables are not shared. NEVER use `/tmp/` for state.**
 > `/tmp/` breaks on Windows, triggers macOS permission prompts, and is multi-user unsafe.
 
-Step 1 writes `SCAN_ID`, `SCAN_DIR`, `USER_PROJECT` to `.codeagent/secguardian/.scan_state`.
+Step 1 writes `SCAN_ID`, `SCAN_DIR`, `USER_PROJECT` to `.codeagent/secguardian/.scan_state.secreview`.
 From Step 2 onward, **every bash call MUST start with**:
 ```bash
-source .codeagent/secguardian/.scan_state
+source .codeagent/secguardian/.scan_state.secreview
 ```
 Then use `$SCAN_DIR`, `$SCAN_ID`, `$USER_PROJECT` directly. NEVER use `$(cat /tmp/*.txt)`.
 
@@ -174,7 +178,7 @@ USER_PROJECT="$(pwd)"
 SCAN_ID="pr-$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 2)"
 SCAN_DIR="$USER_PROJECT/.codeagent/secguardian/secreview/scans/$SCAN_ID"
 mkdir -p "$SCAN_DIR"
-cat > "$USER_PROJECT/.codeagent/secguardian/.scan_state" << STATEEOF
+cat > "$USER_PROJECT/.codeagent/secguardian/.scan_state.secreview" << STATEEOF
 SCAN_ID="$SCAN_ID"
 USER_PROJECT="$USER_PROJECT"
 SCAN_DIR="$SCAN_DIR"
@@ -257,6 +261,12 @@ Evaluate against language-specific anti-patterns (from the skill file):
 3. **Common language pitfalls** — Type confusion, unsafe reflection, prototype pollution, etc.
 
 > Findings from all three passes are consolidated into a single output. Each finding should reference which pass(es) identified it.
+
+> ⚠️ **🚫 禁止将检测执行委托给子代理 (NON-NEGOTIABLE):**
+> YOU are the detection engine. Your analysis (reading index.json symbols + loading guard-rules + reading target functions) IS the scanner.
+> - ❌ 不允许启动 background task / sub-agent 来执行检测器
+> - ❌ 不允许用 grep/find 全文件扫描（必须通过 index.json 符号表定位目标函数）
+> - ✅ 正确做法：在当前上下文中，逐一读取 guard-rules → 查 index.json 符号表找到关联函数 → 读取该函数代码 → 应用检测逻辑 → 用 record-finding.py 记录 finding
 
 ### Step 5: Output Structured Findings (Findings Protocol v5.0)
 

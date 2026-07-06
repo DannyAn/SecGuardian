@@ -117,17 +117,21 @@ Skill: aud-input-validation
 ### 前置检查（Pre-flight Checklist）
 
 # ── Resolve SECGUARDIAN_HOME ─────────────────
-if [ -z "$SECGUARDIAN_HOME" ]; then
-    for _sg_root in ".claude/plugins/secguardian" \
-                    ".config/opencode/extensions/secguardian" \
-                    ".gemini/extensions/secguardian"; do
-        if [ -f "$_sg_root/.secguardian-env" ]; then
-            source "$_sg_root/.secguardian-env"
+if [ -z "$SECGUARDIAN_HOME" ] || [ ! -d "$SECGUARDIAN_HOME/scripts" ]; then
+    for _sg_root in "$HOME/.claude/plugins/secguardian" \
+                    "$HOME/.config/opencode/extensions/secguardian" \
+                    "$HOME/.gemini/extensions/secguardian" \
+                    "/root/.config/opencode/extensions/secguardian"; do
+        if [ -f "$_sg_root/scripts/record-finding.py" ]; then
+            export SECGUARDIAN_HOME="$_sg_root"
             break
         fi
     done
 fi
-SECGUARDIAN_HOME="${SECGUARDIAN_HOME:-scripts/..}"
+if [ -z "$SECGUARDIAN_HOME" ] || [ ! -d "$SECGUARDIAN_HOME/scripts" ]; then
+    echo "FATAL: Cannot locate secguardian installation"
+    exit 1
+fi
 
 > ⛔ **禁止使用 Glob 或 Read 工具探索文件路径（搜索文件）。已知路径的文件可以用 `cat` 或 `head` 读取（扩展目录下的文件不用 Read 工具，避免权限弹窗）**。所有路径检测必须通过 bash 命令（`[ -f ]`、`ls`）完成。先跑 `find_indexer` 再跑 `--health`。
 
@@ -146,10 +150,10 @@ SECGUARDIAN_HOME="${SECGUARDIAN_HOME:-scripts/..}"
 
 > **每个 bash 调用都是独立 shell，变量不共享。禁止用 `/tmp/` 或任何系统临时目录传状态。**
 
-Step 1 末尾将 `SCAN_ID`、`SCAN_DIR`、`USER_PROJECT` 持久化到 `.codeagent/secguardian/.scan_state`。
+Step 1 末尾将 `SCAN_ID`、`SCAN_DIR`、`USER_PROJECT` 持久化到 `.codeagent/secguardian/.scan_state.secaudit`。
 从 Step 2 开始，**每个 bash 调用第一行必须是**：
 ```bash
-source .codeagent/secguardian/.scan_state
+source .codeagent/secguardian/.scan_state.secaudit
 ```
 此后直接使用 `$SCAN_DIR`、`$SCAN_ID`、`$USER_PROJECT`。禁止使用 `$(cat /tmp/*.txt)`。
 
@@ -166,7 +170,7 @@ USER_PROJECT="$(pwd)"
 SCAN_ID="sec-$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 2)"
 SCAN_DIR="$USER_PROJECT/.codeagent/secguardian/secaudit/scans/$SCAN_ID"
 mkdir -p "$SCAN_DIR"
-cat > "$USER_PROJECT/.codeagent/secguardian/.scan_state" << STATEEOF
+cat > "$USER_PROJECT/.codeagent/secguardian/.scan_state.secaudit" << STATEEOF
 SCAN_ID="$SCAN_ID"
 USER_PROJECT="$USER_PROJECT"
 SCAN_DIR="$SCAN_DIR"
@@ -219,6 +223,10 @@ python3 scripts/validate-index.py \
   - workflow 中定义的 phase 顺序
   - 后处理（去重、评分、分类、修复路线图）由 workflow 定义
 - **单项聚焦**: `--focus <domain>` 时跳过不匹配的 phase，仅加载对应域的规则文件
+> ⚠️ **🚫 禁止将检测执行委托给子代理 (NON-NEGOTIABLE):**
+> YOU are the execution engine. 禁止启动 background task / sub-agent 执行检测器。
+> 禁止用 grep/find 全文件扫描。必须通过 index.json 符号表定位目标函数。
+
 ### Step 4: 输出结构化 findings（遵循 Findings Protocol v5.0）
 
 > **v6.0**: secaudit 命令同样适用三轮验证管道（`commands/secguard.md` Step 3.5）。`--no-verify` 跳过验证。
