@@ -2,6 +2,48 @@
 
 All notable changes to SecGuardian.
 
+## [0.14.0] — 2026-07-06
+
+### 🐛 Bugfix: Systemic Fixes from Production Bug Report
+
+#### SECGUARDIAN_HOME 自动发现 (OpenCode 修复)
+- **绝对路径搜索** — 3 条命令统一使用 `$HOME/.claude/plugins/secguardian`、`$HOME/.config/opencode/extensions/secguardian` 等绝对路径探针
+- **探针从 `.secguardian-env` 改为 `record-finding.py`** — 文件是否存在判断更可靠
+- **发现失败时终止** — 输出具体搜索路径，不再静默退化
+
+#### `.scan_state` 命名空间隔离 (Cross-Contamination 修复)
+- 每条命令使用独立文件: `.scan_state.secguard` / `.scan_state.secreview` / `.scan_state.secaudit`
+- 消除 secreview 执行残留污染 secguard 上下文的 bug
+
+#### 反委托规则 (Sub-Agent Bypass 修复)
+- 3 条命令添加 `🚫 禁止将检测执行委托给子代理 (NON-NEGOTIABLE)`
+- MiniMax 2.7 委托子代理 → 绕过索引器全量 grep 642 文件的漏洞修复
+
+#### `c` 语言支持修复
+- `knowledge/language-index.md` 新增 `## c` 节（与 `## cpp` 等价）
+- `scripts/validate-index.py` 纯 `.c/.h` 目录报告 `c` 而非 `cpp`
+- `scripts/sync-language-index.sh` review-rules fallback `c→cpp`
+
+#### 脚本路径规范化
+- 修复 6 处 bare `python3 scripts/` 调用，改为 `$SECGUARDIAN_HOME/scripts/`
+- 修复 `/tmp/` 临时文件使用，改为 `$SCAN_DIR/`
+- 修复 Step 2a "同变量检查两次" bug
+- 修复 `render-report.py` `datetime.utcnow()` 弃用警告
+
+#### L1 验证增强
+- **Section 12 模板静态分析** — 6 项检查 × 3 条命令，直接捕获上述所有 bug 模式
+- `scripts/self-check.sh` 通过数从 82 项增至 139 项
+- 修复 `main.go` 版本号滞后问题 (0.12.0 → 0.14.0)
+
+#### 文件改动
+- `commands/secguard.md`, `commands/secaudit.md`, `commands/secreview.md` — 系统性修复
+- `commands/secfix.md` — `.scan_state` 文档修正
+- `scripts/self-check.sh` — Section 12 新增
+- `scripts/validate-index.py`, `scripts/sync-language-index.sh` — c 语言支持
+- `knowledge/language-index.md` — 自动重新生成
+- `internal/main.go` — 版本同步
+- `manifest.json` + 4 × `extension.json` — 版本同步
+
 ## [0.13.0] — 2026-07-05
 
 ### ★ Architecture Refactoring — Signal-LLM Collaboration Model
