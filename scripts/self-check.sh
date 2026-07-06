@@ -304,7 +304,7 @@ for cmd in secguard secaudit secreview; do
         ok=0
     fi
     # No stale references
-    stale=$(grep -cE "16 阶段|Isolation constraint|Routing rules" "$f" 2>/dev/null || echo 0)
+    stale=$(grep -cE "16 阶段|Isolation constraint|Routing rules" "$f" 2>/dev/null) || true
     if [ "$stale" -gt 0 ]; then
         red "  ${cmd}: ${stale} stale reference(s) found"
         ok=0
@@ -322,6 +322,88 @@ else
 fi
 PASS=$((PASS + XC_PASS))
 FAIL=$((FAIL + XC_FAIL))
+echo ""
+
+# ── 12. Command template static analysis (bash logic checks) ──
+echo "12. Command template static analysis"
+# Catches systemic design flaws that file-count checks cannot:
+# SECGUARDIAN_HOME paths, .scan_state namespacing, anti-delegation,
+# bare script references, /tmp/ usage — all regressions from EPIC-005 bugs.
+TS_FAIL=0; TS_PASS=0
+for cmd in secguard secaudit secreview; do
+    f="commands/${cmd}.md"
+    if [ ! -f "$f" ]; then
+        red "  ${cmd}: commands/${cmd}.md MISSING"
+        TS_FAIL=$((TS_FAIL + 1))
+        continue
+    fi
+    fail=0
+
+    # 12a: SECGUARDIAN_HOME auto-discovery with $HOME/ absolute paths
+    if grep -qE '\$HOME/\.(claude|config)' "$f" 2>/dev/null; then
+        TS_PASS=$((TS_PASS + 1))
+    else
+        echo "  ❌ ${cmd}: 12a SECGUARDIAN_HOME auto-discovery (absolute paths) MISSING"
+        fail=1
+    fi
+
+    # 12b: .scan_state is command-specific (regression guard: cross-contamination)
+    total_state=$(grep -c '\.scan_state' "$f" 2>/dev/null) || true
+    cmd_state=$(grep -c "\.scan_state\.${cmd}" "$f" 2>/dev/null) || true
+    bare_state=$(( total_state - cmd_state ))
+    if [ "$bare_state" -eq 0 ] && [ "$cmd_state" -gt 0 ]; then
+        TS_PASS=$((TS_PASS + 1))
+    else
+        if [ "$cmd_state" -eq 0 ]; then
+            echo "  ❌ ${cmd}: 12b .scan_state.${cmd} command-specific file MISSING"
+        fi
+        if [ "$bare_state" -gt 0 ]; then
+            echo "  ❌ ${cmd}: 12b ${bare_state} bare '.scan_state' (un-suffixed) reference(s)"
+        fi
+        fail=1
+    fi
+
+    # 12c: Anti-delegation rule present (regression guard: sub-agent bypass)
+    if grep -q 'NON-NEGOTIABLE' "$f" 2>/dev/null; then
+        TS_PASS=$((TS_PASS + 1))
+    else
+        echo "  ❌ ${cmd}: 12c anti-delegation rule MISSING"
+        fail=1
+    fi
+
+    # 12d: No bare python3 scripts/ calls (must use $SECGUARDIAN_HOME)
+    bare_scripts=$(grep -c 'python3 scripts/' "$f" 2>/dev/null) || true
+    if [ "$bare_scripts" -eq 0 ]; then
+        TS_PASS=$((TS_PASS + 1))
+    else
+        echo "  ❌ ${cmd}: 12d ${bare_scripts} bare 'python3 scripts/' call(s) — must use \$SECGUARDIAN_HOME"
+        fail=1
+    fi
+
+    # 12e: No /tmp/ for scan state (regression guard: cross-platform /tmp/ ban)
+    tmp_state=$(grep -cE 'cat > /tmp/sc' "$f" 2>/dev/null) || true
+    if [ "$tmp_state" -eq 0 ]; then
+        TS_PASS=$((TS_PASS + 1))
+    else
+        echo "  ❌ ${cmd}: 12e ${tmp_state} /tmp/ scan-state reference(s)"
+        fail=1
+    fi
+
+    if [ "$fail" -eq 0 ]; then
+        green "  ${cmd}: all 6 template checks passed"
+    else
+        TS_FAIL=$((TS_FAIL + 1))
+    fi
+done
+if [ "$TS_FAIL" -eq 0 ]; then
+    TS_PASS=$((TS_PASS + 1))  # bonus: all-passed summary line
+    green "  All 3 commands pass template static analysis"
+else
+    TS_FAIL=0
+    echo "  ⚠️  Template static analysis: ${TS_FAIL} command(s) have issues"
+fi
+PASS=$((PASS + TS_PASS))
+FAIL=$((FAIL + TS_FAIL))
 echo ""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

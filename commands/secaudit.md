@@ -210,7 +210,7 @@ fi
 > ⚠️ 此脚本自动处理不同语言索引器输出差异，对 `None`/`null` 值安全。
 
 ```bash
-python3 scripts/validate-index.py \
+python3 "$SECGUARDIAN_HOME/scripts/validate-index.py" \
     --index .codeagent/secguardian/index.json \
     --scan-id <scan_id>
 ```
@@ -286,11 +286,11 @@ RECEOF
 > ⚠️ Shell 安全：当 fix 代码含 `"` `'` `;` 或路径字符（如 `/etc/`）时，
 > 先用 heredoc 写入文件再传 `--fix-before-file` / `--fix-after-file`：
 > ```bash
-> cat > /tmp/fix_before.txt << 'EOF'
+> cat > "$SCAN_DIR/fix_before.txt" << 'EOF'
 > String query = "SELECT * FROM users WHERE id = " + input;
 > EOF
 > python3 "$RECORDER" --command secguard --detector web.sql-injection \
->     --fix-before-file /tmp/fix_before.txt --fix-after-file /tmp/fix_after.txt
+>     --fix-before-file "$SCAN_DIR/fix_before.txt" --fix-after-file "$SCAN_DIR/fix_after.txt"
 > ```
 
 关键要求（secaudit 独有）：
@@ -308,7 +308,7 @@ RECEOF
 
 ```bash
 SCAN_DIR=".codeagent/secguardian/secaudit/scans/<scan_id>"
-python3 scripts/validate-findings.py --findings-dir "$SCAN_DIR/findings/"
+python3 "$SECGUARDIAN_HOME/scripts/validate-findings.py" --findings-dir "$SCAN_DIR/findings/"
 VALIDATE_EXIT=$?
 if [ $VALIDATE_EXIT -ne 0 ]; then
     echo "  ⚠️  Findings validation completed with warnings — proceeding to renderer"

@@ -604,7 +604,7 @@ findings/crypto/password-storage/f6e5d4c3b2a1_crypto_utils-20.json
 
 ```bash
 SCAN_DIR=".codeagent/secguardian/secguard/scans/<scan_id>"
-python3 scripts/validate-findings.py --findings-dir "$SCAN_DIR/findings/"
+python3 "$SECGUARDIAN_HOME/scripts/validate-findings.py" --findings-dir "$SCAN_DIR/findings/"
 VALIDATE_EXIT=$?
 if [ $VALIDATE_EXIT -eq 0 ]; then
     echo "  ✅ All findings pass validation"
@@ -630,7 +630,7 @@ python3 "$RENDERER" \
 
 渲染器自动生成: `report.md` + `results.sarif` + `summary.json` + `manifest.json` + `status.json` + `delta.json`。
 
-> ⚠️ 如果渲染器不存在或执行失败，打印警告：`"Renderer unavailable — findings saved to findings/ directory tree only. Run: python3 scripts/render-report.py --findings-dir <path>/findings/ --index <path>/index.json --output <path>/"`
+> ⚠️ 如果渲染器不存在或执行失败，打印警告：`"Renderer unavailable — findings saved to findings/ directory tree only. Run: python3 $SECGUARDIAN_HOME/scripts/render-report.py --findings-dir <path>/findings/ --index <path>/index.json --output <path>/"`
 
 ### Step 5: 输出摘要
 

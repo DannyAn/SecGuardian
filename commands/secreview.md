@@ -212,7 +212,7 @@ fi
 **2b. Validate index integrity (required):**
 
 ```bash
-python3 scripts/validate-index.py \
+python3 "$SECGUARDIAN_HOME/scripts/validate-index.py" \
     --index <user-project>/.codeagent/secguardian/index.json \
     --scan-id <scan_id>
 ```
@@ -329,7 +329,7 @@ Key requirements (secreview-specific):
 
 ```bash
 SCAN_DIR=".codeagent/secguardian/secreview/scans/<scan_id>"
-python3 scripts/validate-findings.py --findings-dir "$SCAN_DIR/findings/"
+python3 "$SECGUARDIAN_HOME/scripts/validate-findings.py" --findings-dir "$SCAN_DIR/findings/"
 VALIDATE_EXIT=$?
 if [ $VALIDATE_EXIT -ne 0 ]; then
     echo "  ⚠️  Findings validation completed with warnings — proceeding to renderer"
