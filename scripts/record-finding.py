@@ -39,34 +39,47 @@ def main():
   secguard:  --command secguard  --detector web.sql-injection --severity Critical --cwe CWE-89 --file src/a.py --line 42
   secaudit:  --command secaudit  --detector audit.cryptography --severity High --cwe CWE-327 --file src/crypto.py --line 15 --skill-name cryptography
   secreview: --command secreview --detector memory.buffer-overflow --severity High --cwe CWE-120 --file src/buf.c --line 88 --review-pass vulnerability_detection
+
+  == --from-stdin standalone mode ==
+  No CLI args needed beyond --from-stdin. The full finding is a JSON object on stdin.
+  Example:
+    python3 record-finding.py --from-stdin << 'RECEOF'
+    {"detector": "web.sql-injection", "severity": "Critical", "cwe": "CWE-89",
+     "file": "src/app.py", "line": 42, "scan_dir": ".codeagent/secguardian/scans/x/",
+     "snippet": "...", "code_context": "...", "rationale": "...", "attack_scenario": "..."}
+    RECEOF
         ''')
+
+    # --from-stdin mode: make all args optional so standalone JSON works
+    from_stdin_mode = '--from-stdin' in sys.argv
+    required_mode = not from_stdin_mode
 
     # Core required fields
     p.add_argument('--command', default='',
                    choices=['secguard', 'secaudit', 'secreview'],
                    help='[logging only] Command type identifier')
-    p.add_argument('--scan-dir', required=True,
+    p.add_argument('--scan-dir', required=required_mode,
                    help='Scan output directory (parent of findings/)')
-    p.add_argument('--detector', required=True,
+    p.add_argument('--detector', required=required_mode,
                    help='Detector name (e.g. web.sql-injection, audit.cryptography)')
-    p.add_argument('--severity', required=True,
+    p.add_argument('--severity', required=required_mode,
                    choices=['Critical', 'High', 'Medium', 'Low', 'Info'])
-    p.add_argument('--cwe', required=True, help='CWE ID, e.g. CWE-89')
-    p.add_argument('--file', required=True, help='Source file path')
-    p.add_argument('--line', required=True, type=int, help='Line number')
+    p.add_argument('--cwe', required=required_mode, help='CWE ID, e.g. CWE-89')
+    p.add_argument('--file', required=required_mode, help='Source file path')
+    p.add_argument('--line', required=required_mode, type=int, help='Line number')
 
     # Optional common fields
     p.add_argument('--end-line', type=int, default=None,
                    help='End line (for location.end_line)')
     p.add_argument('--function', default='', help='Function name')
     p.add_argument('--title', default='', help='Finding title / fix description')
-    p.add_argument('--snippet', required=True,
+    p.add_argument('--snippet', required=required_mode,
                    help='Code snippet (REQUIRED per engine_contract.md Rule B)')
-    p.add_argument('--code-context', required=True,
+    p.add_argument('--code-context', required=required_mode,
                    help='Code context (REQUIRED per engine_contract.md Rule B)')
-    p.add_argument('--rationale', required=True,
+    p.add_argument('--rationale', required=required_mode,
                    help='Judgment rationale (REQUIRED per engine_contract.md Rule B)')
-    p.add_argument('--attack-scenario', required=True,
+    p.add_argument('--attack-scenario', required=required_mode,
                    help='Attack scenario (REQUIRED per engine_contract.md Rule B)')
     p.add_argument('--cvss', type=float, default=0.0,
                    help='CVSS score (0.0-10.0)')
@@ -107,7 +120,6 @@ def main():
     normalized_argv = []
     for raw_arg in sys.argv[1:]:
         if raw_arg.startswith('--') and '_' in raw_arg:
-            # Preserve =value portion (e.g. --my_arg=val → --my-arg=val)
             eq_pos = raw_arg.find('=')
             if eq_pos > 0:
                 normalized_argv.append(raw_arg[:eq_pos].replace('_', '-') + raw_arg[eq_pos:])
@@ -116,29 +128,37 @@ def main():
         else:
             normalized_argv.append(raw_arg)
 
-    args = p.parse_args(normalized_argv)
+    args, unknown = p.parse_known_args(normalized_argv)
+
+    # ── Reject unknown arguments (typo protection) ──
+    # This catches --attack-scannerio (typo for --attack-scenario)
+    # and any other misspelled or invented argument names.
+    unknown_filtered = [a for a in unknown if not a.startswith('-')]
+    unknown_opts = [a for a in unknown if a.startswith('-')]
+    if unknown_opts:
+        print("FATAL: Unknown argument(s): {}".format(' '.join(unknown_opts)), file=sys.stderr)
+        print("  These argument names were not recognized. Check spelling.", file=sys.stderr)
+        sys.exit(4)
 
     # ── Read from stdin if --from-stdin (eliminates ALL shell quoting issues) ──
     if args.from_stdin:
-        import sys as _sys
-        stdin_data = _sys.stdin.read()
+        stdin_data = sys.stdin.read()
         if not stdin_data.strip():
-            print("FATAL: --from-stdin specified but stdin is empty", file=_sys.stderr)
-            _sys.exit(3)
+            print("FATAL: --from-stdin specified but stdin is empty", file=sys.stderr)
+            sys.exit(3)
         try:
             stdin_json = json.loads(stdin_data)
         except json.JSONDecodeError as e:
-            print(f"FATAL: --from-stdin JSON parse error: {e}", file=_sys.stderr)
-            _sys.exit(3)
-        # Map JSON fields to args
+            print(f"FATAL: --from-stdin JSON parse error: {e}", file=sys.stderr)
+            sys.exit(3)
+        # Map JSON fields to args (all fields can come from stdin — no CLI args needed)
         for field in ['command', 'detector', 'severity', 'cwe', 'file', 'function',
                        'title', 'snippet', 'code_context', 'rationale', 'attack_scenario',
                        'fix_before', 'fix_after', 'review_pass', 'review_focus',
-                       'data_flow_path', 'skill_name', 'skill_category']:
+                       'data_flow_path', 'skill_name', 'skill_category',
+                       'scan_dir', 'index_json']:
             if field in stdin_json:
                 # JSON uses underscore names (code_context) which matches argparse dest
-                # (argparse converts --code-context → dest code_context).
-                # Use field directly — no hyphen conversion needed.
                 setattr(args, field, stdin_json[field])
         if 'line' in stdin_json:
             args.line = int(stdin_json['line'])
@@ -146,11 +166,32 @@ def main():
             args.end_line = int(stdin_json['end_line'])
         if 'cvss' in stdin_json:
             args.cvss = float(stdin_json['cvss'])
-        if 'index_json' in stdin_json:
-            args.index_json = stdin_json['index_json']
-        # scan-dir is still required as CLI arg (knowing where to write)
-        if 'scan_dir' in stdin_json:
-            args.scan_dir = stdin_json['scan_dir']
+        if 'fix_before_file' in stdin_json:
+            args.fix_before_file = stdin_json['fix_before_file']
+        if 'fix_after_file' in stdin_json:
+            args.fix_after_file = stdin_json['fix_after_file']
+
+    # ── Validate required fields (whether from CLI or stdin) ──
+    required_fields = {
+        'scan_dir': '--scan-dir / scan_dir',
+        'detector': '--detector / detector',
+        'severity': '--severity / severity',
+        'cwe': '--cwe / cwe',
+        'file': '--file / file',
+        'line': '--line / line',
+        'snippet': '--snippet / snippet',
+        'code_context': '--code-context / code_context',
+        'rationale': '--rationale / rationale',
+        'attack_scenario': '--attack-scenario / attack_scenario',
+    }
+    missing = []
+    for field, flag_name in required_fields.items():
+        val = getattr(args, field, None)
+        if val is None or (isinstance(val, str) and not val.strip()):
+            missing.append(flag_name)
+    if missing:
+        print("FATAL: Required field(s) missing: {}".format(', '.join(missing)), file=sys.stderr)
+        sys.exit(2)
 
     # Read fix from files if specified (avoids shell quoting issues with inline args)
     if args.fix_before_file and os.path.isfile(args.fix_before_file):

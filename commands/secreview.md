@@ -115,6 +115,12 @@ Output directory: <user-project>/.codeagent/secguardian/secreview/scans/pr-20260
 ## 🛠️ Engine Layer
 
 > 以下内容属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行执行。未来 Engine 实现后，此处内容将被 Engine 取代。
+>
+> 🚫 **不要使用 `todowrite` 工具。** 使用原生 task 系统（`TaskCreate` + `TaskUpdate`）追踪进度。
+> `todowrite` 每次调用重传全部已完成项，每会话浪费 ≥50KB 无效 token。
+>
+> 🚫 **不要硬编码 `RECORDER` 路径。** 必须使用 `$SECGUARDIAN_HOME/scripts/record-finding.py`。
+> 硬编码路径在安装位置变动时全断。
 
 ## Dispatch Rules & Execution Steps
 
@@ -153,6 +159,10 @@ Before starting any review, verify each condition below. **If any check fails, r
 
 ---
 
+> **🚫 全路径权限弹窗优化**: 完成 `cd "$USER_PROJECT"` 后，所有项目内文件路径使用**相对路径**。
+> 仅 `$SECGUARDIAN_HOME` 引用使用全路径（脚本和二进制在插件目录，不可避免）。
+> 全路径操作触发 AI CLI permission system 逐项确权弹窗，中断扫描流程。
+
 ### 🔒 Cross-Shell State Passing (ALL bash calls after Step 1 MUST follow)
 
 > **Each bash call is an independent shell — variables are not shared. NEVER use `/tmp/` for state.**
@@ -177,15 +187,22 @@ Then use `$SCAN_DIR`, `$SCAN_ID`, `$USER_PROJECT` directly. NEVER use `$(cat /tm
 USER_PROJECT="$(pwd)"
 SCAN_ID="pr-$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 2)"
 SCAN_DIR="$USER_PROJECT/.codeagent/secguardian/secreview/scans/$SCAN_ID"
-mkdir -p "$SCAN_DIR"
+mkdir -p "$SCAN_DIR" "$USER_PROJECT/.codeagent/secguardian/knowledge"
+# 将知识库拷贝到项目内（消除 OpenCode read 工具访问外部目录的权限弹窗）
+cp -r "$SECGUARDIAN_HOME/knowledge/." "$USER_PROJECT/.codeagent/secguardian/knowledge/"
 cat > "$USER_PROJECT/.codeagent/secguardian/.scan_state.secreview" << STATEEOF
 SCAN_ID="$SCAN_ID"
 USER_PROJECT="$USER_PROJECT"
 SCAN_DIR="$SCAN_DIR"
+SECGUARDIAN_HOME="$SECGUARDIAN_HOME"
 STATEEOF
 echo "SCAN_DIR=$SCAN_DIR"
 ```
 - Record review start timestamp for Step 4 `duration_ms` calculation.
+
+> **📂 Local knowledge copy**: All knowledge files are copied to `.codeagent/secguardian/knowledge/` during Step 1.
+> - Use `read` tool on `.codeagent/secguardian/knowledge/` relative paths (NOT `$SECGUARDIAN_HOME/knowledge/`)
+> - This avoids OpenCode permission prompts for external directories
 
 ### Step 2: Build Semantic Index (Required)
 
@@ -201,8 +218,23 @@ if [ ! -f "$INDEXER" ]; then
     exit 1
 fi
 echo "Using: $INDEXER"
-# 缓存由 wrapper 透明处理：同路径复用 index.json（加 --force 强制重建，刷新缓存）
-$INDEXER --path <path> --output <user-project>/.codeagent/secguardian/index.json
+# 超时保护: timeout 30s，防止索引器挂死。macOS 需要 brew install coreutils。
+if command -v timeout &>/dev/null; then
+    timeout 30 "$INDEXER" --path <path> --output <user-project>/.codeagent/secguardian/index.json || {
+        echo "FAIL: Indexer timed out after 30s or failed — cannot continue"
+        echo "  macOS: brew install coreutils  (provides 'timeout' command)"
+        exit 1
+    }
+elif command -v gtimeout &>/dev/null; then
+    gtimeout 30 "$INDEXER" --path <path> --output <user-project>/.codeagent/secguardian/index.json || {
+        echo "FAIL: Indexer timed out after 30s or failed — cannot continue"
+        exit 1
+    }
+else
+    echo "WARNING: 'timeout' not found — indexer runs without timeout protection"
+    echo "  Install coreutils: brew install coreutils (macOS) or apt install coreutils (Linux)"
+    "$INDEXER" --path <path> --output <user-project>/.codeagent/secguardian/index.json
+fi
 if [ ! -f "<user-project>/.codeagent/secguardian/index.json" ]; then
     echo "FATAL: Indexer failed — cannot continue"
     exit 1
@@ -322,6 +354,9 @@ Key requirements (secreview-specific):
 - `impact.attack_scenario` is **required** — describe a concrete way an attacker could exploit this
 - `secreview_specific.review_pass` indicates which reasoning pass identified the finding
 - **Must include** `file`, `line`, `location`, `impact`, `fix` fields
+
+<!-- @secguardian:non-skippable step=validate -->
+> **🚫 此验证步骤不可跳过。跳过验证不会加速检视——验证减低了误报，是报告前的强制性安全检查。**
 
 **5b. Self-check + renderer auto-generates findings.json:**
 

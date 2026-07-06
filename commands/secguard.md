@@ -69,6 +69,10 @@ SARIF 输出 (CI/CD 集成):
 └── delta.json               # 增量对比 (vs 上次扫描)
 ```
 
+> **🚫 全路径权限弹窗优化**: 完成 `cd "$USER_PROJECT"` 后，所有项目内文件路径使用**相对路径**。
+> 仅 `$SECGUARDIAN_HOME` 引用使用全路径（脚本和二进制在插件目录，不可避免）。
+> 全路径操作触发 AI CLI permission system 逐项确权弹窗，中断扫描流程。
+
 **执行完毕后必须输出扫描摘要和 scan-id：**
 
 ```
@@ -131,6 +135,12 @@ Filters: memory.*, system.*
 ## 🛠️ Engine Layer
 
 > 以下内容属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行执行。未来 Engine 实现后，此处内容将被 Engine 取代。
+>
+> 🚫 **不要使用 `todowrite` 工具。** 使用原生 task 系统（`TaskCreate` + `TaskUpdate`）追踪进度。
+> `todowrite` 每次调用重传全部已完成项，每会话浪费 ≥50KB 无效 token。
+>
+> 🚫 **不要硬编码 `RECORDER` 路径。** 必须使用 `$SECGUARDIAN_HOME/scripts/record-finding.py`。
+> 硬编码路径在安装位置变动时全断。
 
 ## 派发规则与执行步骤
 
@@ -197,11 +207,14 @@ source .codeagent/secguardian/.scan_state.secguard
 USER_PROJECT="$(pwd)"
 SCAN_ID="sc-$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 2)"
 SCAN_DIR="$USER_PROJECT/.codeagent/secguardian/secguard/scans/$SCAN_ID"
-mkdir -p "$SCAN_DIR"
+mkdir -p "$SCAN_DIR" "$USER_PROJECT/.codeagent/secguardian/knowledge"
+# 将知识库拷贝到项目内（消除 OpenCode read 工具访问外部目录的权限弹窗）
+cp -r "$SECGUARDIAN_HOME/knowledge/." "$USER_PROJECT/.codeagent/secguardian/knowledge/"
 cat > "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard" << STATEEOF
 SCAN_ID="$SCAN_ID"
 USER_PROJECT="$USER_PROJECT"
 SCAN_DIR="$SCAN_DIR"
+SECGUARDIAN_HOME="$SECGUARDIAN_HOME"
 STATEEOF
 echo "SCAN_DIR=$SCAN_DIR"
 ```
@@ -211,6 +224,11 @@ echo "SCAN_DIR=$SCAN_DIR"
 > source .codeagent/secguardian/.scan_state.secguard
 > ```
 > 此后 `$SCAN_DIR`、`$SCAN_ID`、`$USER_PROJECT` 即可用。**禁止用 `cat /tmp/*.txt`**。
+>
+> **📂 知识库本地拷贝**: 知识库文件（guard-rules、language-index、protocols）已在 Step 1 拷贝到 `.codeagent/secguardian/knowledge/`。
+> - `read` 工具读取检测器规则时，必须使用 `.codeagent/secguardian/knowledge/` 相对路径
+> - 禁止使用 `$SECGUARDIAN_HOME/knowledge/` 全路径（触发 OpenCode 外部目录权限弹窗）
+> - bash 操作也优先使用 `.codeagent/secguardian/knowledge/` 路径
 
 ### Step 2: 构建语义索引（必须执行，不可跳过）
 
@@ -227,13 +245,24 @@ if [ ! -f "$INDEXER" ]; then
     exit 1
 fi
 echo "Using: $INDEXER"
-# timeout: GNU timeut not available on macOS; use gtimeout if available or skip
-TIMEOUT_CMD=""
-if command -v timeout &>/dev/null; then TIMEOUT_CMD="timeout 120"
-elif command -v gtimeout &>/dev/null; then TIMEOUT_CMD="gtimeout 120"
+# 超时保护: timeout 30s，防止索引器挂死。macOS 需要 brew install coreutils。
+if command -v timeout &>/dev/null; then
+    timeout 30 "$INDEXER" --lang <language> --path <path> --output "$USER_PROJECT/.codeagent/secguardian/index.json" || {
+        echo "FAIL: Indexer timed out after 30s or failed — cannot continue"
+        echo "  Large codebases: use --skip-index to skip indexing (falls back to regex parser)."
+        echo "  macOS: brew install coreutils  (provides 'timeout' command)"
+        exit 1
+    }
+elif command -v gtimeout &>/dev/null; then
+    gtimeout 30 "$INDEXER" --lang <language> --path <path> --output "$USER_PROJECT/.codeagent/secguardian/index.json" || {
+        echo "FAIL: Indexer timed out after 30s or failed — cannot continue"
+        exit 1
+    }
+else
+    echo "WARNING: 'timeout' not found — indexer runs without timeout protection"
+    echo "  Install coreutils: brew install coreutils (macOS) or apt install coreutils (Linux)"
+    "$INDEXER" --lang <language> --path <path> --output "$USER_PROJECT/.codeagent/secguardian/index.json"
 fi
-# 缓存由 wrapper 透明处理：同路径复用 index.json（加 --force 强制重建，刷新缓存）
-$TIMEOUT_CMD $INDEXER --lang <language> --path <path> --output "$USER_PROJECT/.codeagent/secguardian/index.json"
 if [ ! -f ""$USER_PROJECT/.codeagent/secguardian/index.json"" ]; then
     echo "FATAL: Indexer failed — cannot continue"
     exit 1
@@ -349,7 +378,7 @@ INDEX_FILE 输出示例:
 用 bash 定位并读取文件（禁止 Glob/Read）：
 
 ```bash
-LANG_INDEX="$SECGUARDIAN_HOME/knowledge/language-index.md"
+LANG_INDEX=".codeagent/secguardian/knowledge/language-index.md"
 [ ! -f "$LANG_INDEX" ] && echo "WARNING: language-index.md not found" && LANG_INDEX="/dev/null"
 data=$(cat "$LANG_INDEX")
 echo "$data"
@@ -367,7 +396,8 @@ AI 只需读取 `## cpp` 以下至下一个 `##` 之间的内容即获得完整�
 - `namespace.*`（如 `memory.*`）→ 只保留该命名空间的 guard-rules
 - `namespace.name`（如 `memory.null-dereference`）→ 只加载单个检测器
 - 逗号分隔（如 `memory.*,system.*`）→ 取并集
-- 检测器文件路径：`$SECGUARDIAN_HOME/knowledge/guard-rules/{namespace-name}.md`
+- 检测器文件路径：`.codeagent/secguardian/knowledge/guard-rules/{namespace-name}.md`
+  （`read` 工具和 `cat` 优先用此相对路径，避免 OpenCode 外部目录权限弹窗）
 
 #### 3d 精确加载
 
@@ -388,10 +418,14 @@ AI 只需读取 `## cpp` 以下至下一个 `##` 之间的内容即获得完整�
 >
 > **为什么？** sub-agent 无法访问 index.json 和 guard-rules，只能全量 grep 642 个文件，完全绕过了索引器体系。
 
+<!-- @secguardian:non-skippable step=validate -->
+> **🚫 此验证步骤不可跳过。跳过验证不会加速扫描——验证减低了误报，是报告前的强制性安全检查。**
+> 如果必须跳过（如极短时间内重复测试），显式加 `--no-verify` flag（但在正式扫描中不鼓励）。
+
 ### Step 3.5: 三轮验证管道（误报消减）
 
 > ⚠️ 这是 v6.0 新增的验证步骤。在 Detector 产出 Finding 后、渲染报告前，执行三轮独立验证对每个 Finding 进行证据认证，最大化降低误报。
-> 跳过验证: 在命令末尾加 `--no-verify` flag。
+> 跳过验证: 在命令末尾加 `--no-verify` flag（会触发 self-check 警告）。
 
 **3.5a. 加载验证协议（多路径搜索）：**
 

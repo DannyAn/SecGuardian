@@ -5,6 +5,47 @@
 
 ---
 
+## 2026-07-06 — 会话质量增强：从 OpenCode 实测日志提炼 9 项系统性改进
+
+### 背景
+
+对 `examples/go-vuln-demo` 在 OpenCode 上执行 `/secguard` → `/secreview` → `/secaudit` 三个命令后，
+实测会话日志（8915 行，56 轮）暴露以下系统性问题：
+
+| 维度 | 问题 | 影响 |
+|------|------|------|
+| Token 效率 | todowrite 每次重发全部已完成项 | 每会话 ~50KB 无效 token |
+| Token 效率 | record-finding.py shell 转义冗长 | 每 finding ~2KB 转义开销 |
+| 正确性 | `--attack-scannerio` 拼写 argparse 静默接受 | 费时 3 轮才发现 |
+| 健壮性 | 索引器无超时保护 | 大项目可能永久挂死 |
+| 可靠性 | Agent 可自主跳过 Step 3.5 验证 | 安全性视 Agent 心情 |
+| 路径问题 | 全路径操作触发频繁确权弹窗 | 中断自动化流程 |
+| 维护性 | $RECORDER 硬编码路径多处重复 | 路径变动全断 |
+
+### 讨论要点
+
+1. **todowrite 浪费**: 7 次调用的序列化数据 ~7KB，native task 系统零序列化。P0。
+2. **--from-stdin 设计缺陷**: 当前要求 `--from-stdin` 仍需 CLI 指定部分参数，增加复杂度。改为 stdin 接受完整 JSON。
+3. **argparse 拒绝未知**: 不认识的参数名应直接报错退出，防止 `--attack-scannerio` 类 typo 静默失败。
+4. **安全性验证不可跳过**: Step 3.5 应植入非移除标记，Agent 无法绕过。
+5. **索引器 timeout**: `timeout 30s` 包装 + 超时自动 fallback 到 regex parser。
+6. **权限弹窗本质**: 全路径操作触发 permission system 逐项确权。操作从用户项目目录内执行时弹窗减少。
+7. **路径策略**: `cd "$USER_PROJECT"` 再执行操作，项目内文件的路径使用相对路径。
+
+### 最终方案
+
+创建独立 Feature：**EPIC-006 系统质量工程 / FEATURE-001 会话质量与稳定性增强**。
+包含 3 个 Task + 1 个 Change，覆盖 P0/P1/P2 全部项。
+
+### 影响范围
+
+- `knowledge/protocols/` — record-finding.py 使用协议
+- `scripts/record-finding.py` — 核心修改
+- `commands/*.md` — 命令模板加固
+- `skills/*/SKILL.md` — 各 skill 模板统一更新
+
+---
+
 ## 2026-06-28 — Finding ID 重构 + 安全评分修复（Java 扫描实测发现）
 
 ### 背景

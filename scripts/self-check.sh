@@ -389,8 +389,44 @@ for cmd in secguard secaudit secreview; do
         fail=1
     fi
 
+    # 12f: Non-skippable validation marker (regression guard: agents skipping verify)
+    if grep -q '@secguardian:non-skippable' "$f" 2>/dev/null; then
+        TS_PASS=$((TS_PASS + 1))
+    else
+        echo "  ❌ ${cmd}: 12f non-skippable validation marker MISSING"
+        echo "    Add: <!-- @secguardian:non-skippable step=validate --> before validation step"
+        fail=1
+    fi
+
+    # 12g: No hardcoded RECORDER paths (must use $SECGUARDIAN_HOME)
+    hardcoded_recorder=$(grep -cE 'RECORDER=".*record-finding' "$f" 2>/dev/null) || true
+    sg_recorder=$(grep -cE 'RECORDER="\$SECGUARDIAN_HOME/scripts/record-finding' "$f" 2>/dev/null) || true
+    if [ "$hardcoded_recorder" -gt 0 ] && [ "$sg_recorder" -lt "$hardcoded_recorder" ]; then
+        echo "  ❌ ${cmd}: 12g ${hardcoded_recorder} hardcoded RECORDER path(s)"
+        fail=1
+    else
+        TS_PASS=$((TS_PASS + 1))
+    fi
+
+    # 12h: No todowrite tool invocation (regression guard: token waste)
+    # Note: "不要使用 todowrite" advisory text is OK; actual **Tool: todowrite** is not.
+    if grep -qE '\*\*Tool: todowrite\*\*' "$f" 2>/dev/null; then
+        echo "  ❌ ${cmd}: 12h contains '**Tool: todowrite**' — use TaskCreate/TaskUpdate instead"
+        fail=1
+    else
+        TS_PASS=$((TS_PASS + 1))
+    fi
+
+    # 12i: timeout 30 present on indexer call (regression guard: hang protection)
+    if grep -qE 'timeout.*30.*indexer|timeout.*30.*INDEXER|gtimeout.*30.*INDEXER' "$f" 2>/dev/null; then
+        TS_PASS=$((TS_PASS + 1))
+    else
+        echo "  ❌ ${cmd}: 12i indexer timeout 30s (hang protection) MISSING"
+        fail=1
+    fi
+
     if [ "$fail" -eq 0 ]; then
-        green "  ${cmd}: all 6 template checks passed"
+        green "  ${cmd}: all 9 template checks passed"
     else
         TS_FAIL=$((TS_FAIL + 1))
     fi

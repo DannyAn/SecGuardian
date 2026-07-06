@@ -312,7 +312,10 @@ JSON
     if command -v claude &>/dev/null; then
         # Register marketplace
         claude plugin marketplace add "$marketplace_dir" 2>/dev/null || true
-        # Install/update plugin (idempotent — CLI handles upgrades)
+        # Force refresh: delete stale cache so CLI re-reads current files.
+        # claude plugin install returns "already installed" without updating the
+        # cache when the version string hasn't changed.
+        rm -rf "$HOME/.claude/plugins/cache/$marketplace_name/secguardian/"
         claude plugin install "secguardian@$marketplace_name" 2>/dev/null && {
             log_done "plugin registered via claude CLI"
             return 0
@@ -540,7 +543,7 @@ deploy_opencode() {
     # Clean old: remove stale extension dir, stale plugin, legacy flat deployment
     rm -rf "$ext_dir"
     rm -f "$opencode_dir/plugins/secguardian.js"
-    for legacy_sub in commands skills knowledge scripts; do
+    for legacy_sub in skills knowledge scripts; do
         if [ -d "$opencode_dir/$legacy_sub" ]; then
             if [ -f "$opencode_dir/$legacy_sub/secaudit.md" ] || \
                [ -f "$opencode_dir/$legacy_sub/secguard.md" ] || \
@@ -556,7 +559,7 @@ deploy_opencode() {
     mkdir -p "$ext_dir/commands" "$skills_dir" "$scripts_dir/bin" \
              "$knowledge_dir/languages" "$knowledge_dir/guard-rules" \
              "$knowledge_dir/protocols" "$knowledge_dir/standards" \
-             "$opencode_dir/plugins"
+             "$opencode_dir/plugins" "$opencode_dir/commands"
 
     # Write codeagent-extension.json (informational manifest)
     cat > "$ext_dir/codeagent-extension.json" << JSON
@@ -578,7 +581,8 @@ JSON
     for d in "$DIST"/*/; do
         if [ -d "$d/commands" ]; then
             for f in "$d/commands"/*.md; do
-                [ -f "$f" ] && cp "$f" "$ext_dir/commands/" && cmd_n=$((cmd_n + 1))
+                [ -f "$f" ] && cp "$f" "$ext_dir/commands/" && \
+                cp "$f" "$opencode_dir/commands/" && cmd_n=$((cmd_n + 1))
             done
         fi
     done
