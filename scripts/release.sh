@@ -87,7 +87,7 @@ bash "$PROJECT_ROOT/scripts/package.sh"
 
 # ── Step 2: Platform bundles ──────────────────
 echo ""
-echo "==> Step 2: Building platform bundles..."
+echo "==> Step 2: Building per-OS/arch bundles (with all 3 AI-platform formats)..."
 
 TARGETS=(
     "darwin-arm64:.tar.gz"
@@ -104,19 +104,68 @@ for entry in "${TARGETS[@]}"; do
     IFS=: read -r platform ext <<< "$entry"
     staging="$RELEASE_DIR/staging-$platform"
     rm -rf "$staging"
-    mkdir -p "$staging/scripts/bin"
 
-    # Merge all 4 extensions into staging (excluding binaries)
-    for ext_dir in "$DIST"/*-secguardian/; do
-        [ -d "$ext_dir" ] || continue
-        # Copy all except scripts/bin/ (we handle binaries per-platform)
-        (cd "$ext_dir" && find . -not -path './scripts/bin/*' -type f | while read -r f; do
-            mkdir -p "$staging/$(dirname "$f")"
-            cp "$ext_dir/$f" "$staging/$f"
-        done)
+    # ── 1. Directory structure ───────────────────
+    mkdir -p "$staging/.claude-plugin" \
+             "$staging/commands/secguardian" \
+             "$staging/skills" \
+             "$staging/knowledge/languages" \
+             "$staging/knowledge/guard-rules" \
+             "$staging/knowledge/protocols" \
+             "$staging/knowledge/standards" \
+             "$staging/scripts/bin" \
+             "$staging/plugins"
+
+    # ── 2. Merge .md commands (Claude + OpenCode) ──
+    for d in "$DIST"/*-secguardian/; do
+        [ -d "$d/commands" ] && find "$d/commands" -maxdepth 1 -name '*.md' -exec cp {} "$staging/commands/" \;
+    done
+    # Namespace copies for Claude Code: /secguardian:secguard
+    for f in "$staging/commands"/*.md; do
+        [ -f "$f" ] && cp "$f" "$staging/commands/secguardian/"
     done
 
-    # Use platform-specific binary (renamed to canonical name)
+    # ── 3. Generate + bundle .toml commands (Gemini) ──
+    bash "$PROJECT_ROOT/scripts/gen-toml.sh" > /dev/null
+    for f in "$PROJECT_ROOT/commands/gemini"/*.toml; do
+        [ -f "$f" ] && cp "$f" "$staging/commands/"
+    done
+
+    # ── 4. Merge skills with command prefix ───────
+    # Each extension has skills/: secguard has cpp/go/java/js/python,
+    # secreview has cpp/go/java/js/python — they'd overwrite without prefix.
+    for d in "$DIST"/*-secguardian/; do
+        prefix="$(basename "$d" | sed 's/-secguardian//')"
+        if [ -d "$d/skills" ]; then
+            for sd in "$d/skills"/*/; do
+                [ -d "$sd" ] && cp -r "$sd" "$staging/skills/${prefix}-$(basename "$sd")"
+            done
+        fi
+    done
+
+    # ── 5. Merge knowledge from all extensions ────
+    for cat in languages guard-rules protocols; do
+        for d in "$DIST"/*-secguardian/; do
+            [ -d "$d/knowledge/$cat" ] && find "$d/knowledge/$cat" -name '*.md' -exec cp {} "$staging/knowledge/$cat/" \;
+        done
+    done
+    # Project-level knowledge (outside extension dirs)
+    [ -f "$PROJECT_ROOT/knowledge/threat-catalog.md" ] && cp "$PROJECT_ROOT/knowledge/threat-catalog.md" "$staging/knowledge/"
+    [ -f "$PROJECT_ROOT/SECURITY.md" ] && cp "$PROJECT_ROOT/SECURITY.md" "$staging/knowledge/"
+    [ -d "$PROJECT_ROOT/knowledge/standards" ] && find "$PROJECT_ROOT/knowledge/standards" -name '*.md' -exec cp {} "$staging/knowledge/standards/" \; 2>/dev/null || true
+    cp -r "$PROJECT_ROOT/knowledge/audit-rules" "$staging/knowledge/" 2>/dev/null || true
+    cp -r "$PROJECT_ROOT/knowledge/review-rules" "$staging/knowledge/" 2>/dev/null || true
+    cp "$PROJECT_ROOT/knowledge/language-index.md" "$staging/knowledge/" 2>/dev/null || true
+
+    # ── 6. Scripts + wrappers ────────────────────
+    for wrapper in secguardian-index secguardian-index.ps1 render-report.py validate-index.py validate-findings.py record-finding.py; do
+        if [ -f "$PROJECT_ROOT/scripts/$wrapper" ]; then
+            cp "$PROJECT_ROOT/scripts/$wrapper" "$staging/scripts/$wrapper"
+            chmod +x "$staging/scripts/$wrapper" 2>/dev/null || true
+        fi
+    done
+
+    # ── 7. Platform-specific binary ─────────────
     bin_name="secguardian-index-${platform}"
     [ "$platform" = "windows-amd64" ] && bin_name="${bin_name}.exe"
     if [ -f "$BIN_SRC/$bin_name" ]; then
@@ -126,11 +175,73 @@ for entry in "${TARGETS[@]}"; do
         echo "  [WARN] Binary not found: $bin_name"
     fi
 
-    # Strip macOS extended attributes + Apple Double files before packaging
+    # ── 8. Platform manifests (all 3 pre-built) ──
+
+    # Claude Code: .claude-plugin/plugin.json
+    cat > "$staging/.claude-plugin/plugin.json" << JSON
+{
+  "name": "secguardian",
+  "version": "${VERSION}",
+  "description": "SecGuardian — 企业级白盒安全 AI Agent 辅助解决方案",
+  "author": { "name": "SecGuardian", "url": "https://github.com/DannyAn/SecGuardian" },
+  "homepage": "https://github.com/DannyAn/SecGuardian"
+}
+JSON
+
+    # OpenCode: codeagent-extension.json
+    cat > "$staging/codeagent-extension.json" << JSON
+{
+  "name": "secguardian",
+  "version": "${VERSION}",
+  "description": "SecGuardian — 企业级白盒安全 AI Agent 辅助解决方案"
+}
+JSON
+
+    # Gemini CLI: gemini-extension.json (lists all 4 .toml commands)
+    cat > "$staging/gemini-extension.json" << JSON
+{
+  "name": "secguardian",
+  "version": "${VERSION}",
+  "description": "SecGuardian — 企业级白盒安全 AI Agent 辅助解决方案",
+  "author": "SecGuardian",
+  "homepage": "https://github.com/DannyAn/SecGuardian",
+  "commands": ["commands/secguard.toml", "commands/secaudit.toml", "commands/secreview.toml", "commands/secfix.toml"]
+}
+JSON
+
+    # ── 9. OpenCode plugin script ────────────────
+    if [ -f "$PROJECT_ROOT/scripts/opencode-plugin.js" ]; then
+        cp "$PROJECT_ROOT/scripts/opencode-plugin.js" "$staging/plugins/secguardian.js"
+    fi
+
+    # ── 10. Gemini context file ──────────────────
+    cat > "$staging/GEMINI.md" << 'GEMINI'
+# SecGuardian — 安全守卫
+
+本扩展注册了 4 个 Gemini CLI 安全命令：
+
+| 命令 | 用途 |
+|------|------|
+| `/secguard <path> [mode] [filters]` | 安全加固项排查 — 代码级漏洞检测 |
+| `/secaudit <skill-name> [path]` | 安全专项审计 — 深度安全分析 |
+| `/secreview <path> [language]` | 安全规范检视 — 反模式和最佳实践 |
+| `/secfix <path> [rule]` | AI 安全修复 |
+
+## 使用流程
+
+```
+/secguard ./src cpp              # 扫描 C/C++ 项目
+/secaudit input-validation ./src # 审计输入验证
+/secreview ./src java            # 安全规范检视
+```
+
+所有扫描结果写入 `.codeagent/secguardian/scans/<scan-id>/`。
+GEMINI
+
+    # ── 11. Strip macOS artifacts + package ──────
     xattr -cr "$staging" 2>/dev/null || true
     find "$staging" -name '._*' -type f -delete 2>/dev/null || true
 
-    # Package the platform bundle
     bundle_name="secguardian-${VERSION}-${platform}${ext}"
     (cd "$RELEASE_DIR" && \
         if [ "$ext" = ".zip" ]; then
