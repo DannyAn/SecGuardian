@@ -14,6 +14,7 @@ Platform Engineering 聚焦于 SecGuardian 作为平台的工程能力：消除�
 |---------|------|------|
 | [FEATURE-001: Manifest-Driven Tokens](./FEATURE-001-manifest-driven-tokens/) | ✅ 已完成 | manifest.json 为单一权威源，sync-manifest.sh 自动同步 |
 | [FEATURE-002: MCP Server](./FEATURE-002-mcp-server/) | 🔄 设计中 | 将 Security Knowledge + Code Intelligence 封装为 MCP 协议接口 |
+| [FEATURE-003: Release Artifact Standardization](./FEATURE-003-release-artifact-standardization/) | 🔨 实现中 | 单包分发 + install.sh 统一安装器 |
 
 ## 架构愿景
 
