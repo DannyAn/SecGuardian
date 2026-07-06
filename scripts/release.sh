@@ -206,16 +206,12 @@ echo ""
 echo "==> Step 4: Generating SHA256 checksums..."
 
 cd "$RELEASE_DIR"
-if command -v sha256sum &>/dev/null; then
-    sha256sum -- *.tar.gz *.zip 2>/dev/null > SHA256SUMS
-elif command -v shasum &>/dev/null; then
-    shasum -a 256 -- *.tar.gz *.zip 2>/dev/null > SHA256SUMS
+if command -v shasum &>/dev/null; then
+    shasum -a 256 -- secguardian-*.tar.gz secguardian-*.zip > SHA256SUMS 2>/dev/null || true
+elif command -v sha256sum &>/dev/null; then
+    sha256sum -- secguardian-*.tar.gz secguardian-*.zip > SHA256SUMS 2>/dev/null || true
 fi
 echo "  → SHA256SUMS written"
-echo ""
-echo "Release artifacts:"
-ls -lh "$RELEASE_DIR/"*
-echo ""
 
 # ── Step 5: Changelog ─────────────────────────
 RELEASE_NOTES=""
