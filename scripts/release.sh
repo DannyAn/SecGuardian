@@ -126,7 +126,8 @@ for entry in "${TARGETS[@]}"; do
         echo "  [WARN] Binary not found: $bin_name"
     fi
 
-    # Clean macOS Apple Double files before packaging
+    # Strip macOS extended attributes + Apple Double files before packaging
+    xattr -cr "$staging" 2>/dev/null || true
     find "$staging" -name '._*' -type f -delete 2>/dev/null || true
 
     # Package the platform bundle
@@ -135,7 +136,7 @@ for entry in "${TARGETS[@]}"; do
         if [ "$ext" = ".zip" ]; then
             (cd "staging-$platform" && zip -qr "$RELEASE_DIR/$bundle_name" .)
         else
-            COPYFILE_DISABLE=1 tar czf "$bundle_name" -C "staging-$platform" .
+            COPYFILE_DISABLE=1 tar czf "$bundle_name" --no-xattrs -C "staging-$platform" .
         fi)
     echo "  → $bundle_name"
     rm -rf "$staging"
@@ -198,12 +199,12 @@ Each platform bundle contains all 4 SecGuardian commands:
 After install, restart your AI CLI. Run \`/secguard --help\` to get started.
 README
 
-# Clean macOS Apple Double files (from cp during staging)
-find "$TOP_DIR" -name '._*' -type f -delete 2>/dev/null || true
+# Strip macOS extended attributes from files copied into TOP_DIR
+xattr -cr "$TOP_DIR" 2>/dev/null || true
 
 # Package top-level
 TOP_ARCHIVE="secguardian-${VERSION}.tar.gz"
-(cd "$RELEASE_DIR" && COPYFILE_DISABLE=1 tar czf "$TOP_ARCHIVE" "secguardian-${VERSION}")
+(cd "$RELEASE_DIR" && COPYFILE_DISABLE=1 tar czf "$TOP_ARCHIVE" --no-xattrs "secguardian-${VERSION}")
 echo "  → $TOP_ARCHIVE"
 rm -rf "$TOP_DIR"
 
