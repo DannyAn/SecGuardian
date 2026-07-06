@@ -100,7 +100,23 @@ def main():
     p.add_argument('--from-stdin', action='store_true',
                    help='Read finding JSON from stdin (eliminates shell quoting issues)')
 
-    args = p.parse_args()
+    # ── Normalize CLI args: convert --underscore_name to --hyphen-name ──
+    # AI agents naturally use Python-style underscore naming in shell commands.
+    # This normalization ensures --code_context works the same as --code-context,
+    # --attack_scenario the same as --attack-scenario, etc., for ALL args.
+    normalized_argv = []
+    for raw_arg in sys.argv[1:]:
+        if raw_arg.startswith('--') and '_' in raw_arg:
+            # Preserve =value portion (e.g. --my_arg=val → --my-arg=val)
+            eq_pos = raw_arg.find('=')
+            if eq_pos > 0:
+                normalized_argv.append(raw_arg[:eq_pos].replace('_', '-') + raw_arg[eq_pos:])
+            else:
+                normalized_argv.append(raw_arg.replace('_', '-'))
+        else:
+            normalized_argv.append(raw_arg)
+
+    args = p.parse_args(normalized_argv)
 
     # ── Read from stdin if --from-stdin (eliminates ALL shell quoting issues) ──
     if args.from_stdin:
@@ -120,8 +136,10 @@ def main():
                        'fix_before', 'fix_after', 'review_pass', 'review_focus',
                        'data_flow_path', 'skill_name', 'skill_category']:
             if field in stdin_json:
-                setattr(args, field.replace('_', '-') if '_' in field else field,
-                        stdin_json[field])
+                # JSON uses underscore names (code_context) which matches argparse dest
+                # (argparse converts --code-context → dest code_context).
+                # Use field directly — no hyphen conversion needed.
+                setattr(args, field, stdin_json[field])
         if 'line' in stdin_json:
             args.line = int(stdin_json['line'])
         if 'end_line' in stdin_json:

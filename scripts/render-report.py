@@ -265,7 +265,7 @@ def indent(text, spaces=4):
     return "\n".join(prefix + line if line.strip() else "" for line in text.split("\n"))
 
 def now_iso():
-    return datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 def load_findings_from_tree(findings_dir):
     """Load all finding files from a v5.0 directory tree.
