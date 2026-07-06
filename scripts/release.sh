@@ -126,13 +126,16 @@ for entry in "${TARGETS[@]}"; do
         echo "  [WARN] Binary not found: $bin_name"
     fi
 
+    # Clean macOS Apple Double files before packaging
+    find "$staging" -name '._*' -type f -delete 2>/dev/null || true
+
     # Package the platform bundle
     bundle_name="secguardian-${VERSION}-${platform}${ext}"
     (cd "$RELEASE_DIR" && \
         if [ "$ext" = ".zip" ]; then
             (cd "staging-$platform" && zip -qr "$RELEASE_DIR/$bundle_name" .)
         else
-            tar czf "$bundle_name" -C "staging-$platform" .
+            COPYFILE_DISABLE=1 tar czf "$bundle_name" -C "staging-$platform" .
         fi)
     echo "  → $bundle_name"
     rm -rf "$staging"
@@ -195,9 +198,12 @@ Each platform bundle contains all 4 SecGuardian commands:
 After install, restart your AI CLI. Run \`/secguard --help\` to get started.
 README
 
+# Clean macOS Apple Double files (from cp during staging)
+find "$TOP_DIR" -name '._*' -type f -delete 2>/dev/null || true
+
 # Package top-level
 TOP_ARCHIVE="secguardian-${VERSION}.tar.gz"
-(cd "$RELEASE_DIR" && tar czf "$TOP_ARCHIVE" "secguardian-${VERSION}")
+(cd "$RELEASE_DIR" && COPYFILE_DISABLE=1 tar czf "$TOP_ARCHIVE" "secguardian-${VERSION}")
 echo "  → $TOP_ARCHIVE"
 rm -rf "$TOP_DIR"
 

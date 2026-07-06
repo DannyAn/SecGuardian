@@ -8,9 +8,13 @@
 - [x] Spec 完成
 - [x] ADR 完成
 - [x] Plan 完成
-- [ ] Task 进行中
-- [ ] Install.sh 实现
-- [ ] Uninstall.sh 实现
-- [ ] Release.sh 重写
-- [ ] 验证通过
-- [ ] Release 已推
+- [x] Spec 已完成
+- [x] ADR 已完成
+- [x] Plan 已完成
+- [x] Task 已完成
+- [x] Install.sh 已实现
+- [x] Uninstall.sh 已实现
+- [x] Release.sh 已重写
+- [x] 验证通过（平台包结构确认正确）
+- [x] v0.14.0 已重新发布
+- [x] macOS sha256sum 兼容性已修复
