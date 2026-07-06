@@ -191,7 +191,7 @@ deploy_claude() {
     cat > "$plugin_dir/.claude-plugin/plugin.json" << JSON
 {
   "name": "secguardian",
-  "version": "0.12.0",
+  "version": "$(jq -r '.version' "$PROJECT_ROOT/manifest.json")",
   "description": "SecGuardian XuanWu — 企业级白盒安全 AI Agent 辅助解决方案。60 检测器、17 审计技能、5 语言安全检视。",
   "author": { "name": "SecGuardian", "url": "https://github.com/DannyAn/SecGuardian" },
   "homepage": "https://github.com/DannyAn/SecGuardian",
@@ -562,7 +562,7 @@ deploy_opencode() {
     cat > "$ext_dir/codeagent-extension.json" << JSON
 {
   "name": "$brand",
-  "version": "0.12.0",
+  "version": "0.14.0",
   "description": "SecGuardian XuanWu — 企业级白盒安全 AI Agent 辅助解决方案"
 }
 JSON
@@ -656,7 +656,7 @@ deploy_gemini() {
     cat > "$ext_dir/gemini-extension.json" << JSON
 {
   "name": "secguardian",
-  "version": "0.12.0",
+  "version": "0.14.0",
   "description": "SecGuardian XuanWu — 企业级白盒安全 AI Agent 辅助解决方案",
   "author": "SecGuardian",
   "homepage": "https://github.com/DannyAn/SecGuardian",

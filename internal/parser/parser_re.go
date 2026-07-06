@@ -42,8 +42,7 @@ func ParseFile(filePath string, lang string) (*ParseResult, error) {
 		if len(content) > 512*1024 {
 			return result, nil // skip files > 512KB
 		}
-		lines := strings.Split(string(content), "
-")
+		lines := strings.Split(string(content), "\n")
 		for _, line := range lines {
 			if len(line) > 2000 {
 				return result, nil // skip files with lines > 2000 chars
