@@ -1,6 +1,6 @@
 {
   "name": "secaudit-secguardian",
-  "version": "0.15.1",
+  "version": "0.17.0",
   "description": "★ 旗舰产品：AI 深度安全审计 — 13 个审计域覆盖全生命周期安全",
   "author": "SecGuardian",
   "command": "secaudit",

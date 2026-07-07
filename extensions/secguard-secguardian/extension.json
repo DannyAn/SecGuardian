@@ -1,6 +1,7 @@
 {
   "name": "secguard-secguardian",
-  "version": "0.15.1",
+  "version": "0.17.0",
+  "command": "secguard",
   "description": "安全加固项排查 — 67<!-- @secguardian:detector_count --> 个检测器覆盖 7<!-- @secguardian:namespace_count --> 大安全分类",
   "author": "SecGuardian",
   "commands": ["secguard", "secfix"],
