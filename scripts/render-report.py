@@ -1232,6 +1232,10 @@ Examples:
     parser.add_argument("--ci", action="store_true", help="CI mode: set exit_code in status.json")
     parser.add_argument("--format", choices=["all", "report", "sarif", "summary", "manifest", "status", "delta"],
                         default="all", help="Generate only specific files (default: all)")
+    parser.add_argument("--scan-id",
+                        help="Scan ID. Replaces 'unknown' in summary.json/status.json/manifest.json.")
+    parser.add_argument("--path", help="Scan path. Replaces '' in summary.json.")
+    parser.add_argument("--language", help="Language. Replaces 'unknown' in summary.json.")
     parser.add_argument("--command",
                         help="Command name (secguard/secaudit/secreview). Overrides findings_data.")
     parser.add_argument("--quality-gate", action="store_true", default=True,
@@ -1274,6 +1278,29 @@ Examples:
     else:
         # v4.0: load monolithic findings.json
         findings_data = load_json(args.findings)
+
+    # CLI args override metadata from findings.json (break the circular dependency)
+    if args.scan_id:
+        findings_data["scan_id"] = args.scan_id
+    if args.path:
+        findings_data["path"] = args.path
+    if args.language:
+        findings_data["language"] = args.language
+
+    # Auto-compute detectors_matched/executed from findings to avoid 0-count bug
+    # when findings.json metadata hasn't been generated yet (v5.0 first-run circular dep)
+    if findings and not findings_data.get("detectors", {}).get("matched", 0):
+        unique_detectors = set(f.get("detector", "") for f in findings if f.get("detector"))
+        findings_data.setdefault("detectors", {})["matched"] = len(unique_detectors)
+        findings_data["detectors"]["executed"] = len(unique_detectors)
+        findings_data["detectors"]["namespaces_used"] = sorted(set(
+            d.split(".")[0] for d in unique_detectors if "." in d
+        ))
+
+    # Auto-compute scope from findings if not available (count unique files)
+    if findings and not findings_data.get("scope", {}).get("files", 0):
+        unique_files = set(f.get("file", "") for f in findings if f.get("file"))
+        findings_data.setdefault("scope", {})["files"] = len(unique_files)
 
     # Merge index.json scope if provided
     if args.index:

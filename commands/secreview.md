@@ -176,7 +176,6 @@ if [ -z "$SECGUARDIAN_HOME" ] || [ ! -d "$SECGUARDIAN_HOME/scripts" ]; then
         "$HOME/.config/opencode/extensions/secguardian" \
         "$HOME/.claude/plugins/secguardian" \
         "$HOME/.gemini/extensions/secguardian" \
-        "$(dirname "$(dirname "$(realpath "$0")")")" \
         "."; do
         if [ -f "$candidate/scripts/record-finding.py" ]; then
             export SECGUARDIAN_HOME="$candidate"
@@ -405,6 +404,7 @@ fi
 ```bash
 python3 "$RENDERER" \
     --command secreview \
+    --scan-id "$SCAN_ID" \
     --findings-dir <user-project>/.codeagent/secguardian/secreview/scans/<scan_id>/findings/ \
     --index <user-project>/.codeagent/secguardian/index.json \
     --output <user-project>/.codeagent/secguardian/secreview/scans/<scan_id>/

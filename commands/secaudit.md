@@ -169,7 +169,6 @@ if [ -z "$SECGUARDIAN_HOME" ] || [ ! -d "$SECGUARDIAN_HOME/scripts" ]; then
         "$HOME/.config/opencode/extensions/secguardian" \
         "$HOME/.claude/plugins/secguardian" \
         "$HOME/.gemini/extensions/secguardian" \
-        "$(dirname "$(dirname "$(realpath "$0")")")" \
         "."; do
         if [ -f "$candidate/scripts/record-finding.py" ]; then
             export SECGUARDIAN_HOME="$candidate"
@@ -388,6 +387,7 @@ RENDERER="$SECGUARDIAN_HOME/scripts/render-report.py"
 
 python3 "$RENDERER" \
     --command secaudit \
+    --scan-id "$SCAN_ID" \
     --findings-dir .codeagent/secguardian/secaudit/scans/<scan_id>/findings/ \
     --index .codeagent/secguardian/index.json \
     --output .codeagent/secguardian/secaudit/scans/<scan_id>/
