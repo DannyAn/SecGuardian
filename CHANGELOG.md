@@ -2,6 +2,27 @@
 
 All notable changes to SecGuardian.
 
+## [0.15.1] — 2026-07-07
+
+### 🔧 Release Script Consolidation & Docs Restructure
+
+#### 版本发布脚本重构
+- **单入口 release.sh** — 删除 `github-release.sh`，统一 `release.sh` 为唯一入口。`bash scripts/release.sh v0.x.y` 走天下，需要 Gitee 加 `--gitee`
+- **gitee-release.sh 修复** — 产物目录 bug 修正 (`dist/release/` 而非 `dist/release/$VERSION/`)
+- **sync-version.sh 补充** — 覆盖 `secfix-secguardian/extension.json`
+
+#### AI Agent 文档重构
+- **AGENTS.md 定为规范来源** — 标为"全部 AI Agent 的规范来源"，CLAUDE.md 和 GEMINI.md 降级为薄引用层
+- **CLAUDE.md 从 377 行缩减至 85 行** — 仅保留插件注册机制、命名空间策略、部署结构
+- **GEMINI.md 从 282 行缩减至 49 行** — 仅保留命令用法、扫描输出、部署位置
+- **DEVELOPER.md 存档旧发布流程** — 标记"以 AGENTS.md 为准"
+- 所有共享内容（架构/SDD/构建/验证/发布）改为引用 AGENTS.md
+
+#### 版本发布流程
+- L1 设计一致性: 通过 ✅
+- L4 架构端到端: 通过 ✅
+- 全平台部署: Claude Code + OpenCode + Gemini CLI ✅
+
 ## [0.15.0] — 2026-07-07
 
 ### 🐛 Bugfix: Release Sprint — 4 Systemic Issues Resolved

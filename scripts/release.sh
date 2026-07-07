@@ -1,93 +1,136 @@
 #!/bin/bash
-# SecGuardian — Release Build + GitHub Upload
+# SecGuardian — Release Canonical Entry Point
 #
-# 构建单包分发产物 → 上传到 GitHub Releases。
+# Build 发布产物 → 发布到 GitHub / Gitee。
+# 所有发布流程必须通过此脚本执行，分别维护多个发布脚本 = 维护噩梦。
 #
 # 用法:
-#   bash scripts/release.sh v0.14.0           # 发布指定 tag
-#   bash scripts/release.sh v0.14.0 --draft   # 创建 draft release
+#   bash scripts/release.sh v0.15.0               # 构建 + GitHub (默认)
+#   bash scripts/release.sh v0.15.0 --gitee        # 构建 + GitHub + Gitee
+#   bash scripts/release.sh v0.15.0 --only-gitee   # 构建 + Gitee 仅
+#   bash scripts/release.sh --help                 # 帮助
 #
-# 前提:
-#   - tag 已存在 (git tag v0.x.y && git push origin v0.x.y)
+# 前置条件:
+#   - tag v0.x.y 已存在 (git tag && git push origin --tags)
 #   - gh CLI 已登录 (gh auth status)
-#   - 工作目录干净（有未提交修改时交互式确认）
+#   - GITEE_TOKEN 已设置（发布到 Gitee 时需要）
 #
-# 产物结构:
+# 产物: dist/release/
 #
-#   dist/release/
-#   └── secguardian-0.14.0.tar.gz     ← 唯一需要下载的包
-#       ├── install.sh                ← bash install.sh claude|nga|cac
-#       ├── uninstall.sh              ← bash uninstall.sh claude|nga|cac
-#       ├── README.md
-#       ├── secguardian-0.14.0-darwin-arm64.tar.gz   ← 平台内包
-#       ├── secguardian-0.14.0-darwin-amd64.tar.gz
-#       ├── secguardian-0.14.0-linux-amd64.tar.gz
-#       ├── secguardian-0.14.0-linux-arm64.tar.gz
-#       └── secguardian-0.14.0-windows-amd64.zip
-#   SHA256SUMS                         ← 校验文件
+# 设计原则:
+#   1. 单入口 — 不拆分 multiple 发布脚本，不保留 github-release.sh 包装层
+#   2. 构建在前 — 发布前必构建，不信任旧产物
+#   3. 先快后慢 — 先做轻量检查再构建，失败不浪费构建时间
 
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-RELEASE_TAG="${1:-}"
-DRAFT_FLAG="${2:-}"
 
-# ── Help ──────────────────────────────────────
-if [ -z "$RELEASE_TAG" ] || [ "$RELEASE_TAG" = "-h" ] || [ "$RELEASE_TAG" = "--help" ]; then
-    cat << 'EOF'
+# ── 颜色 ────────────────────────────────────
+GREEN='\033[0;32m'; CYAN='\033[0;36m'; YELLOW='\033[0;33m'; RED='\033[0;31m'; BOLD='\033[1m'; NC='\033[0m'
+log()   { echo -e "${CYAN}  →${NC} $1"; }
+ok()    { echo -e "${GREEN}  ✓${NC} $1"; }
+warn()  { echo -e "${YELLOW}  ⚠${NC} $1"; }
+fail()  { echo -e "${RED}  ✗${NC} $1"; exit 1; }
+
+# ── 参数解析 ──────────────────────────────────
+if [ $# -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    cat << 'HELP'
 用法:
-  bash scripts/release.sh v0.x.y         # 发布正式版
-  bash scripts/release.sh v0.x.y --draft # 发布草稿
+  bash scripts/release.sh v0.x.y               # 构建 + GitHub
+  bash scripts/release.sh v0.x.y --gitee        # 构建 + GitHub + Gitee
+  bash scripts/release.sh v0.x.y --only-gitee   # 构建 + Gitee 仅
 
 流程:
-  1. bash scripts/package.sh         (构建 dist/ + 5 平台二进制)
-  2. 合并 4 个 extension → 5 个平台内包
-  3. 打包为 secguardian-<ver>.tar.gz (含 install.sh + uninstall.sh)
-  4. gh release create + upload
-EOF
+  1. Pre-flight: 检查 gh CLI / 认证 / tag 存在 / Release 不重复
+  2. bash scripts/package.sh → 构建 dist/
+  3. 平台打包 (5 targets × 3 AI 平台格式)
+  4. 顶层 bundle + SHA256SUMS
+  5. 发布到 GitHub（除非 --only-gitee）
+  6. 发布到 Gitee（如果 --gitee 或 --only-gitee）
+
+环境变量:
+  GITEE_TOKEN      发布到 Gitee 必需
+  GITEE_OWNER      Gitee 仓库所有者（默认: 从 git remote 提取）
+HELP
     exit 0
 fi
 
-# ── Tag 校验 ──────────────────────────────────
-if ! git rev-parse "$RELEASE_TAG" >/dev/null 2>&1; then
-    echo "[FAIL] Tag '$RELEASE_TAG' not found."
-    echo "  Create it: git tag $RELEASE_TAG && git push origin $RELEASE_TAG"
-    exit 1
-fi
+RELEASE_TAG="$1"
+PUBLISH_TARGET="github"   # github | gitee | all
 
-if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-    echo "[WARN] Release '$RELEASE_TAG' already exists."
-    echo "  Delete old: gh release delete $RELEASE_TAG"
-    echo "  Delete tag: git push --delete origin $RELEASE_TAG"
-    echo "  Or use --clobber-assets to overwrite assets (not yet supported)."
-    exit 1
-fi
-
-# ── Worktree check ────────────────────────────
-if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
-    echo "[WARN] Working directory has uncommitted changes:"
-    git status --short
-    echo ""
-    read -r -p "Continue? [y/N] " reply
-    if [ "$reply" != "y" ] && [ "$reply" != "Y" ]; then
-        echo "Cancelled."
-        exit 1
-    fi
+if [ "${2:-}" = "--gitee" ]; then
+    PUBLISH_TARGET="all"
+elif [ "${2:-}" = "--only-gitee" ]; then
+    PUBLISH_TARGET="gitee"
 fi
 
 VERSION="${RELEASE_TAG#v}"
+
+echo ""
+echo -e "${BOLD}╔══════════════════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}║${NC}  SecGuardian Release ${VERSION}                          ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}  Publish target: ${PUBLISH_TARGET}${NC}"
+echo -e "${BOLD}╚══════════════════════════════════════════════════════╝${NC}"
+echo ""
+
+# ════════════════════════════════════════════════════════════════
+# Step 0: Pre-flight Checks
+# ════════════════════════════════════════════════════════════════
+
+log "Pre-flight checks..."
+
+# Tag 必须存在
+if ! git rev-parse "$RELEASE_TAG" >/dev/null 2>&1; then
+    fail "Tag '$RELEASE_TAG' not found. Create: git tag $RELEASE_TAG && git push origin $RELEASE_TAG"
+fi
+
+# GitHub 发布时需要 gh CLI
+if [ "$PUBLISH_TARGET" = "github" ] || [ "$PUBLISH_TARGET" = "all" ]; then
+    if ! command -v gh &>/dev/null; then
+        fail "gh CLI not found. Install: brew install gh"
+    fi
+    if ! gh auth status 2>&1 | grep -q "Logged in"; then
+        fail "gh not authenticated. Run: gh auth login"
+    fi
+    if gh release view "$RELEASE_TAG" &>/dev/null 2>&1; then
+        fail "GitHub Release $RELEASE_TAG already exists. Delete first:\n  gh release delete $RELEASE_TAG\n  git push --delete origin $RELEASE_TAG"
+    fi
+    ok "GitHub release checks passed"
+fi
+
+# 工作目录检查
+if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+    echo -e "${YELLOW}  ⚠  Working directory has uncommitted changes:${NC}"
+    git status --short
+    echo ""
+    read -r -p "  Continue? [y/N] " reply
+    if [ "$reply" != "y" ] && [ "$reply" != "Y" ]; then
+        echo "  Cancelled."
+        exit 1
+    fi
+fi
+ok "Pre-flight complete"
+
 DIST="$PROJECT_ROOT/dist"
 RELEASE_DIR="$DIST/release"
 BIN_SRC="$PROJECT_ROOT/scripts/bin"
 
-# ── Step 1: Build ─────────────────────────────
-echo ""
-echo "==> Step 1: Building dist/ + binaries..."
-bash "$PROJECT_ROOT/scripts/package.sh"
+# ════════════════════════════════════════════════════════════════
+# Step 1: Build dist/ + binaries
+# ════════════════════════════════════════════════════════════════
 
-# ── Step 2: Platform bundles ──────────────────
 echo ""
-echo "==> Step 2: Building per-OS/arch bundles (with all 3 AI-platform formats)..."
+echo -e "${BOLD}═══ Step 1: Build ═══${NC}"
+bash "$PROJECT_ROOT/scripts/package.sh"
+ok "Build complete"
+
+# ════════════════════════════════════════════════════════════════
+# Step 2: Platform bundles (5 targets × 3 AI platforms)
+# ════════════════════════════════════════════════════════════════
+
+echo ""
+echo -e "${BOLD}═══ Step 2: Platform bundles ═══${NC}"
 
 TARGETS=(
     "darwin-arm64:.tar.gz"
@@ -105,7 +148,6 @@ for entry in "${TARGETS[@]}"; do
     staging="$RELEASE_DIR/staging-$platform"
     rm -rf "$staging"
 
-    # ── 1. Directory structure ───────────────────
     mkdir -p "$staging/.claude-plugin" \
              "$staging/commands/secguardian" \
              "$staging/skills" \
@@ -116,24 +158,21 @@ for entry in "${TARGETS[@]}"; do
              "$staging/scripts/bin" \
              "$staging/plugins"
 
-    # ── 2. Merge .md commands (Claude + OpenCode) ──
+    # Merge .md commands (Claude + OpenCode)
     for d in "$DIST"/*-secguardian/; do
         [ -d "$d/commands" ] && find "$d/commands" -maxdepth 1 -name '*.md' -exec cp {} "$staging/commands/" \;
     done
-    # Namespace copies for Claude Code: /secguardian:secguard
     for f in "$staging/commands"/*.md; do
         [ -f "$f" ] && cp "$f" "$staging/commands/secguardian/"
     done
 
-    # ── 3. Generate + bundle .toml commands (Gemini) ──
+    # Gemini .toml commands
     bash "$PROJECT_ROOT/scripts/gen-toml.sh" > /dev/null
     for f in "$PROJECT_ROOT/commands/gemini"/*.toml; do
         [ -f "$f" ] && cp "$f" "$staging/commands/"
     done
 
-    # ── 4. Merge skills with command prefix ───────
-    # Each extension has skills/: secguard has cpp/go/java/js/python,
-    # secreview has cpp/go/java/js/python — they'd overwrite without prefix.
+    # Merge skills with command prefix
     for d in "$DIST"/*-secguardian/; do
         prefix="$(basename "$d" | sed 's/-secguardian//')"
         if [ -d "$d/skills" ]; then
@@ -143,13 +182,12 @@ for entry in "${TARGETS[@]}"; do
         fi
     done
 
-    # ── 5. Merge knowledge from all extensions ────
+    # Merge knowledge
     for cat in languages guard-rules protocols; do
         for d in "$DIST"/*-secguardian/; do
             [ -d "$d/knowledge/$cat" ] && find "$d/knowledge/$cat" -name '*.md' -exec cp {} "$staging/knowledge/$cat/" \;
         done
     done
-    # Project-level knowledge (outside extension dirs)
     [ -f "$PROJECT_ROOT/knowledge/threat-catalog.md" ] && cp "$PROJECT_ROOT/knowledge/threat-catalog.md" "$staging/knowledge/"
     [ -f "$PROJECT_ROOT/SECURITY.md" ] && cp "$PROJECT_ROOT/SECURITY.md" "$staging/knowledge/"
     [ -d "$PROJECT_ROOT/knowledge/standards" ] && find "$PROJECT_ROOT/knowledge/standards" -name '*.md' -exec cp {} "$staging/knowledge/standards/" \; 2>/dev/null || true
@@ -157,7 +195,7 @@ for entry in "${TARGETS[@]}"; do
     cp -r "$PROJECT_ROOT/knowledge/review-rules" "$staging/knowledge/" 2>/dev/null || true
     cp "$PROJECT_ROOT/knowledge/language-index.md" "$staging/knowledge/" 2>/dev/null || true
 
-    # ── 6. Scripts + wrappers ────────────────────
+    # Scripts + wrappers
     for wrapper in secguardian-index secguardian-index.ps1 render-report.py validate-index.py validate-findings.py record-finding.py; do
         if [ -f "$PROJECT_ROOT/scripts/$wrapper" ]; then
             cp "$PROJECT_ROOT/scripts/$wrapper" "$staging/scripts/$wrapper"
@@ -165,7 +203,7 @@ for entry in "${TARGETS[@]}"; do
         fi
     done
 
-    # ── 7. Platform-specific binary ─────────────
+    # Platform binary
     bin_name="secguardian-index-${platform}"
     [ "$platform" = "windows-amd64" ] && bin_name="${bin_name}.exe"
     if [ -f "$BIN_SRC/$bin_name" ]; then
@@ -175,70 +213,56 @@ for entry in "${TARGETS[@]}"; do
         echo "  [WARN] Binary not found: $bin_name"
     fi
 
-    # ── 8. Platform manifests (all 3 pre-built) ──
-
-    # Claude Code: .claude-plugin/plugin.json
+    # Platform manifests (Claude Code / OpenCode / Gemini)
     cat > "$staging/.claude-plugin/plugin.json" << JSON
 {
   "name": "secguardian",
   "version": "${VERSION}",
-  "description": "SecGuardian — 企业级白盒安全 AI Agent 辅助解决方案",
+  "description": "SecGuardian — Enterprise white-box security AI Agent",
   "author": { "name": "SecGuardian", "url": "https://github.com/DannyAn/SecGuardian" },
   "homepage": "https://github.com/DannyAn/SecGuardian"
 }
 JSON
-
-    # OpenCode: codeagent-extension.json
     cat > "$staging/codeagent-extension.json" << JSON
 {
   "name": "secguardian",
   "version": "${VERSION}",
-  "description": "SecGuardian — 企业级白盒安全 AI Agent 辅助解决方案"
+  "description": "SecGuardian — Enterprise white-box security AI Agent"
 }
 JSON
-
-    # Gemini CLI: gemini-extension.json (lists all 4 .toml commands)
     cat > "$staging/gemini-extension.json" << JSON
 {
   "name": "secguardian",
   "version": "${VERSION}",
-  "description": "SecGuardian — 企业级白盒安全 AI Agent 辅助解决方案",
+  "description": "SecGuardian — Enterprise white-box security AI Agent",
   "author": "SecGuardian",
   "homepage": "https://github.com/DannyAn/SecGuardian",
   "commands": ["commands/secguard.toml", "commands/secaudit.toml", "commands/secreview.toml", "commands/secfix.toml"]
 }
 JSON
 
-    # ── 9. OpenCode plugin script ────────────────
+    # OpenCode plugin script
     if [ -f "$PROJECT_ROOT/scripts/opencode-plugin.js" ]; then
         cp "$PROJECT_ROOT/scripts/opencode-plugin.js" "$staging/plugins/secguardian.js"
     fi
 
-    # ── 10. Gemini context file ──────────────────
+    # Gemini context
     cat > "$staging/GEMINI.md" << 'GEMINI'
-# SecGuardian — 安全守卫
+# SecGuardian — Security Guardian
 
-本扩展注册了 4 个 Gemini CLI 安全命令：
+This extension registers 4 Gemini CLI security commands:
 
-| 命令 | 用途 |
-|------|------|
-| `/secguard <path> [mode] [filters]` | 安全加固项排查 — 代码级漏洞检测 |
-| `/secaudit <skill-name> [path]` | 安全专项审计 — 深度安全分析 |
-| `/secreview <path> [language]` | 安全规范检视 — 反模式和最佳实践 |
-| `/secfix <path> [rule]` | AI 安全修复 |
+| Command | Purpose |
+|---------|---------|
+| `/secguard <path> [mode] [filters]` | Secure Coding Guidance |
+| `/secaudit <skill-name> [path]` | Security Audit |
+| `/secreview <path> [language]` | Code Review |
+| `/secfix <path> [rule]` | AI Remediation |
 
-## 使用流程
-
-```
-/secguard ./src cpp              # 扫描 C/C++ 项目
-/secaudit input-validation ./src # 审计输入验证
-/secreview ./src java            # 安全规范检视
-```
-
-所有扫描结果写入 `.codeagent/secguardian/scans/<scan-id>/`。
+All scan results written to `.codeagent/secguardian/scans/<scan-id>/`.
 GEMINI
 
-    # ── 11. Strip macOS artifacts + package ──────
+    # Strip macOS artifacts + package
     xattr -cr "$staging" 2>/dev/null || true
     find "$staging" -name '._*' -type f -delete 2>/dev/null || true
 
@@ -253,19 +277,22 @@ GEMINI
     rm -rf "$staging"
 done
 
-# ── Step 3: Top-level bundle ──────────────────
+ok "Platform bundles built"
+
+# ════════════════════════════════════════════════════════════════
+# Step 3: Top-level bundle + SHA256
+# ════════════════════════════════════════════════════════════════
+
 echo ""
-echo "==> Step 3: Creating top-level bundle..."
+echo -e "${BOLD}═══ Step 3: Top-level bundle ═══${NC}"
 
 TOP_DIR="$RELEASE_DIR/secguardian-${VERSION}"
 mkdir -p "$TOP_DIR"
 
-# Copy install/uninstall scripts
 cp "$PROJECT_ROOT/scripts/install.sh" "$TOP_DIR/install.sh"
 cp "$PROJECT_ROOT/scripts/uninstall.sh" "$TOP_DIR/uninstall.sh"
 chmod +x "$TOP_DIR/install.sh" "$TOP_DIR/uninstall.sh"
 
-# Copy platform bundles
 for entry in "${TARGETS[@]}"; do
     IFS=: read -r platform ext <<< "$entry"
     bundle_name="secguardian-${VERSION}-${platform}${ext}"
@@ -274,7 +301,6 @@ for entry in "${TARGETS[@]}"; do
     fi
 done
 
-# Generate quick-start README
 cat > "$TOP_DIR/README.md" << README
 # SecGuardian ${VERSION}
 
@@ -283,45 +309,32 @@ Enterprise white-box security AI Agent for Claude Code / OpenCode / Gemini CLI.
 ## Quick Install
 
 \`\`\`bash
-# Install to a single platform
 bash install.sh claude      # Claude Code
 bash install.sh nga         # OpenCode
 bash install.sh cac         # Gemini CLI
-
-# Or install to all
-bash install.sh all
+bash install.sh all         # All platforms
 \`\`\`
 
 ## Uninstall
 
 \`\`\`bash
-bash uninstall.sh claude    # Remove from Claude Code
-bash uninstall.sh all       # Remove from all platforms
+bash uninstall.sh claude
+bash uninstall.sh all
 \`\`\`
-
-## Platform Packages
-
-Each platform bundle contains all 4 SecGuardian commands:
-  /secguard  — Secure Coding Guidance
-  /secaudit  — Security Audit
-  /secreview — AI Security Code Review
-  /secfix    — AI Remediation
-
-After install, restart your AI CLI. Run \`/secguard --help\` to get started.
 README
 
-# Strip macOS extended attributes from files copied into TOP_DIR
 xattr -cr "$TOP_DIR" 2>/dev/null || true
 
-# Package top-level
 TOP_ARCHIVE="secguardian-${VERSION}.tar.gz"
 (cd "$RELEASE_DIR" && COPYFILE_DISABLE=1 tar czf "$TOP_ARCHIVE" --no-xattrs "secguardian-${VERSION}")
 echo "  → $TOP_ARCHIVE"
 rm -rf "$TOP_DIR"
 
-# ── Step 4: SHA256 ────────────────────────────
+ok "Top-level bundle created"
+
+# ── SHA256 ────────────────────────────────
 echo ""
-echo "==> Step 4: Generating SHA256 checksums..."
+echo -e "${BOLD}═══ Step 4: SHA256 checksums ═══${NC}"
 
 cd "$RELEASE_DIR"
 if command -v shasum &>/dev/null; then
@@ -331,7 +344,7 @@ elif command -v sha256sum &>/dev/null; then
 fi
 echo "  → SHA256SUMS written"
 
-# ── Step 5: Changelog ─────────────────────────
+# ── Extract changelog ────────────────────
 RELEASE_NOTES=""
 if [ -f "$PROJECT_ROOT/CHANGELOG.md" ]; then
     RELEASE_NOTES=$(python3 -c "
@@ -346,26 +359,53 @@ print(m.group(0).strip() if m else '')
 ")
 fi
 
-# ── Step 6: Release + Upload ──────────────────
-echo "==> Step 5: Creating GitHub Release..."
+ok "SHA256 + changelog ready"
 
-if [ "$DRAFT_FLAG" = "--draft" ]; then
-    gh release create "$RELEASE_TAG" \
-        --title "$RELEASE_TAG" \
-        --notes "$RELEASE_NOTES" \
-        --draft
-else
+# ════════════════════════════════════════════════════════════════
+# Step 5: Publish to GitHub
+# ════════════════════════════════════════════════════════════════
+
+if [ "$PUBLISH_TARGET" != "gitee" ]; then
+    echo ""
+    echo -e "${BOLD}═══ Step 5: Publishing to GitHub ═══${NC}"
+
+    log "Creating GitHub Release..."
     gh release create "$RELEASE_TAG" \
         --title "$RELEASE_TAG" \
         --notes "$RELEASE_NOTES"
+
+    log "Uploading assets..."
+    gh release upload "$RELEASE_TAG" "$RELEASE_DIR/secguardian-${VERSION}.tar.gz" --clobber
+    gh release upload "$RELEASE_TAG" "$RELEASE_DIR/SHA256SUMS" --clobber
+
+    echo ""
+    gh release view "$RELEASE_TAG" --json url -q '.url'
+    ok "Published to GitHub"
 fi
 
-echo ""
-echo "==> Step 6: Uploading assets..."
+# ════════════════════════════════════════════════════════════════
+# Step 6: Publish to Gitee
+# ════════════════════════════════════════════════════════════════
 
-gh release upload "$RELEASE_TAG" "$RELEASE_DIR/secguardian-${VERSION}.tar.gz" --clobber
-gh release upload "$RELEASE_TAG" "$RELEASE_DIR/SHA256SUMS" --clobber
+if [ "$PUBLISH_TARGET" = "all" ] || [ "$PUBLISH_TARGET" = "gitee" ]; then
+    echo ""
+    echo -e "${BOLD}═══ Step 6: Publishing to Gitee ═══${NC}"
 
+    # Source gitee-release.sh as a function library
+    # It provides publish_to_gitee() when sourced, otherwise runs standalone
+    GITEE_RELEASE_SCRIPT="$PROJECT_ROOT/scripts/gitee-release.sh"
+    if [ -f "$GITEE_RELEASE_SCRIPT" ]; then
+        # Prevent standalone execution when sourced
+        PUBLISH_TO_GITEE_CALLED_FROM_RELEASE=1 \
+        PUBLISH_VERSION="$VERSION" \
+        bash "$GITEE_RELEASE_SCRIPT" "$RELEASE_TAG"
+        ok "Published to Gitee"
+    else
+        warn "gitee-release.sh not found, skipping Gitee publish"
+    fi
+fi
+
+# ════════════════════════════════════════════════════════════════
 echo ""
-echo "==> Done!"
-gh release view "$RELEASE_TAG" --json url -q '.url'
+echo -e "${GREEN}${BOLD}═══ Release ${VERSION} complete ═══${NC}"
+echo ""
