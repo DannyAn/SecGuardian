@@ -94,8 +94,19 @@ func runIndex(args []string) {
 	fmt.Printf("  Symbols: %d functions, %d variables, %d types\n",
 		len(symbols.Functions), len(symbols.Variables), len(symbols.Types))
 
-	// Phase 3: Build call graph
-	cg := indexer.BuildCallGraph(parsed, symbols)
+	// Phase 2.5: Collect call sites from all parsed results (needed by Phase 3)
+	allCallSites := make([]parser.CallSite, 0)
+	for _, result := range parsed {
+		allCallSites = append(allCallSites, result.CallSites...)
+	}
+
+	// Phase 3: Build call graph (V2 if call_sites available, else V1 fallback)
+	var cg indexer.CallGraph
+	if len(allCallSites) > 0 {
+		cg = indexer.BuildCallGraphV2(allCallSites, symbols)
+	} else {
+		cg = indexer.BuildCallGraph(parsed, symbols)
+	}
 	fmt.Printf("  Call graph: %d edges\n", len(cg.Edges))
 
 	// Phase 4: Match alloc/free pairs
@@ -105,7 +116,6 @@ func runIndex(args []string) {
 	// Phase 5: Build lock usage graph
 	lg := indexer.BuildLockGraph(parsed)
 	fmt.Printf("  Lock usage: %d mutexes\n", len(lg.Mutexes))
-
 
 	// Determine primary language
 	primaryLang := *langFlag
@@ -138,6 +148,7 @@ func runIndex(args []string) {
 		CallGraph:       cg,
 		AllocFree:       af,
 		LockGraph:       lg,
+		CallSites:       allCallSites,
 	}
 
 	if err := os.MkdirAll(filepath.Dir(*outputFlag), 0755); err != nil {

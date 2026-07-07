@@ -218,3 +218,42 @@ func BuildLockGraph(parsed map[string]*parser.ParseResult) LockGraph {
 	}
 	return lg
 }
+
+// BuildCallGraphV2 rebuilds the call graph directly from extracted call_sites.
+// Unlike V1 which searches each function body for calls to other user-defined
+// functions, V2 uses the already-extracted call_sites — including library calls.
+// This yields orders-of-magnitude more edges and enables data-flow tracing.
+func BuildCallGraphV2(callSites []parser.CallSite, symbols SymbolIndex) CallGraph {
+	cg := CallGraph{}
+	seen := make(map[string]bool)
+
+	for _, cs := range callSites {
+		key := cs.CallerFunction + ":" + cs.CalleeName + ":" + cs.File + ":" + itoa(cs.Line)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		cg.Edges = append(cg.Edges, CallGraphEdge{
+			Caller: cs.CallerFunction,
+			Callee: cs.CalleeName,
+			File:   cs.File,
+			Line:   cs.Line,
+		})
+	}
+
+	return cg
+}
+
+func itoa(n uint) string {
+	if n == 0 {
+		return "0"
+	}
+	var buf [20]byte
+	i := len(buf)
+	for n > 0 {
+		i--
+		buf[i] = byte('0' + n%10)
+		n /= 10
+	}
+	return string(buf[i:])
+}

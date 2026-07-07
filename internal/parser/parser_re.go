@@ -220,8 +220,158 @@ func ParseFile(filePath string, lang string) (*ParseResult, error) {
 		}
 	}
 
+	// Extract call sites (C/C++ only in this phase)
+	if lang == "c" || lang == "cpp" {
+		lines := strings.Split(string(content), "\n")
+		for lineIdx, line := range lines {
+			if isLineComment(line) || strings.TrimSpace(line) == "" {
+				continue
+			}
+			for _, cp := range callSitePatterns {
+				re := regexp.MustCompile(cp.pattern)
+				locs := re.FindAllStringIndex(line, -1)
+				for _, loc := range locs {
+					// Extract arguments from after the function name match
+					rest := line[loc[1]:]
+					if len(rest) == 0 {
+						continue
+					}
+					args := extractArgs(rest)
+
+					// Find enclosing function name from already-extracted functions
+					caller := findEnclosingFunction(uint(lineIdx+1), result.Functions)
+
+					result.CallSites = append(result.CallSites, CallSite{
+						CallerFunction: caller,
+						CalleeName:     cp.name,
+						File:           filePath,
+						Line:           uint(lineIdx + 1),
+						Arguments:      args,
+						IsSafeVariant:  cp.isSafe,
+						Category:       cp.category,
+					})
+				}
+			}
+		}
+	}
+
 
 	return result, nil
+}
+
+// ── Library function call site patterns (C/C++, matching knownLibFuncs in parser_ts.go) ──
+
+type callSitePattern struct {
+	name     string
+	pattern  string
+	isSafe   bool
+	category string
+}
+
+var callSitePatterns = []callSitePattern{
+	// String operations
+	{"strcpy", `\bstrcpy\s*\(`, false, "string"},
+	{"strcpy_s", `\bstrcpy_s\s*\(`, true, "string"},
+	{"strcat", `\bstrcat\s*\(`, false, "string"},
+	{"strcat_s", `\bstrcat_s\s*\(`, true, "string"},
+	{"sprintf", `\bsprintf\s*\(`, false, "string"},
+	{"sprintf_s", `\bsprintf_s\s*\(`, true, "string"},
+	{"snprintf", `\bsnprintf\s*\(`, false, "string"},
+	{"gets", `\bgets\s*\(`, false, "string"},
+	{"gets_s", `\bgets_s\s*\(`, true, "string"},
+
+	// Memory operations
+	{"memcpy", `\bmemcpy\s*\(`, false, "memory"},
+	{"memcpy_s", `\bmemcpy_s\s*\(`, true, "memory"},
+	{"memmove", `\bmemmove\s*\(`, false, "memory"},
+	{"memmove_s", `\bmemmove_s\s*\(`, true, "memory"},
+	{"malloc", `\bmalloc\s*\(`, false, "memory"},
+	{"calloc", `\bcalloc\s*\(`, false, "memory"},
+	{"realloc", `\brealloc\s*\(`, false, "memory"},
+	{"free", `\bfree\s*\(`, false, "memory"},
+
+	// I/O operations
+	{"fopen", `\bfopen\s*\(`, false, "io"},
+	{"fclose", `\bfclose\s*\(`, false, "io"},
+	{"open", `\bopen\s*\(`, false, "io"},
+	{"close", `\bclose\s*\(`, false, "io"},
+	{"tmpfile", `\btmpfile\s*\(`, false, "io"},
+	{"socket", `\bsocket\s*\(`, false, "io"},
+
+	// Execution
+	{"system", `\bsystem\s*\(`, false, "exec"},
+	{"popen", `\bpopen\s*\(`, false, "exec"},
+	{"getenv", `\bgetenv\s*\(`, false, "exec"},
+
+	// Sync
+	{"pthread_mutex_lock", `\bpthread_mutex_lock\s*\(`, false, "sync"},
+	{"pthread_mutex_unlock", `\bpthread_mutex_unlock\s*\(`, false, "sync"},
+
+	// Crypto
+	{"RAND_bytes", `\bRAND_bytes\s*\(`, false, "crypto"},
+	{"DES_set_key_unchecked", `\bDES_set_key_unchecked\s*\(`, false, "crypto"},
+}
+
+// findEnclosingFunction returns the function name that contains the given line number.
+func findEnclosingFunction(line uint, functions []FunctionInfo) string {
+	for _, fn := range functions {
+		if line >= fn.StartLine && line <= fn.EndLine {
+			return fn.Name
+		}
+	}
+	return ""
+}
+
+// extractArgs extracts comma-separated arguments from text that starts after
+// the opening parenthesis of a function call. The first character should be
+// the first argument (or ')' for zero-arg calls).
+func extractArgs(s string) []string {
+	if len(s) == 0 || s[0] == ')' {
+		return nil
+	}
+	depth := 0
+	var args []string
+	var current strings.Builder
+
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+		switch {
+		case ch == '(':
+			depth++
+			if depth > 0 {
+				current.WriteByte(ch)
+			}
+		case ch == ')' && depth == 0:
+			if current.Len() > 0 {
+				arg := strings.TrimSpace(current.String())
+				if len(arg) > 128 {
+					arg = arg[:128] + "..."
+				}
+				args = append(args, arg)
+			}
+			return args
+		case ch == ')' && depth > 0:
+			depth--
+			current.WriteByte(ch)
+		case ch == ',' && depth == 0:
+			arg := strings.TrimSpace(current.String())
+			if len(arg) > 128 {
+				arg = arg[:128] + "..."
+			}
+			args = append(args, arg)
+			current.Reset()
+		default:
+			current.WriteByte(ch)
+		}
+	}
+	return args
+}
+
+// isLineComment checks if a line appears to be a comment.
+func isLineComment(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	return strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "/*") ||
+		strings.HasPrefix(trimmed, "*") || strings.HasPrefix(trimmed, "#")
 }
 
 // isKeyword checks if a name is a language keyword that shouldn't be treated as an identifier.

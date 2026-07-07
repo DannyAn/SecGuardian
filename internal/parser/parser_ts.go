@@ -66,6 +66,9 @@ func walkTopLevel(node *treesitter.Node, content []byte, file, lang string, resu
 					fn.StartLine = child.StartPosition().Row + 1
 					fn.EndLine = child.EndPosition().Row + 1
 					result.Functions = append(result.Functions, fn)
+					if body := findBody(child); body != nil {
+						result.CallSites = append(result.CallSites, extractCallSites(body, content, fn.Name, file)...)
+					}
 				}
 			case "declaration":
 				result.Variables = append(result.Variables, extractInitDecls(child, content, file)...)
@@ -316,11 +319,143 @@ func extractTypeName(node *treesitter.Node, content []byte, file, kind string) T
 	return ti
 }
 
+// ── Library function call site detection ──
+
+type libFuncEntry struct {
+	name     string
+	isSafe   bool
+	category string
+}
+
+var knownLibFuncs = map[string]libFuncEntry{
+	// String operations
+	"strcpy":    {"strcpy", false, "string"},
+	"strcpy_s":  {"strcpy_s", true, "string"},
+	"strcat":    {"strcat", false, "string"},
+	"strcat_s":  {"strcat_s", true, "string"},
+	"sprintf":   {"sprintf", false, "string"},
+	"sprintf_s": {"sprintf_s", true, "string"},
+	"snprintf":  {"snprintf", false, "string"},
+	"gets":      {"gets", false, "string"},
+	"gets_s":    {"gets_s", true, "string"},
+
+	// Memory operations
+	"memcpy":    {"memcpy", false, "memory"},
+	"memcpy_s":  {"memcpy_s", true, "memory"},
+	"memmove":   {"memmove", false, "memory"},
+	"memmove_s": {"memmove_s", true, "memory"},
+	"malloc":    {"malloc", false, "memory"},
+	"calloc":    {"calloc", false, "memory"},
+	"realloc":   {"realloc", false, "memory"},
+	"free":      {"free", false, "memory"},
+
+	// I/O operations
+	"fopen":     {"fopen", false, "io"},
+	"fclose":    {"fclose", false, "io"},
+	"open":      {"open", false, "io"},
+	"close":     {"close", false, "io"},
+	"tmpfile":   {"tmpfile", false, "io"},
+	"socket":    {"socket", false, "io"},
+
+	// Execution
+	"system":  {"system", false, "exec"},
+	"popen":   {"popen", false, "exec"},
+	"getenv":  {"getenv", false, "exec"},
+
+	// Sync
+	"pthread_mutex_lock":   {"pthread_mutex_lock", false, "sync"},
+	"pthread_mutex_unlock": {"pthread_mutex_unlock", false, "sync"},
+
+	// Crypto
+	"RAND_bytes":            {"RAND_bytes", false, "crypto"},
+	"DES_set_key_unchecked": {"DES_set_key_unchecked", false, "crypto"},
+}
+
+// extractCallSites walks a function body node and extracts all call_expression
+// nodes that reference known library functions.
+func extractCallSites(body *treesitter.Node, content []byte, callerName, file string) []CallSite {
+	var sites []CallSite
+	collectCallExprs(body, content, callerName, file, &sites)
+	return sites
+}
+
+// collectCallExprs recursively walks the AST and collects call_expressions.
+func collectCallExprs(node *treesitter.Node, content []byte, callerName, file string, sites *[]CallSite) {
+	for i := uint(0); i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		if child.Kind() == "call_expression" {
+			if cs := parseCallExpr(child, content, callerName, file); cs != nil {
+				*sites = append(*sites, *cs)
+			}
+			// Don't recurse into call_expression children — argument_list
+			// may contain nested call_expressions but we only want the top-level call.
+			continue
+		}
+		collectCallExprs(child, content, callerName, file, sites)
+	}
+}
+
+// parseCallExpr extracts a single call_expression tree-sitter node into a CallSite.
+func parseCallExpr(node *treesitter.Node, content []byte, callerName, file string) *CallSite {
+	fnNode := node.Child(0)
+	if fnNode == nil {
+		return nil
+	}
+	callee := safeText(content, fnNode.StartByte(), fnNode.EndByte())
+	entry, ok := knownLibFuncs[callee]
+	if !ok {
+		return nil
+	}
+
+	// Extract arguments from the argument_list child.
+	// Use NamedChild to skip anonymous tokens (commas, parentheses).
+	var args []string
+	argNode := node.Child(1)
+	if argNode != nil && argNode.Kind() == "argument_list" {
+		for j := uint(0); j < argNode.NamedChildCount(); j++ {
+			sub := argNode.NamedChild(j)
+			if sub == nil {
+				continue
+			}
+			argText := safeText(content, sub.StartByte(), sub.EndByte())
+			if len(argText) > 128 {
+				argText = argText[:128] + "..."
+			}
+			args = append(args, argText)
+		}
+	}
+
+	return &CallSite{
+		CallerFunction: callerName,
+		CalleeName:     callee,
+		File:           file,
+		Line:           node.StartPosition().Row + 1,
+		Arguments:      args,
+		IsSafeVariant:  entry.isSafe,
+		Category:       entry.category,
+	}
+}
+
+// findBody locates the compound_statement body of a function_definition node.
+func findBody(node *treesitter.Node) *treesitter.Node {
+	for i := uint(0); i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		if child.Kind() == "compound_statement" || child.Kind() == "body" {
+			return child
+		}
+	}
+	return nil
+}
+
 func safeText(content []byte, start, end uint) string {
 	if int(start) >= len(content) || int(end) > len(content) || start > end {
 		return ""
 	}
 	return string(content[start:end])
 }
-
-

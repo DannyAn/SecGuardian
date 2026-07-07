@@ -1,6 +1,9 @@
 package context
 
-import "github.com/secguardian/internal/indexer"
+import (
+	"github.com/secguardian/internal/indexer"
+	"github.com/secguardian/internal/parser"
+)
 
 // AnalysisContext is the shared, pre-indexed understanding of a codebase.
 // Built once by the indexer, consumed by all skills/detectors.
@@ -15,4 +18,5 @@ type AnalysisContext struct {
 	CallGraph indexer.CallGraph  `json:"call_graph"`
 	AllocFree indexer.AllocFreeMap `json:"alloc_free"`
 	LockGraph indexer.LockGraph  `json:"lock_graph"`
+	CallSites     []parser.CallSite   `json:"call_sites"`
 }
