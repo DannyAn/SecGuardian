@@ -1,0 +1,31 @@
+{
+  "name": "fp-verification-demo-python",
+  "language": "python",
+  "total_cases": 16,
+  "p0_safe": 6,
+  "p1_suppressed": 2,
+  "p2_suppressed": 4,
+  "p3_suspected": 2,
+  "tp_confirmed": 2,
+  "expected_convergence_rate": "83.3%",
+  "expected_precision": "100%",
+  "test_cases": [
+    {"id": "P0-01", "file": "p0_safe_functions.py", "function": "safe_query", "expected": "no_finding"},
+    {"id": "P0-02", "file": "p0_safe_functions.py", "function": "generate_token", "expected": "no_finding"},
+    {"id": "P0-03", "file": "p0_safe_functions.py", "function": "safe_exec", "expected": "no_finding"},
+    {"id": "P0-04", "file": "p0_safe_functions.py", "function": "log_event", "expected": "no_finding"},
+    {"id": "P0-05", "file": "p0_safe_functions.py", "function": "safe_eval", "expected": "no_finding"},
+    {"id": "P0-06", "file": "p0_safe_functions.py", "function": "encode_data", "expected": "no_finding"},
+    {"id": "P1-01", "file": "p1_safe_wrappers.py", "function": "find_user_safe", "expected": "exempted"},
+    {"id": "P1-02", "file": "p1_safe_wrappers.py", "function": "read_config_safe", "expected": "exempted"},
+    {"id": "P2-01", "file": "p2_counter_evidence.py", "function": "safe_resource", "expected": "counter_evidence_found"},
+    {"id": "P2-02", "file": "p2_counter_evidence.py", "function": "safe_increment", "expected": "counter_evidence_found"},
+    {"id": "P2-03", "file": "p2_counter_evidence.py", "function": "safe_compare_and_swap", "expected": "counter_evidence_found"},
+    {"id": "P2-04", "file": "p2_counter_evidence.py", "function": "safe_write", "expected": "counter_evidence_found"},
+    {"id": "P3-01", "file": "p3_edge_case.py", "function": "exec", "expected": "suspected"},
+    {"id": "P3-02", "file": "p3_edge_case.py", "function": "reload", "expected": "suspected"},
+    {"id": "TP-01", "file": "tp_true_positives.py", "function": "vulnerable_query", "expected": "confirmed"},
+    {"id": "TP-02", "file": "tp_true_positives.py", "function": "vulnerable_exec", "expected": "confirmed"}
+  ],
+  "final_certified": 4
+}
