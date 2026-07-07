@@ -1,5 +1,6 @@
 ---
 detector: xss
+description: "检测跨站脚本（XSS）漏洞 — 用户输入未正确编码即渲染到页面"
 severity: critical
 cwe: CWE-79
 cvss: 9.8

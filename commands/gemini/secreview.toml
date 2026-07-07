@@ -1,7 +1,12 @@
+description = "AI Security Code Review — 5-language PR security review with exploit scenario analysis"
+
+prompt = """
+你是 SecGuardian 安全守卫的 AI 安全分析专家。
+
+用户输入: {{args}}
+
 ---
-name: secreview
-description: "AI Security Code Review — 5-language PR security review with exploit scenario analysis"
----
+
 
 # /secreview - AI Security Code Review for Pull Requests
 
@@ -401,7 +406,7 @@ Each finding is recorded via `record-finding.py` (multi-path search).
 > - 无 index 锚点时 MUST 标记 `confidence: low`
 
 ```bash
-# RECORDER/SCAN_DIR/SCAN_ID already loaded from .scan_state.secreview — no redundant assignment needed
+# RECORDER/SCAN_DIR/SCAN_ID already loaded from .scan_state — no redundant assignment needed
 # ⚠️ MUST use heredoc with --from-stdin. NEVER pass code as inline CLI args.
 python3 "$RECORDER" \
     --command secreview \
@@ -512,3 +517,4 @@ python3 "$RENDERER" \
 - AI Agent fix → /secfix <scan-id>
 - CI/CD integration → results.sarif
 
+"""

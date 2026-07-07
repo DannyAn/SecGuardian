@@ -101,6 +101,9 @@ void cleanup_packets() {
 int main() {
     // Simulate a malicious packet with crafted data_size to trigger overflow
     uint8_t malicious_packet[HEADER_SIZE] = {0};
+    // VULNERABILITY [CWE-772]: Socket descriptor leak
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    // BAD: sock never closed before function returns
     PacketHeader *hdr = (PacketHeader *)malicious_packet;
     hdr->packet_id = 1;
     hdr->data_size = 0xFFFFFFF1;  // Crafted to bypass the size check via integer overflow

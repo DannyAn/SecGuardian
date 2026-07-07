@@ -1,5 +1,6 @@
 ---
 detector: xxe
+description: "检测 XML 外部实体（XXE）注入 — 不安全的 XML 解析器配置"
 severity: critical
 cwe: CWE-611
 cvss: 9.8

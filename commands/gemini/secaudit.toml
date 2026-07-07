@@ -1,7 +1,12 @@
+description = "AI Release Security Audit — 17-domain audit framework with knowledge-driven detection"
+
+prompt = """
+你是 SecGuardian 安全守卫的 AI 安全分析专家。
+
+用户输入: {{args}}
+
 ---
-name: secaudit
-description: "AI Release Security Audit — 17-domain audit framework with knowledge-driven detection"
----
+
 
 # /secaudit - AI Release Security Audit
 
@@ -360,7 +365,7 @@ cat "$SECGUARDIAN_HOME/knowledge/audit-rules/{domain-name}.md"
 > - MUST 传 `--index-json` 进行锚定校验
 
 ```bash
-# RECORDER/SCAN_DIR/SCAN_ID 已从 .scan_state.secaudit 加载，无需重复赋值
+# RECORDER/SCAN_DIR/SCAN_ID 已从 .scan_state 加载，无需重复赋值
 # ⚠️ MUST use heredoc with --from-stdin. NEVER pass code as inline CLI args.
 python3 "$RECORDER" \
     --command secaudit \
@@ -493,3 +498,4 @@ Mode: full | Language: python | Filters: all
 - **🤖 AI Agent 修复** → `/secfix <scan-id>` 自动修复
 - **📊 CI/CD 集成** → 消费 `results.sarif`
 
+"""

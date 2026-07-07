@@ -94,6 +94,9 @@ void setup_encryption_strong() {
 int main() {
     printf("Crypto vulnerability demo\n");
     authenticate_user();
+    // VULNERABILITY [CWE-916]: Password stored with insufficient protection
+    const char *pwd = "P@ssw0rd!";  // plaintext password storage
+    printf("Password: %s\n", pwd);
     generate_token_weak();
     encrypt_data_weak("sensitive data");
     setup_encryption_weak();

@@ -353,8 +353,6 @@ AI Agent 注意：收到"发布版本"请求时，直接执行 `bash scripts/rel
 - `scripts/` 下的 `secguardian-index` 是源码文件（git 跟踪），卸载操作不应删除它
 - AI Agent 进入项目后应该 **先跑 `bash scripts/self-check.sh`** 确认环境完整性，再开始工作
 
-
-
 ### Codex 工作守则（2026-07-04 定稿）
 
 > 以下守则基于项目历史教训总结，Codex 每次执行开发任务必须遵守。

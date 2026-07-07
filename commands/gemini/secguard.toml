@@ -1,7 +1,12 @@
+description = "安全加固项排查 — 67<!-- @secguardian:detector_count --> 个检测器覆盖 memory/concurrency/system/resource/crypto/web/error 7<!-- @secguardian:namespace_count --> 大安全分类"
+
+prompt = """
+你是 SecGuardian 安全守卫的 AI 安全分析专家。
+
+用户输入: {{args}}
+
 ---
-name: secguard
-description: "安全加固项排查 — 67<!-- @secguardian:detector_count --> 个检测器覆盖 memory/concurrency/system/resource/crypto/web/error 7<!-- @secguardian:namespace_count --> 大安全分类"
----
+
 
 # /secguard - 安全加固项排查
 
@@ -336,7 +341,7 @@ INDEX_FILE 输出示例:
 在执行 2.5b 扫描范围确定之前，先剥离已知答案卡模式，写入脱敏副本：
 
 ```bash
-source .codeagent/secguardian/.scan_state.secguard
+source .codeagent/secguardian/.scan_state
 python3 "$SECGUARDIAN_HOME/scripts/strip-answer-cards.py" \
   --index .codeagent/secguardian/index.json \
   --source-root "$USER_PROJECT" \
@@ -614,7 +619,7 @@ PYEOF
 > - 无 index 锚点的 finding MUST 标记 `confidence: low` 并说明原因
 
 ```bash
-# ⚠️ RECORDER/SCAN_DIR/SCAN_ID 已从 .scan_state.secguard 加载，无需重复赋值
+# ⚠️ RECORDER/SCAN_DIR/SCAN_ID 已从 .scan_state 加载，无需重复赋值
 # ⚠️ MUST use heredoc with --from-stdin. NEVER pass code as inline CLI args.
 python3 "$RECORDER" \
     --command secguard \
@@ -803,3 +808,4 @@ Mode: full | Language: python | Filters: all
 - **🤖 AI Agent 修复** → `/secfix <scan-id>` 自动修复
 - **📊 CI/CD 集成** → 消费 `results.sarif`
 
+"""

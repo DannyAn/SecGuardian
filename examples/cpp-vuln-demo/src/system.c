@@ -17,10 +17,11 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-/* ── CWE-77: Command Injection ────────────────────────────── */
+/* ── CWE-77: Command Injection / CWE-78: OS Command Injection ── */
 void execute_user_command(const char *user_input) {
     char cmd[256];
     // VULNERABILITY [CWE-77]: Command injection
+    // VULNERABILITY [CWE-78]: OS command injection
     // User input concatenated directly to shell command
     snprintf(cmd, sizeof(cmd), "grep '%s' /var/log/syslog", user_input);
     system(cmd);  // BAD: if user_input="'; rm -rf /; echo '", full command injection
@@ -45,6 +46,38 @@ void read_user_file(const char *filename) {
         while (fgets(buf, sizeof(buf), f)) printf("%s", buf);
         fclose(f);
     }
+}
+
+/* ── CWE-675: Double Close ───────────────────────────── */
+void double_close_example() {
+    FILE *f = fopen("/tmp/test.txt", "w");
+    if (f) {
+        fprintf(f, "data");
+        fclose(f);
+        // VULNERABILITY [CWE-675]: Double close
+        fclose(f);  // BAD: double close — undefined behavior
+    }
+}
+
+/* ── CWE-775: File Leak ──────────────────────────────── */
+void file_leak_example() {
+    // VULNERABILITY [CWE-775]: File descriptor leak
+    FILE *f = fopen("/var/log/app.log", "r");
+    // BAD: f opened but never closed on this code path
+    if (!f) return;  // error path closes nothing
+    printf("File opened but will leak\n");
+    // missing fclose(f)
+}
+
+/* ── CWE-672: Use After Close ────────────────────────── */
+void use_after_close_example() {
+    FILE *f = fopen("/tmp/data.txt", "r");
+    if (!f) return;
+    char buf[64];
+    fgets(buf, sizeof(buf), f);
+    fclose(f);
+    // VULNERABILITY [CWE-672]: Use after close
+    fgets(buf, sizeof(buf), f);  // BAD: reading from closed handle
 }
 
 /* ── CWE-367: TOCTOU Race ─────────────────────────────────── */
