@@ -301,7 +301,33 @@ python3 "$SECGUARDIAN_HOME/scripts/validate-index.py" \
 1. 读取该审计域关联的目标函数/API
 2. 在 `index.json.symbols.functions` 中查询目标是否存在
 3. **无匹配 → 跳过**：不加载规则全文，记录 "`Skipped: no matching symbol for {domain} in index.json`"
-4. **有匹配 → 加载规则**：进入 Step 3 加载规则全文后执行审计
+4. **有匹配 → 进入 3.1a**：规则强制加载后执行审计
+
+#### 3.1a 审计规则强制加载（不可跳过）
+
+> **核心契约**：审计逻辑必须以 audit-rules 文件内容为准，而非 AI 自身知识。
+> 13 个 audit-rules 文件是唯一的审计语义来源。跳过文件加载 = 忽略自定义审计规则、分析方法更新、修复模式修正。
+> **finding 的 `rationale`、`fix_before`/`fix_after` 必须引用规则文件原文，否则 finding 无效。**
+
+<!-- @secguardian:non-skippable step=rule-loading -->
+
+对预筛后有匹配的每个审计域，**必须**执行：
+
+```bash
+cat "$SECGUARDIAN_HOME/knowledge/audit-rules/{domain-name}.md"
+```
+
+然后：
+1. 从规则文件提取审计检查项、分析方法、输出要求
+2. 对照 index.json 符号表定位关联函数和文件
+3. 读取目标函数代码（±10 行上下文），验证是否命中审计条件
+4. 记录 finding 时引用规则文件原文的检测逻辑和修复模式
+
+> 🚫 **禁止行为**：
+> - 不加载规则文件直接凭知识审计
+> - 仅列目录后臆测审计规则内容
+> - 用 `read` 工具读 `$SECGUARDIAN_HOME/knowledge/` 目录
+> - 用 `grep`/`find` 取代 index.json 符号表定位
 
 ### Step 4: 输出结构化 findings（遵循 Findings Protocol v5.0）
 

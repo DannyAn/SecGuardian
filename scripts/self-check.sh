@@ -483,8 +483,17 @@ for cmd in secguard secaudit secreview; do
         fail=1
     fi
 
+    # 13d: rule-loading non-skippable marker (regression: AI skipping guard-rule loading)
+    if grep -q '@secguardian:non-skippable step=rule-loading' "$f" 2>/dev/null; then
+        SG_PASS=$((SG_PASS + 1))
+    else
+        echo "  ❌ ${cmd}: 13d rule-loading mandatory marker MISSING"
+        echo "    Add: <!-- @secguardian:non-skippable step=rule-loading -->"
+        fail=1
+    fi
+
     if [ "$fail" -eq 0 ]; then
-        green "  ${cmd}: all 3 security gate checks passed"
+        green "  ${cmd}: all 4 security gate checks passed"
     fi
 done
 if [ "$SG_FAIL" -eq 0 ]; then

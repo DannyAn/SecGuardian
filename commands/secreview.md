@@ -303,7 +303,33 @@ python3 "$SECGUARDIAN_HOME/scripts/validate-index.py" \
 1. **读取目标函数/API**：review-rules 关联的目标函数名
 2. **查 index.json.symbols.functions**：在符号表中查询目标是否存在
 3. **无匹配 → 跳过**：不加载规则全文，记录 "`Skipped: no matching symbol for {rule} in index.json`"
-4. **有匹配 → 加载规则**：进入 Step 4 加载规则后执行审阅
+4. **有匹配 → 进入 3b**：规则强制加载后执行审阅
+
+#### 3b. 审阅规则强制加载（不可跳过）
+
+> **核心契约**：审阅逻辑必须以 review-rules 文件内容为准，而非 AI 自身知识。
+> 5 个语言的 review-rules 文件是唯一的审阅语义来源。跳过文件加载 = 忽略自定义审阅规则、检测模式更新、修复修正。
+> **finding 的 `rationale`、`fix_before`/`fix_after` 必须引用规则文件原文，否则 finding 无效。**
+
+<!-- @secguardian:non-skippable step=rule-loading -->
+
+对预筛后有匹配的每个 review-rule，**必须**执行：
+
+```bash
+cat "$SECGUARDIAN_HOME/knowledge/review-rules/{lang}.md"
+```
+
+然后：
+1. 从规则文件提取审阅检查项、反模式列表、修复模式
+2. 对照 index.json 符号表定位关联函数和文件
+3. 读取目标函数代码（±10 行上下文），验证是否命中审阅条件
+4. 记录 finding 时引用规则文件原文的检测逻辑和修复模式
+
+> 🚫 **禁止行为**：
+> - 不加载规则文件直接凭知识审阅
+> - 仅列目录后臆测审阅规则内容
+> - 用 `read` 工具读 `$SECGUARDIAN_HOME/knowledge/` 目录
+> - 用 `grep`/`find` 取代 index.json 符号表定位
 
 ### Step 4: AI Security Code Review — Three Reasoning Dimensions
 

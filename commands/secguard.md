@@ -419,9 +419,31 @@ fi
 
 > 预筛后剩余的检测器数量通常只有全量的 10-30%，大幅节省 token。
 
-#### 3d 精确加载
+#### 3d 检测器规则强制加载（不可跳过）
 
-从裁剪后的清单中，精确加载每个检测器的 .md 文件（不遍历、不猜测）。
+> 这是**核心契约**：检测逻辑必须以 guard-rule 文件内容为准，而非 AI 自身知识。
+> 67 个 guard-rules 文件是唯一的检测语义来源。跳过文件加载 = 忽略自定义规则、精度调优、误报修正。
+> **检测器的 `rationale`、`fix_before`/`fix_after` 必须引用规则文件原文，否则 finding 无效。**
+
+<!-- @secguardian:non-skippable step=rule-loading -->
+
+对 3c.5 预筛后剩余的每个检测器，**必须**执行：
+
+```bash
+cat "$SECGUARDIAN_HOME/knowledge/guard-rules/{namespace-name}.md"
+```
+
+然后：
+1. 从规则文件提取目标 API 签名、检测逻辑、修复模式
+2. 对照 index.json.symbols.functions 找到关联函数
+3. 读取该函数代码（±10 行上下文），验证是否命中检测模式
+4. **记录 finding 时**：`rationale` 必须包含规则文件中的检测逻辑引用，`fix_before`/`fix_after` 必须遵循规则文件提供的修复模式
+
+> 🚫 **禁止行为**：
+> - 不加载规则文件直接凭知识检测（违反核心契约）
+> - 仅 `ls` 列目录后臆测规则内容
+> - 用 `read` 工具读 `$SECGUARDIAN_HOME/knowledge/` 下的文件（触发 OpenCode 权限弹窗）
+> - 用 `grep` 或 `find` 取代 index.json 符号表定位
 
 #### 3e 排序与执行
 
