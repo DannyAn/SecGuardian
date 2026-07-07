@@ -25,6 +25,10 @@ All notable changes to SecGuardian.
 - L4 架构端到端: 56/56 ✅
 - 全平台部署: Claude Code + OpenCode + Gemini CLI ✅
 
+#### OpenCode 权限弹窗修复
+- **根因**: `knowledge/languages/{lang}.md` 模板中缺少加载指令，AI 使用 `read` 的绝对路径触发 OpenCode 外部目录权限弹窗
+- **修复**: 在 secguard §3b 和 secreview §3 添加显式 bash `cat` 指令从本地 `.codeagent/` 拷贝加载，不涉及 read 工具
+
 ## [0.14.0] — 2026-07-06
 
 ### 🐛 Bugfix: Systemic Fixes from Production Bug Report
