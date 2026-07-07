@@ -202,6 +202,7 @@ USER_PROJECT="$USER_PROJECT"
 SCAN_ID="$SCAN_ID"
 SCAN_DIR="$SCAN_DIR"
 SECGUARDIAN_HOME="$SECGUARDIAN_HOME"
+RECORDER="$SECGUARDIAN_HOME/scripts/record-finding.py"
 STATEEOF
 echo "SCAN_DIR=$SCAN_DIR"
 ```
@@ -210,12 +211,12 @@ echo "SCAN_DIR=$SCAN_DIR"
 
 > **每个 bash 调用都是独立 shell，变量不共享。禁止用 `/tmp/` 或任何系统临时目录传状态。**
 
-Step 1 已在 `.scan_state.secguard` 中持久化 `SCAN_ID`、`SCAN_DIR`、`USER_PROJECT`、`SECGUARDIAN_HOME`。
+Step 1 已在 `.scan_state.secguard` 中持久化 `SCAN_ID`、`SCAN_DIR`、`USER_PROJECT`、`SECGUARDIAN_HOME`、`RECORDER`。
 从 Step 2 开始，**每个 bash 调用第一行必须是**：
 ```bash
 source .codeagent/secguardian/.scan_state.secguard
 ```
-此后 `$SCAN_DIR`、`$SCAN_ID`、`$USER_PROJECT`、`$SECGUARDIAN_HOME` 均可直接使用。**禁止用 `cat /tmp/*.txt`**。
+此后 `$SCAN_DIR`、`$SCAN_ID`、`$USER_PROJECT`、`$SECGUARDIAN_HOME`、`$RECORDER` 均可直接使用。**禁止用 `cat /tmp/*.txt`**。
 `/tmp/` 在 Windows 不可用、触发 macOS 确权弹窗、且多用户不安全。
 >
 > **📂 知识库本地拷贝**: 知识库文件（guard-rules、language-index、protocols）已在 Step 1 拷贝到 `.codeagent/secguardian/knowledge/`。
@@ -528,13 +529,11 @@ PYEOF
 > - 无 index 锚点的 finding MUST 标记 `confidence: low` 并说明原因
 
 ```bash
-RECORDER="$SECGUARDIAN_HOME/scripts/record-finding.py"
-
+# ⚠️ RECORDER/SCAN_DIR/SCAN_ID 已从 .scan_state 加载，无需重复赋值
 # ⚠️ MUST use heredoc with --from-stdin. NEVER pass code as inline CLI args.
-# The 'RECEOF' delimiter is single-quoted → zero shell expansion → zero quoting bugs.
 python3 "$RECORDER" \
     --command secguard \
-    --scan-dir .codeagent/secguardian/secguard/scans/<scan_id> \
+    --scan-dir "$SCAN_DIR" \
     --from-stdin << 'RECEOF'
 {
   "command": "secguard",

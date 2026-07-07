@@ -212,6 +212,7 @@ USER_PROJECT="$USER_PROJECT"
 SCAN_ID="$SCAN_ID"
 SCAN_DIR="$SCAN_DIR"
 SECGUARDIAN_HOME="$SECGUARDIAN_HOME"
+RECORDER="$SECGUARDIAN_HOME/scripts/record-finding.py"
 STATEEOF
 echo "SCAN_DIR=$SCAN_DIR"
 ```
@@ -223,12 +224,12 @@ echo "SCAN_DIR=$SCAN_DIR"
 > **Each bash call is an independent shell — variables are not shared. NEVER use `/tmp/` for state.**
 > `/tmp/` breaks on Windows, triggers macOS permission prompts, and is multi-user unsafe.
 
-Step 1 persists `SCAN_ID`, `SCAN_DIR`, `USER_PROJECT`, `SECGUARDIAN_HOME` in `.scan_state.secreview`.
+Step 1 persists `SCAN_ID`, `SCAN_DIR`, `USER_PROJECT`, `SECGUARDIAN_HOME`, `RECORDER` in `.scan_state.secreview`.
 From Step 2 onward, **every bash call MUST start with**:
 ```bash
 source .codeagent/secguardian/.scan_state.secreview
 ```
-Then use `$SCAN_DIR`, `$SCAN_ID`, `$USER_PROJECT`, `$SECGUARDIAN_HOME` directly. NEVER use `$(cat /tmp/*.txt)`.
+Then use `$SCAN_DIR`, `$SCAN_ID`, `$USER_PROJECT`, `$SECGUARDIAN_HOME`, `$RECORDER` directly. NEVER use `$(cat /tmp/*.txt)`.
 
 > **📂 Local knowledge copy**: All knowledge files (guard-rules, review-rules, language-index) were copied to `.codeagent/secguardian/knowledge/` in Step 1.
 > - Use `read` tool on `.codeagent/secguardian/knowledge/` relative paths (NOT `$SECGUARDIAN_HOME/knowledge/`)
@@ -351,12 +352,11 @@ Each finding is recorded via `record-finding.py` (multi-path search).
 > - 无 index 锚点时 MUST 标记 `confidence: low`
 
 ```bash
-RECORDER="$SECGUARDIAN_HOME/scripts/record-finding.py"
-
+# RECORDER/SCAN_DIR/SCAN_ID already loaded from .scan_state — no redundant assignment needed
 # ⚠️ MUST use heredoc with --from-stdin. NEVER pass code as inline CLI args.
 python3 "$RECORDER" \
     --command secreview \
-    --scan-dir .codeagent/secguardian/secreview/scans/<scan_id> \
+    --scan-dir "$SCAN_DIR" \
     --from-stdin << 'RECEOF'
 {
   "command": "secreview",
