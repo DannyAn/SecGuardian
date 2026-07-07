@@ -1,5 +1,6 @@
 ---
 detector: heap-buffer-overflow
+description: Detects heap buffer overflow vulnerabilities where data exceeds allocated heap buffer size
 severity: critical
 cwe: CWE-122
 cvss: 9.8

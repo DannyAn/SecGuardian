@@ -1,5 +1,6 @@
 ---
 detector: integer-overflow
+description: Detects integer overflow or wraparound vulnerabilities in arithmetic operations
 severity: high
 cwe: CWE-190
 cvss: 7.5

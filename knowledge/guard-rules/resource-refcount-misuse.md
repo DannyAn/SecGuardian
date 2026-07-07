@@ -1,5 +1,6 @@
 ---
 detector: resource.refcount-misuse
+description: Detects reference count mismatch vulnerabilities leading to use-after-free or memory leaks
 severity: medium
 cwe: CWE-911
 cvss: 5.5

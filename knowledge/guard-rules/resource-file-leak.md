@@ -1,5 +1,6 @@
 ---
 detector: resource-file-leak
+description: Detects file handle leaks where opened files are not closed before resource exhaustion
 severity: high
 cwe: CWE-775
 cvss: 7.5

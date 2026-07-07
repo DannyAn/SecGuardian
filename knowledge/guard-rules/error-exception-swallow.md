@@ -1,5 +1,6 @@
 ---
 detector: error-exception-swallow
+description: Detects empty catch blocks or silent error suppression that hides failures
 severity: medium
 cwe: CWE-391
 cvss: 4.5

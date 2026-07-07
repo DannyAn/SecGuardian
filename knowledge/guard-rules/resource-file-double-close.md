@@ -1,5 +1,6 @@
 ---
 detector: resource.file-double-close
+description: Detects double-close vulnerabilities where a file handle is closed more than once
 severity: medium
 cwe: CWE-675
 cvss: 5.5

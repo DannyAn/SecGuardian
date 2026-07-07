@@ -1,5 +1,6 @@
 ---
 detector: uninitialized-memory
+description: Detects usage of uninitialized memory that may contain unpredictable values
 severity: medium
 cwe: CWE-457
 cvss: 5.5

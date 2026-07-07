@@ -1,5 +1,6 @@
 ---
 detector: double-free
+description: Detects double-free vulnerabilities where the same memory region is freed multiple times
 severity: critical
 cwe: CWE-415
 cvss: 9.8

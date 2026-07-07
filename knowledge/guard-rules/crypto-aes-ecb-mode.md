@@ -1,5 +1,6 @@
 ---
 detector: crypto-aes-ecb-mode
+description: Detects use of AES in ECB mode, which produces identical ciphertext for identical plaintext blocks
 severity: high
 cwe: CWE-327
 cvss: 7.5

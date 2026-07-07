@@ -1,5 +1,6 @@
 ---
 detector: mismatched-free
+description: Detects mismatched allocation/deallocation patterns (e.g., malloc/free mismatch with new/delete)
 severity: high
 cwe: CWE-762
 cvss: 7.5

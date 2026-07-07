@@ -1,5 +1,6 @@
 ---
 detector: resource.socket-leak
+description: Detects socket descriptor leaks where network connections are not properly cleaned up
 severity: medium
 cwe: CWE-772
 cvss: 5.5

@@ -1,5 +1,6 @@
 ---
 detector: missing-authentication
+description: Detects endpoints or operations that lack required authentication checks
 severity: critical
 cwe: CWE-306
 cvss: 9.8

@@ -1,5 +1,6 @@
 ---
 detector: null-dereference
+description: Detects null pointer dereference vulnerabilities where a pointer is used without null check
 severity: high
 cwe: CWE-476
 cvss: 7.5

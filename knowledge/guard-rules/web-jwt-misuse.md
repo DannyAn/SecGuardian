@@ -1,5 +1,6 @@
 ---
 detector: jwt-misuse
+description: Detects JWT handling vulnerabilities including weak algorithms, missing verification, or token tampering
 severity: high
 cwe: CWE-347
 cvss: 7.8

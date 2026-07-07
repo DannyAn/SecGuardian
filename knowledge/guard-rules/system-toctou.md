@@ -1,5 +1,6 @@
 ---
 detector: toctou
+description: Detects time-of-check/time-of-use race conditions in file system operations
 severity: high
 cwe: CWE-367
 cvss: 7.5

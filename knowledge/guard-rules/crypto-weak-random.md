@@ -1,5 +1,6 @@
 ---
 detector: weak-random
+description: Detects usage of weak or predictable random number generators for security-sensitive purposes
 severity: high
 cwe: CWE-338
 cvss: 7.5

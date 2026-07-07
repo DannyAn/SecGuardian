@@ -1,5 +1,6 @@
 ---
 detector: use-after-free
+description: Detects use-after-free vulnerabilities where memory is accessed after being freed
 severity: critical
 cwe: CWE-416
 cvss: 9.8

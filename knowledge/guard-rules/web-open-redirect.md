@@ -1,5 +1,6 @@
 ---
 detector: open-redirect
+description: Detects open redirect vulnerabilities where user input controls redirect URLs
 severity: medium
 cwe: CWE-601
 cvss: 5.8

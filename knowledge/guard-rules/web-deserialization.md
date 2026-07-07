@@ -1,5 +1,6 @@
 ---
 detector: deserialization
+description: Detects insecure deserialization vulnerabilities where untrusted data is deserialized
 severity: critical
 cwe: CWE-502
 cvss: 9.8

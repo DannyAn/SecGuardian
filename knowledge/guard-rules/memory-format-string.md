@@ -1,5 +1,6 @@
 ---
 detector: format-string
+description: Detects format string vulnerabilities where user input controls the format argument
 severity: critical
 cwe: CWE-134
 cvss: 9.8

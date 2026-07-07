@@ -1,5 +1,6 @@
 ---
 detector: insecure-temp-file
+description: Detects insecure temporary file creation using predictable paths or names
 severity: medium
 cwe: CWE-377
 cvss: 5.5

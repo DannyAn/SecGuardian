@@ -1,5 +1,6 @@
 ---
 detector: error-panic-to-client
+description: Detects propagation of runtime panics or unhandled exceptions to client-facing output
 severity: medium
 cwe: CWE-248
 cvss: 4.5

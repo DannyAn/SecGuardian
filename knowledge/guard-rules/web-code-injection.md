@@ -1,5 +1,6 @@
 ---
 detector: code-injection
+description: Detects code injection vulnerabilities where user input is evaluated as code (eval, exec, etc.)
 severity: critical
 cwe: CWE-94
 cvss: 9.8

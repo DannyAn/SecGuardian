@@ -1,5 +1,6 @@
 ---
 detector: system.secrets-detection
+description: Detects accidental exposure of secrets, API keys, and credentials in code or config
 severity: critical
 cwe: CWE-798
 cvss: 9.8

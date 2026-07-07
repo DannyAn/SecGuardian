@@ -1,5 +1,6 @@
 ---
 detector: error-debug-mode-production
+description: Detects debug mode, verbose logging, or development features enabled in production
 severity: high
 cwe: CWE-489
 cvss: 6.5

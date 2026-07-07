@@ -1,5 +1,6 @@
 ---
 detector: error-log-sensitive-data
+description: Detects logging of sensitive information such as passwords, tokens, or PII
 severity: high
 cwe: CWE-532
 cvss: 6.5

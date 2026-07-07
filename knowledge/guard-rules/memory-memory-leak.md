@@ -1,5 +1,6 @@
 ---
 detector: memory-leak
+description: Detects memory leak vulnerabilities where allocated memory is not properly freed
 severity: medium
 cwe: CWE-401
 cvss: 5.5

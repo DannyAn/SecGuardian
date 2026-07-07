@@ -1,5 +1,6 @@
 ---
 detector: oob-read
+description: Detects out-of-bounds read vulnerabilities that may leak sensitive information
 severity: high
 cwe: CWE-125
 cvss: 7.5

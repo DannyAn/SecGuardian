@@ -1,5 +1,6 @@
 ---
 detector: data-race
+description: Detects data races where multiple threads access the same memory without proper synchronization
 severity: high
 cwe: CWE-366
 cvss: 7.5

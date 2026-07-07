@@ -1,5 +1,6 @@
 ---
 detector: web-nosql-injection
+description: Detects NoSQL injection vulnerabilities where user input is passed to NoSQL queries
 severity: critical
 cwe: CWE-943
 cvss: 9.8

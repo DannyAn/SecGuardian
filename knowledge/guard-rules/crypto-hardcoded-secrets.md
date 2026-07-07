@@ -1,5 +1,6 @@
 ---
 detector: hardcoded-secrets
+description: Detects hardcoded cryptographic keys, passwords, tokens, and other secrets in source code
 severity: high
 cwe: CWE-798
 cvss: 7.5

@@ -1,5 +1,6 @@
 ---
 detector: sql-injection
+description: Detects SQL injection vulnerabilities where user input is concatenated into SQL queries
 severity: critical
 cwe: CWE-89
 cvss: 9.8

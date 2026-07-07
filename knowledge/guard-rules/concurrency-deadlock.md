@@ -1,5 +1,6 @@
 ---
 detector: deadlock
+description: Detects deadlock vulnerabilities where threads hold locks in conflicting order causing indefinite blocking
 severity: medium
 cwe: CWE-833
 cvss: 5.5

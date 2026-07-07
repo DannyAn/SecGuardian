@@ -1,5 +1,6 @@
 ---
 detector: insufficient-key-length
+description: Detects cryptography with insufficient key lengths that do not meet minimum security requirements
 severity: medium
 cwe: CWE-326
 cvss: 5.5

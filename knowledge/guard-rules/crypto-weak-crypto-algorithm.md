@@ -1,5 +1,6 @@
 ---
 detector: weak-crypto-algorithm
+description: Detects usage of broken or deprecated cryptographic algorithms (e.g., DES, RC4, MD5)
 severity: high
 cwe: CWE-327
 cvss: 7.5

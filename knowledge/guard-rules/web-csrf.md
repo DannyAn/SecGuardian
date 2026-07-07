@@ -1,5 +1,6 @@
 ---
 detector: csrf
+description: Detects cross-site request forgery vulnerabilities lacking anti-CSRF tokens or origin validation
 severity: high
 cwe: CWE-352
 cvss: 7.8

@@ -1,5 +1,6 @@
 ---
 detector: error-unified-error-format
+description: Detects inconsistent or unstructured error reporting that hinders debugging
 severity: medium
 cwe: CWE-703
 cvss: 4.5

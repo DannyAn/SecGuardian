@@ -1,5 +1,6 @@
 ---
 detector: resource-exhaustion
+description: Detects resource exhaustion vulnerabilities where uncontrolled resource consumption can occur
 severity: medium
 cwe: CWE-400
 cvss: 5.8

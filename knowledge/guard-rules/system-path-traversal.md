@@ -1,5 +1,6 @@
 ---
 detector: path-traversal
+description: Detects path traversal vulnerabilities where user input controls file paths without sanitization
 severity: high
 cwe: CWE-22
 cvss: 7.5

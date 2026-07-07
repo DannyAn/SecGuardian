@@ -1,5 +1,6 @@
 ---
 detector: resource.lock-misuse
+description: Detects improper lock/unlock patterns including missing unlocks and double locks
 severity: high
 cwe: CWE-667
 cvss: 7.5

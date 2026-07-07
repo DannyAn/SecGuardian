@@ -1,5 +1,6 @@
 ---
 detector: ssrf
+description: Detects server-side request forgery vulnerabilities where user input controls outbound requests
 severity: high
 cwe: CWE-918
 cvss: 7.8

@@ -1,5 +1,6 @@
 ---
 detector: insecure-permissions
+description: Detects insecure file or resource permission settings that may allow unauthorized access
 severity: medium
 cwe: CWE-276
 cvss: 5.5

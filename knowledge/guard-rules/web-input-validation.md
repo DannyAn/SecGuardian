@@ -1,5 +1,6 @@
 ---
 detector: input-validation
+description: Detects missing or insufficient input validation that could lead to injection attacks
 severity: high
 cwe: CWE-20
 cvss: 7.8

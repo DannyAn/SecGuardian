@@ -1,5 +1,6 @@
 ---
 detector: error-stack-trace-leak
+description: Detects exposure of stack traces or internal error details to end users
 severity: high
 cwe: CWE-209
 cvss: 6.5

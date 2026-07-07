@@ -1,5 +1,6 @@
 ---
 detector: idor
+description: Detects insecure direct object reference vulnerabilities exposing internal object identifiers
 severity: high
 cwe: CWE-639
 cvss: 7.8

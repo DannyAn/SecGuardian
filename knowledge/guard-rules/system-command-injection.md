@@ -1,5 +1,6 @@
 ---
 detector: command-injection
+description: Detects OS command injection vulnerabilities where user input is passed to shell execution
 severity: critical
 cwe: CWE-78
 cvss: 9.8

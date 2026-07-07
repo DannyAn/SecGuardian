@@ -1,5 +1,6 @@
 ---
 detector: resource.file-use-after-close
+description: Detects use after close vulnerabilities where a file handle is read after being closed
 severity: high
 cwe: CWE-672
 cvss: 7.5

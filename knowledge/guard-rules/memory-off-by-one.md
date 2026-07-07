@@ -1,5 +1,6 @@
 ---
 detector: off-by-one
+description: Detects off-by-one errors where an array or buffer index is one position out of bounds
 severity: high
 cwe: CWE-193
 cvss: 7.5

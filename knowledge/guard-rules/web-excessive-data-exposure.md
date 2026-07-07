@@ -1,5 +1,6 @@
 ---
 detector: web-excessive-data-exposure
+description: Detects excessive data exposure where APIs return more data than needed
 severity: high
 cwe: CWE-200
 cvss: 7.8

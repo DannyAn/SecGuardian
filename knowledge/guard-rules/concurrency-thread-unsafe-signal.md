@@ -1,5 +1,6 @@
 ---
 detector: thread-unsafe-signal
+description: Detects unsafe signal handler operations that call non-async-signal-safe functions
 severity: medium
 cwe: CWE-479
 cvss: 5.5

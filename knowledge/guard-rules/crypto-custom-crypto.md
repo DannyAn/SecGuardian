@@ -1,5 +1,6 @@
 ---
 detector: crypto-custom-crypto
+description: Detects custom cryptographic implementations that bypass standard, vetted libraries
 severity: critical
 cwe: CWE-327
 cvss: 9.8

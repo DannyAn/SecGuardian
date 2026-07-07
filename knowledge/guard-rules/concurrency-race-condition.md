@@ -1,5 +1,6 @@
 ---
 detector: race-condition
+description: Detects race conditions where concurrent threads access shared data without synchronization
 severity: high
 cwe: CWE-362
 cvss: 7.5

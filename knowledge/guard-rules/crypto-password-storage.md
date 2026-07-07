@@ -1,5 +1,6 @@
 ---
 detector: crypto-password-storage
+description: Detects insufficiently protected password storage (e.g., plaintext, weak hashing)
 severity: critical
 cwe: CWE-916
 cvss: 9.8

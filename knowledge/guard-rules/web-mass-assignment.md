@@ -1,5 +1,6 @@
 ---
 detector: web-mass-assignment
+description: Detects mass assignment vulnerabilities where unintended object properties can be modified
 severity: critical
 cwe: CWE-915
 cvss: 9.8

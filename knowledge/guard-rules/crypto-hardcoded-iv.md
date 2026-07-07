@@ -1,5 +1,6 @@
 ---
 detector: crypto-hardcoded-iv
+description: Detects hardcoded or fixed initialization vectors (IVs) in cryptographic operations
 severity: high
 cwe: CWE-329
 cvss: 7.5

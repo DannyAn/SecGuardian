@@ -1,5 +1,6 @@
 ---
 detector: privilege-escalation
+description: Detects improper privilege management that could allow privilege escalation
 severity: high
 cwe: CWE-269
 cvss: 7.5

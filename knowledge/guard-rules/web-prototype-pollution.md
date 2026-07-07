@@ -1,5 +1,6 @@
 ---
 detector: web-prototype-pollution
+description: Detects prototype pollution vulnerabilities that allow property injection into object prototypes
 severity: high
 cwe: CWE-1321
 cvss: 7.8

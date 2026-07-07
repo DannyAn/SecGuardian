@@ -1,5 +1,6 @@
 ---
 detector: bad-cast
+description: Detects unsafe or invalid type casts that could lead to memory corruption
 severity: medium
 cwe: CWE-704
 cvss: 5.5

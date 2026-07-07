@@ -1,5 +1,6 @@
 ---
 detector: buffer-overflow
+description: Detects buffer overflow vulnerabilities where data is written beyond buffer boundaries, potentially overwriting adjacent memory
 severity: critical
 cwe: CWE-120
 cvss: 9.8

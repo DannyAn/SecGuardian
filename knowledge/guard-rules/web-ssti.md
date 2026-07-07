@@ -1,5 +1,6 @@
 ---
 detector: web-ssti
+description: Detects server-side template injection vulnerabilities where user input is embedded in templates
 severity: critical
 cwe: CWE-1336
 cvss: 9.8

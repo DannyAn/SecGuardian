@@ -1,5 +1,6 @@
 ---
 detector: crypto-tls-version
+description: Detects usage of outdated or insecure TLS versions (TLS 1.0/1.1, SSL) in connections
 severity: medium
 cwe: CWE-326
 cvss: 5.5

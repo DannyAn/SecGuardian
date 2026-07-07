@@ -1,5 +1,6 @@
 ---
 detector: auth-bypass
+description: Detects authentication bypass vulnerabilities through logic flaws or weak validation
 severity: critical
 cwe: CWE-287
 cvss: 9.8

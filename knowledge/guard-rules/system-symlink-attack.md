@@ -1,5 +1,6 @@
 ---
 detector: symlink-attack
+description: Detects symlink following vulnerabilities where file operations follow untrusted symbolic links
 severity: medium
 cwe: CWE-61
 cvss: 5.5

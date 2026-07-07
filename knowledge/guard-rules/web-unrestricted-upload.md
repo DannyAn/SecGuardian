@@ -1,5 +1,6 @@
 ---
 detector: unrestricted-upload
+description: Detects unrestricted file upload vulnerabilities that could allow code execution
 severity: critical
 cwe: CWE-434
 cvss: 9.8

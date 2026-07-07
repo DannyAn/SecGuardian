@@ -1,5 +1,6 @@
 ---
 detector: missing-authorization
+description: Detects missing authorization checks where authenticated users access unauthorized resources
 severity: high
 cwe: CWE-862
 cvss: 7.8
