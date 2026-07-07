@@ -293,15 +293,24 @@ python3 "$SECGUARDIAN_HOME/scripts/validate-index.py" \
 > 禁止用 grep/find 全文件扫描。必须通过 index.json 符号表定位目标函数。
 
 <!-- @secguardian:non-skippable step=pre-filter -->
-#### 3.1 检测器预筛（不可跳过）
+#### 3.1 检测器预筛（不可跳过 — 语言感知）
 
-> 加载审计域规则前，必须先经 index.json 符号表门控。
+> 加载审计域规则前，必须先经 index.json 符号表门控。按语言类型采用不同策略。
 
+**C/C++（符号表精确匹配）：**
 对审计清单中的每个域：
 1. 读取该审计域关联的目标函数/API
 2. 在 `index.json.symbols.functions` 中查询目标是否存在
 3. **无匹配 → 跳过**：不加载规则全文，记录 "`Skipped: no matching symbol for {domain} in index.json`"
 4. **有匹配 → 进入 3.1a**：规则强制加载后执行审计
+
+**Java / Python / Go / JS 等 OO 语言（全量加载）：**
+> ⚠️ OO 语言中危险 API（如 `Runtime.exec()`）是方法内调用，不在索引器符号表顶层。
+> 共 13 个 audit-rules，全量加载成本极低。
+
+1. 检查 `index.json` 中 `function_count > 0`
+2. 有函数 → **必须加载所有审计域规则全文**（不允许 AI 自主裁定"哪些可能匹配"）
+3. 无函数 → 跳过
 
 #### 3.1a 审计规则强制加载（不可跳过）
 
@@ -411,14 +420,17 @@ RECEOF
 
 ```bash
 SCAN_DIR=".codeagent/secguardian/secaudit/scans/<scan_id>"
-python3 "$SECGUARDIAN_HOME/scripts/validate-findings.py" --findings-dir "$SCAN_DIR/findings/"
+python3 "$SECGUARDIAN_HOME/scripts/validate-findings.py" --findings-dir "$SCAN_DIR/findings/" --check-spec
 VALIDATE_EXIT=$?
-if [ $VALIDATE_EXIT -ne 0 ]; then
-    echo "  ⚠️  Findings validation completed with warnings — proceeding to renderer"
+if [ $VALIDATE_EXIT -eq 0 ]; then
+    echo "  ✅ All findings pass validation + spec cross-check"
+else
+    echo "  ⚠️  Spec validation found violations — findings must be regenerated"
+    echo "  AI must re-read audit-rule Detection Spec and fix severity/CWE/evidence"
 fi
 ```
 
-> 校验结果不阻塞渲染。validate-findings.py 的警告项可通过后续手动检查确认。
+> Spec 校验是强约束：finding 的 severity、CWE、evidence 必须匹配 Detection Spec（即 audit-rule 文件内容）。跳过规则文件加载的 finding 将被拒绝。
 
 **4c. 调用渲染器生成所有输出：**
 

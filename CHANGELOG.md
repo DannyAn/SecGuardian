@@ -2,6 +2,33 @@
 
 All notable changes to SecGuardian.
 
+## [0.16.0] — 2026-07-07
+
+### 🧠 Language-Aware Pre-Filter & Answer-Card Independence
+
+#### 语言感知预筛修复（EPIC-006/FEATURE-003）
+- **secguard.md 3c.5**: C/C++ 函数名精确匹配跳过无关检测器 / Java/Python/Go/JS 全量加载确保不漏检（修复 ses_0c48 只跑 12/34 检测器的问题）
+- **secaudit.md 3.1 / secreview.md 3a**: 同上修复，统一语言感知策略
+- **OO 语言全量加载指令**: 明确禁止 AI 自主裁定"哪些可能匹配"，必须加载该语言全部检测器
+- **批量加载优化**: OO 语言在一次 bash 调用中批量加载全部检测器规则（约 2K token），避免逐文件 `cat` 的开销
+
+#### 答案卡脱敏增强
+- **strip-answer-cards.py**: 覆盖 7 类标注模式（VULNERABILITY/CWE/BAD/TP/P0-P3、中文"真漏洞"/"Detector 标记"/"← 标记"），支持 // # /** 三种注释风格 + 行内/整行两种模式
+- **5 语言脱敏验证集**: `examples/*-vuln-demo-no-answers/` — 克隆+批量脱敏 51 个源码文件，554 行答案卡剥离，0 残留
+- **`examples/strip-all-demos.py`**: 可重复使用的批量脱敏脚本
+
+#### 全语言验证扫描（脱敏副本，0 答案卡）
+- **Java**: 22 findings (11C/9H/2M), 18 种检测器命中
+- **Go**: 31 findings (17C/11H/3M), 20 种检测器命中
+- **Python**: 30 findings (12C/15H/3M), 20 种检测器命中
+- **JavaScript**: 72 findings (25C/39H/7M), 21 种检测器命中
+- **C/C++**: 47 findings (18C/19H/10M), 29 种检测器命中（函数名预筛跳过 38 个无关检测器）
+- **安全代码正确识别**: p0_safe*/p1_safe*/p2_counter_evidence 系列全部 0 发现 ✓
+
+#### 其他
+- **Detection Spec**: 67 guard-rules + 13 audit-rules + 5 review-rules 全部添加 Detection Spec JSON 块
+- **validate-findings.py**: 新增 `--check-spec` 跨验证模式
+
 ## [0.15.1] — 2026-07-07
 
 ### 🔧 Release Script Consolidation & Docs Restructure

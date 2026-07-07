@@ -328,6 +328,27 @@ INDEX_FILE 输出示例:
 - `alloc_free.pairs` — 分配/释放对
 - `lock_graph.mutexes` — 锁使用记录
 
+#### 2.5a.5 脱敏答案卡标注（防 AI 走捷径）
+
+> ⚠️ 源码中可能存在 `// VULNERABILITY [CWE-xxx]`、`// CWE-xxx`、`// BAD:` 等标注注释。
+> 这些注释让 AI 可直接读出问题所在，完全绕过 guard-rule 独立检测。**必须脱敏后方可读取。**
+
+在执行 2.5b 扫描范围确定之前，先剥离已知答案卡模式，写入脱敏副本：
+
+```bash
+source .codeagent/secguardian/.scan_state
+python3 "$SECGUARDIAN_HOME/scripts/strip-answer-cards.py" \
+  --index .codeagent/secguardian/index.json \
+  --source-root "$USER_PROJECT" \
+  --output-dir "$USER_PROJECT/.codeagent/secguardian/stripped/"
+```
+
+要求：
+- 此命令必须执行，输出应有 "✅ Answer-card strip: ... files modified, ... lines stripped"
+- 确认 `.codeagent/secguardian/stripped/` 目录已创建
+- **若输出 0 lines stripped**，记录 "INFO: no answer cards found in source — proceeding with original files"（非错误）
+- 阻止后续 `cat` 或 `head` 直接读取原始源码，AI 只能读脱敏副本
+
 #### 2.5b 确定读取范围 — index.json 符号表即唯一扫描清单
 
 > ⚠️ **index.json.symbols.functions 已是完整的函数→文件:行号 映射。不需要衍生文件。**
@@ -351,8 +372,11 @@ INDEX_FILE 输出示例:
 > **🔒 强制读取规则 (NON-NEGOTIABLE):**
 >
 > 1. **读取范围 = `index.json.symbols.functions` 中的所有条目。** 每个条目的 `file`+`start_line` 即读取起点。读取 ±10 行上下文。
+>    **⚠️ 必须从脱敏副本读取：** `.codeagent/secguardian/stripped/<file>`。`file` 字段值是相对于脱敏目录的路径（如 `file: "src/AuthController.java"` → 读 `.codeagent/secguardian/stripped/src/AuthController.java`）。禁止直接读原始文件路径。
 > 2. **不读符号表外的代码。** `symbols.functions` 中没有的文件 → 不读。符号表中没有的函数 → 不分析。
-> 3. **检测器预筛基于函数名。** 对每个检测器，在 `symbols.functions` 中查找关联函数名（如 `strcpy`→buffer-overflow，`system`→command-injection）。无关联函数 → 跳过该检测器，报告 "Skipped: no matching symbol in index"。
+> 3. **检测器预筛（语言感知，参见 3c.5 策略）。** 对每个检测器，按语言类型：
+>    - **C/C++**：在 `symbols.functions` 中查找关联 API 函数名（如 `strcpy`→buffer-overflow，`system`→command-injection）。无关联函数 → 跳过。
+>    - **Java/Python/Go/JS**：危险 API 是方法内调用（如 `Runtime.exec()`），不在符号表顶层。**必须加载该语言全部检测器**，不允许 AI 自主裁定"哪些可能匹配"。
 > 4. **alloc_free + lock_graph 作为补充信号。** 内存检测器查阅 `alloc_free.pairs`，并发检测器查阅 `lock_graph.mutexes`。
 > 5. **`--no-signal-filter`**: 用户可加此标志跳过预筛，执行全部检测器 + 读取全部文件。
 
@@ -405,19 +429,32 @@ fi
   （使用 `cat` 读取，避免 `read` 工具触发 OpenCode 外部目录权限弹窗）
 
 <!-- @secguardian:non-skippable step=pre-filter -->
-#### 3c.5 检测器预筛（不可跳过）
+#### 3c.5 检测器预筛（不可跳过 — 语言感知）
 
 > 这是核心架构约束：检测器必须经 index.json 符号表门控后才能加载全文。
 
-对裁剪后的检测器清单中的每个检测器：
+对裁剪后的检测器清单中的每个检测器，**按目标语言类型采用不同策略**：
 
-1. **读取目标函数名**：guard-rule 文件名即目标函数名（如 `buffer-overflow` → `strcpy`、`command-injection` → `system`、`null-dereference` → `malloc`）
-2. **查 index.json.symbols.functions**：在符号表中查询目标函数是否存在
+**C/C++（符号表精确匹配）：**
+1. **读取目标 API 名**：guard-rule 文件名即危险 API 名（如 `buffer-overflow` → `strcpy`、`command-injection` → `system`、`null-dereference` → `malloc`）
+2. **查 index.json.symbols.functions**：在符号表中查询该 API 是否作为**顶层函数**被调用
 3. **无匹配 → 跳过**：不加载规则全文，记录 "`Skipped: no matching symbol for {detector} in index.json`"
 4. **有匹配 → 进入 3d**：加载规则全文后执行检测
 5. **alloc_free.pairs / lock_graph.mutexes** 作为补充信号查阅
 
-> 预筛后剩余的检测器数量通常只有全量的 10-30%，大幅节省 token。
+**Java / Python / Go / JS 等 OO 语言（全量加载）：**
+> ⚠️ OO 语言中，危险 API（如 `Runtime.exec()`、`Statement.executeQuery()`）是**方法体内部的调用**，并非顶层函数名。
+> 索引器的 `symbols.functions` 只记录**用户自定义函数**（如 `executeCommand`），不记录其内部调用的库函数。
+> 因此不能用函数名精确匹配做预筛（那会跳过所有 Java 检测器 —— 这在 ses_0c48 已经证实只跑出 12/34 个）。
+> 但这也意味着 C 语言中通过精确匹配跳过 70-90% 检测器的节省在 OO 语言中不存在。
+
+1. 检查 `index.json` 中 `function_count > 0`（确认有代码需要分析）
+2. 有函数 → **必须加载该语言的所有检测器规则全文**（不允许 AI 自主裁定"哪些可能匹配"）
+3. 无函数（空项目）→ 跳过该语言所有检测器
+4. 加载顺序：Critical → High → Medium → Low → Info
+
+> 此策略对于 C/C++ 的 token 节省不变（精确匹配跳过 70-90%），对 OO 语言则确保不漏检。
+> Java 的 36 个检测器加载约消耗 2K token（规则文件摘要），可在一次 bash 调用中批量完成。
 
 #### 3d 检测器规则强制加载（不可跳过）
 
@@ -427,16 +464,24 @@ fi
 
 <!-- @secguardian:non-skippable step=rule-loading -->
 
-对 3c.5 预筛后剩余的每个检测器，**必须**执行：
+对 3c.5 预筛后剩余的每个检测器或批量，**必须**执行：
 
-```bash
-cat "$SECGUARDIAN_HOME/knowledge/guard-rules/{namespace-name}.md"
-```
+- **C/C++（少量命中）**：逐检测器 `cat`：
+  ```bash
+  cat "$SECGUARDIAN_HOME/knowledge/guard-rules/{namespace-name}.md"
+  ```
+- **Java / Python / Go / JS（全量加载）**：在一次 bash 调用中批量加载全部检测器：
+  ```bash
+  for rule in namespace1 namespace2 namespace3; do
+      echo "=== $rule ==="
+      cat "$SECGUARDIAN_HOME/knowledge/guard-rules/$rule.md"
+  done
+  ```
 
 然后：
 1. 从规则文件提取目标 API 签名、检测逻辑、修复模式
 2. 对照 index.json.symbols.functions 找到关联函数
-3. 读取该函数代码（±10 行上下文），验证是否命中检测模式
+3. 从脱敏副本 `.codeagent/secguardian/stripped/<file>` 读取该函数代码（±10 行上下文），验证是否命中检测模式
 4. **记录 finding 时**：`rationale` 必须包含规则文件中的检测逻辑引用，`fix_before`/`fix_after` 必须遵循规则文件提供的修复模式
 
 > 🚫 **禁止行为**：
@@ -680,16 +725,17 @@ findings/crypto/password-storage/f6e5d4c3b2a1_crypto_utils-20.json
 
 ```bash
 SCAN_DIR=".codeagent/secguardian/secguard/scans/<scan_id>"
-python3 "$SECGUARDIAN_HOME/scripts/validate-findings.py" --findings-dir "$SCAN_DIR/findings/"
+python3 "$SECGUARDIAN_HOME/scripts/validate-findings.py" --findings-dir "$SCAN_DIR/findings/" --check-spec
 VALIDATE_EXIT=$?
 if [ $VALIDATE_EXIT -eq 0 ]; then
-    echo "  ✅ All findings pass validation"
+    echo "  ✅ All findings pass validation + spec cross-check"
 else
-    echo "  ⚠️  Findings validation completed with warnings — proceeding to renderer"
+    echo "  ⚠️  Spec validation found violations — findings must be regenerated"
+    echo "  AI must re-read guard-rule Detection Spec and fix severity/CWE/evidence"
 fi
 ```
 
-> 校验结果不阻塞渲染。validate-findings.py 的警告项可通过后续手动检查确认。
+> Spec 校验是强约束：finding 的 severity、CWE、evidence 必须匹配 Detection Spec（即 guard-rule 文件内容）。跳过规则文件加载的 finding 将被拒绝。
 
 **4d. 调用渲染器生成所有输出：**
 

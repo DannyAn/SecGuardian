@@ -296,14 +296,23 @@ python3 "$SECGUARDIAN_HOME/scripts/validate-index.py" \
 - **Use index.json symbol table to locate review targets**, rather than traversing files.
 
 <!-- @secguardian:non-skippable step=pre-filter -->
-#### 3a. 检测器预筛（不可跳过）
-> 加载审阅规则前必须先经 index.json 符号表门控。
+#### 3a. 检测器预筛（不可跳过 — 语言感知）
+> 加载审阅规则前必须先经 index.json 符号表门控。按语言类型采用不同策略。
 
+**C/C++（符号表精确匹配）：**
 对 language-index 中该语言的 review-rules 清单：
 1. **读取目标函数/API**：review-rules 关联的目标函数名
 2. **查 index.json.symbols.functions**：在符号表中查询目标是否存在
 3. **无匹配 → 跳过**：不加载规则全文，记录 "`Skipped: no matching symbol for {rule} in index.json`"
 4. **有匹配 → 进入 3b**：规则强制加载后执行审阅
+
+**Java / Python / Go / JS 等 OO 语言（全量加载）：**
+> ⚠️ OO 语言中危险 API 是方法内调用，不在索引器符号表顶层。
+> review-rules 每语言仅 1 个文件，全量加载成本极低。
+
+1. 检查 `index.json` 中 `function_count > 0`
+2. 有函数 → **必须加载该语言 review-rules 全文**（不允许 AI 自主裁定）
+3. 无函数 → 跳过
 
 #### 3b. 审阅规则强制加载（不可跳过）
 
@@ -438,10 +447,13 @@ Key requirements (secreview-specific):
 
 ```bash
 SCAN_DIR=".codeagent/secguardian/secreview/scans/<scan_id>"
-python3 "$SECGUARDIAN_HOME/scripts/validate-findings.py" --findings-dir "$SCAN_DIR/findings/"
+python3 "$SECGUARDIAN_HOME/scripts/validate-findings.py" --findings-dir "$SCAN_DIR/findings/" --check-spec
 VALIDATE_EXIT=$?
-if [ $VALIDATE_EXIT -ne 0 ]; then
-    echo "  ⚠️  Findings validation completed with warnings — proceeding to renderer"
+if [ $VALIDATE_EXIT -eq 0 ]; then
+    echo "  ✅ All findings pass validation + spec cross-check"
+else
+    echo "  ⚠️  Spec validation found violations — findings must be regenerated"
+    echo "  AI must re-read review-rule Detection Spec and fix severity/CWE/evidence"
 fi
 ```
 
