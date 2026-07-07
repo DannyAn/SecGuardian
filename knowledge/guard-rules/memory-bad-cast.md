@@ -2,53 +2,18 @@
 detector: bad-cast
 severity: medium
 cwe: CWE-704
+cvss: 5.5
 language: [c, cpp]
 tags: [memory, type-safety, undefined-behavior]
 precision: high
 confidence: dynamic
+target_functions: [code_context, data_flow_path, judgment_rationale, uintptr_t, variable_state]
+match_patterns: [\(void\s*\*?\(\*\)\)                                 # C风格函数指针cast, reinterpret_cast<(?!.*char\*|.*void\*|.*uintptr_t|.*intptr_t)  # 非底层用途的 reinterpret_cast, static_cast<Derived\*>.*base_ptr                    # 向下转换, \([A-Za-z_]\w*\s*\*+\)\s*[&*]?\w+                   # C风格指针cast，非void*互转]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
 
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "memory.bad-cast",
-  "type": "guard-rule",
-  "namespace": "memory",
-  "severity": "Medium",
-  "cwe": "CWE-704",
-  "cvss": 5.5,
-  "confidence": "dynamic",
-  "precision": "high",
-  "languages": [
-    "c",
-    "cpp"
-  ],
-  "target_functions": [
-    "code_context",
-    "data_flow_path",
-    "judgment_rationale",
-    "uintptr_t",
-    "variable_state"
-  ],
-  "match_patterns": [
-    "\\(void\\s*\\*?\\(\\*\\)\\)                                 # C风格函数指针cast",
-    "reinterpret_cast<(?!.*char\\*|.*void\\*|.*uintptr_t|.*intptr_t)  # 非底层用途的 reinterpret_cast",
-    "static_cast<Derived\\*>.*base_ptr                    # 向下转换",
-    "\\([A-Za-z_]\\w*\\s*\\*+\\)\\s*[&*]?\\w+                   # C风格指针cast，非void*互转"
-  ],
-  "exclude_patterns": [],
-  "required_evidence": [
-    "code_context",
-    "judgment_rationale"
-  ],
-  "optional_evidence": [
-    "data_flow_path",
-    "call_stack"
-  ]
-}
-```
 ## 威胁定义 (Threat Definition)
 
 不兼容类型之间的强制转换导致未定义行为或类型混淆。C 风格 cast `(Type)val` 绕过编译器类型检查，`reinterpret_cast` 放弃类型安全。类型混淆可导致虚函数表劫持（vtable hijacking）。

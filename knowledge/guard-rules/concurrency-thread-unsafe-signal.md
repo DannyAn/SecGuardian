@@ -2,69 +2,18 @@
 detector: thread-unsafe-signal
 severity: medium
 cwe: CWE-479
+cvss: 5.5
 language: [c, cpp]
 tags: [concurrency, signal, async-safety]
 precision: medium
 confidence: dynamic
+target_functions: [call_stack, code_context, exit, fclose, fopen, fprintf, free, getenv, handler, judgment_rationale, malloc, openlog, pthread_mutex_lock, putenv, setenv, sigaction, signal, snprintf, sprintf, strcat, strcpy, strlen, syslog]
+match_patterns: [signal\(|sigaction\(                          # → MUST: code_context (handler函数体), void.*handler.*int|void.*sig_handler          # 信号处理函数签名]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
 
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "concurrency.thread-unsafe-signal",
-  "type": "guard-rule",
-  "namespace": "concurrency",
-  "severity": "Medium",
-  "cwe": "CWE-479",
-  "cvss": 5.5,
-  "confidence": "dynamic",
-  "precision": "medium",
-  "languages": [
-    "c",
-    "cpp"
-  ],
-  "target_functions": [
-    "call_stack",
-    "code_context",
-    "exit",
-    "fclose",
-    "fopen",
-    "fprintf",
-    "free",
-    "getenv",
-    "handler",
-    "judgment_rationale",
-    "malloc",
-    "openlog",
-    "pthread_mutex_lock",
-    "putenv",
-    "setenv",
-    "sigaction",
-    "signal",
-    "snprintf",
-    "sprintf",
-    "strcat",
-    "strcpy",
-    "strlen",
-    "syslog"
-  ],
-  "match_patterns": [
-    "signal\\(|sigaction\\(                          # → MUST: code_context (handler函数体)",
-    "void.*handler.*int|void.*sig_handler          # 信号处理函数签名"
-  ],
-  "exclude_patterns": [],
-  "required_evidence": [
-    "code_context",
-    "judgment_rationale"
-  ],
-  "optional_evidence": [
-    "data_flow_path",
-    "call_stack"
-  ]
-}
-```
 ## 威胁定义 (Threat Definition)
 
 信号处理器中调用了非异步信号安全的函数（如 `printf`/`malloc`/`free`/`pthread_mutex_lock`），在信号到达时如果程序正处于这些函数的执行中，可能造成死锁或数据损坏。POSIX 标准明确限定了信号安全函数列表。

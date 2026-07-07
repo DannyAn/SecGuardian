@@ -2,68 +2,18 @@
 detector: null-dereference
 severity: high
 cwe: CWE-476
+cvss: 7.5
 language: [c, cpp]
 tags: [memory, pointer, crash]
 precision: very-high
 confidence: dynamic
+target_functions: [caller, calloc, cleanup, code_context, fopen, getenv, goto, judgment_rationale, malloc, process, realloc, strchr, strstr, use]
+match_patterns: [(malloc|calloc|realloc)\(, (malloc|calloc)\([^)]*\), (getenv|fopen|strchr|strstr)\(, \w+\s*=\s*realloc\(\1,]
+exclude_patterns: [new\s+(?!\(std::nothrow\)), __attribute__\(\(returns_nonnull\)\), if\s*\(.*==\s*NULL\)|if\s*\(!ptr\), std::unique_ptr|std::shared_ptr, \balloca\(]
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
 
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "memory.null-dereference",
-  "type": "guard-rule",
-  "namespace": "memory",
-  "severity": "High",
-  "cwe": "CWE-476",
-  "cvss": 7.5,
-  "confidence": "dynamic",
-  "precision": "very-high",
-  "languages": [
-    "c",
-    "cpp"
-  ],
-  "target_functions": [
-    "caller",
-    "calloc",
-    "cleanup",
-    "code_context",
-    "fopen",
-    "getenv",
-    "goto",
-    "judgment_rationale",
-    "malloc",
-    "process",
-    "realloc",
-    "strchr",
-    "strstr",
-    "use"
-  ],
-  "match_patterns": [
-    "(malloc|calloc|realloc)\\(",
-    "(malloc|calloc)\\([^)]*\\)",
-    "(getenv|fopen|strchr|strstr)\\(",
-    "\\w+\\s*=\\s*realloc\\(\\1,"
-  ],
-  "exclude_patterns": [
-    "new\\s+(?!\\(std::nothrow\\))",
-    "__attribute__\\(\\(returns_nonnull\\)\\)",
-    "if\\s*\\(.*==\\s*NULL\\)|if\\s*\\(!ptr\\)",
-    "std::unique_ptr|std::shared_ptr",
-    "\\balloca\\("
-  ],
-  "required_evidence": [
-    "code_context",
-    "judgment_rationale"
-  ],
-  "optional_evidence": [
-    "data_flow_path",
-    "call_stack"
-  ]
-}
-```
 ## 威胁定义 (Threat Definition)
 
 程序对值为 NULL 的指针进行解引用操作，导致段错误崩溃或（在特定条件下）可被利用的未定义行为。C/C++ 中 malloc/fopen/getenv 等函数可能返回 NULL，如果未检查直接使用就是高危。

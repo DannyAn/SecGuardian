@@ -1,21 +1,11 @@
 ---
 detector: review.python
 type: review-rule
+language: python
+max_severity: Critical
+cwe: CWE-000
+anti_pattern_count: 12
 ---
-
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "review.python",
-  "type": "review-rule",
-  "language": "python",
-  "max_severity": "Critical",
-  "cwe": "CWE-000",
-  "anti_pattern_count": 12
-}
-```
 
 # Python 安全反模式检测矩阵
 

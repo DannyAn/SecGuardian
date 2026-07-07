@@ -1,85 +1,17 @@
 ---
-confidence: dynamic
-cwe: CWE-916
 detector: crypto-password-storage
-language: [java, python, go, js]
-precision: very-high
 severity: critical
+cwe: CWE-916
+cvss: 9.8
+language: [java, python, go, js]
 tags: [crypto, password, hashing, storage]
+precision: very-high
+confidence: dynamic
+target_functions: [auth, byte, ccount, checkpw, code_context, compare, create, createHash, credential, database, digest, doFinal, encode, equals, gensalt, getBytes, getInstance, hash, hashpw, hexdigest, judgment_rationale, login, md5, ogin, passwd, password, pwd, require, secret, ser, sha1, sha256, signup, store, stored, toCharArray, update, user, uth]
+match_patterns: [MessageDigest\.getInstance\("MD5"|"SHA-1"|"SHA-256"\), hashlib\.(md5|sha1|sha256)\(.*password|pwd|passwd|secret, hashlib\.(md5|sha1|sha256)\(.*encode\(\)\).*hexdigest\(\), (md5\.Sum|sha256\.Sum256)\(\[\]byte\(password, crypto\.createHash\(.(md5|sha1|sha256).\).*password, password\s*==\s*stored|password\.equals\(stored\), Cipher\.getInstance.*password]
+exclude_patterns: []
 ---
 
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "crypto.crypto-password-storage",
-  "type": "guard-rule",
-  "namespace": "crypto",
-  "severity": "Critical",
-  "cwe": "CWE-916",
-  "cvss": 9.8,
-  "confidence": "dynamic",
-  "precision": "very-high",
-  "languages": [
-    "java",
-    "python",
-    "go",
-    "js"
-  ],
-  "target_functions": [
-    "auth",
-    "byte",
-    "ccount",
-    "checkpw",
-    "code_context",
-    "compare",
-    "create",
-    "createHash",
-    "credential",
-    "database",
-    "digest",
-    "doFinal",
-    "encode",
-    "equals",
-    "gensalt",
-    "getBytes",
-    "getInstance",
-    "hash",
-    "hashpw",
-    "hexdigest",
-    "judgment_rationale",
-    "login",
-    "md5",
-    "ogin",
-    "passwd",
-    "password",
-    "pwd",
-    "require",
-    "secret",
-    "ser",
-    "sha1",
-    "sha256",
-    "signup",
-    "store",
-    "stored",
-    "toCharArray",
-    "update",
-    "user",
-    "uth"
-  ],
-  "match_patterns": [
-    "MessageDigest\\.getInstance\\(\"MD5\"|\"SHA-1\"|\"SHA-256\"\\)",
-    "hashlib\\.(md5|sha1|sha256)\\(.*password|pwd|passwd|secret",
-    "hashlib\\.(md5|sha1|sha256)\\(.*encode\\(\\)\\).*hexdigest\\(\\)",
-    "(md5\\.Sum|sha256\\.Sum256)\\(\\[\\]byte\\(password",
-    "crypto\\.createHash\\(.(md5|sha1|sha256).\\).*password",
-    "password\\s*==\\s*stored|password\\.equals\\(stored\\)",
-    "Cipher\\.getInstance.*password"
-  ],
-  "exclude_patterns": []
-}
-```
 ## 威胁定义 (Threat Definition)
 
 检测密码存储是否使用了弱哈希（MD5/SHA-1/SHA-256 单次）、可逆加密或明文存储，必须使用 bcrypt/scrypt/Argon2 等专用密码哈希。

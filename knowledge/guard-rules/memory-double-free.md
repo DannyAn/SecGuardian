@@ -2,57 +2,18 @@
 detector: double-free
 severity: critical
 cwe: CWE-415
+cvss: 9.8
 language: [c, cpp]
 tags: [memory, heap, crash, exploitation]
 precision: very-high
 confidence: dynamic
+target_functions: [cleanup, code_context, free, judgment_rationale, malloc, process, ptr, xxx, xxx_destroy, xxx_free]
+match_patterns: [free|delete|xxx_free|xxx_destroy, p2 = p1, free|xxx_free(ptr)]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
 
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "memory.double-free",
-  "type": "guard-rule",
-  "namespace": "memory",
-  "severity": "Critical",
-  "cwe": "CWE-415",
-  "cvss": 9.8,
-  "confidence": "dynamic",
-  "precision": "very-high",
-  "languages": [
-    "c",
-    "cpp"
-  ],
-  "target_functions": [
-    "cleanup",
-    "code_context",
-    "free",
-    "judgment_rationale",
-    "malloc",
-    "process",
-    "ptr",
-    "xxx",
-    "xxx_destroy",
-    "xxx_free"
-  ],
-  "match_patterns": [
-    "free|delete|xxx_free|xxx_destroy",
-    "p2 = p1",
-    "free|xxx_free(ptr)"
-  ],
-  "exclude_patterns": [],
-  "required_evidence": [
-    "code_context",
-    "judgment_rationale"
-  ],
-  "optional_evidence": [
-    "data_flow_path",
-    "call_stack"
-  ]
-}
-```
 ## 威胁定义 (Threat Definition)
 
 同一块内存被 `free()`/`delete` 两次，导致堆分配器内部数据结构损坏。攻击者可利用此漏洞实现任意写。自定义释放函数（`xxx_free`/`xxx_destroy`）的重复调用同样危险。

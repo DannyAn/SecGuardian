@@ -2,65 +2,18 @@
 detector: error-unified-error-format
 severity: medium
 cwe: CWE-703
+cvss: 4.5
 language: [java, python, go, js]
 tags: [error, consistency, api-design, response-format]
 precision: very-high
 confidence: dynamic
+target_functions: [abort, body, code, code_context, errorCode, error_code, json, jsonify, judgment_rationale, requestId, request_id, status, trace_id, variable_state]
+match_patterns: [return\s+ResponseEntity.*body\(Map\.of               # JSON Object 格式 (Java), return\s+"                                           # 纯字符串返回（所有语言）, throw new \w+Exception                                # 异常传播（框架默认格式）, jsonify\(|json\.dumps\(|JSON\.stringify\(             # 手动JSON序列化, abort\(|HttpResponseException                         # 框架特定格式]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
 
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "error.error-unified-error-format",
-  "type": "guard-rule",
-  "namespace": "error",
-  "severity": "Medium",
-  "cwe": "CWE-703",
-  "cvss": 4.5,
-  "confidence": "dynamic",
-  "precision": "very-high",
-  "languages": [
-    "java",
-    "python",
-    "go",
-    "js"
-  ],
-  "target_functions": [
-    "abort",
-    "body",
-    "code",
-    "code_context",
-    "errorCode",
-    "error_code",
-    "json",
-    "jsonify",
-    "judgment_rationale",
-    "requestId",
-    "request_id",
-    "status",
-    "trace_id",
-    "variable_state"
-  ],
-  "match_patterns": [
-    "return\\s+ResponseEntity.*body\\(Map\\.of               # JSON Object 格式 (Java)",
-    "return\\s+\"                                           # 纯字符串返回（所有语言）",
-    "throw new \\w+Exception                                # 异常传播（框架默认格式）",
-    "jsonify\\(|json\\.dumps\\(|JSON\\.stringify\\(             # 手动JSON序列化",
-    "abort\\(|HttpResponseException                         # 框架特定格式"
-  ],
-  "exclude_patterns": [],
-  "required_evidence": [
-    "code_context",
-    "judgment_rationale"
-  ],
-  "optional_evidence": [
-    "data_flow_path",
-    "call_stack"
-  ]
-}
-```
 ## 威胁定义 (Threat Definition)
 
 API 在不同层级返回多种不兼容的错误格式（纯文本/JSON对象/HTML页面），客户端无法统一处理，且某些格式可能包含更多内部信息（堆栈、SQL语句）致泄露。

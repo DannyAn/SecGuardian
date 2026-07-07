@@ -2,47 +2,18 @@
 detector: integer-overflow
 severity: high
 cwe: CWE-190
+cvss: 7.5
 language: [c, cpp]
 tags: [arithmetic, allocation, size-check-bypass]
 precision: medium
 confidence: dynamic
+target_functions: [compute, get_user_input, malloc, memcpy]
+match_patterns: []
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
 
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "memory.integer-overflow",
-  "type": "guard-rule",
-  "namespace": "memory",
-  "severity": "High",
-  "cwe": "CWE-190",
-  "cvss": 7.5,
-  "confidence": "dynamic",
-  "precision": "medium",
-  "languages": [
-    "c",
-    "cpp"
-  ],
-  "target_functions": [
-    "compute",
-    "get_user_input",
-    "malloc",
-    "memcpy"
-  ],
-  "match_patterns": [],
-  "exclude_patterns": [],
-  "required_evidence": [
-    "code_context",
-    "judgment_rationale"
-  ],
-  "optional_evidence": [
-    "data_flow_path",
-    "call_stack"
-  ]
-}
-```
 ## 威胁定义 (Threat Definition)
 
 算术运算结果超出整数类型范围导致回绕（wrap-around）或未定义行为（有符号溢出）。攻击者常利用溢出绕过大小检查，导致后续缓冲区溢出。C/C++ 中无符号溢出按标准回绕（但仍可导致安全问题），有符号溢出是未定义行为。

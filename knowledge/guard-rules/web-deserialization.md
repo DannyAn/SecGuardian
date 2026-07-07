@@ -2,53 +2,18 @@
 detector: deserialization
 severity: critical
 cwe: CWE-502
+cvss: 9.8
 language: [java]
 tags: [web, deserialization, rce]
 precision: high
 confidence: dynamic
+target_functions: [addAccept, createFilter, enableDefaultTyping, fromXML, getGlobalInstance, load, parseObject, readObject, readValue, setAutoTypeSupport, setObjectInputFilter]
+match_patterns: []
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
 
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "web.deserialization",
-  "type": "guard-rule",
-  "namespace": "web",
-  "severity": "Critical",
-  "cwe": "CWE-502",
-  "cvss": 9.8,
-  "confidence": "dynamic",
-  "precision": "high",
-  "languages": [
-    "java"
-  ],
-  "target_functions": [
-    "addAccept",
-    "createFilter",
-    "enableDefaultTyping",
-    "fromXML",
-    "getGlobalInstance",
-    "load",
-    "parseObject",
-    "readObject",
-    "readValue",
-    "setAutoTypeSupport",
-    "setObjectInputFilter"
-  ],
-  "match_patterns": [],
-  "exclude_patterns": [],
-  "required_evidence": [
-    "code_context",
-    "judgment_rationale"
-  ],
-  "optional_evidence": [
-    "data_flow_path",
-    "call_stack"
-  ]
-}
-```
 ## 威胁定义 (Threat Definition)
 
 攻击者构造恶意序列化数据，在反序列化过程中触发代码执行、对象注入、权限提升。主要影响 Java（ObjectInputStream）、Python（pickle/yaml.load）和 Fastjson/Jackson/XStream 等框架。

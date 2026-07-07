@@ -1,74 +1,17 @@
 ---
-confidence: dynamic
-cwe: CWE-326
 detector: crypto-tls-version
-language: [c, cpp, java, python, go, js]
-precision: very-high
 severity: medium
+cwe: CWE-326
+cvss: 5.5
+language: [c, cpp, java, python, go, js]
 tags: [crypto, tls, ssl, protocol]
+precision: very-high
+confidence: dynamic
+target_functions: [1_client_method, 1_server_method, _TLSv1_1, _VERSION, _create_unverified_context, alse, client_method, code_context, createServer, create_unverified_context, ersionTLS10, ersionTLS11, get, getInstance, judgment_rationale, method, minVersion, server_method, setProperty, set_min_proto_version, v1_method, v23_method]
+match_patterns: [SSL3_VERSION|TLS1_VERSION\b|TLS1_1_VERSION, SSLv23_method|TLSv1_method|TLSv1_1_method, SSL_OP_NO_TLSv1_2  (禁止 TLS 1.2), SSLContext\.getInstance\("SSL|SSLContext\.getInstance\("TLSv1"\)|SSLContext\.getInstance\("TLSv1\.1"\), jdk\.tls\.client\.protocols.*TLSv1[^.], PROTOCOL_TLSv1\b|PROTOCOL_TLSv1_1|PROTOCOL_SSLv, verify\s*=\s*False|_create_unverified_context, VersionTLS10|VersionTLS11|InsecureSkipVerify\s*:\s*true, secureProtocol.*TLSv1_method|minVersion.*TLSv1[^12], rejectUnauthorized\s*:\s*false, NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*.0.]
+exclude_patterns: []
 ---
 
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "crypto.crypto-tls-version",
-  "type": "guard-rule",
-  "namespace": "crypto",
-  "severity": "Medium",
-  "cwe": "CWE-326",
-  "cvss": 5.5,
-  "confidence": "dynamic",
-  "precision": "very-high",
-  "languages": [
-    "c",
-    "cpp",
-    "java",
-    "python",
-    "go",
-    "js"
-  ],
-  "target_functions": [
-    "1_client_method",
-    "1_server_method",
-    "_TLSv1_1",
-    "_VERSION",
-    "_create_unverified_context",
-    "alse",
-    "client_method",
-    "code_context",
-    "createServer",
-    "create_unverified_context",
-    "ersionTLS10",
-    "ersionTLS11",
-    "get",
-    "getInstance",
-    "judgment_rationale",
-    "method",
-    "minVersion",
-    "server_method",
-    "setProperty",
-    "set_min_proto_version",
-    "v1_method",
-    "v23_method"
-  ],
-  "match_patterns": [
-    "SSL3_VERSION|TLS1_VERSION\\b|TLS1_1_VERSION",
-    "SSLv23_method|TLSv1_method|TLSv1_1_method",
-    "SSL_OP_NO_TLSv1_2  (禁止 TLS 1.2)",
-    "SSLContext\\.getInstance\\(\"SSL|SSLContext\\.getInstance\\(\"TLSv1\"\\)|SSLContext\\.getInstance\\(\"TLSv1\\.1\"\\)",
-    "jdk\\.tls\\.client\\.protocols.*TLSv1[^.]",
-    "PROTOCOL_TLSv1\\b|PROTOCOL_TLSv1_1|PROTOCOL_SSLv",
-    "verify\\s*=\\s*False|_create_unverified_context",
-    "VersionTLS10|VersionTLS11|InsecureSkipVerify\\s*:\\s*true",
-    "secureProtocol.*TLSv1_method|minVersion.*TLSv1[^12]",
-    "rejectUnauthorized\\s*:\\s*false",
-    "NODE_TLS_REJECT_UNAUTHORIZED\\s*=\\s*.0."
-  ],
-  "exclude_patterns": []
-}
-```
 ## 威胁定义 (Threat Definition)
 
 检测代码中是否使用了已弃用的 SSL/TLS 协议版本（SSLv2/3、TLS 1.0/1.1），这些协议存在已知漏洞（POODLE/BEAST/Lucky13/RC4）。

@@ -3,29 +3,14 @@ name: cryptography
 description: 审计密码学实现的安全性，检测弱算法、错误使用模式、密钥管理缺陷和随机数安全问题。当用户请求密码学审计、加密算法检测、密钥管理审查、随机数安全、弱加密检测时使用。
 category: domain
 topic: [crypto]
+severity: Critical
+cwe: CWE-310
+cvss: 9.1
 ---
 
 > **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`（含 `symbols.functions`、`call_graph.edges`、`files`）。审计时优先利用符号表和调用图定位目标，追踪数据流路径。
 > **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
 
-
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "domain.cryptography",
-  "type": "audit-rule",
-  "domain_name": "cryptography",
-  "category": "domain",
-  "topics": [
-    "crypto"
-  ],
-  "severity": "Critical",
-  "cwe": "CWE-310",
-  "cvss": 9.1
-}
-```
 
 # 密码学安全审计
 

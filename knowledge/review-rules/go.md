@@ -1,21 +1,11 @@
 ---
 detector: review.go
 type: review-rule
+language: go
+max_severity: Critical
+cwe: CWE-000
+anti_pattern_count: 14
 ---
-
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "review.go",
-  "type": "review-rule",
-  "language": "go",
-  "max_severity": "Critical",
-  "cwe": "CWE-000",
-  "anti_pattern_count": 14
-}
-```
 
 # Go 安全反模式检测矩阵
 

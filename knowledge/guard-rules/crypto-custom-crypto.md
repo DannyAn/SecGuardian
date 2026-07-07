@@ -1,87 +1,17 @@
 ---
-confidence: dynamic
-cwe: CWE-327
 detector: crypto-custom-crypto
-language: [c, cpp, java, python, go, js]
-precision: medium
 severity: critical
+cwe: CWE-327
+cvss: 9.8
+language: [c, cpp, java, python, go, js]
 tags: [crypto, custom, algorithm, implementation]
+precision: medium
+confidence: dynamic
+target_functions: [byte, charCodeAt, chr, cipher, code_context, crypt, custom_hash, derive_key, digest, encode, encodeApiKey, encrypt, fast_hash, fromCharCode, func, getBytes, getInstance, hash_password, hexdigest, join, judgment_rationale, key, md5, memcpy, myEncode, my_hash, my_rand, my_sign, ncrypt, ord, password, secret, simple_hash, split, toCharArray, toString, xor]
+match_patterns: [\bxor\b.*encrypt|crypt|secret|key|password, \bencrypt.*\bxor\b|crypt|cipher, for.*\bxor\b.*key|for.*\brotate\b.*key, ^\s*[a-zA-Z_]+\s*=\s*[a-zA-Z_]*\s*\^\s*key  # var ^= key, my_hash|custom_hash|simple_hash|fast_hash|my_sign, String\s+\w*[Ee]ncrypt|byte\[\]\s+\w*[Ee]ncrypt.*\bxor\b|\bfor.*\^\s*, def\s+encrypt.*\bxor\b|def\s+hash_password.*\.md5\(|lambda.*xor, func\s+\w*[Ee]ncrypt.*\bxor\b|func\s+\w*[Hh]ash.*key, function\s+encrypt.*\bxor\b|String\.fromCharCode.*xor|\.charCodeAt.*\^]
+exclude_patterns: []
 ---
 
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "crypto.crypto-custom-crypto",
-  "type": "guard-rule",
-  "namespace": "crypto",
-  "severity": "Critical",
-  "cwe": "CWE-327",
-  "cvss": 9.8,
-  "confidence": "dynamic",
-  "precision": "medium",
-  "languages": [
-    "c",
-    "cpp",
-    "java",
-    "python",
-    "go",
-    "js"
-  ],
-  "target_functions": [
-    "byte",
-    "charCodeAt",
-    "chr",
-    "cipher",
-    "code_context",
-    "crypt",
-    "custom_hash",
-    "derive_key",
-    "digest",
-    "encode",
-    "encodeApiKey",
-    "encrypt",
-    "fast_hash",
-    "fromCharCode",
-    "func",
-    "getBytes",
-    "getInstance",
-    "hash_password",
-    "hexdigest",
-    "join",
-    "judgment_rationale",
-    "key",
-    "md5",
-    "memcpy",
-    "myEncode",
-    "my_hash",
-    "my_rand",
-    "my_sign",
-    "ncrypt",
-    "ord",
-    "password",
-    "secret",
-    "simple_hash",
-    "split",
-    "toCharArray",
-    "toString",
-    "xor"
-  ],
-  "match_patterns": [
-    "\\bxor\\b.*encrypt|crypt|secret|key|password",
-    "\\bencrypt.*\\bxor\\b|crypt|cipher",
-    "for.*\\bxor\\b.*key|for.*\\brotate\\b.*key",
-    "^\\s*[a-zA-Z_]+\\s*=\\s*[a-zA-Z_]*\\s*\\^\\s*key  # var ^= key",
-    "my_hash|custom_hash|simple_hash|fast_hash|my_sign",
-    "String\\s+\\w*[Ee]ncrypt|byte\\[\\]\\s+\\w*[Ee]ncrypt.*\\bxor\\b|\\bfor.*\\^\\s*",
-    "def\\s+encrypt.*\\bxor\\b|def\\s+hash_password.*\\.md5\\(|lambda.*xor",
-    "func\\s+\\w*[Ee]ncrypt.*\\bxor\\b|func\\s+\\w*[Hh]ash.*key",
-    "function\\s+encrypt.*\\bxor\\b|String\\.fromCharCode.*xor|\\.charCodeAt.*\\^"
-  ],
-  "exclude_patterns": []
-}
-```
 ## 威胁定义 (Threat Definition)
 
 检测代码中是否实现了自定义加密/哈希算法或使用 XOR/位运算进行数据"加密"。自定义加密极易产生致命缺陷，应严格禁止。

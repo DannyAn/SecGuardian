@@ -2,81 +2,16 @@
 detector: error-stack-trace-leak
 severity: high
 cwe: CWE-209
+cvss: 6.5
 language: [c, cpp, java, python, go, js]
 tags: [error, information-leakage, exception, production]
 precision: very-high
 confidence: dynamic
+target_functions: [__FILE__, body, code_context, detail, err, errorhandler, failed, fprintf, func, getLogger, getMessage, getStackTrace, get_data, internal_error, json, jsonify, judgment_rationale, printStackTrace, query, res, route, send, set, stack, status, stderr, str, strerror, syslog, toString, use]
+match_patterns: [catch.*Exception.*\{[^}]*return.*e\.(getMessage|toString|getStackTrace), e\.printStackTrace\(\)       → 调用链上下文, fprintf.*stderr|printf.*Error → __FILE__|strerror, assert.*&&.*"                  → 非 Debug 环境保留的断言, return.*str\(e\)|jsonify.*str\(e\)|detail=str\(e\), DEBUG\s*=\s*True              → settings.py, recover.*fmt\.Fprintf.*w     → HTTP handler 中, http\.Error.*err\.Error\(\)   → 错误详情返回, err\.stack|err\.message       → res\.send|res\.json 调用链, app\.set\('env',\s*'development'\)  → 生产环境标签]
+exclude_patterns: []
 ---
 
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "error.error-stack-trace-leak",
-  "type": "guard-rule",
-  "namespace": "error",
-  "severity": "High",
-  "cwe": "CWE-209",
-  "cvss": 6.5,
-  "confidence": "dynamic",
-  "precision": "very-high",
-  "languages": [
-    "c",
-    "cpp",
-    "java",
-    "python",
-    "go",
-    "js"
-  ],
-  "target_functions": [
-    "__FILE__",
-    "body",
-    "code_context",
-    "detail",
-    "err",
-    "errorhandler",
-    "failed",
-    "fprintf",
-    "func",
-    "getLogger",
-    "getMessage",
-    "getStackTrace",
-    "get_data",
-    "internal_error",
-    "json",
-    "jsonify",
-    "judgment_rationale",
-    "printStackTrace",
-    "query",
-    "res",
-    "route",
-    "send",
-    "set",
-    "stack",
-    "status",
-    "stderr",
-    "str",
-    "strerror",
-    "syslog",
-    "toString",
-    "use"
-  ],
-  "match_patterns": [
-    "catch.*Exception.*\\{[^}]*return.*e\\.(getMessage|toString|getStackTrace)",
-    "e\\.printStackTrace\\(\\)       → 调用链上下文",
-    "fprintf.*stderr|printf.*Error → __FILE__|strerror",
-    "assert.*&&.*\"                  → 非 Debug 环境保留的断言",
-    "return.*str\\(e\\)|jsonify.*str\\(e\\)|detail=str\\(e\\)",
-    "DEBUG\\s*=\\s*True              → settings.py",
-    "recover.*fmt\\.Fprintf.*w     → HTTP handler 中",
-    "http\\.Error.*err\\.Error\\(\\)   → 错误详情返回",
-    "err\\.stack|err\\.message       → res\\.send|res\\.json 调用链",
-    "app\\.set\\('env',\\s*'development'\\)  → 生产环境标签"
-  ],
-  "exclude_patterns": []
-}
-```
 ## 威胁定义 (Threat Definition)
 
 检查异常/错误处理代码是否将内部堆栈轨迹、错误详情泄露给终端用户或调用方。生产环境中的详细错误信息会暴露内部架构、文件路径、SQL 语句等敏感信息。

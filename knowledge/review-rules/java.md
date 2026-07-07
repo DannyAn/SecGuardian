@@ -1,21 +1,11 @@
 ---
 detector: review.java
 type: review-rule
+language: java
+max_severity: Critical
+cwe: CWE-000
+anti_pattern_count: 9
 ---
-
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "review.java",
-  "type": "review-rule",
-  "language": "java",
-  "max_severity": "Critical",
-  "cwe": "CWE-000",
-  "anti_pattern_count": 9
-}
-```
 
 # Java 安全反模式检测矩阵
 

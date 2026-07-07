@@ -2,75 +2,18 @@
 detector: buffer-overflow
 severity: critical
 cwe: CWE-120
+cvss: 9.8
 language: [c, cpp]
 tags: [memory, stack, heap, exploitation]
 precision: very-high
 confidence: dynamic
+target_functions: [argv, code_context, getenv, gets_s, input, judgment_rationale, memcpy, memcpy_s, scanf_s, snprintf, sprintf_s, strcat, strcat_s, strcpy, strcpy_s, strncpy, user]
+match_patterns: [\bgets\(, (strcpy|strcat)\(dst,  → dst 为 char dst[N] 且 src 来自外部, sprintf\([^)]*%s[^)]*user|input|argv|getenv, memcpy\([^)]*, [^)]*, (?!sizeof\(dst\))  → n 来自变量/外部, memcpy\(dst,\s*src,\s*sizeof\(src\)\)  # 在函数体内且 src 为参数]
+exclude_patterns: [strcpy_s\(dst,\s*sizeof\(dst\), strcat_s\(dst,\s*sizeof\(dst\), sprintf_s\(buf,\s*sizeof\(buf\), memcpy_s\(dst,\s*sizeof\(dst\), scanf_s\([^)]*%s[^)]*sizeof\(, gets_s\([^)]*sizeof\(, snprintf\([^)]*sizeof\([^)]*\).*\n.*if\s*\(.*written.*>=, std::string|std::vector|std::array.*push_back|\.append|\.assign]
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
 
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "memory.buffer-overflow",
-  "type": "guard-rule",
-  "namespace": "memory",
-  "severity": "Critical",
-  "cwe": "CWE-120",
-  "cvss": 9.8,
-  "confidence": "dynamic",
-  "precision": "very-high",
-  "languages": [
-    "c",
-    "cpp"
-  ],
-  "target_functions": [
-    "argv",
-    "code_context",
-    "getenv",
-    "gets_s",
-    "input",
-    "judgment_rationale",
-    "memcpy",
-    "memcpy_s",
-    "scanf_s",
-    "snprintf",
-    "sprintf_s",
-    "strcat",
-    "strcat_s",
-    "strcpy",
-    "strcpy_s",
-    "strncpy",
-    "user"
-  ],
-  "match_patterns": [
-    "\\bgets\\(",
-    "(strcpy|strcat)\\(dst,  → dst 为 char dst[N] 且 src 来自外部",
-    "sprintf\\([^)]*%s[^)]*user|input|argv|getenv",
-    "memcpy\\([^)]*, [^)]*, (?!sizeof\\(dst\\))  → n 来自变量/外部",
-    "memcpy\\(dst,\\s*src,\\s*sizeof\\(src\\)\\)  # 在函数体内且 src 为参数"
-  ],
-  "exclude_patterns": [
-    "strcpy_s\\(dst,\\s*sizeof\\(dst\\)",
-    "strcat_s\\(dst,\\s*sizeof\\(dst\\)",
-    "sprintf_s\\(buf,\\s*sizeof\\(buf\\)",
-    "memcpy_s\\(dst,\\s*sizeof\\(dst\\)",
-    "scanf_s\\([^)]*%s[^)]*sizeof\\(",
-    "gets_s\\([^)]*sizeof\\(",
-    "snprintf\\([^)]*sizeof\\([^)]*\\).*\\n.*if\\s*\\(.*written.*>=",
-    "std::string|std::vector|std::array.*push_back|\\.append|\\.assign"
-  ],
-  "required_evidence": [
-    "code_context",
-    "judgment_rationale"
-  ],
-  "optional_evidence": [
-    "data_flow_path",
-    "call_stack"
-  ]
-}
-```
 ## 威胁定义 (Threat Definition)
 
 程序向缓冲区写入超出其容量的数据，覆盖相邻内存，可能导致代码执行或程序崩溃。主要影响 C/C++，其他语言通过 FFI/cgo 间接影响。

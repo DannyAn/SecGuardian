@@ -2,74 +2,18 @@
 detector: resource-exhaustion
 severity: medium
 cwe: CWE-400
+cvss: 5.8
 language: [c, cpp, java, python, go]
 tags: [web, dos, resource, memory]
 precision: medium
 confidence: dynamic
+target_functions: [add, all, byte, calloc, code_context, expensiveOperation, expensive_call, free, get, getInputStream, getParameter, judgment_rationale, malloc, parameter, parse, process, process_nested, read, readAllBytes, readFully, readLine, user, userSize, user_count]
+match_patterns: [for.*user_count|for.*request\.parameter|while.*user_input, malloc|calloc|new.*\[user|byte\[\].*userSize|readAllBytes, read.*all|readLine.*while|readFully]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
 
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "web.resource-exhaustion",
-  "type": "guard-rule",
-  "namespace": "web",
-  "severity": "Medium",
-  "cwe": "CWE-400",
-  "cvss": 5.8,
-  "confidence": "dynamic",
-  "precision": "medium",
-  "languages": [
-    "c",
-    "cpp",
-    "java",
-    "python",
-    "go"
-  ],
-  "target_functions": [
-    "add",
-    "all",
-    "byte",
-    "calloc",
-    "code_context",
-    "expensiveOperation",
-    "expensive_call",
-    "free",
-    "get",
-    "getInputStream",
-    "getParameter",
-    "judgment_rationale",
-    "malloc",
-    "parameter",
-    "parse",
-    "process",
-    "process_nested",
-    "read",
-    "readAllBytes",
-    "readFully",
-    "readLine",
-    "user",
-    "userSize",
-    "user_count"
-  ],
-  "match_patterns": [
-    "for.*user_count|for.*request\\.parameter|while.*user_input",
-    "malloc|calloc|new.*\\[user|byte\\[\\].*userSize|readAllBytes",
-    "read.*all|readLine.*while|readFully"
-  ],
-  "exclude_patterns": [],
-  "required_evidence": [
-    "code_context",
-    "judgment_rationale"
-  ],
-  "optional_evidence": [
-    "data_flow_path",
-    "call_stack"
-  ]
-}
-```
 ## 威胁定义 (Threat Definition)
 
 用户可控制的输入导致CPU/内存/磁盘等资源不受限制地消耗，引发拒绝服务。常见模式：用户控制的循环次数、分配大小、递归深度、文件读取量——全部无上限。

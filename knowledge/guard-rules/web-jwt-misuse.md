@@ -2,56 +2,18 @@
 detector: jwt-misuse
 severity: high
 cwe: CWE-347
+cvss: 7.8
 language: [java, python, go]
 tags: [web, authentication, jwt]
 precision: high
 confidence: dynamic
+target_functions: [builder, byte, compact, decode, func, parseClaimsJws, parser, requireIssuer, setSigningKey, setSubject, signWith, specified]
+match_patterns: []
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
 
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "web.jwt-misuse",
-  "type": "guard-rule",
-  "namespace": "web",
-  "severity": "High",
-  "cwe": "CWE-347",
-  "cvss": 7.8,
-  "confidence": "dynamic",
-  "precision": "high",
-  "languages": [
-    "java",
-    "python",
-    "go"
-  ],
-  "target_functions": [
-    "builder",
-    "byte",
-    "compact",
-    "decode",
-    "func",
-    "parseClaimsJws",
-    "parser",
-    "requireIssuer",
-    "setSigningKey",
-    "setSubject",
-    "signWith",
-    "specified"
-  ],
-  "match_patterns": [],
-  "exclude_patterns": [],
-  "required_evidence": [
-    "code_context",
-    "judgment_rationale"
-  ],
-  "optional_evidence": [
-    "data_flow_path",
-    "call_stack"
-  ]
-}
-```
 ## 威胁定义 (Threat Definition)
 
 JWT 实现不当：弱签名密钥（可被暴力破解）、算法混淆攻击（`alg: none`/RS256→HS256）、缺少过期验证（永不过期token）。OWASP #2 API 安全风险。

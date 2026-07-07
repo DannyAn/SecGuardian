@@ -3,29 +3,14 @@ name: dependency-security
 description: 审计项目第三方依赖的安全性，检测已知漏洞、供应链攻击风险、许可证合规和过时依赖问题。当用户请求依赖安全审计、供应链安全、开源漏洞检测、SBOM审查、第三方库风险评估时使用。
 category: domain
 topic: [system]
+severity: Medium
+cwe: CWE-000
+cvss: 5.5
 ---
 
 > **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`（含 `symbols.functions`、`call_graph.edges`、`files`）。审计时优先利用符号表和调用图定位目标，追踪数据流路径。
 > **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
 
-
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "domain.dependency-security",
-  "type": "audit-rule",
-  "domain_name": "dependency-security",
-  "category": "domain",
-  "topics": [
-    "system"
-  ],
-  "severity": "Medium",
-  "cwe": "CWE-000",
-  "cvss": 5.5
-}
-```
 
 # 依赖安全审计
 

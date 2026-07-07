@@ -2,71 +2,18 @@
 detector: race-condition
 severity: high
 cwe: CWE-362
+cvss: 7.5
 language: [c, cpp]
 tags: [concurrency, threading, toctou]
 precision: medium
 confidence: dynamic
+target_functions: [access, atomic, code_context, count_calls, fopen, free, fstat, increment, judgment_rationale, lock, lstat, malloc, mutex, open, pthread, pthread_mutex, stat, unlock]
+match_patterns: [(^int|^long|^char|^bool)\s+g_\w+\s*=, access\(|stat\(|lstat\(, void\s+\w+\s*\(\s*int\s+sig\s*\)]
+exclude_patterns: [std::atomic|_Atomic|__atomic|std::call_once|pthread_once, thread_local|_Thread_local|__thread, const\s+\w+\s+g_|static\s+const, pthread_mutex_lock|std::lock_guard|std::unique_lock|std::scoped_lock, \bmtx\.lock\(\)|\bmu\.lock\(\)|\block\.lock\(\)]
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
 
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "concurrency.race-condition",
-  "type": "guard-rule",
-  "namespace": "concurrency",
-  "severity": "High",
-  "cwe": "CWE-362",
-  "cvss": 7.5,
-  "confidence": "dynamic",
-  "precision": "medium",
-  "languages": [
-    "c",
-    "cpp"
-  ],
-  "target_functions": [
-    "access",
-    "atomic",
-    "code_context",
-    "count_calls",
-    "fopen",
-    "free",
-    "fstat",
-    "increment",
-    "judgment_rationale",
-    "lock",
-    "lstat",
-    "malloc",
-    "mutex",
-    "open",
-    "pthread",
-    "pthread_mutex",
-    "stat",
-    "unlock"
-  ],
-  "match_patterns": [
-    "(^int|^long|^char|^bool)\\s+g_\\w+\\s*=",
-    "access\\(|stat\\(|lstat\\(",
-    "void\\s+\\w+\\s*\\(\\s*int\\s+sig\\s*\\)"
-  ],
-  "exclude_patterns": [
-    "std::atomic|_Atomic|__atomic|std::call_once|pthread_once",
-    "thread_local|_Thread_local|__thread",
-    "const\\s+\\w+\\s+g_|static\\s+const",
-    "pthread_mutex_lock|std::lock_guard|std::unique_lock|std::scoped_lock",
-    "\\bmtx\\.lock\\(\\)|\\bmu\\.lock\\(\\)|\\block\\.lock\\(\\)"
-  ],
-  "required_evidence": [
-    "code_context",
-    "judgment_rationale"
-  ],
-  "optional_evidence": [
-    "data_flow_path",
-    "call_stack"
-  ]
-}
-```
 ## 威胁定义 (Threat Definition)
 
 多线程/多进程代码中对共享资源（全局变量、静态变量、堆共享内存、文件描述符）的访问未正确同步，导致执行结果依赖线程调度顺序。在安全场景中，TOCTOU 竞态可导致权限检查绕过。

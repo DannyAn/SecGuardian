@@ -2,51 +2,18 @@
 detector: insufficient-key-length
 severity: medium
 cwe: CWE-326
+cvss: 5.5
 language: [c, cpp, java, python, go, js]
 tags: [crypto, key-size, configuration]
 precision: high
 confidence: dynamic
+target_functions: [bcrypt_gensalt, generate_key_ex, generate_parameters_ex, new_by_curve_name]
+match_patterns: []
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
 
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "crypto.insufficient-key-length",
-  "type": "guard-rule",
-  "namespace": "crypto",
-  "severity": "Medium",
-  "cwe": "CWE-326",
-  "cvss": 5.5,
-  "confidence": "dynamic",
-  "precision": "high",
-  "languages": [
-    "c",
-    "cpp",
-    "java",
-    "python",
-    "go",
-    "js"
-  ],
-  "target_functions": [
-    "bcrypt_gensalt",
-    "generate_key_ex",
-    "generate_parameters_ex",
-    "new_by_curve_name"
-  ],
-  "match_patterns": [],
-  "exclude_patterns": [],
-  "required_evidence": [
-    "code_context",
-    "judgment_rationale"
-  ],
-  "optional_evidence": [
-    "data_flow_path",
-    "call_stack"
-  ]
-}
-```
 ## 威胁定义 (Threat Definition)
 
 加密密钥长度不足——如RSA 1024（已可被破解）、EC P-192（非安全曲线）、PBKDF2 低迭代次数。NIST SP 800-57 和 BSI TR-02102 定义了最低安全强度（至少 128-bit security）。

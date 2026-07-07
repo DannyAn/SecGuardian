@@ -1,21 +1,11 @@
 ---
 detector: review.cpp
 type: review-rule
+language: cpp
+max_severity: Critical
+cwe: CWE-000
+anti_pattern_count: 14
 ---
-
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "review.cpp",
-  "type": "review-rule",
-  "language": "cpp",
-  "max_severity": "Critical",
-  "cwe": "CWE-000",
-  "anti_pattern_count": 14
-}
-```
 
 # C/C++ 安全反模式检测矩阵
 

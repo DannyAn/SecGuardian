@@ -2,50 +2,18 @@
 detector: format-string
 severity: critical
 cwe: CWE-134
+cvss: 9.8
 language: [c, cpp]
 tags: [printf, exploitation, information-disclosure]
 precision: very-high
 confidence: dynamic
+target_functions: [fprintf, getenv, my_log, syslog, va_end, va_start, vfprintf]
+match_patterns: []
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
 
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "memory.format-string",
-  "type": "guard-rule",
-  "namespace": "memory",
-  "severity": "Critical",
-  "cwe": "CWE-134",
-  "cvss": 9.8,
-  "confidence": "dynamic",
-  "precision": "very-high",
-  "languages": [
-    "c",
-    "cpp"
-  ],
-  "target_functions": [
-    "fprintf",
-    "getenv",
-    "my_log",
-    "syslog",
-    "va_end",
-    "va_start",
-    "vfprintf"
-  ],
-  "match_patterns": [],
-  "exclude_patterns": [],
-  "required_evidence": [
-    "code_context",
-    "judgment_rationale"
-  ],
-  "optional_evidence": [
-    "data_flow_path",
-    "call_stack"
-  ]
-}
-```
 ## 威胁定义 (Threat Definition)
 
 攻击者控制 printf 系列函数的格式参数，利用 `%n` 写入任意地址、`%s` 读取栈数据、`%x` 泄露内存布局。这是 C/C++ 特有的高危漏洞，可导致 RCE 或信息泄露。

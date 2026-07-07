@@ -2,60 +2,18 @@
 detector: weak-random
 severity: high
 cwe: CWE-338
+cvss: 7.5
 language: [c, cpp, java, python, go, js]
 tags: [crypto, randomness, prng]
 precision: very-high
 confidence: dynamic
+target_functions: [bytes, drand48, gen, getpid, getrandom, lrand48, open, rand, random, read, srand, srandom, time]
+match_patterns: []
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
 
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "crypto.weak-random",
-  "type": "guard-rule",
-  "namespace": "crypto",
-  "severity": "High",
-  "cwe": "CWE-338",
-  "cvss": 7.5,
-  "confidence": "dynamic",
-  "precision": "very-high",
-  "languages": [
-    "c",
-    "cpp",
-    "java",
-    "python",
-    "go",
-    "js"
-  ],
-  "target_functions": [
-    "bytes",
-    "drand48",
-    "gen",
-    "getpid",
-    "getrandom",
-    "lrand48",
-    "open",
-    "rand",
-    "random",
-    "read",
-    "srand",
-    "srandom",
-    "time"
-  ],
-  "match_patterns": [],
-  "exclude_patterns": [],
-  "required_evidence": [
-    "code_context",
-    "judgment_rationale"
-  ],
-  "optional_evidence": [
-    "data_flow_path",
-    "call_stack"
-  ]
-}
-```
 ## 威胁定义 (Threat Definition)
 
 安全场景（token/key/session/IV 生成）使用非密码学安全的 PRNG（`rand()`/`random()`/`Math.random()`），攻击者可预测输出，导致会话劫持、密钥猜测等。

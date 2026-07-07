@@ -3,29 +3,14 @@ name: secrets-management
 description: 审计密钥、凭证、Token等敏感信息的管理方式，检测硬编码、泄露、不当存储和缺失轮换等安全风险。当用户请求密钥管理审计、硬编码凭证检测、密钥泄露扫描、凭证轮换审查、密钥存储安全时使用。
 category: domain
 topic: [system]
+severity: Medium
+cwe: CWE-000
+cvss: 5.5
 ---
 
 > **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`（含 `symbols.functions`、`call_graph.edges`、`files`）。审计时优先利用符号表和调用图定位目标，追踪数据流路径。
 > **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
 
-
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "domain.secrets-management",
-  "type": "audit-rule",
-  "domain_name": "secrets-management",
-  "category": "domain",
-  "topics": [
-    "system"
-  ],
-  "severity": "Medium",
-  "cwe": "CWE-000",
-  "cvss": 5.5
-}
-```
 
 # 密钥管理安全审计
 

@@ -3,27 +3,10 @@ name: information-exposure
 description: 审计敏感信息泄露风险，检测不当的数据暴露、错误信息泄漏、调试端点暴露等场景。当用户请求信息泄露审计、敏感数据暴露检测、错误信息泄漏分析时使用。
 category: domain
 topic: [web, general]
+severity: High
+cwe: CWE-200
+cvss: 7.5
 ---
-
-
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "domain.information-exposure",
-  "type": "audit-rule",
-  "domain_name": "information-exposure",
-  "category": "domain",
-  "topics": [
-    "web",
-    "general"
-  ],
-  "severity": "High",
-  "cwe": "CWE-200",
-  "cvss": 7.5
-}
-```
 
 # Information Exposure
 

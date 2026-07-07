@@ -2,77 +2,18 @@
 detector: unrestricted-upload
 severity: critical
 cwe: CWE-434
+cvss: 9.8
 language: [java, python, go]
 tags: [web, upload, filesystem]
 precision: high
 confidence: dynamic
+target_functions: [asList, basename, code_context, contains, contentType, ext, file, filename, files, get, getContentType, getOriginalFilename, getPart, getSize, handleUpload, header, join, judgment_rationale, open, randomUUID, read, request, sanitize, save, seek, toString, transferTo, ultipartFile, write]
+match_patterns: [MultipartFile|request\.files|FormFile, getOriginalFilename|file\.filename|header\.Filename, file\.save|file\.write]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
 
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "web.unrestricted-upload",
-  "type": "guard-rule",
-  "namespace": "web",
-  "severity": "Critical",
-  "cwe": "CWE-434",
-  "cvss": 9.8,
-  "confidence": "dynamic",
-  "precision": "high",
-  "languages": [
-    "java",
-    "python",
-    "go"
-  ],
-  "target_functions": [
-    "asList",
-    "basename",
-    "code_context",
-    "contains",
-    "contentType",
-    "ext",
-    "file",
-    "filename",
-    "files",
-    "get",
-    "getContentType",
-    "getOriginalFilename",
-    "getPart",
-    "getSize",
-    "handleUpload",
-    "header",
-    "join",
-    "judgment_rationale",
-    "open",
-    "randomUUID",
-    "read",
-    "request",
-    "sanitize",
-    "save",
-    "seek",
-    "toString",
-    "transferTo",
-    "ultipartFile",
-    "write"
-  ],
-  "match_patterns": [
-    "MultipartFile|request\\.files|FormFile",
-    "getOriginalFilename|file\\.filename|header\\.Filename",
-    "file\\.save|file\\.write"
-  ],
-  "exclude_patterns": [],
-  "required_evidence": [
-    "code_context",
-    "judgment_rationale"
-  ],
-  "optional_evidence": [
-    "data_flow_path",
-    "call_stack"
-  ]
-}
-```
 ## 威胁定义 (Threat Definition)
 
 文件上传接口未限制文件类型（允许 `.jsp`/`.php`/`.exe`）、大小（可耗尽存储）或名称（路径穿越）。攻击者上传 Web Shell 后获得 RCE。OWASP Top 10 A03: Injection 相关。

@@ -522,8 +522,8 @@ PASS=$((PASS + SG_PASS))
 FAIL=$((FAIL + SG_FAIL))
 echo ""
 
-# ── 14. Detection Spec integrity ──
-echo "14. Detection Spec integrity"
+# ── 14. Frontmatter field integrity ──
+echo "14. Frontmatter field integrity"
 DS_FAIL=0; DS_PASS=0
 for dir in guard-rules audit-rules review-rules; do
     dir_path="knowledge/${dir}"
@@ -535,24 +535,29 @@ for dir in guard-rules audit-rules review-rules; do
     for f in "$dir_path"/*.md; do
         [ -f "$f" ] || continue
         count=$((count + 1))
-        if grep -q '@secguardian:detection-spec' "$f" 2>/dev/null; then
-            ok=$((ok + 1))
-        else
-            echo "  ❌ ${dir}/$(basename "$f"): Detection Spec MISSING"
+        [ "$(head -1 "$f")" = "---" ] || { echo "  ❌ ${dir}/$(basename "$f"): no frontmatter"; missing=$((missing + 1)); continue; }
+        # Check rule-type-specific required frontmatter fields
+        case "$dir" in
+            guard-rules) field="target_functions:" ;;
+            audit-rules) field="cvss:" ;;
+            review-rules) field="max_severity:" ;;
+        esac
+        head -40 "$f" | grep -q "$field" 2>/dev/null && ok=$((ok + 1)) || {
+            echo "  ❌ ${dir}/$(basename "$f"): missing '$field' in frontmatter"
             missing=$((missing + 1))
-        fi
+        }
     done
     if [ "$missing" -eq 0 ]; then
-        green "  ${dir}: $ok/$ok files have Detection Spec"
+        green "  ${dir}: $ok/$ok files have required frontmatter fields"
         DS_PASS=$((DS_PASS + 1))
     else
-        echo "  ❌ ${dir}: $missing/$count files missing Detection Spec"
+        echo "  ❌ ${dir}: $missing/$count files missing required frontmatter fields"
         DS_FAIL=$((DS_FAIL + 1))
     fi
 done
 if [ "$DS_FAIL" -eq 0 ]; then
     DS_PASS=$((DS_PASS + 1))
-    green "  All rule files have Detection Spec"
+    green "  All rule files have required frontmatter fields"
 fi
 PASS=$((PASS + DS_PASS))
 FAIL=$((FAIL + DS_FAIL))

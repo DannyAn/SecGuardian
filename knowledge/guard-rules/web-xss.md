@@ -2,55 +2,18 @@
 detector: xss
 severity: critical
 cwe: CWE-79
+cvss: 9.8
 language: [java, python, go]
 tags: [web, injection, xss]
 precision: high
 confidence: dynamic
+target_functions: [addAttribute, default, forHtml, getUserInput, getWriter, mark_safe, render, render_template, render_template_string, variables, write]
+match_patterns: []
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
 
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "web.xss",
-  "type": "guard-rule",
-  "namespace": "web",
-  "severity": "Critical",
-  "cwe": "CWE-79",
-  "cvss": 9.8,
-  "confidence": "dynamic",
-  "precision": "high",
-  "languages": [
-    "java",
-    "python",
-    "go"
-  ],
-  "target_functions": [
-    "addAttribute",
-    "default",
-    "forHtml",
-    "getUserInput",
-    "getWriter",
-    "mark_safe",
-    "render",
-    "render_template",
-    "render_template_string",
-    "variables",
-    "write"
-  ],
-  "match_patterns": [],
-  "exclude_patterns": [],
-  "required_evidence": [
-    "code_context",
-    "judgment_rationale"
-  ],
-  "optional_evidence": [
-    "data_flow_path",
-    "call_stack"
-  ]
-}
-```
 ## 威胁定义 (Threat Definition)
 
 攻击者将恶意脚本注入到 Web 页面中，当其他用户访问时，脚本在浏览器中执行，窃取会话、重定向、篡改页面。

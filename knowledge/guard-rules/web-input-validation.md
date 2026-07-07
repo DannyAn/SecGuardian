@@ -2,74 +2,18 @@
 detector: input-validation
 severity: high
 cwe: CWE-20
+cvss: 7.8
 language: [c, cpp, java, python, go]
 tags: [web, validation, injection]
 precision: high
 confidence: dynamic
+target_functions: [argv, atoi, check, code_context, empty, eval, exec, fgets, get, getParameter, getenv, input, isdigit, judgment_rationale, malloc, match, matches, query, read, recv, request, strcpy, strlen, valid]
+match_patterns: [argv|getenv|scanf|fgets|read|recv|request\.get, if.*NULL|if.*empty|if.*== "", input.*\[.*input|input\[.*user]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
 
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "web.input-validation",
-  "type": "guard-rule",
-  "namespace": "web",
-  "severity": "High",
-  "cwe": "CWE-20",
-  "cvss": 7.8,
-  "confidence": "dynamic",
-  "precision": "high",
-  "languages": [
-    "c",
-    "cpp",
-    "java",
-    "python",
-    "go"
-  ],
-  "target_functions": [
-    "argv",
-    "atoi",
-    "check",
-    "code_context",
-    "empty",
-    "eval",
-    "exec",
-    "fgets",
-    "get",
-    "getParameter",
-    "getenv",
-    "input",
-    "isdigit",
-    "judgment_rationale",
-    "malloc",
-    "match",
-    "matches",
-    "query",
-    "read",
-    "recv",
-    "request",
-    "strcpy",
-    "strlen",
-    "valid"
-  ],
-  "match_patterns": [
-    "argv|getenv|scanf|fgets|read|recv|request\\.get",
-    "if.*NULL|if.*empty|if.*== \"\"",
-    "input.*\\[.*input|input\\[.*user"
-  ],
-  "exclude_patterns": [],
-  "required_evidence": [
-    "code_context",
-    "judgment_rationale"
-  ],
-  "optional_evidence": [
-    "data_flow_path",
-    "call_stack"
-  ]
-}
-```
 ## 威胁定义 (Threat Definition)
 
 用户输入在使用前未经过充分的类型/长度/格式/范围验证。输入验证不足是注入漏洞（SQL/命令/XSS）、缓冲区溢出和路径遍历的根本原因（CWE-20是CWE Top 25中影响面最广的类别）。

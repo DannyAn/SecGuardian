@@ -2,67 +2,18 @@
 detector: path-traversal
 severity: high
 cwe: CWE-22
+cvss: 7.5
 language: [c, cpp, java, python, go, js]
 tags: [system, filesystem, traversal]
 precision: very-high
 confidence: dynamic
+target_functions: [argv, basename, code_context, fopen, input, judgment_rationale, open, openat, opendir, realpath, snprintf, sprintf, stat, strlen, strncmp, unlink, user]
+match_patterns: [snprintf|sprintf.*%s.*user|input|argv, fopen|open]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
 
-## Detection Spec
-
-<!-- @secguardian:detection-spec -->
-```json
-{
-  "detector": "system.path-traversal",
-  "type": "guard-rule",
-  "namespace": "system",
-  "severity": "High",
-  "cwe": "CWE-22",
-  "cvss": 7.5,
-  "confidence": "dynamic",
-  "precision": "very-high",
-  "languages": [
-    "c",
-    "cpp",
-    "java",
-    "python",
-    "go",
-    "js"
-  ],
-  "target_functions": [
-    "argv",
-    "basename",
-    "code_context",
-    "fopen",
-    "input",
-    "judgment_rationale",
-    "open",
-    "openat",
-    "opendir",
-    "realpath",
-    "snprintf",
-    "sprintf",
-    "stat",
-    "strlen",
-    "strncmp",
-    "unlink",
-    "user"
-  ],
-  "match_patterns": [
-    "snprintf|sprintf.*%s.*user|input|argv",
-    "fopen|open"
-  ],
-  "exclude_patterns": [],
-  "required_evidence": [
-    "code_context",
-    "judgment_rationale"
-  ],
-  "optional_evidence": [
-    "data_flow_path",
-    "call_stack"
-  ]
-}
-```
 ## 威胁定义 (Threat Definition)
 
 攻击者使用 `../` 等特殊字符突破预期的文件目录边界，读取或写入任意文件。

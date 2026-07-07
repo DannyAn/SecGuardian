@@ -87,8 +87,12 @@ def check_spec(f, spec):
         return errors
 
     spec_severity = spec.get('severity')
-    if spec_severity and f.get('severity') and f['severity'] != spec_severity:
-        errors.append(f"  ❌ [SPEC] severity mismatch: finding='{f['severity']}' spec='{spec_severity}' ({spec_det})")
+    if spec_severity and f.get('severity'):
+        # Frontmatter severity is lowercase (e.g., 'critical'); finding is capitalized (e.g., 'Critical')
+        f_sev = f['severity'].lower()
+        s_sev = str(spec_severity).lower()
+        if f_sev != s_sev:
+            errors.append(f"  ❌ [SPEC] severity mismatch: finding='{f['severity']}' spec='{spec_severity}' ({spec_det})")
 
     spec_cwe = spec.get('cwe')
     if spec_cwe and f.get('cwe'):
@@ -112,8 +116,41 @@ def check_spec(f, spec):
     return errors
 
 
+def parse_frontmatter_yaml(content: str) -> dict:
+    """Parse simple YAML frontmatter (---...---) into a dict.
+    Handles inline arrays [a, b, c] and scalar values. No YAML dependency needed.
+    """
+    if not content.startswith('---\n'):
+        return {}
+    lines = content.split('\n')
+    end = -1
+    for i in range(1, len(lines)):
+        if lines[i].strip() == '---':
+            end = i
+            break
+    if end < 0:
+        return {}
+    data = {}
+    for line in lines[1:end]:
+        line = line.strip()
+        if not line or ':' not in line:
+            continue
+        key, _, val = line.partition(':')
+        key = key.strip()
+        val = val.strip()
+        if not key:
+            continue
+        if val.startswith('[') and val.endswith(']'):
+            inner = val[1:-1]
+            items = [x.strip().strip('"\'') for x in inner.split(',') if x.strip()]
+            data[key] = items
+        else:
+            data[key] = val
+    return data
+
+
 def load_specs_from_dir(rules_dir: str) -> dict:
-    """Load Detection Specs from .md files by parsing @secguardian:detection-spec marker.
+    """Load Detection Specs from .md files by parsing YAML frontmatter.
 
     Works for guard-rules, audit-rules, and review-rules.
     Returns {detector: spec} dict indexed by full detector name.
@@ -122,7 +159,7 @@ def load_specs_from_dir(rules_dir: str) -> dict:
     if not os.path.isdir(rules_dir):
         return specs
 
-    marker = '<!-- @secguardian:detection-spec -->'
+    dirname = os.path.basename(rules_dir)
     for fname in sorted(os.listdir(rules_dir)):
         if not fname.endswith('.md'):
             continue
@@ -133,30 +170,38 @@ def load_specs_from_dir(rules_dir: str) -> dict:
         except (OSError, UnicodeDecodeError):
             continue
 
-        if marker not in content:
-            continue
-        idx = content.index(marker) + len(marker)
-        rest = content[idx:]
-
-        jstart = rest.find('```json')
-        if jstart < 0:
-            continue
-        jstart += len('```json\n')
-        jend = rest.find('\n```', jstart)
-        if jend < 0:
+        fm = parse_frontmatter_yaml(content)
+        if not fm:
             continue
 
-        try:
-            spec = json.loads(rest[jstart:jend])
-        except json.JSONDecodeError:
+        # Construct full detector name based on rule type
+        detector = fm.get('detector', '')
+        if dirname == 'guard-rules':
+            # Filename convention: <namespace>-<detector>.md
+            # Frontmatter has short detector name, construct full: <namespace>.<detector>
+            namespace = fname.split('-')[0]
+            full_det = f"{namespace}.{detector}" if detector else ''
+        elif dirname == 'audit-rules':
+            name = fm.get('name', '')
+            full_det = f"domain.{name}" if name else ''
+        elif dirname == 'review-rules':
+            full_det = detector
+        else:
             continue
 
-        det = spec.get('detector', '')
-        if det:
-            specs[det] = spec
-            short = det.split('.')[-1] if '.' in det else det
-            if short != det:
-                specs[short] = spec
+        if not full_det:
+            continue
+
+        spec = {
+            'detector': full_det,
+            'severity': fm.get('severity', ''),
+            'cwe': fm.get('cwe', ''),
+            'required_evidence': fm.get('required_evidence', []),
+        }
+        specs[full_det] = spec
+        short = full_det.split('.')[-1] if '.' in full_det else full_det
+        if short != full_det:
+            specs[short] = spec
 
     return specs
 
