@@ -2,6 +2,29 @@
 
 All notable changes to SecGuardian.
 
+## [0.15.0] — 2026-07-07
+
+### 🐛 Bugfix: Release Sprint — 4 Systemic Issues Resolved
+
+#### Renderer Circular Dependency Fix (v5.0 findings-dir mode)
+- **`--scan-id` CLI 参数** — 新增 render-report.py CLI 参数，在 findings.json 元数据尚未生成时（v5.0 首次运行），由命令模板直接传入 scan_id，消除 `scan_id: "unknown"` bug
+- **detectors 自动计算** — 从 in-memory findings 列表自动推导 `detectors_matched`/`detectors_executed`，消除 `detectors: 0` bug
+- **`--path`/`--language` CLI 参数** — 新增 render-report.py 参数，允许命令模板传入扫描路径和语言
+- **UnboundLocalError** — `findings` 在赋值前被引用导致的崩溃，将 auto-compute 块移至赋值之后
+
+#### 模板可靠性修复
+- **`$0` 漏洞** — `$(realpath "$0")` 在 AI 复制到 JSON tool call 时扩展为 `realpath "python"`（语言参数泄漏），移除该不可靠探针路径，保留 4 条硬编码路径
+
+#### E2E 测试加固
+- **Section 12 mock 修复** — dashboard.html DOCTYPE + Severity 断言通过，report.md mock 创建
+
+#### 全平台部署已验证
+- L1 设计一致性: 152/152 ✅
+- L2 结构完整性: 通过 ✅
+- L3 部署环境: 5 平台二进制通过 ✅
+- L4 架构端到端: 56/56 ✅
+- 全平台部署: Claude Code + OpenCode + Gemini CLI ✅
+
 ## [0.14.0] — 2026-07-06
 
 ### 🐛 Bugfix: Systemic Fixes from Production Bug Report
