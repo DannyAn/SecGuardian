@@ -8,8 +8,42 @@ precision: high
 confidence: dynamic
 ---
 
-# 权限提升 (Privilege Escalation)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "system.privilege-escalation",
+  "type": "guard-rule",
+  "namespace": "system",
+  "severity": "High",
+  "cwe": "CWE-269",
+  "cvss": 7.5,
+  "confidence": "dynamic",
+  "precision": "high",
+  "languages": [
+    "c",
+    "cpp"
+  ],
+  "target_functions": [
+    "cap_set_proc",
+    "code_context",
+    "execl",
+    "judgment_rationale",
+    "setegid",
+    "seteuid",
+    "setgid",
+    "setregid",
+    "setreuid",
+    "setuid"
+  ],
+  "match_patterns": [
+    "seteuid(uid)              # 未丢弃 saved uid",
+    "setuid(uid);"
+  ],
+  "exclude_patterns": []
+}
+```
 ## 威胁定义 (Threat Definition)
 
 setuid/setgid 程序中权限操作不当——特权未及时丢弃、提权后未恢复、或权限检查可被绕过。攻击者可利用残留的高权限执行恶意操作。经典案例：`setuid(0)` 后未 `setuid(getuid())` 恢复。

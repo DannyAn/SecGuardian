@@ -8,8 +8,48 @@ precision: medium
 confidence: dynamic
 ---
 
-# 死锁 (Deadlock)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "concurrency.deadlock",
+  "type": "guard-rule",
+  "namespace": "concurrency",
+  "severity": "Medium",
+  "cwe": "CWE-833",
+  "cvss": 5.5,
+  "confidence": "dynamic",
+  "precision": "medium",
+  "languages": [
+    "c",
+    "cpp"
+  ],
+  "target_functions": [
+    "call_stack",
+    "callback",
+    "code_context",
+    "judgment_rationale",
+    "lock",
+    "pthread_mutex_lock",
+    "std",
+    "unlock"
+  ],
+  "match_patterns": [
+    "(pthread_mutex_lock|std::mutex.*lock|EnterCriticalSection)\\(&?\\w+\\)  # 锁获取",
+    "pthread_mutex_init\\([^)]*NULL\\)                                        # 默认非递归"
+  ],
+  "exclude_patterns": [],
+  "required_evidence": [
+    "code_context",
+    "judgment_rationale"
+  ],
+  "optional_evidence": [
+    "data_flow_path",
+    "call_stack"
+  ]
+}
+```
 ## 威胁定义 (Threat Definition)
 
 两个或多个线程互相等待对方持有的锁，导致所有相关线程永久阻塞。在服务端程序中，死锁可导致整个服务不可用。

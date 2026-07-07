@@ -8,8 +8,75 @@ severity: critical
 tags: [web, template, injection, ssti]
 ---
 
-# 服务端模板注入 (Server-Side Template Injection)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "web.web-ssti",
+  "type": "guard-rule",
+  "namespace": "web",
+  "severity": "Critical",
+  "cwe": "CWE-1336",
+  "cvss": 9.8,
+  "confidence": "dynamic",
+  "precision": "very-high",
+  "languages": [
+    "java",
+    "python",
+    "go",
+    "js"
+  ],
+  "target_functions": [
+    "addObject",
+    "args",
+    "body",
+    "code_context",
+    "compile",
+    "data",
+    "ejs",
+    "evaluate",
+    "execSync",
+    "form",
+    "get",
+    "getParameter",
+    "getValue",
+    "handler",
+    "hello",
+    "json",
+    "judgment_rationale",
+    "parseExpression",
+    "process",
+    "query",
+    "render",
+    "renderString",
+    "render_template",
+    "render_template_string",
+    "require",
+    "route",
+    "send",
+    "subclasses",
+    "substitute",
+    "template"
+  ],
+  "match_patterns": [
+    "render_template_string\\(.*request\\.(args|form|data|json)",
+    "Template\\(request\\.(args|form|data)\\['\\w+'\\]",
+    "mako\\.template\\.Template\\(.*request\\.",
+    "from\\s+string\\s+import\\s+Template.*Template\\(.*request",
+    "new\\s+Template\\(.*getParameter|new\\s+StringReader\\(.*getParameter",
+    "Velocity\\.evaluate\\(.*getParameter",
+    "SpelExpressionParser.*getParameter",
+    "templateEngine\\.process\\(.*getParameter",
+    "template\\.(New|Must)\\(.*\\.Parse\\(.*r\\.URL\\.Query\\(\\)|r\\.FormValue",
+    "import\\s+\"text/template\"  # 用于 HTML 场景 (非 html/template)",
+    "ejs\\.render\\(`.*req\\.|ejs\\.render\\(.*req\\.(query|body)",
+    "pug\\.compile\\(req\\.|Handlebars\\.compile\\(req\\.",
+    "nunjucks\\.renderString\\(.*req\\."
+  ],
+  "exclude_patterns": []
+}
+```
 ## 威胁定义 (Threat Definition)
 
 检测模板引擎是否将用户输入作为模板内容渲染，攻击者可注入模板语法在服务端执行任意代码（RCE）。

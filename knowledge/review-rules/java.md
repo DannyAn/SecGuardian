@@ -1,3 +1,22 @@
+---
+detector: review.java
+type: review-rule
+---
+
+## Detection Spec
+
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "review.java",
+  "type": "review-rule",
+  "language": "java",
+  "max_severity": "Critical",
+  "cwe": "CWE-000",
+  "anti_pattern_count": 9
+}
+```
+
 # Java 安全反模式检测矩阵
 
 代码审查中需要关注的 Java 特有安全反模式及具体检测规则。

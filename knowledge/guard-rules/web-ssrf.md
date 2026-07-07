@@ -8,8 +8,49 @@ precision: high
 confidence: dynamic
 ---
 
-# Server-Side Request Forgery (SSRF)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "web.ssrf",
+  "type": "guard-rule",
+  "namespace": "web",
+  "severity": "High",
+  "cwe": "CWE-918",
+  "cvss": 7.8,
+  "confidence": "dynamic",
+  "precision": "high",
+  "languages": [
+    "java",
+    "python",
+    "go"
+  ],
+  "target_functions": [
+    "contains",
+    "get",
+    "getForObject",
+    "getHost",
+    "gethostbyname",
+    "ip_address",
+    "openConnection",
+    "retrieve",
+    "uri",
+    "urlopen",
+    "urlparse"
+  ],
+  "match_patterns": [],
+  "exclude_patterns": [],
+  "required_evidence": [
+    "code_context",
+    "judgment_rationale"
+  ],
+  "optional_evidence": [
+    "data_flow_path",
+    "call_stack"
+  ]
+}
+```
 ## 威胁定义 (Threat Definition)
 
 攻击者诱导服务器向内部网络或自身发起请求，绕过防火墙访问内部服务（云元数据、内网数据库、管理接口）。

@@ -8,8 +8,58 @@ severity: high
 tags: [web, javascript, prototype, pollution]
 ---
 
-# 原型污染 (Prototype Pollution)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "web.web-prototype-pollution",
+  "type": "guard-rule",
+  "namespace": "web",
+  "severity": "High",
+  "cwe": "CWE-1321",
+  "cvss": 7.8,
+  "confidence": "dynamic",
+  "precision": "medium",
+  "languages": [
+    "js"
+  ],
+  "target_functions": [
+    "__proto__",
+    "assign",
+    "body",
+    "code_context",
+    "constructor",
+    "defaultsDeep",
+    "includes",
+    "judgment_rationale",
+    "merge",
+    "params",
+    "parse",
+    "prototype",
+    "query",
+    "readFileSync",
+    "require",
+    "safeMerge",
+    "set",
+    "setValue",
+    "split",
+    "updateOne",
+    "url"
+  ],
+  "match_patterns": [
+    "function\\s+merge\\s*\\([^)]*\\)\\s*\\{[^}]*for[^}]*in[^}]*(?!.*__proto__|constructor|prototype)",
+    "for\\s*\\(.*in\\s+source[^}]*\\{.*target\\[  → 无 BLOCKED 检查",
+    "_\\.merge\\([^,]*,\\s*req\\.(body|query|params)",
+    "_\\.defaultsDeep\\(.*req\\.(body|query)",
+    "_\\.set\\(.*req\\.(query|params)\\.path",
+    "qs\\.parse\\(.*req\\.url|qs\\.parse\\(.*req\\.query",
+    "\\.split\\(['\"]\\.['\"]\\).*req\\.  → 用户可控路径",
+    "keys\\.split\\(['\"]\\.['\"]\\)      → 无 __proto__ 过滤"
+  ],
+  "exclude_patterns": []
+}
+```
 ## 威胁定义 (Threat Definition)
 
 检测 JavaScript 代码中不可信数据是否可能污染 `Object.prototype`/`__proto__`，导致应用全局对象行为被篡改（权限绕过、XSS、RCE）。

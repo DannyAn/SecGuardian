@@ -8,8 +8,57 @@ precision: medium
 confidence: dynamic
 ---
 
-# 开放重定向 (Open Redirect)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "web.open-redirect",
+  "type": "guard-rule",
+  "namespace": "web",
+  "severity": "Medium",
+  "cwe": "CWE-601",
+  "cvss": 5.8,
+  "confidence": "dynamic",
+  "precision": "medium",
+  "languages": [
+    "java",
+    "python",
+    "go"
+  ],
+  "target_functions": [
+    "args",
+    "code_context",
+    "forward",
+    "get",
+    "getRequestDispatcher",
+    "http",
+    "judgment_rationale",
+    "redirect",
+    "request",
+    "sendRedirect",
+    "urlparse"
+  ],
+  "match_patterns": [
+    "redirect:.*\\+|sendRedirect\\(.*request|forward\\(.*user     # 用户输入拼接到重定向",
+    "return \"redirect:\" + request\\.\\w+\\(|ModelAndView.*redirect # Spring redirect: 前缀拼接",
+    "redirect\\(request\\.GET|redirect\\(request\\.POST             # Django/Flask 用户输入直传",
+    "redirect\\(.*request\\.args|redirect\\(.*request\\.form         # Flask request 数据",
+    "HttpResponseRedirect\\(.*request\\.                          # Django 用户输入",
+    "http\\.Redirect.*r\\.URL\\.Query\\(\\)\\.Get\\(                  # 查询参数直传到重定向",
+    "http\\.Redirect.*c\\.Query\\(|http\\.Redirect.*c\\.Param\\(     # Gin/Echo 框架"
+  ],
+  "exclude_patterns": [],
+  "required_evidence": [
+    "code_context",
+    "judgment_rationale"
+  ],
+  "optional_evidence": [
+    "data_flow_path",
+    "call_stack"
+  ]
+}
+```
 ## 威胁定义 (Threat Definition)
 
 用户可控制的 URL 作为重定向目标且未经验证，攻击者可利用此漏洞将用户重定向到钓鱼网站，窃取凭证或令牌。常用于鱼叉式钓鱼和社会工程攻击。

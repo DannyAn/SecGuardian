@@ -8,8 +8,75 @@ precision: high
 confidence: dynamic
 ---
 
-# 批量分配 (Mass Assignment)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "web.web-mass-assignment",
+  "type": "guard-rule",
+  "namespace": "web",
+  "severity": "Critical",
+  "cwe": "CWE-915",
+  "cvss": 9.8,
+  "confidence": "dynamic",
+  "precision": "high",
+  "languages": [
+    "java",
+    "python",
+    "go",
+    "js"
+  ],
+  "target_functions": [
+    "account",
+    "body",
+    "ccount",
+    "code_context",
+    "commit",
+    "copyProperties",
+    "createUser",
+    "ermissions",
+    "findOneAndUpdate",
+    "form",
+    "get",
+    "getUsername",
+    "ind",
+    "indJSON",
+    "initBinder",
+    "input",
+    "items",
+    "judgment_rationale",
+    "odelAttribute",
+    "ole",
+    "post",
+    "profile",
+    "request",
+    "route",
+    "sAdmin",
+    "save",
+    "ser",
+    "setAllowedFields",
+    "setUsername",
+    "setattr",
+    "update",
+    "updateUser",
+    "update_user",
+    "user"
+  ],
+  "match_patterns": [
+    "(@ModelAttribute|@RequestBody)\\s+\\w+(User|Account|Profile)\\s  # 实体类名",
+    "BeanUtils\\.copyProperties.*request|body|input",
+    "setattr\\(.*for.*request\\.(POST|form|body)",
+    "__dict__\\.update\\(request\\.(form|body|POST)",
+    "\\.save\\(\\) → for k, v in request → setattr 模式",
+    "c\\.(BindJSON|Bind|ShouldBindJSON)\\(&(user|account|profile)\\)",
+    "new\\s+(User|Account)\\(req\\.body\\)",
+    "(User|Account)\\.(findOneAndUpdate|update)\\([^,]*,\\s*req\\.body",
+    "(User|Account)\\.update\\(req\\.body"
+  ],
+  "exclude_patterns": []
+}
+```
 ## 威胁定义 (Threat Definition)
 
 检测 API 端点是否自动将客户端请求的字段绑定到内部数据模型，允许攻击者修改不应访问的属性（如 `role=admin`、`isAdmin=true`）。

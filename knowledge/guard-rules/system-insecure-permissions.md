@@ -8,8 +8,61 @@ precision: high
 confidence: dynamic
 ---
 
-# 不安全的默认权限 (Incorrect Default Permissions)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "system.insecure-permissions",
+  "type": "guard-rule",
+  "namespace": "system",
+  "severity": "Medium",
+  "cwe": "CWE-276",
+  "cvss": 5.5,
+  "confidence": "dynamic",
+  "precision": "high",
+  "languages": [
+    "c",
+    "cpp",
+    "java",
+    "python",
+    "go"
+  ],
+  "target_functions": [
+    "all",
+    "chmod",
+    "code_context",
+    "creat",
+    "createNewFile",
+    "everyone",
+    "fchmod",
+    "fopen",
+    "init",
+    "judgment_rationale",
+    "main",
+    "mkdir",
+    "mkstemp",
+    "open",
+    "setExecutable",
+    "umask",
+    "write"
+  ],
+  "match_patterns": [
+    "fopen|open|mkstemp|creat|os\\.open|createNewFile",
+    "chmod|fchmod|os\\.chmod|Files\\.setPosixFilePermissions",
+    "main|启动|init 中"
+  ],
+  "exclude_patterns": [],
+  "required_evidence": [
+    "code_context",
+    "judgment_rationale"
+  ],
+  "optional_evidence": [
+    "data_flow_path",
+    "call_stack"
+  ]
+}
+```
 ## 威胁定义 (Threat Definition)
 
 文件/目录/共享内存等资源创建时设置过于宽松的权限（如 0777/0666），导致任意用户可读写敏感数据或覆盖可执行文件。`chmod 0777` 和 `umask(0)` 后创建文件是典型高危模式。

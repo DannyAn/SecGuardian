@@ -8,8 +8,40 @@ precision: high
 confidence: dynamic
 ---
 
-# 内存泄漏 (Memory Leak)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "memory.memory-leak",
+  "type": "guard-rule",
+  "namespace": "memory",
+  "severity": "Medium",
+  "cwe": "CWE-401",
+  "cvss": 5.5,
+  "confidence": "dynamic",
+  "precision": "high",
+  "languages": [
+    "c",
+    "cpp"
+  ],
+  "target_functions": [
+    "free",
+    "malloc",
+    "process"
+  ],
+  "match_patterns": [],
+  "exclude_patterns": [],
+  "required_evidence": [
+    "code_context",
+    "judgment_rationale"
+  ],
+  "optional_evidence": [
+    "data_flow_path",
+    "call_stack"
+  ]
+}
+```
 ## 威胁定义 (Threat Definition)
 
 通过 `malloc`/`calloc`/`new` 分配的堆内存未在合适的时机释放，导致进程内存持续增长，最终资源耗尽。C/C++ 无 GC，内存泄漏是常见但可防止的问题。

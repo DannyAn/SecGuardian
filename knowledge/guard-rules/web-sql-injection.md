@@ -8,8 +8,77 @@ precision: very-high
 confidence: dynamic
 ---
 
-# SQL 注入检测 (C/C++ / Java / Go)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "web.sql-injection",
+  "type": "guard-rule",
+  "namespace": "web",
+  "severity": "Critical",
+  "cwe": "CWE-89",
+  "cvss": 9.8,
+  "confidence": "dynamic",
+  "precision": "very-high",
+  "languages": [
+    "c",
+    "cpp",
+    "java",
+    "go"
+  ],
+  "target_functions": [
+    "code_context",
+    "contains",
+    "createNativeQuery",
+    "createStatement",
+    "exec",
+    "executeQuery",
+    "findUser",
+    "getParameter",
+    "get_user_input",
+    "judgment_rationale",
+    "logs",
+    "mysql_query",
+    "prepareStatement",
+    "setString",
+    "snprintf",
+    "sprintf",
+    "sqlite3_bind_",
+    "sqlite3_bind_int",
+    "sqlite3_bind_text",
+    "sqlite3_exec",
+    "sqlite3_finalize",
+    "sqlite3_free",
+    "sqlite3_mprintf",
+    "sqlite3_prepare_v2",
+    "sqlite3_step",
+    "strcat",
+    "strcpy",
+    "uery",
+    "xec"
+  ],
+  "match_patterns": [
+    "(snprintf|sprintf|strcat|strcpy).*SELECT|INSERT|DELETE|UPDATE",
+    "sqlite3_mprintf.*SELECT|INSERT|DELETE|UPDATE",
+    "PQexec|mysql_query|SQLExecDirect",
+    "createStatement|executeQuery",
+    "fmt\\.Sprintf.*SELECT|INSERT|DELETE|UPDATE",
+    "db\\.Raw\\(fmt\\.Sprintf|db\\.Exec\\(fmt\\.Sprintf",
+    "ORDER BY|GROUP BY|LIMIT\\s+\\+",
+    "MATCH\\s+'.*\\+|snprintf.*MATCH"
+  ],
+  "exclude_patterns": [],
+  "required_evidence": [
+    "code_context",
+    "judgment_rationale"
+  ],
+  "optional_evidence": [
+    "data_flow_path",
+    "call_stack"
+  ]
+}
+```
 ## 威胁定义 (Threat Definition)
 
 攻击者通过构造恶意输入拼接 SQL 语句，导致数据库执行非预期的查询，获取、篡改或删除数据。覆盖 Web 后端 (Java/Go) 和嵌入式/桌面应用 (C/C++ SQLite)。

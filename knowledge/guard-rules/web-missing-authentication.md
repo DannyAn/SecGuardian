@@ -8,8 +8,78 @@ precision: very-high
 confidence: dynamic
 ---
 
-# 缺失认证 (Missing Authentication for Critical Function)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "web.missing-authentication",
+  "type": "guard-rule",
+  "namespace": "web",
+  "severity": "Critical",
+  "cwe": "CWE-306",
+  "cvss": 9.8,
+  "confidence": "dynamic",
+  "precision": "very-high",
+  "languages": [
+    "java",
+    "python",
+    "go"
+  ],
+  "target_functions": [
+    "admin",
+    "antMatchers",
+    "code_context",
+    "configure",
+    "doFilter",
+    "getAttribute",
+    "getCurrentUser",
+    "getHeader",
+    "getId",
+    "getPrincipal",
+    "getProfile",
+    "getSession",
+    "get_profile",
+    "get_user_data",
+    "ignoring",
+    "ilter",
+    "internal",
+    "jsonify",
+    "judgment_rationale",
+    "login_required",
+    "nterceptor",
+    "orders",
+    "parseClaims",
+    "parseToken",
+    "payment",
+    "private",
+    "profile",
+    "route",
+    "secret",
+    "settings",
+    "transfer",
+    "user",
+    "uthenticationPrincipal",
+    "uthorization",
+    "verify",
+    "verifyToken"
+  ],
+  "match_patterns": [
+    "/api/(profile|orders|transfer|payment|settings)",
+    "/api/(admin|internal|private|secret)",
+    "Header.*Authorization|Bearer"
+  ],
+  "exclude_patterns": [],
+  "required_evidence": [
+    "code_context",
+    "judgment_rationale"
+  ],
+  "optional_evidence": [
+    "data_flow_path",
+    "call_stack"
+  ]
+}
+```
 ## 威胁定义 (Threat Definition)
 
 关键功能端点（管理接口、敏感数据API、用户操作）完全不需要认证即可访问 — 任何人都可调用。对于已部署认证机制的绕过缺陷，参考 `auth-bypass` 检测器。

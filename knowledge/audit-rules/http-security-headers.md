@@ -8,6 +8,25 @@ topic: [web]
 > **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`（含 `symbols.functions`、`call_graph.edges`、`files`）。审计时优先利用符号表和调用图定位目标，追踪数据流路径。
 > **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
 
+
+## Detection Spec
+
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "domain.http-security-headers",
+  "type": "audit-rule",
+  "domain_name": "http-security-headers",
+  "category": "domain",
+  "topics": [
+    "web"
+  ],
+  "severity": "High",
+  "cwe": "CWE-200",
+  "cvss": 7.5
+}
+```
+
 # HTTP 安全头审计
 
 ## 审计概览

@@ -8,8 +8,69 @@ precision: medium
 confidence: dynamic
 ---
 
-# 过度数据暴露 (Excessive Data Exposure)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "web.web-excessive-data-exposure",
+  "type": "guard-rule",
+  "namespace": "web",
+  "severity": "High",
+  "cwe": "CWE-200",
+  "cvss": 7.8,
+  "confidence": "dynamic",
+  "precision": "medium",
+  "languages": [
+    "java",
+    "python",
+    "go",
+    "js"
+  ],
+  "target_functions": [
+    "__dict__",
+    "account",
+    "assword",
+    "ccount",
+    "code_context",
+    "ecret",
+    "etMapping",
+    "find",
+    "findAll",
+    "findById",
+    "get",
+    "getEmail",
+    "getUser",
+    "getUsername",
+    "getUsers",
+    "get_user",
+    "json",
+    "jsonify",
+    "judgment_rationale",
+    "lean",
+    "model_to_dict",
+    "oken",
+    "orElseThrow",
+    "profile",
+    "query",
+    "res",
+    "ser",
+    "sonResponse",
+    "user"
+  ],
+  "match_patterns": [
+    "return\\s+userRepository\\.find",
+    "return\\s+\\w+Repository\\.find(All|ById)",
+    "class\\s+(User|Account|Profile).*\\{[^}]*\\bpassword\\b(?!.*@JsonIgnore)",
+    "class\\s+(User|Account|Profile).*\\{[^}]*\\btoken\\b(?!.*@JsonIgnore)",
+    "model_to_dict|__dict__|\\.__dict__\\s*",
+    "fields\\s*=\\s*['\"]__all__['\"]",
+    "json\\.NewEncoder.*Encode\\(user|account|profile\\)",
+    "res\\.json\\(user\\)|res\\.json\\(result\\)|res\\.send\\(user\\)"
+  ],
+  "exclude_patterns": []
+}
+```
 ## 威胁定义 (Threat Definition)
 
 API 响应返回超出前端需要的敏感字段（密码哈希、内部 ID、权限列表等），依赖前端过滤而非后端裁剪。

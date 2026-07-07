@@ -8,8 +8,52 @@ precision: high
 confidence: dynamic
 ---
 
-# 未初始化内存使用 (Uninitialized Memory)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "memory.uninitialized-memory",
+  "type": "guard-rule",
+  "namespace": "memory",
+  "severity": "Medium",
+  "cwe": "CWE-457",
+  "cvss": 5.5,
+  "confidence": "dynamic",
+  "precision": "high",
+  "languages": [
+    "c",
+    "cpp"
+  ],
+  "target_functions": [
+    "bzero",
+    "calloc",
+    "code_context",
+    "data_flow_path",
+    "double",
+    "float",
+    "judgment_rationale",
+    "malloc",
+    "memset",
+    "operator",
+    "variable_state"
+  ],
+  "match_patterns": [
+    "int|char|float|double ... ;                     # 声明未初始化",
+    "malloc|operator new                              # 未初始化堆分配",
+    "struct S var;                                    # 未初始化 struct"
+  ],
+  "exclude_patterns": [],
+  "required_evidence": [
+    "code_context",
+    "judgment_rationale"
+  ],
+  "optional_evidence": [
+    "data_flow_path",
+    "call_stack"
+  ]
+}
+```
 ## 威胁定义 (Threat Definition)
 
 变量/缓冲区在使用前未被初始化，其内容为栈/堆的残留数据。攻击者可利用此漏洞读取残留的敏感信息（密钥、令牌）或导致不确定的控制流（函数指针为残留值）。

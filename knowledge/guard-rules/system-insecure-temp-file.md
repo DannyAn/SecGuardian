@@ -8,8 +8,56 @@ precision: high
 confidence: dynamic
 ---
 
-# 不安全临时文件 (Insecure Temporary File)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "system.insecure-temp-file",
+  "type": "guard-rule",
+  "namespace": "system",
+  "severity": "Medium",
+  "cwe": "CWE-377",
+  "cvss": 5.5,
+  "confidence": "dynamic",
+  "precision": "high",
+  "languages": [
+    "c",
+    "cpp"
+  ],
+  "target_functions": [
+    "code_context",
+    "data_flow_path",
+    "fopen",
+    "getpid",
+    "judgment_rationale",
+    "mkstemp",
+    "mktemp",
+    "open",
+    "sprintf",
+    "temp_directory_path",
+    "tempnam",
+    "tmpfile",
+    "tmpnam",
+    "variable_state"
+  ],
+  "match_patterns": [
+    "tmpnam|mktemp|tempnam                                  # 废弃/不安全的临时文件名生成",
+    "sprintf.*\"/tmp/.*%d\"                                    # 拼接进程ID — 可预测！",
+    "open(\"/tmp/fixed_...\", O_CREAT                          # 固定文件名 — 完全可预测",
+    "open\\(.*O_CREAT.*0666|open\\(.*O_CREAT.*0777             # 过于宽松的权限"
+  ],
+  "exclude_patterns": [],
+  "required_evidence": [
+    "code_context",
+    "judgment_rationale"
+  ],
+  "optional_evidence": [
+    "data_flow_path",
+    "call_stack"
+  ]
+}
+```
 ## 威胁定义 (Threat Definition)
 
 临时文件使用可预测的文件名（`/tmp/myapp.tmp`）或非原子的创建方式（先检查再创建），攻击者可提前创建同名文件或符号链接劫持。典型攻击：CWE-377 / 符号链接替换。

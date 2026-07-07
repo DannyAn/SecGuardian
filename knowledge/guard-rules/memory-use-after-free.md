@@ -8,8 +8,57 @@ precision: very-high
 confidence: dynamic
 ---
 
-# 释放后使用 (Use-After-Free)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "memory.use-after-free",
+  "type": "guard-rule",
+  "namespace": "memory",
+  "severity": "Critical",
+  "cwe": "CWE-416",
+  "cvss": 9.8,
+  "confidence": "dynamic",
+  "precision": "very-high",
+  "languages": [
+    "c",
+    "cpp"
+  ],
+  "target_functions": [
+    "c_str",
+    "caller",
+    "code_context",
+    "free",
+    "get_name",
+    "judgment_rationale",
+    "malloc",
+    "nullptr",
+    "process_data",
+    "ptr",
+    "realloc",
+    "strcpy",
+    "xxx",
+    "xxx_destroy",
+    "xxx_free",
+    "xxx_release"
+  ],
+  "match_patterns": [
+    "free(ptr)|delete ptr",
+    "p2 = p1",
+    "old_ptr = malloc(N)"
+  ],
+  "exclude_patterns": [],
+  "required_evidence": [
+    "code_context",
+    "judgment_rationale"
+  ],
+  "optional_evidence": [
+    "data_flow_path",
+    "call_stack"
+  ]
+}
+```
 ## 威胁定义 (Threat Definition)
 
 指针在 `free()`/`delete` 后继续被读写，导致访问已释放内存。已释放内存可能被分配器重新分配给其他对象，攻击者可通过堆风水（heap feng shui）实现代码执行。这是 CWE Top 25 中最危险的漏洞之一。

@@ -8,8 +8,74 @@ precision: high
 confidence: dynamic
 ---
 
-# 日志敏感数据泄露 (Log Sensitive Data Exposure)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "error.error-log-sensitive-data",
+  "type": "guard-rule",
+  "namespace": "error",
+  "severity": "High",
+  "cwe": "CWE-532",
+  "cvss": 6.5,
+  "confidence": "dynamic",
+  "precision": "high",
+  "languages": [
+    "c",
+    "cpp",
+    "java",
+    "python",
+    "go",
+    "js"
+  ],
+  "target_functions": [
+    "apiKey",
+    "api_key",
+    "authenticated",
+    "code_context",
+    "console",
+    "creditCard",
+    "credit_card",
+    "cvv",
+    "debug",
+    "fprintf",
+    "getUsername",
+    "info",
+    "judgment_rationale",
+    "logger",
+    "logging",
+    "passwd",
+    "password",
+    "pin",
+    "privateKey",
+    "private_key",
+    "rintf",
+    "sanitize",
+    "secret",
+    "social_security",
+    "ssn",
+    "str",
+    "stringify",
+    "sub",
+    "substring",
+    "syslog",
+    "toString",
+    "token",
+    "warn"
+  ],
+  "match_patterns": [
+    "(log|logger|logging|syslog|printf|console\\.log|console\\.error|log\\.Printf).*",
+    "|creditCard|credit_card|ssn|social_security|cvv|pin)",
+    "(logger|log)\\.(info|debug|warn|error).*\\+",
+    "log\\.Printf.*%\\+v            → 结构体含敏感字段",
+    "(logger|syslog|log\\.Printf|console\\.log).*\\+(?!\\s*%s)",
+    "LOGGING.*request\\.body       → Django settings",
+    "%msg.*%n                     → logback/log4j pattern 无过滤"
+  ],
+  "exclude_patterns": []
+}
+```
 ## 威胁定义 (Threat Definition)
 
 检查日志语句中是否记录了密码、Token、API Key、证书、身份证号等敏感数据。日志系统保护通常较弱，一旦被攻击者获取，后果严重。

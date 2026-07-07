@@ -8,8 +8,64 @@ severity: high
 tags: [crypto, secrets, credentials]
 ---
 
-# 硬编码密钥/凭证 (Hardcoded Secrets)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "crypto.hardcoded-secrets",
+  "type": "guard-rule",
+  "namespace": "crypto",
+  "severity": "High",
+  "cwe": "CWE-798",
+  "cvss": 7.5,
+  "confidence": "dynamic",
+  "precision": "very-high",
+  "languages": [
+    "c",
+    "cpp",
+    "java",
+    "python",
+    "go",
+    "js"
+  ],
+  "target_functions": [
+    "_max_length",
+    "_min_length",
+    "_name",
+    "admin_pass",
+    "api_key",
+    "api_secret",
+    "code_context",
+    "encryption_key",
+    "equals",
+    "getenv",
+    "judgment_rationale",
+    "jwt_secret",
+    "length",
+    "master_key",
+    "passwd",
+    "password",
+    "private_key",
+    "secret_key",
+    "strcmp",
+    "strlen",
+    "strncmp"
+  ],
+  "match_patterns": [
+    "(password|passwd|api_key|api_secret|secret_key|private_key|encryption_key|jwt_secret|admin_pass|master_key)\\s*=\\s*\"[^\"]",
+    "(strcmp|strncmp|\\.equals|==)\\s*\\([^)]*\"[^\"]{3,}\"[^)]*\\)"
+  ],
+  "exclude_patterns": [
+    "getenv\\(|System\\.getenv\\(|os\\.environ|process\\.env|os\\.Getenv\\(",
+    "-----BEGIN CERTIFICATE-----|-----BEGIN PUBLIC KEY-----",
+    "\\$\\{\\w+\\}|\\{\\{[^}]*\\}\\}",
+    "*_min_length|*_max_length|*_name|*_type\\s*=",
+    "^\\s*\\w+\\s+\\*?\\w+\\s*;|=\\s*\\w+\\(",
+    "0x00,\\s*0x00|=\\{0\\}"
+  ]
+}
+```
 ## 威胁定义 (Threat Definition)
 
 API Key、密码、私钥、Token 等敏感凭证硬编码在源代码中，进入版本控制后永久暴露。攻击者可通过源码泄露、供应链分析或反编译获取这些凭证。
