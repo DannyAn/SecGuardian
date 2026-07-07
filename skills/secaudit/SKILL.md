@@ -6,6 +6,10 @@ category: workflow
 
 # 安全审计工作流
 
+## 🎯 Audit Domain Selection (Skill Layer)
+
+> 以下内容定义了审计域选择规则和方法引用，属于 Skill 层职责。
+
 ## 何时使用
 
 当用户执行 `/secaudit <path> <language> [--focus <domain>]` 时激活。
@@ -34,6 +38,12 @@ Logging & Monitoring      → Data Flow            references/data-flow-analysis
 ```
 
 每个 phase 加载对应的 `.md` 参考文件，按其中的方法论执行分析。
+
+## ⚙️ Engine Instructions
+
+> 以下执行指令属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行。未来 Engine 实现后将被 Engine 取代。
+>
+> **🔗 锚定+证据约束 (Rule A + Rule B):** 每个 finding 的 `file`+`line` MUST 可追溯到 index.json 的符号或文件列表。MUST 提供 `--snippet`、`--code-context`、`--rationale`、`--attack-scenario`。调用 `record-finding.py` 时必须传 `--index-json` 进行锚定校验。无 index 锚点时 MUST 标记 `confidence: low`。
 
 ## 前置条件
 
@@ -126,6 +136,10 @@ Logging & Monitoring      → Data Flow            references/data-flow-analysis
 参考: `references/data-flow-analysis.md` — 追踪敏感数据是否流入日志
 
 检查日志安全：敏感数据泄露风险、日志完整性、审计日志覆盖、告警配置、安全事件响应能力。
+
+## 📄 Output Protocol
+
+> 以下输出格式遵循 `internal/output/output_contract.md`。
 
 ## 汇总报告
 

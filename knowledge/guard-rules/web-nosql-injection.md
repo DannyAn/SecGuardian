@@ -1,14 +1,17 @@
 ---
-confidence: dynamic
-cwe: CWE-943
 detector: web-nosql-injection
-language: [js]
-precision: high
+description: Detects NoSQL injection vulnerabilities where user input is passed to NoSQL queries
 severity: critical
+cwe: CWE-943
+cvss: 9.8
+language: [js]
 tags: [web, nosql, mongodb, injection]
+precision: high
+confidence: dynamic
+target_functions: [aggregate, body, code_context, find, findById, findOne, findOneAndUpdate, function, get, json, judgment_rationale, params, post, query, req, status]
+match_patterns: [User\.(find|findOne|findById|findOneAndUpdate)\(req\.body, User\.(find|findOne)\(req\.query, \.find\(.*\.body\)|\.findOne\(.*\.body\), \$where.*\+.*req\.|req\.query.*\$where, \$where\s*:\s*`.*\$\{.*req\., \$where.*function\(\)\s*\{.*req\., \$regex\s*:\s*req\.(query|body|params), \$regex\s*:\s*new RegExp\(req\., \$regex\s*:\s*\{\s*\$regex\s*:\s*.*input, aggregate\(req\.body\.pipeline, \$lookup.*req\.(query|body), \$function.*req\.(body|query).*lang.*js, \$graphLookup.*req\.]
+exclude_patterns: []
 ---
-
-# NoSQL 注入 (NoSQL Injection)
 
 ## 威胁定义 (Threat Definition)
 

@@ -1,14 +1,19 @@
 ---
 detector: resource.file-double-close
+description: Detects double-close vulnerabilities where a file handle is closed more than once
 severity: medium
 cwe: CWE-675
+cvss: 5.5
 language: [c, cpp]
 tags: [resource, file, double-close, fd, use-after-free]
 precision: high
 confidence: dynamic
+target_functions: [fclose]
+match_patterns: [同一 fd 变量在函数内出现 >=2 次 close(fd) 调用（不在互斥分支中）, goto cleanup 路径：正常路径已 close(fd)，错误路径 goto cleanup 再次 close(fd), 跨函数：callee close(fd) 后 caller 也 close(fd)]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 文件句柄重复关闭 (File Descriptor Double Close)
 
 ## 威胁定义 (Threat Definition)
 

@@ -1,14 +1,19 @@
 ---
 detector: xss
+description: "检测跨站脚本（XSS）漏洞 — 用户输入未正确编码即渲染到页面"
 severity: critical
 cwe: CWE-79
+cvss: 9.8
 language: [java, python, go]
 tags: [web, injection, xss]
 precision: high
 confidence: dynamic
+target_functions: [addAttribute, default, forHtml, getUserInput, getWriter, mark_safe, render, render_template, render_template_string, variables, write]
+match_patterns: []
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# Cross-Site Scripting (XSS)
 
 ## 威胁定义 (Threat Definition)
 

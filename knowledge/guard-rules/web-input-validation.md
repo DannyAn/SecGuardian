@@ -1,14 +1,19 @@
 ---
 detector: input-validation
+description: Detects missing or insufficient input validation that could lead to injection attacks
 severity: high
 cwe: CWE-20
+cvss: 7.8
 language: [c, cpp, java, python, go]
 tags: [web, validation, injection]
 precision: high
 confidence: dynamic
+target_functions: [argv, atoi, check, code_context, empty, eval, exec, fgets, get, getParameter, getenv, input, isdigit, judgment_rationale, malloc, match, matches, query, read, recv, request, strcpy, strlen, valid]
+match_patterns: [argv|getenv|scanf|fgets|read|recv|request\.get, if.*NULL|if.*empty|if.*== "", input.*\[.*input|input\[.*user]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 输入验证不足 (Improper Input Validation)
 
 ## 威胁定义 (Threat Definition)
 

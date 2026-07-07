@@ -1,14 +1,17 @@
 ---
 detector: web-excessive-data-exposure
+description: Detects excessive data exposure where APIs return more data than needed
 severity: high
 cwe: CWE-200
+cvss: 7.8
 language: [java, python, go, js]
 tags: [web, api, data-exposure, response]
 precision: medium
 confidence: dynamic
+target_functions: [__dict__, account, assword, ccount, code_context, ecret, etMapping, find, findAll, findById, get, getEmail, getUser, getUsername, getUsers, get_user, json, jsonify, judgment_rationale, lean, model_to_dict, oken, orElseThrow, profile, query, res, ser, sonResponse, user]
+match_patterns: [return\s+userRepository\.find, return\s+\w+Repository\.find(All|ById), class\s+(User|Account|Profile).*\{[^}]*\bpassword\b(?!.*@JsonIgnore), class\s+(User|Account|Profile).*\{[^}]*\btoken\b(?!.*@JsonIgnore), model_to_dict|__dict__|\.__dict__\s*, fields\s*=\s*['"]__all__['"], json\.NewEncoder.*Encode\(user|account|profile\), res\.json\(user\)|res\.json\(result\)|res\.send\(user\)]
+exclude_patterns: []
 ---
-
-# 过度数据暴露 (Excessive Data Exposure)
 
 ## 威胁定义 (Threat Definition)
 

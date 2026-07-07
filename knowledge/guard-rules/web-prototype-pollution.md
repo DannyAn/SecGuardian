@@ -1,14 +1,17 @@
 ---
-confidence: dynamic
-cwe: CWE-1321
 detector: web-prototype-pollution
-language: [js]
-precision: medium
+description: Detects prototype pollution vulnerabilities that allow property injection into object prototypes
 severity: high
+cwe: CWE-1321
+cvss: 7.8
+language: [js]
 tags: [web, javascript, prototype, pollution]
+precision: medium
+confidence: dynamic
+target_functions: [__proto__, assign, body, code_context, constructor, defaultsDeep, includes, judgment_rationale, merge, params, parse, prototype, query, readFileSync, require, safeMerge, set, setValue, split, updateOne, url]
+match_patterns: [function\s+merge\s*\([^)]*\)\s*\{[^}]*for[^}]*in[^}]*(?!.*__proto__|constructor|prototype), for\s*\(.*in\s+source[^}]*\{.*target\[  → 无 BLOCKED 检查, _\.merge\([^,]*,\s*req\.(body|query|params), _\.defaultsDeep\(.*req\.(body|query), _\.set\(.*req\.(query|params)\.path, qs\.parse\(.*req\.url|qs\.parse\(.*req\.query, \.split\(['"]\.['"]\).*req\.  → 用户可控路径, keys\.split\(['"]\.['"]\)      → 无 __proto__ 过滤]
+exclude_patterns: []
 ---
-
-# 原型污染 (Prototype Pollution)
 
 ## 威胁定义 (Threat Definition)
 

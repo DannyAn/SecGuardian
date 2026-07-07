@@ -1,14 +1,19 @@
 ---
 detector: open-redirect
+description: Detects open redirect vulnerabilities where user input controls redirect URLs
 severity: medium
 cwe: CWE-601
+cvss: 5.8
 language: [java, python, go]
 tags: [web, redirect, phishing]
 precision: medium
 confidence: dynamic
+target_functions: [args, code_context, forward, get, getRequestDispatcher, http, judgment_rationale, redirect, request, sendRedirect, urlparse]
+match_patterns: [redirect:.*\+|sendRedirect\(.*request|forward\(.*user     # 用户输入拼接到重定向, return "redirect:" + request\.\w+\(|ModelAndView.*redirect # Spring redirect: 前缀拼接, redirect\(request\.GET|redirect\(request\.POST             # Django/Flask 用户输入直传, redirect\(.*request\.args|redirect\(.*request\.form         # Flask request 数据, HttpResponseRedirect\(.*request\.                          # Django 用户输入, http\.Redirect.*r\.URL\.Query\(\)\.Get\(                  # 查询参数直传到重定向, http\.Redirect.*c\.Query\(|http\.Redirect.*c\.Param\(     # Gin/Echo 框架]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 开放重定向 (Open Redirect)
 
 ## 威胁定义 (Threat Definition)
 

@@ -1,14 +1,19 @@
 ---
 detector: error-unified-error-format
+description: Detects inconsistent or unstructured error reporting that hinders debugging
 severity: medium
 cwe: CWE-703
+cvss: 4.5
 language: [java, python, go, js]
 tags: [error, consistency, api-design, response-format]
 precision: very-high
 confidence: dynamic
+target_functions: [abort, body, code, code_context, errorCode, error_code, json, jsonify, judgment_rationale, requestId, request_id, status, trace_id, variable_state]
+match_patterns: [return\s+ResponseEntity.*body\(Map\.of               # JSON Object 格式 (Java), return\s+"                                           # 纯字符串返回（所有语言）, throw new \w+Exception                                # 异常传播（框架默认格式）, jsonify\(|json\.dumps\(|JSON\.stringify\(             # 手动JSON序列化, abort\(|HttpResponseException                         # 框架特定格式]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 错误格式不统一 (Non-Unified Error Format)
 
 ## 威胁定义 (Threat Definition)
 

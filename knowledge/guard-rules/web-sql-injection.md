@@ -1,14 +1,19 @@
 ---
 detector: sql-injection
+description: Detects SQL injection vulnerabilities where user input is concatenated into SQL queries
 severity: critical
 cwe: CWE-89
+cvss: 9.8
 language: [c, cpp, java, go]
 tags: [web, injection, database, embedded]
 precision: very-high
 confidence: dynamic
+target_functions: [code_context, contains, createNativeQuery, createStatement, exec, executeQuery, findUser, getParameter, get_user_input, judgment_rationale, logs, mysql_query, prepareStatement, setString, snprintf, sprintf, sqlite3_bind_, sqlite3_bind_int, sqlite3_bind_text, sqlite3_exec, sqlite3_finalize, sqlite3_free, sqlite3_mprintf, sqlite3_prepare_v2, sqlite3_step, strcat, strcpy, uery, xec]
+match_patterns: [(snprintf|sprintf|strcat|strcpy).*SELECT|INSERT|DELETE|UPDATE, sqlite3_mprintf.*SELECT|INSERT|DELETE|UPDATE, PQexec|mysql_query|SQLExecDirect, createStatement|executeQuery, fmt\.Sprintf.*SELECT|INSERT|DELETE|UPDATE, db\.Raw\(fmt\.Sprintf|db\.Exec\(fmt\.Sprintf, ORDER BY|GROUP BY|LIMIT\s+\+, MATCH\s+'.*\+|snprintf.*MATCH]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# SQL 注入检测 (C/C++ / Java / Go)
 
 ## 威胁定义 (Threat Definition)
 

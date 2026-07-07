@@ -5,6 +5,9 @@ description: "🧪 Trial: AI Remediation — generate unified diff patches from 
 
 # /secfix - AI Remediation
 
+## ⚙️ Command Layer
+
+
 Generate unified diff patches from findings produced by `/secreview`, `/secguard`, or `/secaudit`.
 
 Designed for developers who know a fix needs to be applied but would rather review a patch than write one.
@@ -34,6 +37,23 @@ Designed for developers who know a fix needs to be applied but would rather revi
 
 扫描完成后 AI 会自动创建 `latest → <scan-id>/` 符号链接，所以无参数调用总是使用最近执行的那一次扫描——不论是 secguard、secreview 还是 secaudit。
 
+
+## 🛠️ Engine Layer
+
+> 以下内容属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行执行。未来 Engine 实现后，此处内容将被 Engine 取代。
+
+### 🔒 跨 Shell 状态传递
+
+> **每个 bash 调用都是独立 shell，变量不共享。禁止用 `/tmp/` 传状态。**
+
+secfix 读取已有扫描结果生成 patch。定位扫描目录时使用 `latest` 符号链接：
+```bash
+# 查找最新扫描（无参数时）
+ls -td .codeagent/secguardian/*/scans/*/findings/ 2>/dev/null | head -1
+```
+需要持久化状态时，使用命令对应的 `.scan_state.secguard` / `.scan_state.secreview` / `.scan_state.secaudit`。
+禁止使用 `/tmp/` 或系统临时目录。
+
 ## How It Works
 
 ```
@@ -51,6 +71,10 @@ Unified diff patches (.patch)
 Developer reviews:  git diff / cat *.patch
 Developer applies:  git apply *.patch
 ```
+
+## 📄 Output Layer
+
+> 以下输出格式遵循 `internal/output/output_contract.md`。
 
 ## Output
 

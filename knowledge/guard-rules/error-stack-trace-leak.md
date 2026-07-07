@@ -1,14 +1,17 @@
 ---
 detector: error-stack-trace-leak
+description: Detects exposure of stack traces or internal error details to end users
 severity: high
 cwe: CWE-209
+cvss: 6.5
 language: [c, cpp, java, python, go, js]
 tags: [error, information-leakage, exception, production]
 precision: very-high
 confidence: dynamic
+target_functions: [__FILE__, body, code_context, detail, err, errorhandler, failed, fprintf, func, getLogger, getMessage, getStackTrace, get_data, internal_error, json, jsonify, judgment_rationale, printStackTrace, query, res, route, send, set, stack, status, stderr, str, strerror, syslog, toString, use]
+match_patterns: [catch.*Exception.*\{[^}]*return.*e\.(getMessage|toString|getStackTrace), e\.printStackTrace\(\)       → 调用链上下文, fprintf.*stderr|printf.*Error → __FILE__|strerror, assert.*&&.*"                  → 非 Debug 环境保留的断言, return.*str\(e\)|jsonify.*str\(e\)|detail=str\(e\), DEBUG\s*=\s*True              → settings.py, recover.*fmt\.Fprintf.*w     → HTTP handler 中, http\.Error.*err\.Error\(\)   → 错误详情返回, err\.stack|err\.message       → res\.send|res\.json 调用链, app\.set\('env',\s*'development'\)  → 生产环境标签]
+exclude_patterns: []
 ---
-
-# 堆栈轨迹泄露 (Stack Trace Leak)
 
 ## 威胁定义 (Threat Definition)
 

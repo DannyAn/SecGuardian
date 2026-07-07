@@ -1,14 +1,17 @@
 ---
-confidence: dynamic
-cwe: CWE-326
 detector: crypto-tls-version
-language: [c, cpp, java, python, go, js]
-precision: very-high
+description: Detects usage of outdated or insecure TLS versions (TLS 1.0/1.1, SSL) in connections
 severity: medium
+cwe: CWE-326
+cvss: 5.5
+language: [c, cpp, java, python, go, js]
 tags: [crypto, tls, ssl, protocol]
+precision: very-high
+confidence: dynamic
+target_functions: [1_client_method, 1_server_method, _TLSv1_1, _VERSION, _create_unverified_context, alse, client_method, code_context, createServer, create_unverified_context, ersionTLS10, ersionTLS11, get, getInstance, judgment_rationale, method, minVersion, server_method, setProperty, set_min_proto_version, v1_method, v23_method]
+match_patterns: [SSL3_VERSION|TLS1_VERSION\b|TLS1_1_VERSION, SSLv23_method|TLSv1_method|TLSv1_1_method, SSL_OP_NO_TLSv1_2  (禁止 TLS 1.2), SSLContext\.getInstance\("SSL|SSLContext\.getInstance\("TLSv1"\)|SSLContext\.getInstance\("TLSv1\.1"\), jdk\.tls\.client\.protocols.*TLSv1[^.], PROTOCOL_TLSv1\b|PROTOCOL_TLSv1_1|PROTOCOL_SSLv, verify\s*=\s*False|_create_unverified_context, VersionTLS10|VersionTLS11|InsecureSkipVerify\s*:\s*true, secureProtocol.*TLSv1_method|minVersion.*TLSv1[^12], rejectUnauthorized\s*:\s*false, NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*.0.]
+exclude_patterns: []
 ---
-
-# TLS/SSL 弱版本 (Weak TLS/SSL Version)
 
 ## 威胁定义 (Threat Definition)
 

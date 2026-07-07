@@ -1,14 +1,19 @@
 ---
 detector: idor
+description: Detects insecure direct object reference vulnerabilities exposing internal object identifiers
 severity: high
 cwe: CWE-639
+cvss: 7.8
 language: [java, python, go]
 tags: [web, authorization]
 precision: low
 confidence: dynamic
+target_functions: [athVariable, code_context, equals, equestParam, findById, findOne, get, getById, getOrder, getOwnerId, getUserId, judgment_rationale, order, owner_id, query, readAllBytes, render, uery, user, user_id, view_order]
+match_patterns: [@PathVariable|@RequestParam|@PathParam                # 用户可控的对象ID来源, \.objects\.get\(id=|\.objects\.filter\(pk=             # Django ORM 仅按ID查询, \.get_object_or_404\(.*id=|query\.get\(                # 通用ORM模式, r\.URL\.Query\(\)\.Get\(|c\.Param\(                    # 用户输入的ID]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 不安全的直接对象引用 (Insecure Direct Object Reference — IDOR)
 
 ## 威胁定义 (Threat Definition)
 

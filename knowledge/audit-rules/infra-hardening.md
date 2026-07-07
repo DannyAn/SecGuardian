@@ -3,10 +3,14 @@ name: infra-hardening
 description: 审计容器、Kubernetes、云资源和CI/CD管道的基础设施安全配置，检测配置缺陷和加固缺失。当用户请求基础设施加固、容器安全审计、Kubernetes安全、云资源安全、IaC安全审查时使用。
 category: domain
 topic: [system]
+severity: Medium
+cwe: CWE-000
+cvss: 5.5
 ---
 
 > **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`（含 `symbols.functions`、`call_graph.edges`、`files`）。审计时优先利用符号表和调用图定位目标，追踪数据流路径。
 > **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
+
 
 # 基础设施加固审计
 

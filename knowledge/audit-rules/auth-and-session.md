@@ -3,10 +3,14 @@ name: auth-and-session
 description: 审计认证机制和会话管理的安全性，检测凭证泄露、会话固定、认证绕过等常见漏洞。当用户请求认证审计、会话管理审查、登录安全检测、凭证安全、OAuth/SSO安全时使用。
 category: domain
 topic: [web]
+severity: High
+cwe: CWE-200
+cvss: 7.5
 ---
 
 > **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`（含 `symbols.functions`、`call_graph.edges`、`files`）。审计时优先利用符号表和调用图定位目标，追踪数据流路径。
 > **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
+
 
 # 认证与会话管理安全审计
 

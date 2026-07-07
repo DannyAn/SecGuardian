@@ -37,6 +37,19 @@ func ParseFile(filePath string, lang string) (*ParseResult, error) {
 
 	result := &ParseResult{File: filePath, Language: lang}
 
+	// JS/TS file size and line length protection (mirrors parser_ts.go)
+	if lang == "javascript" || lang == "typescript" {
+		if len(content) > 512*1024 {
+			return result, nil // skip files > 512KB
+		}
+		lines := strings.Split(string(content), "\n")
+		for _, line := range lines {
+			if len(line) > 2000 {
+				return result, nil // skip files with lines > 2000 chars
+			}
+		}
+	}
+
 	// Extract functions
 	if pat, ok := funcPatterns[lang]; ok {
 		matches := pat.FindAllStringSubmatch(string(content), -1)

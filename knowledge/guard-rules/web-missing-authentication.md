@@ -1,14 +1,19 @@
 ---
 detector: missing-authentication
+description: Detects endpoints or operations that lack required authentication checks
 severity: critical
 cwe: CWE-306
+cvss: 9.8
 language: [java, python, go]
 tags: [web, authentication, access-control]
 precision: very-high
 confidence: dynamic
+target_functions: [admin, antMatchers, code_context, configure, doFilter, getAttribute, getCurrentUser, getHeader, getId, getPrincipal, getProfile, getSession, get_profile, get_user_data, ignoring, ilter, internal, jsonify, judgment_rationale, login_required, nterceptor, orders, parseClaims, parseToken, payment, private, profile, route, secret, settings, transfer, user, uthenticationPrincipal, uthorization, verify, verifyToken]
+match_patterns: [/api/(profile|orders|transfer|payment|settings), /api/(admin|internal|private|secret), Header.*Authorization|Bearer]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 缺失认证 (Missing Authentication for Critical Function)
 
 ## 威胁定义 (Threat Definition)
 

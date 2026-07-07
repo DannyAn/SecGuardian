@@ -1,14 +1,19 @@
 ---
 detector: race-condition
+description: Detects race conditions where concurrent threads access shared data without synchronization
 severity: high
 cwe: CWE-362
+cvss: 7.5
 language: [c, cpp]
 tags: [concurrency, threading, toctou]
 precision: medium
 confidence: dynamic
+target_functions: [access, atomic, code_context, count_calls, fopen, free, fstat, increment, judgment_rationale, lock, lstat, malloc, mutex, open, pthread, pthread_mutex, stat, unlock]
+match_patterns: [(^int|^long|^char|^bool)\s+g_\w+\s*=, access\(|stat\(|lstat\(, void\s+\w+\s*\(\s*int\s+sig\s*\)]
+exclude_patterns: [std::atomic|_Atomic|__atomic|std::call_once|pthread_once, thread_local|_Thread_local|__thread, const\s+\w+\s+g_|static\s+const, pthread_mutex_lock|std::lock_guard|std::unique_lock|std::scoped_lock, \bmtx\.lock\(\)|\bmu\.lock\(\)|\block\.lock\(\)]
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 竞态条件 (Race Condition)
 
 ## 威胁定义 (Threat Definition)
 

@@ -2,6 +2,162 @@
 
 All notable changes to SecGuardian.
 
+## [0.17.0] — 2026-07-07
+
+### ♻️ Detection Spec Schema Unification
+
+- **Frontmatter 单一数据源**: 85 个规则文件的 `## Detection Spec JSON block` 全部合并到 YAML frontmatter，消除两张皮
+- **validate-findings.py --check-spec**: 改为解析 YAML frontmatter 而非 JSON block，字段匹配（`critical` vs `Critical`）自动归一化
+- **self-check.sh §14**: 从 `@secguardian:detection-spec` 标记检查改为前端字段完整性检查
+- **移除 generate-detection-specs.py**: 不再需要独立生成脚本
+
+### 📦 6 Commit 历史拆分
+
+- 将原 163 文件单一大 commit 拆为 6 个逻辑独立的提交（docs / strip-scripts / stripped-demos / spec / pre-filter / refactor），便于 Review 和回滚
+
+## [0.16.0] — 2026-07-07
+
+### 🧠 Language-Aware Pre-Filter & Answer-Card Independence
+
+#### 语言感知预筛修复（EPIC-006/FEATURE-003）
+- **secguard.md 3c.5**: C/C++ 函数名精确匹配跳过无关检测器 / Java/Python/Go/JS 全量加载确保不漏检（修复 ses_0c48 只跑 12/34 检测器的问题）
+- **secaudit.md 3.1 / secreview.md 3a**: 同上修复，统一语言感知策略
+- **OO 语言全量加载指令**: 明确禁止 AI 自主裁定"哪些可能匹配"，必须加载该语言全部检测器
+- **批量加载优化**: OO 语言在一次 bash 调用中批量加载全部检测器规则（约 2K token），避免逐文件 `cat` 的开销
+
+#### 答案卡脱敏增强
+- **strip-answer-cards.py**: 覆盖 7 类标注模式（VULNERABILITY/CWE/BAD/TP/P0-P3、中文"真漏洞"/"Detector 标记"/"← 标记"），支持 // # /** 三种注释风格 + 行内/整行两种模式
+- **5 语言脱敏验证集**: `examples/*-vuln-demo-no-answers/` — 克隆+批量脱敏 51 个源码文件，554 行答案卡剥离，0 残留
+- **`examples/strip-all-demos.py`**: 可重复使用的批量脱敏脚本
+
+#### 全语言验证扫描（脱敏副本，0 答案卡）
+- **Java**: 22 findings (11C/9H/2M), 18 种检测器命中
+- **Go**: 31 findings (17C/11H/3M), 20 种检测器命中
+- **Python**: 30 findings (12C/15H/3M), 20 种检测器命中
+- **JavaScript**: 72 findings (25C/39H/7M), 21 种检测器命中
+- **C/C++**: 47 findings (18C/19H/10M), 29 种检测器命中（函数名预筛跳过 38 个无关检测器）
+- **安全代码正确识别**: p0_safe*/p1_safe*/p2_counter_evidence 系列全部 0 发现 ✓
+
+#### 其他
+- **Detection Spec**: 67 guard-rules + 13 audit-rules + 5 review-rules 全部添加 Detection Spec JSON 块
+- **validate-findings.py**: 新增 `--check-spec` 跨验证模式
+
+## [0.15.1] — 2026-07-07
+
+### 🔧 Release Script Consolidation & Docs Restructure
+
+#### 版本发布脚本重构
+- **单入口 release.sh** — 删除 `github-release.sh`，统一 `release.sh` 为唯一入口。`bash scripts/release.sh v0.x.y` 走天下，需要 Gitee 加 `--gitee`
+- **gitee-release.sh 修复** — 产物目录 bug 修正 (`dist/release/` 而非 `dist/release/$VERSION/`)
+- **sync-version.sh 补充** — 覆盖 `secfix-secguardian/extension.json`
+
+#### AI Agent 文档重构
+- **AGENTS.md 定为规范来源** — 标为"全部 AI Agent 的规范来源"，CLAUDE.md 和 GEMINI.md 降级为薄引用层
+- **CLAUDE.md 从 377 行缩减至 85 行** — 仅保留插件注册机制、命名空间策略、部署结构
+- **GEMINI.md 从 282 行缩减至 49 行** — 仅保留命令用法、扫描输出、部署位置
+- **DEVELOPER.md 存档旧发布流程** — 标记"以 AGENTS.md 为准"
+- 所有共享内容（架构/SDD/构建/验证/发布）改为引用 AGENTS.md
+
+#### 版本发布流程
+- L1 设计一致性: 通过 ✅
+- L4 架构端到端: 通过 ✅
+- 全平台部署: Claude Code + OpenCode + Gemini CLI ✅
+
+## [0.15.0] — 2026-07-07
+
+### 🐛 Bugfix: Release Sprint — 4 Systemic Issues Resolved
+
+#### Renderer Circular Dependency Fix (v5.0 findings-dir mode)
+- **`--scan-id` CLI 参数** — 新增 render-report.py CLI 参数，在 findings.json 元数据尚未生成时（v5.0 首次运行），由命令模板直接传入 scan_id，消除 `scan_id: "unknown"` bug
+- **detectors 自动计算** — 从 in-memory findings 列表自动推导 `detectors_matched`/`detectors_executed`，消除 `detectors: 0` bug
+- **`--path`/`--language` CLI 参数** — 新增 render-report.py 参数，允许命令模板传入扫描路径和语言
+- **UnboundLocalError** — `findings` 在赋值前被引用导致的崩溃，将 auto-compute 块移至赋值之后
+
+#### 模板可靠性修复
+- **`$0` 漏洞** — `$(realpath "$0")` 在 AI 复制到 JSON tool call 时扩展为 `realpath "python"`（语言参数泄漏），移除该不可靠探针路径，保留 4 条硬编码路径
+
+#### E2E 测试加固
+- **Section 12 mock 修复** — dashboard.html DOCTYPE + Severity 断言通过，report.md mock 创建
+
+#### 全平台部署已验证
+- L1 设计一致性: 152/152 ✅
+- L2 结构完整性: 通过 ✅
+- L3 部署环境: 5 平台二进制通过 ✅
+- L4 架构端到端: 56/56 ✅
+- 全平台部署: Claude Code + OpenCode + Gemini CLI ✅
+
+#### OpenCode 权限弹窗修复
+- **根因**: `knowledge/languages/{lang}.md` 模板中缺少加载指令，AI 使用 `read` 的绝对路径触发 OpenCode 外部目录权限弹窗
+- **修复**: 在 secguard §3b 和 secreview §3 添加显式 bash `cat` 指令从本地 `.codeagent/` 拷贝加载，不涉及 read 工具
+
+## [0.14.0] — 2026-07-06
+
+### 🐛 Bugfix: Systemic Fixes from Production Bug Report
+
+#### SECGUARDIAN_HOME 自动发现 (OpenCode 修复)
+- **绝对路径搜索** — 3 条命令统一使用 `$HOME/.claude/plugins/secguardian`、`$HOME/.config/opencode/extensions/secguardian` 等绝对路径探针
+- **探针从 `.secguardian-env` 改为 `record-finding.py`** — 文件是否存在判断更可靠
+- **发现失败时终止** — 输出具体搜索路径，不再静默退化
+
+#### `.scan_state` 命名空间隔离 (Cross-Contamination 修复)
+- 每条命令使用独立文件: `.scan_state.secguard` / `.scan_state.secreview` / `.scan_state.secaudit`
+- 消除 secreview 执行残留污染 secguard 上下文的 bug
+
+#### 反委托规则 (Sub-Agent Bypass 修复)
+- 3 条命令添加 `🚫 禁止将检测执行委托给子代理 (NON-NEGOTIABLE)`
+- MiniMax 2.7 委托子代理 → 绕过索引器全量 grep 642 文件的漏洞修复
+
+#### `c` 语言支持修复
+- `knowledge/language-index.md` 新增 `## c` 节（与 `## cpp` 等价）
+- `scripts/validate-index.py` 纯 `.c/.h` 目录报告 `c` 而非 `cpp`
+- `scripts/sync-language-index.sh` review-rules fallback `c→cpp`
+
+#### 脚本路径规范化
+- 修复 6 处 bare `python3 scripts/` 调用，改为 `$SECGUARDIAN_HOME/scripts/`
+- 修复 `/tmp/` 临时文件使用，改为 `$SCAN_DIR/`
+- 修复 Step 2a "同变量检查两次" bug
+- 修复 `render-report.py` `datetime.utcnow()` 弃用警告
+
+#### L1 验证增强
+- **Section 12 模板静态分析** — 6 项检查 × 3 条命令，直接捕获上述所有 bug 模式
+- `scripts/self-check.sh` 通过数从 82 项增至 139 项
+- 修复 `main.go` 版本号滞后问题 (0.12.0 → 0.14.0)
+
+#### 文件改动
+- `commands/secguard.md`, `commands/secaudit.md`, `commands/secreview.md` — 系统性修复
+- `commands/secfix.md` — `.scan_state` 文档修正
+- `scripts/self-check.sh` — Section 12 新增
+- `scripts/validate-index.py`, `scripts/sync-language-index.sh` — c 语言支持
+- `knowledge/language-index.md` — 自动重新生成
+- `internal/main.go` — 版本同步
+- `manifest.json` + 4 × `extension.json` — 版本同步
+
+## [0.13.0] — 2026-07-05
+
+### ★ Architecture Refactoring — Signal-LLM Collaboration Model
+
+#### 架构文档 (6 docs rewritten)
+- **Signal-LLM 协作模型** — 取消独立 Security Engine 概念，改为确定性信号层（索引器）+ LLM 推理层（AI Agent）通过 index.json 直接协作
+- **执行策略合约** — engine_contract.md 重写为行为约束合约（Anchor Rule + Evidence Rule + Pre-Filter Rule），不再定义 Engine API
+- **渐进式信号增强路线** — v0.14 跨文件调用图+类型继承 → v0.15 数据流预分析 → v0.16+ CI 快速门禁
+- **7 条工程约束 (EP-1~EP-7)** — 防止过度设计，确保架构演进渐进可控
+
+#### 命令层 (4 commands)
+- **锚定+证据约束** — 每个 finding 的 file+line 必须可追溯到 index.json 符号，必须包含 snippet/code-context/rationale/attack-scenario
+- **跨 shell 状态传递** — `.codeagent/.scan_state` 替代 `/tmp/` 临时文件，消除确权弹窗，跨平台可用
+- **heredoc --from-stdin** — record-finding.py 支持 stdin JSON 输入，彻底消除 shell 引号逃逸问题
+- **强制信号预筛** — Step 2.5b 改为 mandatory first-pass filter，无信号检测器跳过
+
+#### 技能层 (11 skills)
+- 全部 11 个技能文件注入锚定+证据约束 + 语言特定信号预筛规则 + index.json.symbols.functions 驱动读取
+
+#### 工具链
+- **record-finding.py** — snippet/code-context/rationale/attack-scenario 改为必填参数；新增 --index-json 锚定校验 (ANCHOR_OK/FAIL/INFO)；新增 --from-stdin heredoc 支持；修复 null 值处理 bug
+- **SDD Feature Package** — 完整 FEATURE-005 包（spec + 2 ADR + plan + 7 CHANGE + 15 tasks）
+
+#### README
+- 重写为 Security Roles 模型 + Signal-LLM 架构 + 角色使用指南 + CI/CD 快速门禁文档
+
 ## [0.12.0] — 2026-07-03
 
 ### ★ 共享索引重构

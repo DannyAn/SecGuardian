@@ -1,14 +1,19 @@
 ---
 detector: insufficient-key-length
+description: Detects cryptography with insufficient key lengths that do not meet minimum security requirements
 severity: medium
 cwe: CWE-326
+cvss: 5.5
 language: [c, cpp, java, python, go, js]
 tags: [crypto, key-size, configuration]
 precision: high
 confidence: dynamic
+target_functions: [bcrypt_gensalt, generate_key_ex, generate_parameters_ex, new_by_curve_name]
+match_patterns: []
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 不足的密钥长度 (Insufficient Key Length)
 
 ## 威胁定义 (Threat Definition)
 

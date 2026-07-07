@@ -187,14 +187,14 @@ deploy_claude() {
              "$plugin_dir/scripts/bin"
 
     # Write official plugin.json
-    # NOTE: version "0.5.4" below should match manifest.json version
+    # 版本号从 manifest.json 读取，单一来源
     cat > "$plugin_dir/.claude-plugin/plugin.json" << JSON
 {
   "name": "secguardian",
-  "version": "0.5.4",
+  "version": "$(jq -r '.version' "$PROJECT_ROOT/manifest.json")",
   "description": "SecGuardian XuanWu — 企业级白盒安全 AI Agent 辅助解决方案。60 检测器、17 审计技能、5 语言安全检视。",
-  "author": { "name": "SecGuardian", "url": "https://gitee.com/jonyan/secguardian" },
-  "homepage": "https://gitee.com/jonyan/secguardian",
+  "author": { "name": "SecGuardian", "url": "https://github.com/DannyAn/SecGuardian" },
+  "homepage": "https://github.com/DannyAn/SecGuardian",
   "keywords": ["security", "sast", "audit", "code-review", "vulnerability"]
 }
 JSON
@@ -241,7 +241,7 @@ JSON
     cp "$PROJECT_ROOT/knowledge/language-index.md" "$plugin_dir/knowledge/"
 
     # Copy wrapper scripts, renderer, and binaries into plugin
-    for wrapper in secguardian-index secguardian-index.ps1 render-report.py validate-index.py validate-findings.py record-finding.py; do
+    for wrapper in secguardian-index secguardian-index.ps1 render-report.py validate-index.py validate-findings.py record-finding.py strip-answer-cards.py; do
         if [ -f "$PROJECT_ROOT/scripts/$wrapper" ]; then
             cp "$PROJECT_ROOT/scripts/$wrapper" "$plugin_dir/scripts/$wrapper"
             chmod +x "$plugin_dir/scripts/$wrapper" 2>/dev/null || true
@@ -300,7 +300,7 @@ register_claude_plugin() {
       "version": "$plugin_version",
       "source": "./plugins/secguardian",
       "category": "security",
-      "homepage": "https://gitee.com/jonyan/secguardian",
+      "homepage": "https://github.com/DannyAn/SecGuardian",
       "author": { "name": "SecGuardian" },
       "keywords": ["security", "sast", "audit", "code-review", "vulnerability"]
     }
@@ -312,7 +312,10 @@ JSON
     if command -v claude &>/dev/null; then
         # Register marketplace
         claude plugin marketplace add "$marketplace_dir" 2>/dev/null || true
-        # Install/update plugin (idempotent — CLI handles upgrades)
+        # Force refresh: delete stale cache so CLI re-reads current files.
+        # claude plugin install returns "already installed" without updating the
+        # cache when the version string hasn't changed.
+        rm -rf "$HOME/.claude/plugins/cache/$marketplace_name/secguardian/"
         claude plugin install "secguardian@$marketplace_name" 2>/dev/null && {
             log_done "plugin registered via claude CLI"
             return 0
@@ -540,7 +543,7 @@ deploy_opencode() {
     # Clean old: remove stale extension dir, stale plugin, legacy flat deployment
     rm -rf "$ext_dir"
     rm -f "$opencode_dir/plugins/secguardian.js"
-    for legacy_sub in commands skills knowledge scripts; do
+    for legacy_sub in skills knowledge scripts; do
         if [ -d "$opencode_dir/$legacy_sub" ]; then
             if [ -f "$opencode_dir/$legacy_sub/secaudit.md" ] || \
                [ -f "$opencode_dir/$legacy_sub/secguard.md" ] || \
@@ -556,13 +559,13 @@ deploy_opencode() {
     mkdir -p "$ext_dir/commands" "$skills_dir" "$scripts_dir/bin" \
              "$knowledge_dir/languages" "$knowledge_dir/guard-rules" \
              "$knowledge_dir/protocols" "$knowledge_dir/standards" \
-             "$opencode_dir/plugins"
+             "$opencode_dir/plugins" "$opencode_dir/commands"
 
     # Write codeagent-extension.json (informational manifest)
     cat > "$ext_dir/codeagent-extension.json" << JSON
 {
   "name": "$brand",
-  "version": "0.5.5",
+  "version": "$(jq -r '.version' "$PROJECT_ROOT/manifest.json")",
   "description": "SecGuardian XuanWu — 企业级白盒安全 AI Agent 辅助解决方案"
 }
 JSON
@@ -578,7 +581,8 @@ JSON
     for d in "$DIST"/*/; do
         if [ -d "$d/commands" ]; then
             for f in "$d/commands"/*.md; do
-                [ -f "$f" ] && cp "$f" "$ext_dir/commands/" && cmd_n=$((cmd_n + 1))
+                [ -f "$f" ] && cp "$f" "$ext_dir/commands/" && \
+                cp "$f" "$opencode_dir/commands/" && cmd_n=$((cmd_n + 1))
             done
         fi
     done
@@ -610,7 +614,7 @@ JSON
     log_done "$cmd_n commands, $skill_n skills, knowledge/ + scripts/"
 
     # ── Deploy scripts + indexer ─────────────────
-    for wrapper in secguardian-index secguardian-index.ps1 render-report.py validate-index.py validate-findings.py record-finding.py; do
+    for wrapper in secguardian-index secguardian-index.ps1 render-report.py validate-index.py validate-findings.py record-finding.py strip-answer-cards.py; do
         if [ -f "$PROJECT_ROOT/scripts/$wrapper" ]; then
             cp "$PROJECT_ROOT/scripts/$wrapper" "$scripts_dir/$wrapper"
             chmod +x "$scripts_dir/$wrapper" 2>/dev/null || true
@@ -652,14 +656,14 @@ deploy_gemini() {
              "$ext_dir/scripts/bin"
 
     # Write official gemini-extension.json
-    # NOTE: version "0.5.4" below should match manifest.json version
+    # 版本号从 manifest.json 读取，单一来源
     cat > "$ext_dir/gemini-extension.json" << JSON
 {
   "name": "secguardian",
-  "version": "0.5.4",
+  "version": "$(jq -r '.version' "$PROJECT_ROOT/manifest.json")",
   "description": "SecGuardian XuanWu — 企业级白盒安全 AI Agent 辅助解决方案",
   "author": "SecGuardian",
-  "homepage": "https://gitee.com/jonyan/secguardian",
+  "homepage": "https://github.com/DannyAn/SecGuardian",
   "commands": ["commands/secaudit.toml", "commands/secguard.toml", "commands/secreview.toml"]
 }
 JSON
@@ -699,7 +703,7 @@ JSON
     fi
 
     # Wrapper scripts and binaries
-    for wrapper in secguardian-index secguardian-index.ps1 render-report.py validate-index.py validate-findings.py record-finding.py; do
+    for wrapper in secguardian-index secguardian-index.ps1 render-report.py validate-index.py validate-findings.py record-finding.py strip-answer-cards.py; do
         [ -f "$PROJECT_ROOT/scripts/$wrapper" ] && cp "$PROJECT_ROOT/scripts/$wrapper" "$ext_dir/scripts/"
     done
     chmod +x "$ext_dir/scripts/"* 2>/dev/null || true
@@ -778,17 +782,16 @@ do_zip() {
         opencode_root="$PROJECT_ROOT/.opencode"
     fi
     if [ -n "${opencode_root:-}" ]; then
-        local ver="$(grep -m1 '"version"' "$PROJECT_ROOT/extensions/secguard-secguardian/extension.json" | sed 's/.*: *"\([^"]*\)".*/\1/')"
+        local ver="$(jq -r '.version' "$PROJECT_ROOT/manifest.json")"
         local nga_zip="$archive_dir/secguardian-nga-v${ver}.zip"
         (cd "$opencode_root" && zip -rq "$nga_zip" plugins/secguardian.js extensions/secguardian/)
         log_done "$(basename "$nga_zip")"
     fi
 
-    # Gemini CLI: 完整布局 (skills/ + knowledge/ + commands/ + scripts/ + GEMINI.md)
-    if [ -d "$TARGET_ROOT/.gemini/skills" ]; then
+    # Gemini CLI: extension format (under extensions/secguardian/)
+    if [ -d "$TARGET_ROOT/.gemini/extensions/secguardian/skills" ]; then
         local cac_zip="$archive_dir/cac-secguardian.zip"
-        (cd "$TARGET_ROOT/.gemini" && zip -rq "$cac_zip" skills/ knowledge/ commands/ scripts/ GEMINI.md 2>/dev/null || \
-         zip -rq "$cac_zip" skills/ commands/ GEMINI.md)
+        (cd "$TARGET_ROOT/.gemini/extensions/secguardian/" && zip -rq "$cac_zip" .)
         log_done "cac-secguardian.zip"
     fi
 

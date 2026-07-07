@@ -7,7 +7,7 @@ import os, sys, re, yaml
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUT = os.path.join(ROOT, "knowledge", "language-index.md")
 
-LANGUAGES = ["cpp", "python", "java", "go", "javascript"]
+LANGUAGES = ["c", "cpp", "python", "java", "go", "javascript"]
 DIRS = ["guard-rules", "audit-rules"]
 
 def parse_languages(filepath):
@@ -58,10 +58,12 @@ def main():
         for d in DIRS:
             all_rules.extend(collect_rules(lang, d))
 
-        # review-rules: {lang}.md
-        review_file = os.path.join(ROOT, "knowledge", "review-rules", f"{lang}.md")
+        # review-rules: {lang}.md (fallback c→cpp since C uses C++ indexer)
+        review_fallback = {"c": "cpp"}
+        ef = review_fallback.get(lang, lang)
+        review_file = os.path.join(ROOT, "knowledge", "review-rules", f"{ef}.md")
         if os.path.isfile(review_file):
-            all_rules.append(f"review-rules/{lang}")
+            all_rules.append(f"review-rules/{ef}")
 
         if all_rules:
             # 每行 5 个

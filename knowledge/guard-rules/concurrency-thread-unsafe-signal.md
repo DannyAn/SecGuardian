@@ -1,14 +1,19 @@
 ---
 detector: thread-unsafe-signal
+description: Detects unsafe signal handler operations that call non-async-signal-safe functions
 severity: medium
 cwe: CWE-479
+cvss: 5.5
 language: [c, cpp]
 tags: [concurrency, signal, async-safety]
 precision: medium
 confidence: dynamic
+target_functions: [call_stack, code_context, exit, fclose, fopen, fprintf, free, getenv, handler, judgment_rationale, malloc, openlog, pthread_mutex_lock, putenv, setenv, sigaction, signal, snprintf, sprintf, strcat, strcpy, strlen, syslog]
+match_patterns: [signal\(|sigaction\(                          # → MUST: code_context (handler函数体), void.*handler.*int|void.*sig_handler          # 信号处理函数签名]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 信号处理函数中调用非安全函数 (Thread-Unsafe Signal Handler)
 
 ## 威胁定义 (Threat Definition)
 

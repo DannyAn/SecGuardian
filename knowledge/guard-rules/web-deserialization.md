@@ -1,14 +1,19 @@
 ---
 detector: deserialization
+description: Detects insecure deserialization vulnerabilities where untrusted data is deserialized
 severity: critical
 cwe: CWE-502
+cvss: 9.8
 language: [java]
 tags: [web, deserialization, rce]
 precision: high
 confidence: dynamic
+target_functions: [addAccept, createFilter, enableDefaultTyping, fromXML, getGlobalInstance, load, parseObject, readObject, readValue, setAutoTypeSupport, setObjectInputFilter]
+match_patterns: []
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# Java 反序列化漏洞检测
 
 ## 威胁定义 (Threat Definition)
 

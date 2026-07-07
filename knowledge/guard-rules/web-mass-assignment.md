@@ -1,14 +1,17 @@
 ---
 detector: web-mass-assignment
+description: Detects mass assignment vulnerabilities where unintended object properties can be modified
 severity: critical
 cwe: CWE-915
+cvss: 9.8
 language: [java, python, go, js]
 tags: [web, api, binding, mass-assignment]
 precision: high
 confidence: dynamic
+target_functions: [account, body, ccount, code_context, commit, copyProperties, createUser, ermissions, findOneAndUpdate, form, get, getUsername, ind, indJSON, initBinder, input, items, judgment_rationale, odelAttribute, ole, post, profile, request, route, sAdmin, save, ser, setAllowedFields, setUsername, setattr, update, updateUser, update_user, user]
+match_patterns: [(@ModelAttribute|@RequestBody)\s+\w+(User|Account|Profile)\s  # 实体类名, BeanUtils\.copyProperties.*request|body|input, setattr\(.*for.*request\.(POST|form|body), __dict__\.update\(request\.(form|body|POST), \.save\(\) → for k, v in request → setattr 模式, c\.(BindJSON|Bind|ShouldBindJSON)\(&(user|account|profile)\), new\s+(User|Account)\(req\.body\), (User|Account)\.(findOneAndUpdate|update)\([^,]*,\s*req\.body, (User|Account)\.update\(req\.body]
+exclude_patterns: []
 ---
-
-# 批量分配 (Mass Assignment)
 
 ## 威胁定义 (Threat Definition)
 

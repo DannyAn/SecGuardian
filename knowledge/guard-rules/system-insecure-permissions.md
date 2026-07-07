@@ -1,14 +1,19 @@
 ---
 detector: insecure-permissions
+description: Detects insecure file or resource permission settings that may allow unauthorized access
 severity: medium
 cwe: CWE-276
+cvss: 5.5
 language: [c, cpp, java, python, go]
 tags: [system, filesystem, permissions]
 precision: high
 confidence: dynamic
+target_functions: [all, chmod, code_context, creat, createNewFile, everyone, fchmod, fopen, init, judgment_rationale, main, mkdir, mkstemp, open, setExecutable, umask, write]
+match_patterns: [fopen|open|mkstemp|creat|os\.open|createNewFile, chmod|fchmod|os\.chmod|Files\.setPosixFilePermissions, main|启动|init 中]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 不安全的默认权限 (Incorrect Default Permissions)
 
 ## 威胁定义 (Threat Definition)
 

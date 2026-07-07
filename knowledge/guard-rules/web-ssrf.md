@@ -1,14 +1,19 @@
 ---
 detector: ssrf
+description: Detects server-side request forgery vulnerabilities where user input controls outbound requests
 severity: high
 cwe: CWE-918
+cvss: 7.8
 language: [java, python, go]
 tags: [web, ssrf, network]
 precision: high
 confidence: dynamic
+target_functions: [contains, get, getForObject, getHost, gethostbyname, ip_address, openConnection, retrieve, uri, urlopen, urlparse]
+match_patterns: []
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# Server-Side Request Forgery (SSRF)
 
 ## 威胁定义 (Threat Definition)
 

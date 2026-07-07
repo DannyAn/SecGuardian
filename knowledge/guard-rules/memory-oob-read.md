@@ -1,14 +1,19 @@
 ---
 detector: oob-read
+description: Detects out-of-bounds read vulnerabilities that may leak sensitive information
 severity: high
 cwe: CWE-125
+cvss: 7.5
 language: [c, cpp]
 tags: [memory, bounds, read, information-leak]
 precision: high
 confidence: dynamic
+target_functions: [arr, arr_size, code_context, fgets, gets, judgment_rationale, memcpy, memmove, read, strcat, strcpy, strlen, user, user_var]
+match_patterns: [arr\[user_var|arr\[i\] 中的 i 无边界检查, memcpy|memmove.*user|user.*memcpy, strlen|strcpy|strcat|printf.*%s]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 越界读取 (Out-of-bounds Read)
 
 ## 威胁定义 (Threat Definition)
 

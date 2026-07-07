@@ -1,14 +1,17 @@
 ---
 detector: symlink-attack
+description: Detects symlink following vulnerabilities where file operations follow untrusted symbolic links
 severity: medium
 cwe: CWE-61
+cvss: 5.5
 language: [c, cpp]
 tags: [system, filesystem, symlink]
 precision: medium
 confidence: dynamic
+target_functions: [code_context, fchmodat, fchownat, judgment_rationale, open, remove, stat, unlink]
+match_patterns: [open(path, 无 O_NOFOLLOW), fchmodat|fchownat, stat(path)                # 使用 lstat 更安全]
+exclude_patterns: []
 ---
-
-# 符号链接攻击 (Symlink Attack)
 
 ## 威胁定义 (Threat Definition)
 

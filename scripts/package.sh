@@ -70,33 +70,58 @@ BUILD_BIN_DIR="$PROJECT_ROOT/scripts/bin"
 mkdir -p "$BUILD_BIN_DIR"
 
 # Clean up stale binaries without platform suffix (legacy build artifact)
-# Only keep properly suffixed binaries: secguardian-index-{os}-{arch}
 find "$BUILD_BIN_DIR" -name 'secguardian-index' ! -name 'secguardian-index-*' -type f -delete 2>/dev/null || true
+
+# Build matrix: (target, os, arch, cgo_flag)
+BUILD_TARGETS=(
+    "darwin-arm64:darwin:arm64:CGO_ENABLED=1"
+    "darwin-amd64:darwin:amd64:CGO_ENABLED=0"
+    "linux-amd64:linux:amd64:CGO_ENABLED=0"
+    "linux-arm64:linux:arm64:CGO_ENABLED=0"
+    "windows-amd64.exe:windows:amd64:CGO_ENABLED=0"
+)
 
 if [ "${SKIP_GO_BUILD:-}" = "1" ]; then
     echo "  → [SKIP] SKIP_GO_BUILD=1 — using pre-built binaries in $BUILD_BIN_DIR/"
-    ls -lh "$BUILD_BIN_DIR/" 2>/dev/null | grep -v "^total" | awk '{print "    " $NF " (" $5 ")"}' || true
+    ls -lh "$BUILD_BIN_DIR/" 2>/dev/null | grep -v "^total" | awk '{print "    " $NF " ($5 ")"}' || true
 elif [ -f "$PROJECT_ROOT/internal/go.mod" ] && command -v go &>/dev/null; then
+    # Clean stale binaries — prevents silent use of old versions when build fails
+    rm -f "$BUILD_BIN_DIR"/secguardian-index-*
     echo "  → Compiling secguardian-index binaries (dual-mode: CGO=tree-sitter, !CGO=regex)..."
-    # Native build: CGO enabled (tree-sitter)
-    (cd "$PROJECT_ROOT/internal" && \
-        go build -o "$BUILD_BIN_DIR/secguardian-index-darwin-arm64" . 2>/dev/null && \
-        echo "    [OK] darwin-arm64 (tree-sitter)" || echo "    [WARN] darwin-arm64 build failed") &
-    # Cross-platform: CGO disabled (pure-Go regex fallback, works everywhere)
-    (cd "$PROJECT_ROOT/internal" && \
-        CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o "$BUILD_BIN_DIR/secguardian-index-darwin-amd64" . 2>/dev/null && \
-        echo "    [OK] darwin-amd64 (regex)" || echo "    [WARN] darwin-amd64 build failed") &
-    (cd "$PROJECT_ROOT/internal" && \
-        CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o "$BUILD_BIN_DIR/secguardian-index-linux-amd64" . 2>/dev/null && \
-        echo "    [OK] linux-amd64 (regex)" || echo "    [WARN] linux-amd64 build failed") &
-    (cd "$PROJECT_ROOT/internal" && \
-        CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o "$BUILD_BIN_DIR/secguardian-index-linux-arm64" . 2>/dev/null && \
-        echo "    [OK] linux-arm64 (regex)" || echo "    [WARN] linux-arm64 build failed") &
-    (cd "$PROJECT_ROOT/internal" && \
-        CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o "$BUILD_BIN_DIR/secguardian-index-windows-amd64.exe" . 2>/dev/null && \
-        echo "    [OK] windows-amd64 (regex)" || echo "    [WARN] windows-amd64 build failed") &
-    wait
-    echo "  → Compilation done. Binaries in: $BUILD_BIN_DIR/"
+    BUILD_FAILED=0; BUILD_OK=0
+    BUILD_TMP=$(mktemp -d)/secguardian-build
+    mkdir -p "$BUILD_TMP"
+    for entry in "${BUILD_TARGETS[@]}"; do
+        IFS=: read -r target_suffix os arch cgo_flag <<< "$entry"
+        desc="${target_suffix%.exe}"
+        tag="${cgo_flag#*=}"
+        mode="$([ "$tag" = "1" ] && echo "tree-sitter" || echo "regex")"
+        (cd "$PROJECT_ROOT/internal" && \
+            env ${cgo_flag} GOOS=$os GOARCH=$arch go build -o "$BUILD_TMP/secguardian-index-${target_suffix}" . && \
+            echo "    [OK] ${desc} (${mode})" || \
+            { rc=$?; echo "    [FAIL] ${desc} (${mode}) — see errors above"; exit $rc; }) &
+    done
+    # Wait for all parallel builds, track individual exit codes
+    for job in $(jobs -p); do
+        if wait "$job" 2>/dev/null; then
+            BUILD_OK=$((BUILD_OK + 1))
+        else
+            BUILD_FAILED=$((BUILD_FAILED + 1))
+        fi
+    done
+    # Atomic publish: delete old binaries first, then move new ones in
+    rm -f "$BUILD_BIN_DIR"/secguardian-index-*
+    for entry in "${BUILD_TARGETS[@]}"; do
+        target_suffix="${entry%%:*}"
+        src="$BUILD_TMP/secguardian-index-${target_suffix}"
+        [ -f "$src" ] && mv "$src" "$BUILD_BIN_DIR/secguardian-index-${target_suffix}"
+    done
+    rm -rf "$(dirname "$BUILD_TMP")"
+    if [ "$BUILD_FAILED" -gt 0 ]; then
+        echo "    [FAIL] ${BUILD_FAILED}/${#BUILD_TARGETS[@]} platform(s) failed — see errors above"
+        exit 1
+    fi
+    echo "  → All ${BUILD_OK} platforms compiled. Binaries in: $BUILD_BIN_DIR/"
     ls -lh "$BUILD_BIN_DIR/" 2>/dev/null | grep -v "^total" | awk '{print "    " $NF " (" $5 ")"}' || true
     echo "  → Note: tree-sitter (CGO) on native platform, pure-Go regex fallback on cross-compiled platforms."
 else
@@ -124,8 +149,6 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
              "$dist_dir/knowledge/guard-rules" \
              "$dist_dir/knowledge/audit-rules" \
              "$dist_dir/knowledge/review-rules" \
-             "$dist_dir/knowledge/audit-rules" \
-             "$dist_dir/knowledge/review-rules" \
              "$dist_dir/knowledge/protocols" \
              "$dist_dir/knowledge/standards" \
              "$dist_dir/scripts/bin"
@@ -143,19 +166,25 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
         > "$dist_dir/.claude-plugin/plugin.json"
     echo "    plugin: $ext"
 
-    # Determine command name
-    cmd=$(jq -r '.command' "$ext_json")
-    cmd_src="$PROJECT_ROOT/commands/${cmd}.md"
-    if [ -f "$cmd_src" ]; then
-        cp "$cmd_src" "$dist_dir/commands/"
-        echo "    command: /$cmd"
-    else
-        echo "    [WARN] command file not found: ${cmd}.md"
-    fi
+    # Determine command name(s) — supports both "command" (string) and "commands" (array)
+    cmds=$(jq -r 'if .commands then .commands[] else .command end' "$ext_json")
+    cmd_count=0
+    for cmd in $cmds; do
+        cmd_src="$PROJECT_ROOT/commands/${cmd}.md"
+        if [ -f "$cmd_src" ]; then
+            cp "$cmd_src" "$dist_dir/commands/"
+            echo "    command: /$cmd"
+            cmd_count=$((cmd_count + 1))
+        else
+            echo "    [WARN] command file not found: ${cmd}.md"
+        fi
+    done
+    # Use first command as primary key for skill/knowledge resolution
+    cmd=$(echo "$cmds" | head -1)
 
     # Copy skill directories (each contains SKILL.md + optional references/)
     skill_count=0
-    for skill_name in $(jq -r '.skills[]' "$ext_json"); do
+    for skill_name in $(jq -r '.skills // [] | .[]' "$ext_json"); do
         skill_dir="$PROJECT_ROOT/skills/${cmd}/${skill_name}"
         flat_skill="$PROJECT_ROOT/skills/${cmd}/SKILL.md"
         if [ -d "$skill_dir" ]; then
@@ -199,7 +228,7 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
     echo "    standards: $std_count"
 
     lang_count=0
-    for lang in $(jq -r '.knowledge.languages[]' "$ext_json"); do
+    for lang in $(jq -r '.knowledge.languages // [] | .[]' "$ext_json"); do
         lf="$PROJECT_ROOT/knowledge/languages/${lang}.md"
         if [ -f "$lf" ]; then
             cp "$lf" "$dist_dir/knowledge/languages/"
@@ -279,9 +308,16 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
         if [ -f "$bin_file" ]; then
             cp "$bin_file" "$dist_dir/scripts/bin/"
             chmod +x "$dist_dir/scripts/bin/$(basename "$bin_file")" 2>/dev/null || true
+    # OpenCode plugin registration script
             bin_count=$((bin_count + 1))
         fi
     done
+
+    # OpenCode plugin registration script
+    if [ -f "$PROJECT_ROOT/scripts/opencode-plugin.js" ]; then
+        cp "$PROJECT_ROOT/scripts/opencode-plugin.js" "$dist_dir/scripts/"
+    fi
+
     echo "    binaries: $bin_count platform(s) in scripts/bin/"
 
     echo "    packaged: $dist_dir"

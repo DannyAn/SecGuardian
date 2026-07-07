@@ -1,14 +1,17 @@
 ---
 detector: error-debug-mode-production
+description: Detects debug mode, verbose logging, or development features enabled in production
 severity: high
 cwe: CWE-489
+cvss: 6.5
 language: [c, cpp, java, python, go, js]
 tags: [error, debug, production, configuration]
 precision: very-high
 confidence: dynamic
+target_functions: [code_context, debug_handler, func, get, morgan, next, open, read, render, require, run, set, status, system, use]
+match_patterns: [DEBUG\s*=\s*True$, app\.run\(debug\s*=\s*True\), app\.config\[.DEBUG.\]\s*=\s*True, server\.error\.include-stacktrace\s*=\s*always, server\.error\.include-exception\s*=\s*true, management\.endpoints\.web\.exposure\.include\s*=\s*\*, spring\.jpa\.show-sql\s*=\s*true, assert\(                     → 安全相关断言的 assert 调用, system\(.*cmd                → 调试接口残留, net/http/pprof              → import (生产环境), gin\.SetMode\(gin\.DebugMode\) → Gin 调试模式, app\.set\(.env.,\s*.development.\), require\(.inspector.\)\.open\(\), morgan\(.dev.\) → 开发日志格式]
+exclude_patterns: []
 ---
-
-# 生产环境调试模式 (Debug Mode in Production)
 
 ## 威胁定义 (Threat Definition)
 

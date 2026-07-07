@@ -3,10 +3,14 @@ name: authorization
 description: 审计权限模型的实现安全性，检测水平越权、垂直越权、IDOR、权限缺失和权限提升路径。当用户请求权限审计、越权检测、IDOR检测、访问控制审查、RBAC/ABAC审计时使用。
 category: domain
 topic: [web]
+severity: High
+cwe: CWE-200
+cvss: 7.5
 ---
 
 > **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`（含 `symbols.functions`、`call_graph.edges`、`files`）。审计时优先利用符号表和调用图定位目标，追踪数据流路径。
 > **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
+
 
 # 授权与访问控制安全审计
 

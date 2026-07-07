@@ -1,14 +1,19 @@
 ---
 detector: mismatched-free
+description: Detects mismatched allocation/deallocation patterns (e.g., malloc/free mismatch with new/delete)
 severity: high
 cwe: CWE-762
+cvss: 7.5
 language: [c, cpp]
 tags: [memory, heap, api-misuse]
 precision: high
 confidence: dynamic
+target_functions: [free, malloc, my_alloc, my_free, pool_free, zone_alloc]
+match_patterns: []
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 释放函数不匹配 (Mismatched Free)
 
 ## 威胁定义 (Threat Definition)
 

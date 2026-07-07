@@ -1,14 +1,19 @@
 ---
 detector: weak-crypto-algorithm
+description: Detects usage of broken or deprecated cryptographic algorithms (e.g., DES, RC4, MD5)
 severity: high
 cwe: CWE-327
+cvss: 7.5
 language: [c, cpp, java, python, go, js]
 tags: [crypto, algorithm, deprecated]
 precision: very-high
 confidence: dynamic
+target_functions: [_des, _ecb, _md5, _rc4, aes_128_ecb, bf_cbc, call_stack, code_context, crypto, generate_parameters_ex, hashlib, judgment_rationale, key, md5, password, random, session, set_key, token, variable_state]
+match_patterns: [MD5_|EVP_md5|SHA1_|EVP_sha1                            # C/C++ 弱哈希, MessageDigest\.getInstance\("MD5|MessageDigest\.getInstance\("SHA-1  # Java 弱哈希, hashlib\.md5\(|hashlib\.sha1\(                           # Python 弱哈希, crypto/md5|crypto/sha1                                    # Go 弱哈希, CryptoJS\.MD5|CryptoJS\.SHA1                              # JavaScript 弱哈希, DES_|EVP_des|RC4_|EVP_rc4|EVP_bf_                       # C/C++ 弱加密, Cipher\.getInstance\("DES|Cipher\.getInstance\("RC4      # Java 弱加密, Crypto\.Cipher\.DES|Crypto\.Cipher\.ARC4                 # Python 弱加密, EVP_.*_ecb|Cipher\.getInstance.*ECB                      # ECB模式不安全, DH_generate_parameters.*512|DH_generate_parameters.*1024 # DH 密钥过短, rand\(\)|Math\.random\(\)|random\.randint                  # 安全上下文中使用非密码学随机]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 弱加密算法 (Weak Crypto Algorithm)
 
 ## 威胁定义 (Threat Definition)
 

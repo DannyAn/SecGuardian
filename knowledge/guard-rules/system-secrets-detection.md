@@ -1,14 +1,19 @@
 ---
 detector: system.secrets-detection
+description: Detects accidental exposure of secrets, API keys, and credentials in code or config
 severity: critical
 cwe: CWE-798
+cvss: 9.8
 language: [c, cpp, python, java, go, javascript, typescript]
 tags: [secrets, credentials, hardcoded, entropy, key, token, password]
 precision: low
 confidence: dynamic
+target_functions: [jdbc, mongodb, mysql, postgres, redis]
+match_patterns: [AKIA[0-9A-Z]{16}                                         # → MUST: 匹配的 AWS Access Key ID 前缀模式 + 前后3行上下文, ghp_[0-9a-zA-Z]{36}                                      # → MUST: 匹配的 GitHub Personal Access Token 模式, github_pat_[0-9a-zA-Z_]{36,}                             # → MUST: 匹配的细粒度 GitHub PAT 模式, glpat-[0-9a-zA-Z\-]{20,}                                 # → MUST: 匹配的 GitLab PAT 模式, AIza[0-9A-Za-z\-_]{35}                                   # → MUST: 匹配的 Google API Key 前缀模式, xox[baprs]-[0-9a-zA-Z\-]+                                # → MUST: 匹配的 Slack Token 前缀模式, sk_live_[0-9a-zA-Z]{24}                                  # → MUST: 匹配的 Stripe Live Secret Key 模式, -----BEGIN (RSA|EC|DSA|OPENSSH) PRIVATE KEY-----         # → MUST: 匹配的 PEM Private Key 边界标记, [aA][pP][iI]_?[kK][eE][yY][=:]["']?[0-9a-zA-Z]{32,}     # → MUST: 匹配的 Generic API Key 赋值模式, [tT][oO][kK][eE][nN][=:]["']?[0-9a-zA-Z]{16,}           # → MUST: 匹配的 Generic Token 赋值模式, [sS][eE][cC][rR][eE][tT][=:]["']?[0-9a-zA-Z]{16,}       # → MUST: 匹配的 Generic Secret 赋值模式, [pP][aA][sS][sS][wW]?[oO]?[rR]?[dD]?[=:]["']?[^ &\n]{8,}  # → MUST: 匹配的 Password 赋值模式, (jdbc|mongodb|postgres|mysql|redis)://[^ \n]+@           # → MUST: 匹配的连接字符串含嵌入式凭据, DefaultEndpointsProtocol=https;AccountName=.*;AccountKey=.*  # → MUST: 匹配的 Azure 存储连接字符串, [A-Za-z0-9+/=]{40,} (需上下文确认高熵)                    # → MUST: 高熵 Base64 + 熵值计算 → SHOULD: sanitizer_analysis 上下文排除]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [sanitizer_analysis, data_flow_path]
 ---
-
-# 硬编码密钥与凭证检测 (Hardcoded Secrets & Credentials Detection)
 
 ## 威胁定义 (Threat Definition)
 

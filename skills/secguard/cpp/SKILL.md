@@ -10,9 +10,22 @@ topic: [memory, concurrency, system, crypto]
 
 对 C/C++ 代码进行安全加固排查。编排 26 个检测器，支持全量/增量扫描和命名空间过滤。
 
+## 📄 Output Protocol
+
+> 以下输出格式遵循 `internal/output/output_contract.md`。
+
 ## 输出协议
 
 > **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
+
+## ⚙️ Engine Instructions
+### Engine Instructions
+
+> 以下执行指令属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行。未来 Engine 实现后将被 Engine 取代。
+>
+> **🔗 锚定+证据约束 (Rule A + Rule B):** 每个 finding 的 `file`+`line` MUST 可追溯到 index.json 的符号或文件列表。每个 finding MUST 包含 `--snippet`、`--code-context`、`--rationale`、`--attack-scenario`。调用 `record-finding.py` 时必须传 `--index-json` 进行锚定校验。无 index 锚点时 MUST 标记 `confidence: low`。
+>
+> **🚫 强制 index 驱动读取 (Mandatory):** MUST NOT 用 `cat`/`head`/`tail`/`read` 读取完整源文件。MUST 从 `symbols.functions` 查表定位目标函数 → 只读取该函数所在行及其前后 10 行。MUST NOT 读取未出现在符号表中的文件。
 
 ## 执行流程
 
@@ -90,7 +103,7 @@ topic: [memory, concurrency, system, crypto]
 
 1. 加载 `../../../knowledge/language-index.md` 获取命名空间映射
 2. 逗号分割 filter → 每个 filter 匹配命名空间 → 去重合并
-3. 仅加载 `active` 状态的检测器 (跳过 `planned`)
+3. 先通过 index.json 符号表匹配过滤（跳过不包含相关符号的检测器）后，仅加载匹配到的 `active` 状态检测器详情
 
 ### Phase 4: 按严重度排序执行
 
@@ -98,7 +111,8 @@ topic: [memory, concurrency, system, crypto]
 Critical detectors → High detectors → Medium detectors
 ```
 
-每个 detector 读取 `knowledge/guard-rules/<name>.md`，利用 Phase 2 加载的 index.json 符号表定位检测目标，而非遍历文件。
+对每个匹配到的检测器，加载 `knowledge/guard-rules/<name>.md` 详情，用于分析。注意：匹配到的检测器指经过 Phase 3 语言过滤+符号过滤后的子集，不是全部 67 个。
+注意：匹配到的检测器指经过 Phase 3 语言过滤+符号过滤后的子集，不是全部 67 个。，利用 Phase 2 加载的 index.json 符号表定位检测目标，而非遍历文件。
 
 ### Phase 5: 持久化输出
 
@@ -130,11 +144,42 @@ SARIF 格式要求（[GitHub 2025-07 起强制](https://github.blog/changelog/20
 
 向用户输出扫描摘要并告知输出目录路径。
 
+
+
+
+## 执行指令（I/O 优化版）
+
+> 以下执行方式遵循 `engine_contract.md` 和 `output_contract.md` 的性能要求。
+
+### 源文件读取（index.json.symbols.functions 驱动）
+
+> **🔒 读取范围 = index.json.symbols.functions (NON-NEGOTIABLE):** `symbols.functions` 已是完整的函数→文件:行号 映射。LLM 只读取符号表中列出的位置（`start_line`±10行）。不在符号表中的文件 → 不读。不在符号表中的函数 → 不分析。符号表中无关联函数名的检测器 → 跳过。
+
+1. 从 `index.json` -> `symbols.functions` 获取完整的函数→文件:行号 映射
+2. 对每个检测器，先在符号表中查关联函数名 → 有则定位读取该函数±10行 → 无则跳过
+
+### 检测器加载（批量 + 按需）
+
+1. 先加载 `knowledge/language-index.md`（57 行）获取全量检测器清单
+2. 按符号匹配过滤（快速排除不匹配的检测器）
+3. 仅对匹配的检测器加载详情
+
+### Finding 输出（批量）
+
+1. 所有 findings 收集到临时结构
+2. 用 `python3 render-report.py --findings <dir>/findings.json --output <dir>` 批量输出
+
 ## 错误处理
 
 - 部分检测器执行失败 → `scan.status = "partial"`，在 manifest 中记录失败的 detector
 - git diff 失败（非 git 仓库）→ 降级为 `mode: "full"`
 - 没有 active 检测器 → 提前返回，无 findings
+
+## 🎯 Detector Selection (Skill Layer)
+
+> **📊 信号预筛 (engine_contract.md Rule C):** 基于 index.json 信号触发检测器：`symbols.functions` 含 `malloc`/`realloc` 无 `free`→memory-leak；含 `strcpy`/`sprintf`/`gets`→buffer-overflow；含 `system`/`popen`/`exec`→command-injection；含 `MD5_Init`/`SHA1`→weak-crypto。无信号匹配时 MUST 标记 `confidence: low`。
+
+> 以下检测器选择规则属于 Skill 层职责。Skill 决定 WHICH detectors 运行，不决定 HOW 运行。
 
 ## 可用检测器
 

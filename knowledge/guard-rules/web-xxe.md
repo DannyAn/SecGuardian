@@ -1,14 +1,19 @@
 ---
 detector: xxe
+description: "检测 XML 外部实体（XXE）注入 — 不安全的 XML 解析器配置"
 severity: critical
 cwe: CWE-611
+cvss: 9.8
 language: [java, python, go]
 tags: [web, xml, injection]
 precision: high
 confidence: dynamic
+target_functions: [newDocumentBuilder, newInstance, newSAXParser, parse, setFeature]
+match_patterns: []
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# XML External Entity (XXE) Injection
 
 ## 威胁定义 (Threat Definition)
 

@@ -1,14 +1,19 @@
 ---
 detector: memory-leak
+description: Detects memory leak vulnerabilities where allocated memory is not properly freed
 severity: medium
 cwe: CWE-401
+cvss: 5.5
 language: [c, cpp]
 tags: [memory, heap, resource-management]
 precision: high
 confidence: dynamic
+target_functions: [free, malloc, process]
+match_patterns: []
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 内存泄漏 (Memory Leak)
 
 ## 威胁定义 (Threat Definition)
 

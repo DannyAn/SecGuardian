@@ -27,6 +27,10 @@ EXT_MAP = {
     'cmake': 'cmake', 'mk': 'makefile',
 }
 
+# C vs C++ — 当 all C-family 文件是 .c/.h 时报告 "c" 而非 "cpp"
+C_ONLY_EXTS = {'c', 'h'}
+CXX_EXTS = {'cpp', 'cc', 'cxx', 'hpp', 'hh', 'hxx'}
+
 
 def safe_len(obj):
     """安全获取长度: None → 0, list → len(list)"""
@@ -61,11 +65,21 @@ def main():
 
     # ── 语言检测 ──
     langs = Counter()
+    ext_counts = Counter()  # raw extension (before cpp normalization)
     for f in files:
         lang = detect_lang(f)
         if lang:
             langs[lang] += 1
+            ext = os.path.splitext(f)[-1].lstrip('.').lower()
+            ext_counts[ext] += 1
     primary_lang = langs.most_common(1)[0][0] if langs else 'unknown'
+
+    # Normalize: when all C-family files are .c/.h, report "c" not "cpp"
+    if primary_lang == 'cpp':
+        c_total = sum(ext_counts[e] for e in C_ONLY_EXTS if e in ext_counts)
+        cxx_total = sum(ext_counts[e] for e in CXX_EXTS if e in ext_counts)
+        if c_total > 0 and cxx_total == 0:
+            primary_lang = 'c'
 
     # ── 安全访问索引器数据 ──
     functions = d.get('symbols', {}).get('functions') or []

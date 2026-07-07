@@ -1,452 +1,313 @@
 #!/bin/bash
-# ╔══════════════════════════════════════════════════════════════╗
-# ║  SecGuardian — Installer (macOS / Linux)                   ║
-# ║  将发布包安装到用户级或项目级 AI Agent 目录中               ║
-# ╚══════════════════════════════════════════════════════════════╝
+# SecGuardian — 统一安装器
+#
+# 从 release 包中提取当前平台的扩展包并安装到指定 AI Agent。
+# 在解压后的 secguardian-<version>/ 目录中运行：
 #
 # 用法:
-#   bash install.sh --user [options]              # 用户级（推荐）
-#   bash install.sh <target-project> [options]    # 项目级
-#   bash install.sh --uninstall [--user]          # 卸载
+#   bash install.sh                    # 显示帮助
+#   bash install.sh claude             # 安装到 Claude Code
+#   bash install.sh nga                # 安装到 OpenCode
+#   bash install.sh cac                # 安装到 Gemini CLI
+#   bash install.sh all                # 安装到全部三个平台
+#   bash install.sh --help             # 查看完整帮助
 #
-# 选项:
-#   --user              安装到用户家目录（推荐，跨项目共用）
-#   --all               安装全部三个平台 (默认)
-#   --claude            仅安装 Claude Code
-#   --opencode          仅安装 OpenCode
-#   --gemini            仅安装 Gemini CLI
-#   --release-dir <dir> 指定发布包所在目录 (默认: 当前目录)
-#   --version <ver>     指定版本号 (默认: 自动检测)
-#   --uninstall        卸载已安装的 secguardian 文件
-#   --dry-run           仅显示将要执行的操作，不实际安装
-#   --no-backup         不备份已有安装
+# 平台缩写:
+#   claude / claude-code  → ~/.claude/plugins/secguardian/
+#   nga    / opencode     → ~/.config/opencode/extensions/secguardian/
+#   cac    / gemini       → ~/.gemini/extensions/secguardian/
 #
-# 示例:
-#   # 用户级安装（推荐）
-#   bash install.sh --user --all                 # 安装全部平台到 ~/
-#   bash install.sh --user --opencode            # 仅 OpenCode 到 ~/.opencode/
+# 每 OS/arch 的压缩包本身也是有效的 extension manager 安装包。
+# 例如 Claude Code 用户可直接:
+#   claude plugin install secguardian-0.15.1-darwin-arm64.tar.gz
 #
-#   # 项目级安装
-#   bash install.sh ~/my-project --all           # 安装全部平台到项目
-#   bash install.sh ~/my-project --opencode      # 仅 OpenCode 到项目
-#   bash install.sh ~/my-project --dry-run       # 预览操作
-#   bash install.sh --uninstall                     # 卸载项目级
-#   bash install.sh --user --uninstall              # 卸载用户级
+# 支持平台: darwin-arm64, darwin-amd64, linux-amd64, linux-arm64, windows-amd64
 
 set -euo pipefail
 
+# ── 安装目标路径 ──────────────────────────────
+TARGET_CLAUDE="$HOME/.claude/plugins/secguardian"
+TARGET_NGA="$HOME/.config/opencode/extensions/secguardian"
+TARGET_CAC="$HOME/.gemini/extensions/secguardian"
+
 # ── 颜色 ──────────────────────────────────────
-BOLD='\033[1m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'
-YELLOW='\033[0;33m'; RED='\033[0;31m'; NC='\033[0m'
+GREEN='\033[0;32m'; CYAN='\033[0;36m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
 
-log_step()  { echo -e "${BOLD}═══ $1 ═══${NC}"; }
-log_info()  { echo -e "${CYAN}  →${NC} $1"; }
-log_done()  { echo -e "${GREEN}  ✓${NC} $1"; }
-log_warn()  { echo -e "${YELLOW}  ⚠${NC} $1"; }
-log_error() { echo -e "${RED}  ✗${NC} $1"; }
+# ── 平台检测 ──────────────────────────────────
+detect_platform() {
+    local os arch
+    os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+    arch="$(uname -m)"
 
-# ── 帮助信息 ──────────────────────────────────
-show_help() {
-    head -36 "$0" | tail -30
-    exit 0
+    case "$os" in
+        darwin) os="darwin" ;;
+        linux)  os="linux" ;;
+        mingw*|msys*|cygwin*) os="windows" ;;
+        *) echo "error: unknown OS: $os" >&2; return 1 ;;
+    esac
+    case "$arch" in
+        x86_64|amd64) arch="amd64" ;;
+        aarch64|arm64) arch="arm64" ;;
+        *) echo "error: unknown arch: $arch" >&2; return 1 ;;
+    esac
+    echo "${os}-${arch}"
 }
 
-# ── 参数解析 ──────────────────────────────────
-USER_MODE=false
-UNINSTALL_MODE=false
-TARGET=""
-PLATFORM="all"
-RELEASE_DIR="."
-VERSION=""
-DRY_RUN=false
-NO_BACKUP=false
+# ── 帮助 ──────────────────────────────────────
+show_help() {
+    cat << 'USAGE'
+用法: bash install.sh [目标]
 
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        -h|--help|help) show_help ;;
-        --user)         USER_MODE=true; shift ;;
-        --uninstall)    UNINSTALL_MODE=true; shift ;;
-        --all)          PLATFORM="all"; shift ;;
-        --claude)       PLATFORM="claude"; shift ;;
-        --opencode)     PLATFORM="opencode"; shift ;;
-        --gemini)       PLATFORM="gemini"; shift ;;
-        --release-dir)  RELEASE_DIR="$2"; shift 2 ;;
-        --version)      VERSION="$2"; shift 2 ;;
-        --dry-run)      DRY_RUN=true; shift ;;
-        --no-backup)    NO_BACKUP=true; shift ;;
-        -*)
-            log_error "未知选项: $1"
-            echo "用法: bash install.sh --user [options]  或  bash install.sh <project> [options]"
-            exit 1
+目标:
+  claude      安装到 Claude Code  (~/.claude/plugins/secguardian/)
+  nga         安装到 OpenCode      (~/.config/opencode/extensions/secguardian/)
+  cac         安装到 Gemini CLI    (~/.gemini/extensions/secguardian/)
+  all         安装到全部三个平台
+  (无参数)    显示帮助
+
+示例:
+  bash install.sh claude         # 仅安装 Claude Code
+  bash install.sh nga            # 仅安装 OpenCode
+  bash install.sh all            # 安装到全部平台
+
+说明:
+  - 从当前目录自动检测匹配当前平台的压缩包
+  - 内包也支持直接通过 extension manager 安装：
+      claude plugin install secguardian-0.15.1-darwin-arm64.tar.gz
+  - 支持的平台: darwin-arm64, darwin-amd64, linux-amd64, linux-arm64, windows-amd64
+  - Windows: 从 Git Bash / WSL / MSYS2 中运行
+  - 安装后重启 AI CLI 即可使用 /secguard /secaudit /secreview /secfix
+USAGE
+}
+
+# ── 版本检测 ──────────────────────────────────
+show_version() {
+    local script_dir
+    script_dir="$(cd "$(dirname "$0")" && pwd)"
+    local pkg
+    pkg=$(ls "$script_dir"/secguardian-*-*.tar.gz 2>/dev/null | head -1)
+    if [ -n "$pkg" ]; then
+        local ver
+        ver=$(basename "$pkg" | sed 's/^secguardian-//;s/\(-[a-z]*-[a-z0-9]*\)*\.tar\.gz$//')
+        echo "SecGuardian $ver"
+    else
+        echo "SecGuardian (unknown version)"
+    fi
+}
+
+# ── 提取平台压缩包 ────────────────────────────
+# 在当前目录找到匹配当前 OS/arch 的压缩包，解压到临时目录并打印路径
+extract_bundle() {
+    local platform="$1"
+    local script_dir="$2"
+    local pkg_file
+
+    if [ "$platform" = "windows-amd64" ]; then
+        pkg_file=$(ls "$script_dir"/secguardian-*-windows-amd64.zip 2>/dev/null | head -1)
+    else
+        pkg_file=$(ls "$script_dir"/secguardian-*-"${platform}".tar.gz 2>/dev/null | head -1)
+    fi
+
+    if [ -z "$pkg_file" ] || [ ! -f "$pkg_file" ]; then
+        echo -e "  ${RED}[FAIL]${NC} No platform package found for ${platform}" >&2
+        echo "    Expected: secguardian-*-${platform}.tar.gz in $script_dir/" >&2
+        return 1
+    fi
+
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    if echo "$pkg_file" | grep -q '\.zip$'; then
+        unzip -qo "$pkg_file" -d "$tmpdir" 2>/dev/null || {
+            echo -e "  ${RED}[FAIL]${NC} Failed to extract $(basename "$pkg_file")" >&2
+            rm -rf "$tmpdir"
+            return 1
+        }
+    else
+        tar xzf "$pkg_file" -C "$tmpdir" 2>/dev/null || {
+            echo -e "  ${RED}[FAIL]${NC} Failed to extract $(basename "$pkg_file")" >&2
+            rm -rf "$tmpdir"
+            return 1
+        }
+    fi
+
+    echo "$tmpdir"
+}
+
+# ── 安装到 Claude Code ────────────────────────
+# 需要: .claude-plugin/plugin.json (official manifest)
+#       commands/*.md             (slash commands)
+#       commands/secguardian/*.md  (namespace commands)
+#       skills/ + knowledge/ + scripts/ (共享内容)
+# 内包本身就是有效的 Claude Code 插件目录，可直接 claude plugin install
+install_claude() {
+    local src="$1"
+    local target="$TARGET_CLAUDE"
+
+    rm -rf "$target"
+    mkdir -p "$target"
+
+    # 复制全部内容（内包已包含 Claude 需要的所有文件）
+    cp -r "$src/." "$target/"
+
+    # 清理不属于 Claude 的额外文件
+    rm -f "$target/codeagent-extension.json" 2>/dev/null || true
+    rm -f "$target/gemini-extension.json" 2>/dev/null || true
+    rm -f "$target/GEMINI.md" 2>/dev/null || true
+    rm -f "$target/plugins/secguardian.js" 2>/dev/null || true
+    # 删除 Gemini 专用的 .toml 命令
+    for f in "$target/commands/"*.toml; do [ -f "$f" ] && rm "$f"; done 2>/dev/null || true
+    rm -rf "$target/plugins" 2>/dev/null || true
+
+    # 写入正确 SECGUARDIAN_HOME
+    echo 'export SECGUARDIAN_HOME=$HOME/.claude/plugins/secguardian' > "$target/.secguardian-env"
+
+    # 确保可执行权限
+    chmod +x "$target/scripts/bin/secguardian-index" 2>/dev/null || true
+
+    echo -e "  ${GREEN}[OK]${NC} Installed to ${CYAN}${target}${NC}"
+    echo -e "  ${CYAN}[info]${NC} Restart Claude Code, then run: /secguard --help"
+}
+
+# ── 安装到 OpenCode ───────────────────────────
+# 需要: codeagent-extension.json (informational manifest)
+#       commands/*.md             (slash commands)
+#       plugins/secguardian.js    (opencode plugin, 复制到 plugins/ 目录)
+#       skills/ + knowledge/ + scripts/ (共享内容)
+install_opencode() {
+    local src="$1"
+    local target="$TARGET_NGA"
+    local plugins_dir="$(dirname "$(dirname "$TARGET_NGA")")/plugins"
+
+    rm -rf "$target"
+    mkdir -p "$target" "$plugins_dir"
+
+    # 复制全部内容
+    cp -r "$src/." "$target/"
+
+    # 清理不属于 OpenCode 的额外文件
+    rm -f "$target/.claude-plugin/plugin.json" 2>/dev/null || true
+    rm -rf "$target/.claude-plugin" 2>/dev/null || true
+    rm -f "$target/gemini-extension.json" 2>/dev/null || true
+    rm -f "$target/GEMINI.md" 2>/dev/null || true
+    # 删除 Gemini 专用的 .toml 命令
+    for f in "$target/commands/"*.toml; do [ -f "$f" ] && rm "$f"; done 2>/dev/null || true
+
+    # 安装 OpenCode plugin (plugins/ 目录, 非 extensions/)
+    if [ -f "$src/plugins/secguardian.js" ]; then
+        mkdir -p "$plugins_dir"
+        cp "$src/plugins/secguardian.js" "$plugins_dir/secguardian.js"
+    fi
+
+    # 写入正确 SECGUARDIAN_HOME
+    echo 'export SECGUARDIAN_HOME=$HOME/.config/opencode/extensions/secguardian' > "$target/.secguardian-env"
+
+    # 确保可执行权限
+    chmod +x "$target/scripts/bin/secguardian-index" 2>/dev/null || true
+
+    echo -e "  ${GREEN}[OK]${NC} Installed to ${CYAN}${target}${NC}"
+    echo -e "  ${CYAN}[info]${NC} Restart OpenCode, then run: /secguard --help"
+}
+
+# ── 安装到 Gemini CLI (cac) ───────────────────
+# 需要: gemini-extension.json (official manifest)
+#       commands/*.toml          (TOML 格式 slash commands, 非 .md)
+#       GEMINI.md                (Gemini context file)
+#       skills/ + knowledge/ + scripts/ (共享内容)
+install_gemini() {
+    local src="$1"
+    local target="$TARGET_CAC"
+
+    rm -rf "$target"
+    mkdir -p "$target"
+
+    # 复制全部内容
+    cp -r "$src/." "$target/"
+
+    # 清理不属于 Gemini 的额外文件
+    rm -f "$target/.claude-plugin/plugin.json" 2>/dev/null || true
+    rm -rf "$target/.claude-plugin" 2>/dev/null || true
+    rm -f "$target/codeagent-extension.json" 2>/dev/null || true
+
+    # 清理 .md 命令文件 (Gemini 只使用 .toml)
+    for f in "$target/commands/"*.md; do
+        [ -f "$f" ] && rm "$f"
+    done
+    rm -rf "$target/commands/secguardian" 2>/dev/null || true
+
+    # 写入正确 SECGUARDIAN_HOME
+    echo 'export SECGUARDIAN_HOME=$HOME/.gemini/extensions/secguardian' > "$target/.secguardian-env"
+
+    # 确保可执行权限
+    chmod +x "$target/scripts/bin/secguardian-index" 2>/dev/null || true
+
+    echo -e "  ${GREEN}[OK]${NC} Installed to ${CYAN}${target}${NC}"
+    echo -e "  ${CYAN}[info]${NC} Restart Gemini CLI, then run: /secguard --help"
+}
+
+# ── 主流程 ────────────────────────────────────
+main() {
+    local cmd="${1:-}"
+
+    case "$cmd" in
+        --help|-h|"")
+            show_help
+            exit 0
             ;;
-        *)
-            if [ -z "$TARGET" ]; then
-                TARGET="$1"
-            else
-                log_error "多余的参数: $1"
-                exit 1
-            fi
-            shift
+        --version|-V)
+            show_version
+            exit 0
             ;;
     esac
-done
 
-# ── 确定安装目标路径 ──────────────────────────
-if $UNINSTALL_MODE && [ -z "$TARGET" ] && ! $USER_MODE; then
-    log_error "请指定 --user（卸载用户级）或 <project-path>（卸载项目级）"
-    exit 1
-fi
+    local platform
+    platform=$(detect_platform)
+    local script_dir
+    script_dir="$(cd "$(dirname "$0")" && pwd)"
 
-if $USER_MODE; then
-    TARGET="$HOME"
-    INSTALL_MODE="用户级"
-    INSTALL_MODE_DESC="跨所有项目可用"
-else
-    if [ -z "$TARGET" ]; then
-        log_error "请指定 --user（用户级安装）或 <project-path>（项目级安装）"
+    echo ""
+    echo -e "${CYAN}SecGuardian Installer${NC}"
+    echo -e "  Platform: ${YELLOW}${platform}${NC}"
+    echo ""
+
+    # 提取内包
+    local src
+    src=$(extract_bundle "$platform" "$script_dir") || {
         echo ""
-        echo "  用户级（推荐）:  bash install.sh --user --all"
-        echo "  项目级:          bash install.sh ~/my-project --opencode"
+        echo -e "${RED}Installation failed.${NC}"
+        echo "  Make sure the platform bundle exists in: $script_dir/"
+        echo "  Expected: secguardian-*-${platform}.tar.gz"
         exit 1
-    fi
-    if [ ! -d "$TARGET" ]; then
-        log_error "目标路径不存在: $TARGET"
-        exit 1
-    fi
-    TARGET="$(cd "$TARGET" && pwd)"
-    INSTALL_MODE="项目级"
-    INSTALL_MODE_DESC="仅当前项目可用"
-fi
+    }
 
-RELEASE_DIR="$(cd "$RELEASE_DIR" 2>/dev/null && pwd || echo "$RELEASE_DIR")"
+    case "$cmd" in
+        claude|claude-code)
+            install_claude "$src"
+            ;;
+        nga|opencode)
+            install_opencode "$src"
+            ;;
+        cac|gemini|gemini-cli)
+            install_gemini "$src"
+            ;;
+        all)
+            install_claude "$src"
+            install_opencode "$src"
+            install_gemini "$src"
+            ;;
+        *)
+            rm -rf "$src"
+            echo -e "${RED}Unknown target:${NC} $cmd"
+            echo "  Available: claude  nga  cac  all"
+            exit 1
+            ;;
+    esac
 
-echo ""
-echo -e "${BOLD}╔══════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}║${NC}  SecGuardian — ${INSTALL_MODE}安装                 ${BOLD}║${NC}"
-echo -e "${BOLD}╚══════════════════════════════════════════════╝${NC}"
-echo ""
-echo -e "  安装模式: ${CYAN}${INSTALL_MODE} (${INSTALL_MODE_DESC})${NC}"
-echo -e "  安装路径: ${CYAN}$TARGET${NC}"
-echo -e "  平台:     ${CYAN}$PLATFORM${NC}"
-echo ""
+    # 清理临时目录
+    rm -rf "$src"
 
-# ── 自动检测版本 ──────────────────────────────
-if [ -z "$VERSION" ]; then
-    for f in "$RELEASE_DIR"/secguardian-*-claude-code.zip; do
-        if [ -f "$f" ]; then
-            VERSION=$(basename "$f" | sed 's/secguardian-//; s/-claude-code.zip//')
-            break
-        fi
-    done
-    VERSION="${VERSION:-0.4.0}"
-fi
-
-log_info "检测到版本: v$VERSION"
-
-# ── 查找发布包 ────────────────────────────────
-find_claude_zip() {
-    local candidates=(
-        "$RELEASE_DIR/secguardian-${VERSION}-claude-code.zip"
-    )
-    for c in "${candidates[@]}"; do
-        if [ -f "$c" ]; then echo "$c"; return 0; fi
-    done
-    local found=$(ls "$RELEASE_DIR"/secguardian-*-claude-code.zip 2>/dev/null | head -1)
-    if [ -n "$found" ]; then echo "$found"; return 0; fi
-    return 1
+    echo ""
+    echo -e "${GREEN}Done.${NC} Restart your AI CLI to use /secguard /secaudit /secreview /secfix."
 }
 
-find_opencode_zip() {
-    local candidates=(
-        "$RELEASE_DIR/secguardian-${VERSION}-opencode.zip"
-    )
-    for c in "${candidates[@]}"; do
-        if [ -f "$c" ]; then echo "$c"; return 0; fi
-    done
-    local found=$(ls "$RELEASE_DIR"/secguardian-*-opencode.zip 2>/dev/null | head -1)
-    if [ -n "$found" ]; then echo "$found"; return 0; fi
-    return 1
-}
-
-find_gemini_zip() {
-    local candidates=(
-        "$RELEASE_DIR/secguardian-${VERSION}-gemini-cli.zip"
-    )
-    for c in "${candidates[@]}"; do
-        if [ -f "$c" ]; then echo "$c"; return 0; fi
-    done
-    local found=$(ls "$RELEASE_DIR"/secguardian-*-gemini-cli.zip 2>/dev/null | head -1)
-    if [ -n "$found" ]; then echo "$found"; return 0; fi
-    return 1
-}
-
-# ── 备份函数 ──────────────────────────────────
-backup_dir() {
-    local dir="$1"
-    if [ -d "$dir" ] && [ "$(ls -A "$dir" 2>/dev/null)" ]; then
-        local backup="$dir.backup.$(date +%Y%m%d-%H%M%S)"
-        mv "$dir" "$backup"
-        log_info "已备份: $backup"
-    fi
-}
-
-# ── 安装 Claude Code (官方插件格式: ~/.claude/plugins/) ──
-# Ref: https://code.claude.com/docs/en/plugins-reference
-install_claude() {
-    local label="Claude Code"
-    if $USER_MODE; then
-        log_step "Claude Code → ~/.claude/plugins/ (用户级)"
-    else
-        log_step "Claude Code → .claude/plugins/ (项目级)"
-    fi
-
-    local zip_file=$(find_claude_zip)
-    if [ -z "$zip_file" ]; then
-        log_warn "未找到 Claude Code 发布包，跳过"
-        log_info "期望文件: secguardian-${VERSION}-claude-code.zip"
-        return 1
-    fi
-
-    local plugin_dir="$TARGET/.claude/plugins"
-
-    if $DRY_RUN; then
-        echo "  [DRY-RUN] 解压 $zip_file → $plugin_dir/"
-        return 0
-    fi
-
-    # Clean old legacy extensions format + old plugin
-    rm -rf "$TARGET/.claude/extensions/secguard-secguardian" \
-           "$TARGET/.claude/extensions/secaudit-secguardian" \
-           "$TARGET/.claude/extensions/secreview-secguardian" \
-           "$plugin_dir/secguardian"
-
-    mkdir -p "$plugin_dir"
-    unzip -qo "$zip_file" -d "$plugin_dir/"
-    log_done "已安装到 $plugin_dir/secguardian/"
-
-    # Make binaries executable
-    find "$plugin_dir" -name 'secguardian-index*' -type f -exec chmod +x {} \; 2>/dev/null || true
-}
-
-# ── 安装 OpenCode (用户级: ~/.config/opencode/ ; 项目级: <project>/.opencode/) ──
-# Ref: https://opencode.ai/docs/skills
-install_opencode() {
-    local label="OpenCode"
-    if $USER_MODE; then
-        log_step "OpenCode → ~/.config/opencode/ (用户级)"
-    else
-        log_step "OpenCode → .opencode/ (项目级)"
-    fi
-
-    local zip_file=$(find_opencode_zip)
-    if [ -z "$zip_file" ]; then
-        log_warn "未找到 OpenCode 发布包，跳过"
-        log_info "期望文件: secguardian-${VERSION}-opencode.zip"
-        return 1
-    fi
-
-    if $USER_MODE; then
-        local oc_dir="$HOME/.config/opencode"
-    else
-        local oc_dir="$TARGET/.opencode"
-    fi
-
-    if $DRY_RUN; then
-        echo "  [DRY-RUN] 解压 $zip_file → $oc_dir/"
-        return 0
-    fi
-
-    $NO_BACKUP || backup_dir "$oc_dir"
-    rm -rf "$oc_dir"
-    mkdir -p "$oc_dir"
-
-    unzip -qo "$zip_file" -d "$oc_dir/"
-    log_done "已安装到 $oc_dir/"
-
-    # Make binaries executable
-    find "$oc_dir/scripts" -type f -exec chmod +x {} \; 2>/dev/null || true
-}
-
-# ── 安装 Gemini CLI (官方扩展格式: ~/.gemini/extensions/) ──
-# Ref: https://geminicli.com/docs/extensions/reference/
-install_gemini() {
-    local label="Gemini CLI"
-    if $USER_MODE; then
-        log_step "Gemini CLI → ~/.gemini/extensions/ (用户级)"
-    else
-        log_step "Gemini CLI → .gemini/extensions/ (项目级)"
-    fi
-
-    local zip_file=$(find_gemini_zip)
-    if [ -z "$zip_file" ]; then
-        log_warn "未找到 Gemini CLI 发布包，跳过"
-        log_info "期望文件: secguardian-${VERSION}-gemini-cli.zip"
-        return 1
-    fi
-
-    if $USER_MODE; then
-        local gm_dir="$HOME/.gemini/extensions"
-    else
-        local gm_dir="$TARGET/.gemini/extensions"
-    fi
-
-    if $DRY_RUN; then
-        echo "  [DRY-RUN] 解压 $zip_file → $gm_dir/"
-        return 0
-    fi
-
-    mkdir -p "$gm_dir"
-    unzip -qo "$zip_file" -d "$gm_dir/"
-    log_done "已安装到 $gm_dir/secguardian/"
-
-    # Make binaries executable
-    find "$gm_dir/scripts" -type f -exec chmod +x {} \; 2>/dev/null || true
-}
-
-# ── 健康检查 ──────────────────────────────────
-run_health_check() {
-    log_step "健康检查"
-
-    local indexer=""
-    for candidate in \
-        "$TARGET/.opencode/scripts/secguardian-index" \
-        "$TARGET/.gemini/scripts/secguardian-index" \
-        "$TARGET/.claude/extensions/secguard-secguardian/scripts/secguardian-index" \
-        "$TARGET/.claude/extensions/secaudit-secguardian/scripts/secguardian-index" \
-        "$TARGET/.claude/extensions/secreview-secguardian/scripts/secguardian-index"; do
-        if [ -x "$candidate" ] && [ -f "$candidate" ]; then
-            indexer="$candidate"
-            break
-        fi
-    done
-
-    if [ -z "$indexer" ]; then
-        log_warn "未找到 secguardian-index wrapper（平台可能不支持）"
-        return 0
-    fi
-
-    if $DRY_RUN; then
-        echo "  [DRY-RUN] $indexer --health"
-        return 0
-    fi
-
-    if "$indexer" --health 2>/dev/null; then
-        log_done "索引器健康检查通过"
-    else
-        log_warn "索引器健康检查完成（退出码非0，但二进制可执行）"
-    fi
-}
-
-# ── 安装摘要 ──────────────────────────────────
-print_summary() {
-    echo ""
-    echo -e "${BOLD}════════════════════════════════════════════════${NC}"
-    echo -e "${GREEN}${BOLD}  安装完成!${NC}"
-    echo ""
-    echo -e "  安装模式: ${CYAN}${INSTALL_MODE}${NC}"
-    echo -e "  安装路径: ${CYAN}$TARGET${NC}"
-    echo ""
-
-    if [ -d "$TARGET/.claude/extensions" ] && [ "$(ls -A "$TARGET/.claude/extensions" 2>/dev/null)" ]; then
-        echo -e "  ${GREEN}✓${NC} Claude Code:  $TARGET/.claude/extensions/"
-        echo "     重启 Claude Code 后使用 /secguard, /secaudit, /secreview"
-    fi
-
-    if [ -d "$TARGET/.opencode/commands" ]; then
-        echo -e "  ${GREEN}✓${NC} OpenCode:      $TARGET/.opencode/ (commands + skills + knowledge + scripts)"
-        echo "     重启 OpenCode 后使用 /secguard, /secaudit, /secreview"
-    fi
-
-    if [ -d "$TARGET/.gemini/skills" ]; then
-        echo -e "  ${GREEN}✓${NC} Gemini CLI:    $TARGET/.gemini/ (commands + skills + knowledge + scripts)"
-        echo "     在 Gemini CLI 中运行 /skills reload"
-    fi
-
-    echo ""
-    echo -e "  ${BOLD}扫描输出目录:${NC} .codeagent/<extension>/scans/<scan-id>/"
-    echo ""
-
-    if $USER_MODE; then
-        echo -e "  ${BOLD}提示:${NC} 用户级安装使 SecGuardian 在所有项目中可用。"
-        echo "        如果某个项目同时存在项目级安装，项目级优先。"
-    fi
-    echo ""
-}
-
-# ── 卸载 ──────────────────────────────────────
-do_uninstall() {
-    echo ""
-    echo -e "${BOLD}╔══════════════════════════════════════════════╗${NC}"
-    echo -e "${BOLD}║${NC}  SecGuardian — 卸载 (${INSTALL_MODE})                ${BOLD}║${NC}"
-    echo -e "${BOLD}╚══════════════════════════════════════════════╝${NC}"
-    echo ""
-    echo -e "  路径: ${CYAN}$TARGET${NC}"
-    echo ""
-
-    # Claude Code
-    local ext_dir="$TARGET/.claude/extensions"
-    for name in secguard-secguardian secaudit-secguardian secreview-secguardian; do
-        if [ -d "$ext_dir/$name" ]; then
-            rm -rf "$ext_dir/$name"
-            log_done "已移除: $ext_dir/$name"
-        fi
-    done
-
-    # OpenCode
-    for sub in commands skills knowledge scripts; do
-        if [ -d "$TARGET/.opencode/$sub" ]; then
-            rm -rf "$TARGET/.opencode/$sub"
-            log_done "已移除: $TARGET/.opencode/$sub"
-        fi
-    done
-
-    # Gemini CLI
-    for sub in commands skills knowledge scripts GEMINI.md; do
-        if [ -e "$TARGET/.gemini/$sub" ]; then
-            rm -rf "$TARGET/.gemini/$sub"
-            log_done "已移除: $TARGET/.gemini/$sub"
-        fi
-    done
-
-    echo ""
-    log_done "卸载完成"
-}
-
-# ── 主流程 ─────────────────────────────────────
-if $UNINSTALL_MODE; then
-    do_uninstall
-    exit 0
-fi
-
-FAILURES=0
-
-case "$PLATFORM" in
-    all)
-        install_claude   || FAILURES=$((FAILURES + 1))
-        echo ""
-        install_opencode || FAILURES=$((FAILURES + 1))
-        echo ""
-        install_gemini   || FAILURES=$((FAILURES + 1))
-        ;;
-    claude)
-        install_claude   || FAILURES=$((FAILURES + 1))
-        ;;
-    opencode)
-        install_opencode || FAILURES=$((FAILURES + 1))
-        ;;
-    gemini)
-        install_gemini   || FAILURES=$((FAILURES + 1))
-        ;;
-esac
-
-if ! $DRY_RUN && [ "$FAILURES" -eq 0 ]; then
-    echo ""
-    run_health_check
-fi
-
-echo ""
-print_summary
-
-if [ "$FAILURES" -gt 0 ]; then
-    log_warn "$FAILURES 个平台安装失败（可能缺少对应的发布包）"
-fi
+main "$@"

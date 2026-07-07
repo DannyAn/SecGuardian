@@ -132,6 +132,13 @@ func MatchAllocFree(parsed map[string]*parser.ParseResult) AllocFreeMap {
 	freeFns := map[string]bool{"free": true, "delete": true}
 
 	for _, result := range parsed {
+		// Build function scopes from parse result (not re-reading file)
+		type fnScope struct{ start, end uint }
+		scopes := []fnScope{}
+		for _, fn := range result.Functions {
+			scopes = append(scopes, fnScope{fn.StartLine, fn.EndLine})
+		}
+
 		content, err := os.ReadFile(result.File)
 		if err != nil {
 			continue
@@ -144,12 +151,25 @@ func MatchAllocFree(parsed map[string]*parser.ParseResult) AllocFreeMap {
 			}
 			for afn := range allocFns {
 				if strings.Contains(line, afn+"(") {
+					allocLine := uint(i + 1)
+
+					// Find containing function scope to bound free search
+					searchStart, searchEnd := 0, len(lines)
+					for _, s := range scopes {
+						if allocLine >= s.start && allocLine <= s.end {
+							searchStart = int(s.start - 1) // 0-indexed
+							searchEnd = int(s.end)
+							break
+						}
+					}
+
 					pair := AllocFreePair{
 						AllocFunc: afn,
 						AllocFile: result.File,
-						AllocLine: uint(i + 1),
+						AllocLine: allocLine,
 					}
-					for j, fline := range lines {
+					for j := searchStart; j < searchEnd; j++ {
+						fline := lines[j]
 						if isCommentLine(fline) {
 							continue
 						}

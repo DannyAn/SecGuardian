@@ -14,6 +14,12 @@ Focus areas: memory safety, undefined behavior, system security, and business lo
 
 > **Prerequisite**: Command layer has executed `secguardian-index` to generate `index.json`. Use symbol table for review target identification rather than file-by-file traversal.
 
+## ⚙️ Engine Instructions
+
+> 以下执行指令属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行。未来 Engine 实现后将被 Engine 取代。
+>
+> **🔗 锚定+证据约束 (Rule A + Rule B):** 每个 finding 的 `file`+`line` MUST 可追溯到 index.json 的符号或文件列表。MUST 提供 `--snippet`、`--code-context`、`--rationale`、`--attack-scenario`。调用 `record-finding.py` 时必须传 `--index-json` 进行锚定校验。无 index 锚点时 MUST 标记 `confidence: low`。
+
 ## Execution Phases
 
 ### Phase 1: Load Context
@@ -67,6 +73,10 @@ Follows `knowledge/protocols/scan-output.md` (v5.0). Each finding:
 - CVSS severity assessment
 - Fix recommendation (before/after code)
 
+## 🎯 Review Focus (Skill Layer)
+
+> 以下内容定义了 review 的关注领域和规则，属于 Skill 层职责。
+
 ## Difference from secguard-cpp
 
 | Dimension | secguard (Secure Coding) | secreview (Code Review) |
@@ -82,6 +92,10 @@ Follows `knowledge/protocols/scan-output.md` (v5.0). Each finding:
 - `references/cpp-security-cheatsheet.md` — C/C++ security cheat sheet
 - `knowledge/standards/sei-cert-c.md` — SEI CERT C coding standard mapping
 - `knowledge/standards/sei-cert-cpp.md` — SEI CERT C++ coding standard mapping
+
+## 📄 Output Protocol
+
+> 以下输出格式遵循 `internal/output/output_contract.md`。
 
 ## Output Completeness Requirements
 

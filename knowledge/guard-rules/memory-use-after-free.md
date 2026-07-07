@@ -1,14 +1,19 @@
 ---
 detector: use-after-free
+description: Detects use-after-free vulnerabilities where memory is accessed after being freed
 severity: critical
 cwe: CWE-416
+cvss: 9.8
 language: [c, cpp]
 tags: [memory, heap, exploitation, dangling-pointer]
 precision: very-high
 confidence: dynamic
+target_functions: [c_str, caller, code_context, free, get_name, judgment_rationale, malloc, nullptr, process_data, ptr, realloc, strcpy, xxx, xxx_destroy, xxx_free, xxx_release]
+match_patterns: [free(ptr)|delete ptr, p2 = p1, old_ptr = malloc(N)]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 释放后使用 (Use-After-Free)
 
 ## 威胁定义 (Threat Definition)
 

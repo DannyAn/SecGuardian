@@ -1,14 +1,19 @@
 ---
 detector: csrf
+description: Detects cross-site request forgery vulnerabilities lacking anti-CSRF tokens or origin validation
 severity: high
 cwe: CWE-352
+cvss: 7.8
 language: [java, python, go]
 tags: [web, csrf, access-control]
 precision: medium
 confidence: dynamic
+target_functions: [csrf, disable, transfer, transfer_money]
+match_patterns: []
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# Cross-Site Request Forgery (CSRF)
 
 ## 威胁定义 (Threat Definition)
 

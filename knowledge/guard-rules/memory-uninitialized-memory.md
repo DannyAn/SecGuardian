@@ -1,14 +1,19 @@
 ---
 detector: uninitialized-memory
+description: Detects usage of uninitialized memory that may contain unpredictable values
 severity: medium
 cwe: CWE-457
+cvss: 5.5
 language: [c, cpp]
 tags: [memory, stack, heap, undefined-behavior]
 precision: high
 confidence: dynamic
+target_functions: [bzero, calloc, code_context, data_flow_path, double, float, judgment_rationale, malloc, memset, operator, variable_state]
+match_patterns: [int|char|float|double ... ;                     # 声明未初始化, malloc|operator new                              # 未初始化堆分配, struct S var;                                    # 未初始化 struct]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 未初始化内存使用 (Uninitialized Memory)
 
 ## 威胁定义 (Threat Definition)
 

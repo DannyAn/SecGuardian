@@ -3,10 +3,14 @@ name: output-encoding
 description: 审计输出数据的上下文感知编码处理，检测因编码缺失或不匹配导致的 XSS、注入和跨上下文攻击。当用户请求输出编码审计、XSS防护检测、模板引擎安全、上下文编码审查、响应头注入检测时使用。
 category: domain
 topic: [web]
+severity: High
+cwe: CWE-200
+cvss: 7.5
 ---
 
 > **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`（含 `symbols.functions`、`call_graph.edges`、`files`）。审计时优先利用符号表和调用图定位目标，追踪数据流路径。
 > **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
+
 
 # 输出编码安全审计
 

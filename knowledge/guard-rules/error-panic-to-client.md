@@ -1,14 +1,19 @@
 ---
 detector: error-panic-to-client
+description: Detects propagation of runtime panics or unhandled exceptions to client-facing output
 severity: medium
 cwe: CWE-248
+cvss: 4.5
 language: [go]
 tags: [error, go, panic, recover, http]
 precision: very-high
 confidence: dynamic
+target_functions: [code_context, func, handler, judgment_rationale]
+match_patterns: [recover.*fmt\.Fprintf.*w\b|recover.*w\.Write, recover.*json\.NewEncoder\(w\)\.Encode.*err\|r\b, recover.*w\.Write\(debug\.Stack\(\), recover.*http\.Error\(w,\s*.*\.Error\(\), CustomRecovery.*gin\.H\{.error.*err\}, CustomRecovery.*c\.AbortWithStatusJSON.*err, recover.*status\.Errorf.*panic.*%v]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# Go panic 返回客户端 (Panic Recovery Leak)
 
 ## 威胁定义 (Threat Definition)
 

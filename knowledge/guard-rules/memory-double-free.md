@@ -1,14 +1,19 @@
 ---
 detector: double-free
+description: Detects double-free vulnerabilities where the same memory region is freed multiple times
 severity: critical
 cwe: CWE-415
+cvss: 9.8
 language: [c, cpp]
 tags: [memory, heap, crash, exploitation]
 precision: very-high
 confidence: dynamic
+target_functions: [cleanup, code_context, free, judgment_rationale, malloc, process, ptr, xxx, xxx_destroy, xxx_free]
+match_patterns: [free|delete|xxx_free|xxx_destroy, p2 = p1, free|xxx_free(ptr)]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 双重释放 (Double Free)
 
 ## 威胁定义 (Threat Definition)
 

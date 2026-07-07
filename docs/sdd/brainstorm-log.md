@@ -5,6 +5,47 @@
 
 ---
 
+## 2026-07-06 — 会话质量增强：从 OpenCode 实测日志提炼 9 项系统性改进
+
+### 背景
+
+对 `examples/go-vuln-demo` 在 OpenCode 上执行 `/secguard` → `/secreview` → `/secaudit` 三个命令后，
+实测会话日志（8915 行，56 轮）暴露以下系统性问题：
+
+| 维度 | 问题 | 影响 |
+|------|------|------|
+| Token 效率 | todowrite 每次重发全部已完成项 | 每会话 ~50KB 无效 token |
+| Token 效率 | record-finding.py shell 转义冗长 | 每 finding ~2KB 转义开销 |
+| 正确性 | `--attack-scannerio` 拼写 argparse 静默接受 | 费时 3 轮才发现 |
+| 健壮性 | 索引器无超时保护 | 大项目可能永久挂死 |
+| 可靠性 | Agent 可自主跳过 Step 3.5 验证 | 安全性视 Agent 心情 |
+| 路径问题 | 全路径操作触发频繁确权弹窗 | 中断自动化流程 |
+| 维护性 | $RECORDER 硬编码路径多处重复 | 路径变动全断 |
+
+### 讨论要点
+
+1. **todowrite 浪费**: 7 次调用的序列化数据 ~7KB，native task 系统零序列化。P0。
+2. **--from-stdin 设计缺陷**: 当前要求 `--from-stdin` 仍需 CLI 指定部分参数，增加复杂度。改为 stdin 接受完整 JSON。
+3. **argparse 拒绝未知**: 不认识的参数名应直接报错退出，防止 `--attack-scannerio` 类 typo 静默失败。
+4. **安全性验证不可跳过**: Step 3.5 应植入非移除标记，Agent 无法绕过。
+5. **索引器 timeout**: `timeout 30s` 包装 + 超时自动 fallback 到 regex parser。
+6. **权限弹窗本质**: 全路径操作触发 permission system 逐项确权。操作从用户项目目录内执行时弹窗减少。
+7. **路径策略**: `cd "$USER_PROJECT"` 再执行操作，项目内文件的路径使用相对路径。
+
+### 最终方案
+
+创建独立 Feature：**EPIC-006 系统质量工程 / FEATURE-001 会话质量与稳定性增强**。
+包含 3 个 Task + 1 个 Change，覆盖 P0/P1/P2 全部项。
+
+### 影响范围
+
+- `knowledge/protocols/` — record-finding.py 使用协议
+- `scripts/record-finding.py` — 核心修改
+- `commands/*.md` — 命令模板加固
+- `skills/*/SKILL.md` — 各 skill 模板统一更新
+
+---
+
 ## 2026-06-28 — Finding ID 重构 + 安全评分修复（Java 扫描实测发现）
 
 ### 背景
@@ -934,3 +975,146 @@ ChatGPT 指出核心风险：**"AI 比传统 SAST 更聪明"这个卖点的生�
 - 项目级配置 → AI Agent 跨项目运行时失效
 
 **关联参考**: Issue #7 (路径搜索优先级修复是临时方案)
+
+---
+
+## 2026-07-04 — EPIC-005 FEATURE-002: 架构合约落地
+
+### 背景
+
+FEATURE-001 定义了架构文档和合约（engine_contract.md, output_contract.md, ci-cd-interface.md），
+描述了 Command → Skill → Engine 三层职责分离的理想状态。
+
+但实际 production 代码（commands/*.md, skills/*/SKILL.md）与架构定义之间存在鸿沟：
+- commands/secguard.md 包含 5 步执行管线（594 行），远多于"parse + dispatch + output path"
+- skills/secguard/cpp/SKILL.md 包含 Phase 1-5 执行流程（141 行），混合了"detector 选择"和"执行指令"
+- 三层职责在代码层面混在一起
+
+### 核心难题
+
+当前系统没有真正的 Engine 层。LLM prompt 本身就是 execution engine。
+如果直接从 commands/skills 中删除执行逻辑，AI Agent 将失去执行扫描的指令。
+
+### 讨论要点
+
+**方案 A：完全接管（Round 3 最初方案）**
+- 将 commands → 50 行 thin dispatcher
+- 将 skills → detector planner
+- 结果：Agent 无法执行扫描（无 Engine 替代）
+
+否决原因：破坏了系统可用性。Engine 还不存在，LLM prompt 是唯一的执行引擎。
+
+**方案 B：渐进式架构注入（选中方案）**
+- 不删除任何执行内容
+- 在 commands/skills 中增加架构分层标记，将内容按架构层重组
+- Phase 1-5 / Steps 1-5 标记为 "Engine Layer"（引擎层指令）
+- 检测器列表和选择规则标记为 "Skill Layer"（技能层职责）
+- 参数解析和输出路径标记为 "Command Layer"（命令层职责）
+
+选中理由：Agent 保持可用，架构可见性立即提升，后续 Engine 实现时知道提取什么。
+
+**方案 C：先建 Engine 再改 commands/skills**
+- 先实现 Security Engine（即使最小版本）
+- 将 commands/skills 中的执行逻辑 1:1 迁移到 Engine
+- 再将 commands/skills 改为 thin dispatcher / detector planner
+
+否决原因：Engine 实现需要 IR 层和结构化规则支持，
+indexer 当前是 text-approximate 级别，不足以支撑独立 Engine。
+
+### 最终方案
+
+**渐进式架构注入**：
+1. 不删除 commands/skills 中的任何执行内容
+2. 在 commands 中增加架构分层标记（Command Layer / Engine Layer 分组）
+3. 在 skills 中将内容分为 "Detector Selection"（Skill 职责）和 "Execution Instructions"（Engine 职责）
+4. 所有 Engine 层内容标注 → 引用 engine_contract.md
+5. 行为零变化——扫描结果与之前完全一致
+
+### 影响范围
+
+- commands/*.md（4 个文件）
+- skills/*/SKILL.md（11 个SKILL文件）
+- 不涉及 Go 代码
+- 不涉及 knowledge/
+- 不涉及 detector 内容
+
+---
+
+## 2026-07-05 — FEATURE-004: 扫描性能优化（基于实测数据）
+
+### 背景
+
+对 `examples/go-vuln-demo`（8 个 Go 文件）执行 `/secguard ./src go`，
+实测总耗时 **16m 47s**。
+
+扫描过程分 6 个阶段，各阶段耗时：
+
+| 阶段 | 耗时 | Shell 指令数 | 瓶颈 |
+|------|------|-------------|------|
+| 前置检查 | 27s | 9 | 每次独立 check |
+| 索引构建 | 1s | 1 | ✅ 快 |
+| 读取源文件 | 19s | 8 (read) | 逐个文件全读 |
+| 加载检测器 | 10s | 2+ | 逐个 .md 加载 |
+| 记录 findings | 19s | 16 | 每条 finding 独立写入 |
+| 渲染 | 15s | — | 部署版 import 缺失，AI 自修 |
+
+### 根本原因
+
+每个 shell command / file read 操作在 Claude Code 中约耗时 1-3s（含上下文切换）。
+并非 AI 推理慢，而是 I/O 操作次数太多。
+
+### 方案
+
+1. **前置检查**: 9 次独立 check → 1 次 `--health` + 1 次路径确认
+2. **源文件读取**: 逐个 read 8 次 → index.json 符号定位后批量读取
+3. **检测器加载**: 逐个加载 .md → 一次加载 language-index.md（57 行，含所有检测器）
+4. **Finding 记录**: 16 次独立写入 → 1 次 findings.json 批量写入 + renderer 统一渲染
+5. **渲染器**: 修复 import 缺失，避免 AI 运行时自修
+
+### 预期效果
+
+- 8 文件扫描: 16m47s → ~1-2min（90%+ 减少）
+- 100 文件扫描: 不可用 → 5-8min（可用）
+
+---
+
+## 2026-07-05 — EPIC-005 R2: 架构文档修正（设计-代码鸿沟修复）
+
+### 背景
+
+EPIC-005 四个 Feature 全部标记完成，但深入审视发现架构文档与代码现实之间存在结构性鸿沟：
+
+| 张力 | 架构文档描述... | 代码现实是... |
+|------|---------------|-------------|
+| 谁是真引擎 | Engine 是独立层，命令是薄分发器 | LLM prompt 就是引擎，命令 590 行无法切薄 |
+| 确定性预检可行吗 | index 派生候选空间，LLM 在候选空间内验证 | 索引器调用图是 `strings.Contains`，候选空间质量存疑 |
+| 合约是目标还是幻觉 | engine_contract.md 定义了清晰的 I/O 边界 | 合约描述的 Engine 组件不存在，合约是"规范空壳" |
+
+### 核心矛盾
+
+昨晚设计确立了"独立 Security Engine"方向，但 `security-engine.md §4` 定义的"确定性预检权威"要求索引器提供可信的候选空间——当前索引器（文本近似调用图、同文件 alloc/free、无 CFG/DFG/类型继承）完全撑不住这个角色。同时 `engine_contract.md` 描述了一个不存在的组件（独立 Engine 二进制）。
+
+### 讨论要点
+
+**路线 A: 接受"LLM 就是引擎"** — 架构不再虚构独立 Engine，合约改为约束 LLM 行为。
+
+**路线 B: 坚持"Engine 应该独立"** — 认为 LLM 不可测试，短期过渡长期提取独立 Engine。
+
+**路线 C: 分层协作（最终选择）** — 不分家，不做独立 Engine 二进制。改"执行策略层"为两个协作子层：
+- **确定性信号层**：索引器输出（符号表、调用图、alloc/free、lock graph）作为锚点和预筛，不独立发现漏洞
+- **LLM 推理层**：保留语义分析能力，但受两条硬约束：①每个 finding 必须锚定到 index 中的符号/位置 ②必须引用具体代码片段
+
+### 最终方案
+
+**不做独立 Security Engine 二进制**。架构修正为"确定性信号层 + LLM 推理层"协作模型：
+
+1. **确定性信号层的价值重定义**：从"权威预检"改为"锚定+预筛+去重"
+2. **LLM 推理层的约束增加**：锚定约束 + 证据约束，保留智能发现能力
+3. **渐进式信号增强路径**：符号锚点 → 跨文件调用图 → 类型继承 → 数据流预分析
+4. **CI 价值重定义**：利用确定性信号做快速门禁（锚定校验+预筛匹配率），不要求 LLM-free 扫描
+
+### 影响范围
+
+- 6 份架构文档需要修正（security-engine.md 重写, engine_contract.md 重写, architecture-vNext.md 局部修改, runtime-model.md 局部修改, design-principles.md ADR-007 更新, engineering-principles.md EP-1 更新）
+- 后续 Feature：锚定约束注入 commands/skills → 索引器增强（跨文件调用图+类型继承）→ CI 快速门禁
+- 不修改任何 production 代码（本轮只改架构文档）

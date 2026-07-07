@@ -1,14 +1,19 @@
 ---
 detector: unrestricted-upload
+description: Detects unrestricted file upload vulnerabilities that could allow code execution
 severity: critical
 cwe: CWE-434
+cvss: 9.8
 language: [java, python, go]
 tags: [web, upload, filesystem]
 precision: high
 confidence: dynamic
+target_functions: [asList, basename, code_context, contains, contentType, ext, file, filename, files, get, getContentType, getOriginalFilename, getPart, getSize, handleUpload, header, join, judgment_rationale, open, randomUUID, read, request, sanitize, save, seek, toString, transferTo, ultipartFile, write]
+match_patterns: [MultipartFile|request\.files|FormFile, getOriginalFilename|file\.filename|header\.Filename, file\.save|file\.write]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 无限制文件上传 (Unrestricted File Upload)
 
 ## 威胁定义 (Threat Definition)
 

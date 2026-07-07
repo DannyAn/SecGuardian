@@ -1,14 +1,19 @@
 ---
 detector: resource.lock-misuse
+description: Detects improper lock/unlock patterns including missing unlocks and double locks
 severity: high
 cwe: CWE-667
+cvss: 7.5
 language: [c, cpp]
 tags: [resource, lock, mutex, pthread, deadlock, concurrency]
 precision: high
 confidence: dynamic
+target_functions: [caller, do_work, guard, helper, lock, pthread_mutex_lock, pthread_mutex_unlock]
+match_patterns: [pthread_mutex_lock(&m) 后存在缺少 pthread_mutex_unlock(&m) 的退出路径, 同一函数内两次 pthread_mutex_lock(&m) 且中间无 unlock（非递归锁）, pthread_mutex_lock(&m) 后存在 continue/break/goto 跳过对应 unlock, 跨函数重复 lock：caller lock(m) → callee lock(m)（非递归锁）]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 锁误用 (Lock Misuse — Improper Locking)
 
 ## 威胁定义 (Threat Definition)
 

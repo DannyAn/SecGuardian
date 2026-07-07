@@ -1,14 +1,19 @@
 ---
 detector: command-injection
+description: Detects OS command injection vulnerabilities where user input is passed to shell execution
 severity: critical
 cwe: CWE-78
+cvss: 9.8
 language: [c, cpp, java, python, go, js]
 tags: [system, injection, shell]
 precision: very-high
 confidence: dynamic
+target_functions: [args, argv, code_context, exec, execlp, execv, execve, execvp, fgets, getenv, input, is_allowed, judgment_rationale, popen, read, recv, request, rocessBuilder, snprintf, sprintf, strcat, strcpy, subprocess, system, uery, user]
+match_patterns: [system\(|popen\(|ProcessBuilder|Runtime\.exec\(           # 命令执行函数, exec[lv]p?\(|exec[lv]\(                                    # exec 系列, snprintf|sprintf.*%s.*user|input                           # 格式化拼接用户输入, Runtime\.getRuntime\(\)\.exec\(|ProcessBuilder\(.*request  # Java 命令执行 + 用户输入, os\.system\(.*request|os\.popen\(.*request|subprocess\..*request  # Python 命令执行, subprocess\..*,\s*shell\s*=\s*True                           # 危险的 shell=True, exec\.Command\(.*r\.URL\.Query|exec\.Command\(.*c\.Param   # Go 命令执行 + 用户输入]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 命令注入 (Command Injection)
 
 ## 威胁定义 (Threat Definition)
 

@@ -1,14 +1,19 @@
 ---
 detector: jwt-misuse
+description: Detects JWT handling vulnerabilities including weak algorithms, missing verification, or token tampering
 severity: high
 cwe: CWE-347
+cvss: 7.8
 language: [java, python, go]
 tags: [web, authentication, jwt]
 precision: high
 confidence: dynamic
+target_functions: [builder, byte, compact, decode, func, parseClaimsJws, parser, requireIssuer, setSigningKey, setSubject, signWith, specified]
+match_patterns: []
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# JWT Misuse
 
 ## 威胁定义 (Threat Definition)
 

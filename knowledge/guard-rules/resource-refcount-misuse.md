@@ -1,14 +1,19 @@
 ---
 detector: resource.refcount-misuse
+description: Detects reference count mismatch vulnerabilities leading to use-after-free or memory leaks
 severity: medium
 cwe: CWE-911
+cvss: 5.5
 language: [c, cpp]
 tags: [resource, refcount, leak, reference-counting, use-after-free]
 precision: medium
 confidence: dynamic
+target_functions: [acquire, do_work, obj_get, obj_put, process, ptr, ref, release, unref]
+match_patterns: [obj_get() / AddRef() / ref() / acquire() 后在函数内缺乏对应的 obj_put() / Release() / unref() / release(), obj_put() / Release() / unref() / release() 多于对应的 inc 操作（多 release）, 循环内 inc 但仅循环外 dec（每次迭代泄漏）, 跨函数 inc/dec 不匹配（init 中 inc 但无对应的 cleanup 中 dec）]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 引用计数误用 (Reference Count Misuse)
 
 ## 威胁定义 (Threat Definition)
 

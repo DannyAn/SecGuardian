@@ -14,6 +14,12 @@ Focus areas: dangerous function usage, framework security (Django/Flask), deseri
 
 > **Prerequisite**: Command layer has executed `secguardian-index` to generate `index.json`. Use symbol table for review target identification rather than file-by-file traversal.
 
+## ⚙️ Engine Instructions
+
+> 以下执行指令属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行。未来 Engine 实现后将被 Engine 取代。
+>
+> **🔗 锚定+证据约束 (Rule A + Rule B):** 每个 finding 的 `file`+`line` MUST 可追溯到 index.json 的符号或文件列表。MUST 提供 `--snippet`、`--code-context`、`--rationale`、`--attack-scenario`。调用 `record-finding.py` 时必须传 `--index-json` 进行锚定校验。无 index 锚点时 MUST 标记 `confidence: low`。
+
 ## Execution Phases
 
 ### Phase 1: Load Context
@@ -66,6 +72,10 @@ Follows `knowledge/protocols/scan-output.md` (v5.0). Each finding:
 - CVSS severity assessment
 - Fix recommendation (before/after code)
 
+## 🎯 Review Focus (Skill Layer)
+
+> 以下内容定义了 review 的关注领域和规则，属于 Skill 层职责。
+
 ## Difference from secguard-python
 
 | Dimension | secguard (Secure Coding) | secreview (Code Review) |
@@ -75,6 +85,10 @@ Follows `knowledge/protocols/scan-output.md` (v5.0). Each finding:
 | Primary Output | Vulnerability location + CVSS | CWE mapping + exploit scenario + business logic risk |
 | Coverage | CWE Top 25 + detectors | OWASP + Django/Flask security + concurrency + anti-patterns |
 | Typical Mode | Full codebase scan | Git diff / PR changeset |
+
+## 📄 Output Protocol
+
+> 以下输出格式遵循 `internal/output/output_contract.md`。
 
 ## Output Completeness Requirements
 

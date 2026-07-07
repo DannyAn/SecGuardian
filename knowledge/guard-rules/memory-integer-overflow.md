@@ -1,14 +1,19 @@
 ---
 detector: integer-overflow
+description: Detects integer overflow or wraparound vulnerabilities in arithmetic operations
 severity: high
 cwe: CWE-190
+cvss: 7.5
 language: [c, cpp]
 tags: [arithmetic, allocation, size-check-bypass]
 precision: medium
 confidence: dynamic
+target_functions: [compute, get_user_input, malloc, memcpy]
+match_patterns: []
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 整数溢出 (Integer Overflow)
 
 ## 威胁定义 (Threat Definition)
 

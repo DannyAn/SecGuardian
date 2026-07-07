@@ -1,14 +1,19 @@
 ---
 detector: resource-exhaustion
+description: Detects resource exhaustion vulnerabilities where uncontrolled resource consumption can occur
 severity: medium
 cwe: CWE-400
+cvss: 5.8
 language: [c, cpp, java, python, go]
 tags: [web, dos, resource, memory]
 precision: medium
 confidence: dynamic
+target_functions: [add, all, byte, calloc, code_context, expensiveOperation, expensive_call, free, get, getInputStream, getParameter, judgment_rationale, malloc, parameter, parse, process, process_nested, read, readAllBytes, readFully, readLine, user, userSize, user_count]
+match_patterns: [for.*user_count|for.*request\.parameter|while.*user_input, malloc|calloc|new.*\[user|byte\[\].*userSize|readAllBytes, read.*all|readLine.*while|readFully]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 不受控制的资源消耗 (Uncontrolled Resource Consumption)
 
 ## 威胁定义 (Threat Definition)
 

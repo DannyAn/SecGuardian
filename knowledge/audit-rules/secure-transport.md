@@ -3,10 +3,14 @@ name: secure-transport
 description: 审计网络通信的TLS/SSL配置和传输层安全，检测证书问题、降级攻击风险、协议配置缺陷和不安全的加密套件。当用户请求传输安全审计、TLS配置审查、证书管理检测、中间人攻击防护、加密套件安全时使用。
 category: domain
 topic: [system]
+severity: Medium
+cwe: CWE-000
+cvss: 5.5
 ---
 
 > **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`（含 `symbols.functions`、`call_graph.edges`、`files`）。审计时优先利用符号表和调用图定位目标，追踪数据流路径。
 > **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
+
 
 # 安全传输审计
 

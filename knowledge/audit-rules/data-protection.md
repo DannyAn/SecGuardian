@@ -3,10 +3,14 @@ name: data-protection
 description: 审计敏感数据的存储、传输、处理和销毁全生命周期的安全保护措施，检测数据泄露和隐私合规风险。当用户请求数据保护审计、敏感数据存储安全、GDPR合规、数据加密、数据脱敏时使用。
 category: domain
 topic: [system]
+severity: Medium
+cwe: CWE-000
+cvss: 5.5
 ---
 
 > **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`（含 `symbols.functions`、`call_graph.edges`、`files`）。审计时优先利用符号表和调用图定位目标，追踪数据流路径。
 > **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
+
 
 # 数据保护安全审计
 

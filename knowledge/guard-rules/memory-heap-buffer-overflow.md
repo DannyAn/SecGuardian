@@ -1,14 +1,19 @@
 ---
 detector: heap-buffer-overflow
+description: Detects heap buffer overflow vulnerabilities where data exceeds allocated heap buffer size
 severity: critical
 cwe: CWE-122
+cvss: 9.8
 language: [c, cpp]
 tags: [memory, heap, exploitation]
 precision: high
 confidence: dynamic
+target_functions: [calloc, malloc, realloc, strncpy]
+match_patterns: []
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 堆缓冲区溢出 (Heap Buffer Overflow)
 
 ## 威胁定义 (Threat Definition)
 

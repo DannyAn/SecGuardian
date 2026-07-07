@@ -21,6 +21,7 @@ FILES=(
     "$PROJECT_ROOT/extensions/secguard-secguardian/extension.json"
     "$PROJECT_ROOT/extensions/secaudit-secguardian/extension.json"
     "$PROJECT_ROOT/extensions/secreview-secguardian/extension.json"
+    "$PROJECT_ROOT/extensions/secfix-secguardian/extension.json"
 )
 
 CURRENT=$(jq -r '.version' "$PROJECT_ROOT/manifest.json")

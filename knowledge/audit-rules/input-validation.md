@@ -3,10 +3,14 @@ name: input-validation
 description: 审计用户输入的验证和净化逻辑，检测各类注入漏洞和不充分的输入校验，覆盖 OWASP Top 10 注入类风险。当用户请求输入验证审计、注入漏洞检测、SQL注入、命令注入、XSS检测时使用。
 category: domain
 topic: [web]
+severity: High
+cwe: CWE-200
+cvss: 7.5
 ---
 
 > **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`（含 `symbols.functions`、`call_graph.edges`、`files`）。审计时优先利用符号表和调用图定位目标，追踪数据流路径。
 > **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
+
 
 # 输入验证安全审计
 

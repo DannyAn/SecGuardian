@@ -1,14 +1,19 @@
 ---
 detector: auth-bypass
+description: Detects authentication bypass vulnerabilities through logic flaws or weak validation
 severity: critical
 cwe: CWE-287
+cvss: 9.8
 language: [java, python, go]
 tags: [web, authentication]
 precision: medium
 confidence: dynamic
+target_functions: [admin, admin_dashboard, antMatchers, authorizeRequests, call_stack, code_context, config, dashboard, data_flow_path, handler, judgment_rationale, manage, ostMapping, permitAll, secret, settings]
+match_patterns: [permitAll\(\) .* admin|permitAll\(\) .* manage|permitAll\(\) .* secret, \.antMatchers\("/api/\*\*"\)\.permitAll\(\)               # 过度宽松的通配符覆盖了敏感路径, @PermitAll.*@PostMapping|@PermitAll.*@DeleteMapping       # Jakarta EE 注解绕过, def (admin|dashboard|settings|config):                     # 疑似管理功能, def \w+\(request\):.*\n(?!.*@login_required)               # 视图函数无认证装饰器, HandleFunc\(.*(admin|config|secret)                        # 敏感路径, if not request\.user\.is_authenticated:                    # 不认证的逻辑反转, if !user\.IsAuthenticated                                  # Go: 不认证的逻辑反转]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 认证绕过 (Authentication Bypass)
 
 ## 威胁定义 (Threat Definition)
 

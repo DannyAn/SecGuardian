@@ -1,14 +1,19 @@
 ---
 detector: missing-authorization
+description: Detects missing authorization checks where authenticated users access unauthorized resources
 severity: high
 cwe: CWE-862
+cvss: 7.8
 language: [java, python, go]
 tags: [web, authorization, access-control]
 precision: high
 confidence: dynamic
+target_functions: [admin, admin_users, code_context, deleteUser, ecured, eleteMapping, findById, hasAdminRole, hasRole, judgment_rationale, listUsers, ostMapping, reAuthorize, role, route, utMapping]
+match_patterns: [/admin|/api/admin|DELETE|管理, @PostMapping|@PutMapping|@DeleteMapping|@PatchMapping, 公共函数有授权 → 内部函数跳过 → 外部可通过内部函数绕过]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 缺失授权检查 (Missing Authorization)
 
 ## 威胁定义 (Threat Definition)
 

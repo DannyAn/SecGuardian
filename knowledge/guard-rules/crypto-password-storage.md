@@ -1,14 +1,17 @@
 ---
-confidence: dynamic
-cwe: CWE-916
 detector: crypto-password-storage
-language: [java, python, go, js]
-precision: very-high
+description: Detects insufficiently protected password storage (e.g., plaintext, weak hashing)
 severity: critical
+cwe: CWE-916
+cvss: 9.8
+language: [java, python, go, js]
 tags: [crypto, password, hashing, storage]
+precision: very-high
+confidence: dynamic
+target_functions: [auth, byte, ccount, checkpw, code_context, compare, create, createHash, credential, database, digest, doFinal, encode, equals, gensalt, getBytes, getInstance, hash, hashpw, hexdigest, judgment_rationale, login, md5, ogin, passwd, password, pwd, require, secret, ser, sha1, sha256, signup, store, stored, toCharArray, update, user, uth]
+match_patterns: [MessageDigest\.getInstance\("MD5"|"SHA-1"|"SHA-256"\), hashlib\.(md5|sha1|sha256)\(.*password|pwd|passwd|secret, hashlib\.(md5|sha1|sha256)\(.*encode\(\)\).*hexdigest\(\), (md5\.Sum|sha256\.Sum256)\(\[\]byte\(password, crypto\.createHash\(.(md5|sha1|sha256).\).*password, password\s*==\s*stored|password\.equals\(stored\), Cipher\.getInstance.*password]
+exclude_patterns: []
 ---
-
-# 密码存储不安全 (Insecure Password Storage)
 
 ## 威胁定义 (Threat Definition)
 

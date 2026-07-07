@@ -1,14 +1,19 @@
 ---
 detector: null-dereference
+description: Detects null pointer dereference vulnerabilities where a pointer is used without null check
 severity: high
 cwe: CWE-476
+cvss: 7.5
 language: [c, cpp]
 tags: [memory, pointer, crash]
 precision: very-high
 confidence: dynamic
+target_functions: [caller, calloc, cleanup, code_context, fopen, getenv, goto, judgment_rationale, malloc, process, realloc, strchr, strstr, use]
+match_patterns: [(malloc|calloc|realloc)\(, (malloc|calloc)\([^)]*\), (getenv|fopen|strchr|strstr)\(, \w+\s*=\s*realloc\(\1,]
+exclude_patterns: [new\s+(?!\(std::nothrow\)), __attribute__\(\(returns_nonnull\)\), if\s*\(.*==\s*NULL\)|if\s*\(!ptr\), std::unique_ptr|std::shared_ptr, \balloca\(]
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 空指针解引用 (Null Dereference)
 
 ## 威胁定义 (Threat Definition)
 

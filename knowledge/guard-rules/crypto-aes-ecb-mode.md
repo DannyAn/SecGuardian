@@ -1,14 +1,17 @@
 ---
-confidence: dynamic
-cwe: CWE-327
 detector: crypto-aes-ecb-mode
-language: [c, cpp, java, python, go, js]
-precision: very-high
+description: Detects use of AES in ECB mode, which produces identical ciphertext for identical plaintext blocks
 severity: high
+cwe: CWE-327
+cvss: 7.5
+language: [c, cpp, java, python, go, js]
 tags: [crypto, aes, ecb, mode]
+precision: very-high
+confidence: dynamic
+target_functions: [_ECB, _aes_128_ecb, _aes_256_ecb, aes, aes_128_ecb, aes_256_ecb, aes_256_gcm, code_context, createCipheriv, ctrl, ecb, encrypt, getInstance, init, judgment_rationale, mbedtls_aes_crypt_ecb, pyaes]
+match_patterns: [Cipher\.getInstance\(.*ECB|Cipher\.getInstance\("AES"\)|Cipher\.getInstance\("DES"\), EVP_aes_128_ecb|EVP_aes_256_ecb|mbedtls_aes_crypt_ecb, AES_encrypt.*AES_encrypt   → 循环中的逐块原始加密 (手动 ECB), AES\.MODE_ECB|pyaes\.AESModeOfOperationECB, cryptography.*modes\.ECB\(\), crypto/des.*NewCipher.*\n.*Encrypt → 逐块加密 (手动 ECB), aes-128-ecb|aes-256-ecb|CryptoJS\.mode\.ECB]
+exclude_patterns: []
 ---
-
-# AES ECB 模式使用 (AES ECB Mode Usage)
 
 ## 威胁定义 (Threat Definition)
 

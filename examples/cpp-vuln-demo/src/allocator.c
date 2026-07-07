@@ -122,6 +122,12 @@ int main() {
     AllocEntry *e1 = alloc_entry(128);
     AllocEntry *e2 = alloc_entry(256);
 
+    // VULNERABILITY [CWE-911]: Reference count mismatch
+    // alloc_entry increments refcount, free decrements — imbalance causes leak/double-free
+    free(e1->buffer);
+    free(e1);
+    // e2 not freed — refcount leak
+
     release_entry(e1);
     release_entry(e2);
 

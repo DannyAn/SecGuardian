@@ -1,14 +1,19 @@
 ---
 detector: toctou
+description: Detects time-of-check/time-of-use race conditions in file system operations
 severity: high
 cwe: CWE-367
+cvss: 7.5
 language: [c, cpp]
 tags: [system, filesystem, race-condition]
 precision: medium
 confidence: dynamic
+target_functions: [access, code_context, data_flow_path, fopen, fstat, judgment_rationale, lstat, open, path, stat]
+match_patterns: [access\(.*path|stat\(.*path|lstat\(.*path       # → MUST: code_context (check行), access\|stat\|lstat.*path]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# TOCTOU 竞态条件 (Time-of-Check Time-of-Use)
 
 ## 威胁定义 (Threat Definition)
 

@@ -1,14 +1,19 @@
 ---
 detector: deadlock
+description: Detects deadlock vulnerabilities where threads hold locks in conflicting order causing indefinite blocking
 severity: medium
 cwe: CWE-833
+cvss: 5.5
 language: [c, cpp]
 tags: [concurrency, threading, lock-ordering]
 precision: medium
 confidence: dynamic
+target_functions: [call_stack, callback, code_context, judgment_rationale, lock, pthread_mutex_lock, std, unlock]
+match_patterns: [(pthread_mutex_lock|std::mutex.*lock|EnterCriticalSection)\(&?\w+\)  # 锁获取, pthread_mutex_init\([^)]*NULL\)                                        # 默认非递归]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 死锁 (Deadlock)
 
 ## 威胁定义 (Threat Definition)
 

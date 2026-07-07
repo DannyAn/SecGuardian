@@ -1,14 +1,19 @@
 ---
 detector: path-traversal
+description: Detects path traversal vulnerabilities where user input controls file paths without sanitization
 severity: high
 cwe: CWE-22
+cvss: 7.5
 language: [c, cpp, java, python, go, js]
 tags: [system, filesystem, traversal]
 precision: very-high
 confidence: dynamic
+target_functions: [argv, basename, code_context, fopen, input, judgment_rationale, open, openat, opendir, realpath, snprintf, sprintf, stat, strlen, strncmp, unlink, user]
+match_patterns: [snprintf|sprintf.*%s.*user|input|argv, fopen|open]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 路径遍历 (Path Traversal)
 
 ## 威胁定义 (Threat Definition)
 

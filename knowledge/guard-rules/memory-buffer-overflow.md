@@ -1,14 +1,19 @@
 ---
 detector: buffer-overflow
+description: Detects buffer overflow vulnerabilities where data is written beyond buffer boundaries, potentially overwriting adjacent memory
 severity: critical
 cwe: CWE-120
+cvss: 9.8
 language: [c, cpp]
 tags: [memory, stack, heap, exploitation]
 precision: very-high
 confidence: dynamic
+target_functions: [argv, code_context, getenv, gets_s, input, judgment_rationale, memcpy, memcpy_s, scanf_s, snprintf, sprintf_s, strcat, strcat_s, strcpy, strcpy_s, strncpy, user]
+match_patterns: [\bgets\(, (strcpy|strcat)\(dst,  → dst 为 char dst[N] 且 src 来自外部, sprintf\([^)]*%s[^)]*user|input|argv|getenv, memcpy\([^)]*, [^)]*, (?!sizeof\(dst\))  → n 来自变量/外部, memcpy\(dst,\s*src,\s*sizeof\(src\)\)  # 在函数体内且 src 为参数]
+exclude_patterns: [strcpy_s\(dst,\s*sizeof\(dst\), strcat_s\(dst,\s*sizeof\(dst\), sprintf_s\(buf,\s*sizeof\(buf\), memcpy_s\(dst,\s*sizeof\(dst\), scanf_s\([^)]*%s[^)]*sizeof\(, gets_s\([^)]*sizeof\(, snprintf\([^)]*sizeof\([^)]*\).*\n.*if\s*\(.*written.*>=, std::string|std::vector|std::array.*push_back|\.append|\.assign]
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 缓冲区溢出 (Buffer Overflow)
 
 ## 威胁定义 (Threat Definition)
 

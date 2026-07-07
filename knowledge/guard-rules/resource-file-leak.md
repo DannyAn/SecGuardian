@@ -1,14 +1,17 @@
 ---
 detector: resource-file-leak
+description: Detects file handle leaks where opened files are not closed before resource exhaustion
 severity: high
 cwe: CWE-775
+cvss: 7.5
 language: [c, cpp]
 tags: [resource, file, leak, fd, resource]
 precision: high
 confidence: dynamic
+target_functions: [code_context, do_work, fclose, fopen, freopen, ifs, open, openat, tmpfile]
+match_patterns: [fopen\s*\(.*\)(?!.*fclose)       # fopen 无对应 fclose, open\s*\(.*\)(?!.*close\s*\()    # open 无对应 close]
+exclude_patterns: []
 ---
-
-# 文件句柄泄漏 (File Descriptor Leak)
 
 ## 威胁定义 (Threat Definition)
 

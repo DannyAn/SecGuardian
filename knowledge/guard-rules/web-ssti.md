@@ -1,14 +1,17 @@
 ---
-confidence: dynamic
-cwe: CWE-1336
 detector: web-ssti
-language: [java, python, go, js]
-precision: very-high
+description: Detects server-side template injection vulnerabilities where user input is embedded in templates
 severity: critical
+cwe: CWE-1336
+cvss: 9.8
+language: [java, python, go, js]
 tags: [web, template, injection, ssti]
+precision: very-high
+confidence: dynamic
+target_functions: [addObject, args, body, code_context, compile, data, ejs, evaluate, execSync, form, get, getParameter, getValue, handler, hello, json, judgment_rationale, parseExpression, process, query, render, renderString, render_template, render_template_string, require, route, send, subclasses, substitute, template]
+match_patterns: [render_template_string\(.*request\.(args|form|data|json), Template\(request\.(args|form|data)\['\w+'\], mako\.template\.Template\(.*request\., from\s+string\s+import\s+Template.*Template\(.*request, new\s+Template\(.*getParameter|new\s+StringReader\(.*getParameter, Velocity\.evaluate\(.*getParameter, SpelExpressionParser.*getParameter, templateEngine\.process\(.*getParameter, template\.(New|Must)\(.*\.Parse\(.*r\.URL\.Query\(\)|r\.FormValue, import\s+"text/template"  # 用于 HTML 场景 (非 html/template), ejs\.render\(`.*req\.|ejs\.render\(.*req\.(query|body), pug\.compile\(req\.|Handlebars\.compile\(req\., nunjucks\.renderString\(.*req\.]
+exclude_patterns: []
 ---
-
-# 服务端模板注入 (Server-Side Template Injection)
 
 ## 威胁定义 (Threat Definition)
 

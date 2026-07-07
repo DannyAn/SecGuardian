@@ -1,246 +1,411 @@
 #!/bin/bash
-# SecGuardian — Release Build Script
+# SecGuardian — Release Canonical Entry Point
 #
-# 构建所有发布产物到 dist/release/<version>/
+# Build 发布产物 → 发布到 GitHub / Gitee。
+# 所有发布流程必须通过此脚本执行，分别维护多个发布脚本 = 维护噩梦。
 #
 # 用法:
-#   bash scripts/release.sh [version]
-#   bash scripts/release.sh 0.3.1
+#   bash scripts/release.sh v0.15.0               # 构建 + GitHub (默认)
+#   bash scripts/release.sh v0.15.0 --gitee        # 构建 + GitHub + Gitee
+#   bash scripts/release.sh v0.15.0 --only-gitee   # 构建 + Gitee 仅
+#   bash scripts/release.sh --help                 # 帮助
 #
-# 环境变量:
-#   VERSION   版本号（默认从 git tag 或 CHANGELOG 取）
-#   OUTPUT    输出目录（默认 dist/release）
+# 前置条件:
+#   - tag v0.x.y 已存在 (git tag && git push origin --tags)
+#   - gh CLI 已登录 (gh auth status)
+#   - GITEE_TOKEN 已设置（发布到 Gitee 时需要）
 #
-# 输出:
-#   dist/release/<version>/
-#   ├── secguardian-index-<version>-darwin-arm64
-#   ├── secguardian-index-<version>-darwin-arm64.sha256
-#   ├── secguardian-index-<version>-darwin-amd64
-#   ├── secguardian-index-<version>-darwin-amd64.sha256
-#   ├── secguardian-index-<version>-linux-amd64
-#   ├── secguardian-index-<version>-linux-amd64.sha256
-#   ├── secguardian-index-<version>-windows-amd64.exe
-#   ├── secguardian-index-<version>-windows-amd64.exe.sha256
-#   ├── secguardian-<version>-claude-code-${PLATFORM_SUFFIX}.zip
-#   ├── secguardian-<version>-opencode-${PLATFORM_SUFFIX}.zip
-#   ├── secguardian-<version>-gemini-cli-${PLATFORM_SUFFIX}.zip
-#   ├── secguardian-<version>-source.tar.gz
-#   └── manifest.json
+# 产物: dist/release/
+#
+# 设计原则:
+#   1. 单入口 — 不拆分 multiple 发布脚本，不保留 github-release.sh 包装层
+#   2. 构建在前 — 发布前必构建，不信任旧产物
+#   3. 先快后慢 — 先做轻量检查再构建，失败不浪费构建时间
 
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VERSION="${1:-$(grep '^\#\# ' "$PROJECT_ROOT/CHANGELOG.md" | head -1 | sed 's/.*\[//;s/\].*//')}"
-VERSION="${VERSION:-0.3.1}"
-OUTPUT="${OUTPUT:-$PROJECT_ROOT/dist/release/$VERSION}"
 
-GREEN='\033[0;32m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
+# ── 颜色 ────────────────────────────────────
+GREEN='\033[0;32m'; CYAN='\033[0;36m'; YELLOW='\033[0;33m'; RED='\033[0;31m'; BOLD='\033[1m'; NC='\033[0m'
+log()   { echo -e "${CYAN}  →${NC} $1"; }
+ok()    { echo -e "${GREEN}  ✓${NC} $1"; }
+warn()  { echo -e "${YELLOW}  ⚠${NC} $1"; }
+fail()  { echo -e "${RED}  ✗${NC} $1"; exit 1; }
 
-log() { echo -e "${CYAN}  →${NC} $1"; }
-done_msg() { echo -e "${GREEN}  ✓${NC} $1"; }
+# ── 参数解析 ──────────────────────────────────
+if [ $# -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    cat << 'HELP'
+用法:
+  bash scripts/release.sh v0.x.y               # 构建 + GitHub
+  bash scripts/release.sh v0.x.y --gitee        # 构建 + GitHub + Gitee
+  bash scripts/release.sh v0.x.y --only-gitee   # 构建 + Gitee 仅
+
+流程:
+  1. Pre-flight: 检查 gh CLI / 认证 / tag 存在 / Release 不重复
+  2. bash scripts/package.sh → 构建 dist/
+  3. 平台打包 (5 targets × 3 AI 平台格式)
+  4. 顶层 bundle + SHA256SUMS
+  5. 发布到 GitHub（除非 --only-gitee）
+  6. 发布到 Gitee（如果 --gitee 或 --only-gitee）
+
+环境变量:
+  GITEE_TOKEN      发布到 Gitee 必需
+  GITEE_OWNER      Gitee 仓库所有者（默认: 从 git remote 提取）
+HELP
+    exit 0
+fi
+
+RELEASE_TAG="$1"
+PUBLISH_TARGET="github"   # github | gitee | all
+
+if [ "${2:-}" = "--gitee" ]; then
+    PUBLISH_TARGET="all"
+elif [ "${2:-}" = "--only-gitee" ]; then
+    PUBLISH_TARGET="gitee"
+fi
+
+VERSION="${RELEASE_TAG#v}"
 
 echo ""
-echo -e "${BOLD}╔══════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}║${NC}  SecGuardian Release Build v${VERSION}                  ${BOLD}║${NC}"
-echo -e "${BOLD}╚══════════════════════════════════════════════╝${NC}"
+echo -e "${BOLD}╔══════════════════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}║${NC}  SecGuardian Release ${VERSION}                          ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}  Publish target: ${PUBLISH_TARGET}${NC}"
+echo -e "${BOLD}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""
 
-mkdir -p "$OUTPUT"
-# Clean previous release artifacts
-rm -f "$OUTPUT"/*.zip "$OUTPUT"/*.zip.sha256 "$OUTPUT"/*.tar.gz "$OUTPUT"/*.tar.gz.sha256 "$OUTPUT"/secguardian-index-* "$OUTPUT"/manifest.json
+# ════════════════════════════════════════════════════════════════
+# Step 0: Pre-flight Checks
+# ════════════════════════════════════════════════════════════════
 
-# ── 1. Go Binary: macOS (native) ──────────────────
-log "Building indexer binaries (macOS)..."
-cd "$PROJECT_ROOT/internal"
+log "Pre-flight checks..."
 
-# Detect current platform for naming
-BUILD_OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
-BUILD_ARCH="$(uname -m | sed 's/x86_64/amd64/;s/arm64/arm64/;s/aarch64/arm64/')"
-PLATFORM_SUFFIX="${BUILD_OS}-${BUILD_ARCH}"
+# Tag 必须存在
+if ! git rev-parse "$RELEASE_TAG" >/dev/null 2>&1; then
+    fail "Tag '$RELEASE_TAG' not found. Create: git tag $RELEASE_TAG && git push origin $RELEASE_TAG"
+fi
 
-for arch in arm64 amd64; do
-    bin_name="secguardian-index-${VERSION}-darwin-${arch}"
-    if GOOS=darwin GOARCH=$arch go build -o "$OUTPUT/$bin_name" . 2>/dev/null; then
-        shasum -a 256 "$OUTPUT/$bin_name" | cut -d' ' -f1 > "$OUTPUT/$bin_name.sha256"
-        done_msg "$bin_name ($(du -h "$OUTPUT/$bin_name" | cut -f1))"
+# GitHub 发布时需要 gh CLI
+if [ "$PUBLISH_TARGET" = "github" ] || [ "$PUBLISH_TARGET" = "all" ]; then
+    if ! command -v gh &>/dev/null; then
+        fail "gh CLI not found. Install: brew install gh"
+    fi
+    if ! gh auth status 2>&1 | grep -q "Logged in"; then
+        fail "gh not authenticated. Run: gh auth login"
+    fi
+    if gh release view "$RELEASE_TAG" &>/dev/null 2>&1; then
+        fail "GitHub Release $RELEASE_TAG already exists. Delete first:\n  gh release delete $RELEASE_TAG\n  git push --delete origin $RELEASE_TAG"
+    fi
+    ok "GitHub release checks passed"
+fi
+
+# 工作目录检查
+if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+    echo -e "${YELLOW}  ⚠  Working directory has uncommitted changes:${NC}"
+    git status --short
+    echo ""
+    read -r -p "  Continue? [y/N] " reply
+    if [ "$reply" != "y" ] && [ "$reply" != "Y" ]; then
+        echo "  Cancelled."
+        exit 1
+    fi
+fi
+ok "Pre-flight complete"
+
+DIST="$PROJECT_ROOT/dist"
+RELEASE_DIR="$DIST/release"
+BIN_SRC="$PROJECT_ROOT/scripts/bin"
+
+# ════════════════════════════════════════════════════════════════
+# Step 1: Build dist/ + binaries
+# ════════════════════════════════════════════════════════════════
+
+echo ""
+echo -e "${BOLD}═══ Step 1: Build ═══${NC}"
+bash "$PROJECT_ROOT/scripts/package.sh"
+ok "Build complete"
+
+# ════════════════════════════════════════════════════════════════
+# Step 2: Platform bundles (5 targets × 3 AI platforms)
+# ════════════════════════════════════════════════════════════════
+
+echo ""
+echo -e "${BOLD}═══ Step 2: Platform bundles ═══${NC}"
+
+TARGETS=(
+    "darwin-arm64:.tar.gz"
+    "darwin-amd64:.tar.gz"
+    "linux-amd64:.tar.gz"
+    "linux-arm64:.tar.gz"
+    "windows-amd64:.zip"
+)
+
+rm -rf "$RELEASE_DIR"
+mkdir -p "$RELEASE_DIR"
+
+for entry in "${TARGETS[@]}"; do
+    IFS=: read -r platform ext <<< "$entry"
+    staging="$RELEASE_DIR/staging-$platform"
+    rm -rf "$staging"
+
+    mkdir -p "$staging/.claude-plugin" \
+             "$staging/commands/secguardian" \
+             "$staging/skills" \
+             "$staging/knowledge/languages" \
+             "$staging/knowledge/guard-rules" \
+             "$staging/knowledge/protocols" \
+             "$staging/knowledge/standards" \
+             "$staging/scripts/bin" \
+             "$staging/plugins"
+
+    # Merge .md commands (Claude + OpenCode)
+    for d in "$DIST"/*-secguardian/; do
+        [ -d "$d/commands" ] && find "$d/commands" -maxdepth 1 -name '*.md' -exec cp {} "$staging/commands/" \;
+    done
+    for f in "$staging/commands"/*.md; do
+        [ -f "$f" ] && cp "$f" "$staging/commands/secguardian/"
+    done
+
+    # Gemini .toml commands
+    bash "$PROJECT_ROOT/scripts/gen-toml.sh" > /dev/null
+    for f in "$PROJECT_ROOT/commands/gemini"/*.toml; do
+        [ -f "$f" ] && cp "$f" "$staging/commands/"
+    done
+
+    # Merge skills with command prefix
+    for d in "$DIST"/*-secguardian/; do
+        prefix="$(basename "$d" | sed 's/-secguardian//')"
+        if [ -d "$d/skills" ]; then
+            for sd in "$d/skills"/*/; do
+                [ -d "$sd" ] && cp -r "$sd" "$staging/skills/${prefix}-$(basename "$sd")"
+            done
+        fi
+    done
+
+    # Merge knowledge
+    for cat in languages guard-rules protocols; do
+        for d in "$DIST"/*-secguardian/; do
+            [ -d "$d/knowledge/$cat" ] && find "$d/knowledge/$cat" -name '*.md' -exec cp {} "$staging/knowledge/$cat/" \;
+        done
+    done
+    [ -f "$PROJECT_ROOT/knowledge/threat-catalog.md" ] && cp "$PROJECT_ROOT/knowledge/threat-catalog.md" "$staging/knowledge/"
+    [ -f "$PROJECT_ROOT/SECURITY.md" ] && cp "$PROJECT_ROOT/SECURITY.md" "$staging/knowledge/"
+    [ -d "$PROJECT_ROOT/knowledge/standards" ] && find "$PROJECT_ROOT/knowledge/standards" -name '*.md' -exec cp {} "$staging/knowledge/standards/" \; 2>/dev/null || true
+    cp -r "$PROJECT_ROOT/knowledge/audit-rules" "$staging/knowledge/" 2>/dev/null || true
+    cp -r "$PROJECT_ROOT/knowledge/review-rules" "$staging/knowledge/" 2>/dev/null || true
+    cp "$PROJECT_ROOT/knowledge/language-index.md" "$staging/knowledge/" 2>/dev/null || true
+
+    # Scripts + wrappers
+    for wrapper in secguardian-index secguardian-index.ps1 render-report.py validate-index.py validate-findings.py record-finding.py; do
+        if [ -f "$PROJECT_ROOT/scripts/$wrapper" ]; then
+            cp "$PROJECT_ROOT/scripts/$wrapper" "$staging/scripts/$wrapper"
+            chmod +x "$staging/scripts/$wrapper" 2>/dev/null || true
+        fi
+    done
+
+    # Platform binary
+    bin_name="secguardian-index-${platform}"
+    [ "$platform" = "windows-amd64" ] && bin_name="${bin_name}.exe"
+    if [ -f "$BIN_SRC/$bin_name" ]; then
+        cp "$BIN_SRC/$bin_name" "$staging/scripts/bin/secguardian-index"
+        chmod +x "$staging/scripts/bin/secguardian-index"
     else
-        log "WARN: $bin_name build failed (tree-sitter CGO) — try native build on $arch Mac"
+        echo "  [WARN] Binary not found: $bin_name"
+    fi
+
+    # Platform manifests (Claude Code / OpenCode / Gemini)
+    cat > "$staging/.claude-plugin/plugin.json" << JSON
+{
+  "name": "secguardian",
+  "version": "${VERSION}",
+  "description": "SecGuardian — Enterprise white-box security AI Agent",
+  "author": { "name": "SecGuardian", "url": "https://github.com/DannyAn/SecGuardian" },
+  "homepage": "https://github.com/DannyAn/SecGuardian"
+}
+JSON
+    cat > "$staging/codeagent-extension.json" << JSON
+{
+  "name": "secguardian",
+  "version": "${VERSION}",
+  "description": "SecGuardian — Enterprise white-box security AI Agent"
+}
+JSON
+    cat > "$staging/gemini-extension.json" << JSON
+{
+  "name": "secguardian",
+  "version": "${VERSION}",
+  "description": "SecGuardian — Enterprise white-box security AI Agent",
+  "author": "SecGuardian",
+  "homepage": "https://github.com/DannyAn/SecGuardian",
+  "commands": ["commands/secguard.toml", "commands/secaudit.toml", "commands/secreview.toml", "commands/secfix.toml"]
+}
+JSON
+
+    # OpenCode plugin script
+    if [ -f "$PROJECT_ROOT/scripts/opencode-plugin.js" ]; then
+        cp "$PROJECT_ROOT/scripts/opencode-plugin.js" "$staging/plugins/secguardian.js"
+    fi
+
+    # Gemini context
+    cat > "$staging/GEMINI.md" << 'GEMINI'
+# SecGuardian — Security Guardian
+
+This extension registers 4 Gemini CLI security commands:
+
+| Command | Purpose |
+|---------|---------|
+| `/secguard <path> [mode] [filters]` | Secure Coding Guidance |
+| `/secaudit <skill-name> [path]` | Security Audit |
+| `/secreview <path> [language]` | Code Review |
+| `/secfix <path> [rule]` | AI Remediation |
+
+All scan results written to `.codeagent/secguardian/scans/<scan-id>/`.
+GEMINI
+
+    # Strip macOS artifacts + package
+    xattr -cr "$staging" 2>/dev/null || true
+    find "$staging" -name '._*' -type f -delete 2>/dev/null || true
+
+    bundle_name="secguardian-${VERSION}-${platform}${ext}"
+    (cd "$RELEASE_DIR" && \
+        if [ "$ext" = ".zip" ]; then
+            (cd "staging-$platform" && zip -qr "$RELEASE_DIR/$bundle_name" .)
+        else
+            COPYFILE_DISABLE=1 tar czf "$bundle_name" --no-xattrs -C "staging-$platform" .
+        fi)
+    echo "  → $bundle_name"
+    rm -rf "$staging"
+done
+
+ok "Platform bundles built"
+
+# ════════════════════════════════════════════════════════════════
+# Step 3: Top-level bundle + SHA256
+# ════════════════════════════════════════════════════════════════
+
+echo ""
+echo -e "${BOLD}═══ Step 3: Top-level bundle ═══${NC}"
+
+TOP_DIR="$RELEASE_DIR/secguardian-${VERSION}"
+mkdir -p "$TOP_DIR"
+
+cp "$PROJECT_ROOT/scripts/install.sh" "$TOP_DIR/install.sh"
+cp "$PROJECT_ROOT/scripts/uninstall.sh" "$TOP_DIR/uninstall.sh"
+chmod +x "$TOP_DIR/install.sh" "$TOP_DIR/uninstall.sh"
+
+for entry in "${TARGETS[@]}"; do
+    IFS=: read -r platform ext <<< "$entry"
+    bundle_name="secguardian-${VERSION}-${platform}${ext}"
+    if [ -f "$RELEASE_DIR/$bundle_name" ]; then
+        mv "$RELEASE_DIR/$bundle_name" "$TOP_DIR/"
     fi
 done
 
-# ── 1b. Build Notes ──────────────────────────────
-log "Cross-platform note:"
-log "  tree-sitter requires CGO, cross-compilation to Linux/Windows not possible locally."
-log "  Linux/Windows binaries are built by CI (.github/workflows/ci.yml) on native runners."
-log "  This release contains ${PLATFORM_SUFFIX} binaries only."
-log "  For other platforms, download the source tarball and build natively:"
-log "    cd internal && go build -o secguardian-index ."
+cat > "$TOP_DIR/README.md" << README
+# SecGuardian ${VERSION}
 
-# ── 2. Extension Packages ─────────────────────────
-log "Building extension packages..."
+Enterprise white-box security AI Agent for Claude Code / OpenCode / Gemini CLI.
 
-cd "$PROJECT_ROOT"
-python3 scripts/sync-language-index.sh > /dev/null 2>&1
-python3 scripts/sync-toml.sh > /dev/null 2>&1
-bash scripts/package.sh > /dev/null 2>&1
+## Quick Install
 
-# Claude Code: official plugin format (.claude-plugin/plugin.json)
-bash scripts/deploy.sh cc > /dev/null 2>&1
-claude_zip="$OUTPUT/secguardian-${VERSION}-claude-code-${PLATFORM_SUFFIX}.zip"
-rm -f "$claude_zip"
-if [ -d ".claude/plugins/secguardian" ]; then
-    (cd .claude/plugins && zip -rq "$claude_zip" secguardian/)
-    shasum -a 256 "$claude_zip" | cut -d' ' -f1 > "$claude_zip.sha256"
-    done_msg "secguardian-${VERSION}-claude-code-${PLATFORM_SUFFIX}.zip ($(du -h "$claude_zip" | cut -f1))"
-fi
+\`\`\`bash
+bash install.sh claude      # Claude Code
+bash install.sh nga         # OpenCode
+bash install.sh cac         # Gemini CLI
+bash install.sh all         # All platforms
+\`\`\`
 
-# OpenCode: plugin under .opencode/extensions/secguardian/
-bash scripts/deploy.sh nga > /dev/null 2>&1
-opencode_zip="$OUTPUT/secguardian-${VERSION}-opencode-${PLATFORM_SUFFIX}.zip"
-rm -f "$opencode_zip"
-if [ -d ".opencode/extensions/secguardian" ]; then
-    (cd .opencode/extensions && zip -rq "$opencode_zip" secguardian/)
-    shasum -a 256 "$opencode_zip" | cut -d' ' -f1 > "$opencode_zip.sha256"
-    done_msg "secguardian-${VERSION}-opencode-${PLATFORM_SUFFIX}.zip ($(du -h "$opencode_zip" | cut -f1))"
-fi
+## Uninstall
 
-# Gemini CLI: official extension format (.gemini/extensions/secguardian/)
-bash scripts/deploy.sh cac > /dev/null 2>&1
-gemini_zip="$OUTPUT/secguardian-${VERSION}-gemini-cli-${PLATFORM_SUFFIX}.zip"
-rm -f "$gemini_zip"
-if [ -d ".gemini/extensions/secguardian" ]; then
-    (cd .gemini/extensions && zip -rq "$gemini_zip" secguardian/)
-    shasum -a 256 "$gemini_zip" | cut -d' ' -f1 > "$gemini_zip.sha256"
-    done_msg "secguardian-${VERSION}-gemini-cli-${PLATFORM_SUFFIX}.zip ($(du -h "$gemini_zip" | cut -f1))"
-fi
+\`\`\`bash
+bash uninstall.sh claude
+bash uninstall.sh all
+\`\`\`
+README
 
-# ── 2b. Cross-platform zips (all platforms from pre-built binaries) ──
-log "Generating cross-platform zips..."
-BIN_DIR="$PROJECT_ROOT/scripts/bin"
-for target_os in darwin linux windows; do
-    for target_arch in amd64 arm64; do
-        # Determine binary extension and platform suffix
-        ext=""
-        plat_suffix="${target_os}-${target_arch}"
-        case "$target_os" in
-            windows) ext=".exe" ;;
-        esac
-        src_bin="$BIN_DIR/secguardian-index-${target_os}-${target_arch}${ext}"
-        [ ! -f "$src_bin" ] && continue  # Skip if this platform wasn't built
+xattr -cr "$TOP_DIR" 2>/dev/null || true
 
-        # Skip current platform (already zipped in section 2)
-        [ "$plat_suffix" = "$PLATFORM_SUFFIX" ] && continue
+TOP_ARCHIVE="secguardian-${VERSION}.tar.gz"
+(cd "$RELEASE_DIR" && COPYFILE_DISABLE=1 tar czf "$TOP_ARCHIVE" --no-xattrs "secguardian-${VERSION}")
+echo "  → $TOP_ARCHIVE"
+rm -rf "$TOP_DIR"
 
-        # Claude Code
-        if [ -d ".claude/plugins/secguardian" ]; then
-            rm -f ".claude/plugins/secguardian/scripts/bin/"*
-            cp "$src_bin" ".claude/plugins/secguardian/scripts/bin/secguardian-index${ext}"
-            chmod +x ".claude/plugins/secguardian/scripts/bin/secguardian-index${ext}"
-            cc_zip="$OUTPUT/secguardian-${VERSION}-claude-code-${plat_suffix}.zip"
-            (cd .claude/plugins && zip -rq "$cc_zip" secguardian/)
-            shasum -a 256 "$cc_zip" | cut -d' ' -f1 > "$cc_zip.sha256"
-        fi
+ok "Top-level bundle created"
 
-        # OpenCode
-        if [ -d ".opencode/extensions/secguardian" ]; then
-            rm -f ".opencode/extensions/secguardian/scripts/bin/"*
-            cp "$src_bin" ".opencode/extensions/secguardian/scripts/bin/secguardian-index${ext}"
-            chmod +x ".opencode/extensions/secguardian/scripts/bin/secguardian-index${ext}"
-            oc_zip="$OUTPUT/secguardian-${VERSION}-opencode-${plat_suffix}.zip"
-            (cd .opencode/extensions && zip -rq "$oc_zip" secguardian/)
-            shasum -a 256 "$oc_zip" | cut -d' ' -f1 > "$oc_zip.sha256"
-        fi
-
-        # Gemini CLI
-        if [ -d ".gemini/extensions/secguardian" ]; then
-            rm -f ".gemini/extensions/secguardian/scripts/bin/"*
-            cp "$src_bin" ".gemini/extensions/secguardian/scripts/bin/secguardian-index${ext}"
-            chmod +x ".gemini/extensions/secguardian/scripts/bin/secguardian-index${ext}"
-            gc_zip="$OUTPUT/secguardian-${VERSION}-gemini-cli-${plat_suffix}.zip"
-            (cd .gemini/extensions && zip -rq "$gc_zip" secguardian/)
-            shasum -a 256 "$gc_zip" | cut -d' ' -f1 > "$gc_zip.sha256"
-        fi
-
-        done_msg "  ${plat_suffix}: claude-code + opencode + gemini-cli"
-    done
-done
-
-# Restore native binary for local deployment
-deploy_indexer_binary ".claude/plugins/secguardian/scripts/bin" 2>/dev/null || true
-deploy_indexer_binary ".opencode/extensions/secguardian/scripts/bin" 2>/dev/null || true
-deploy_indexer_binary ".gemini/extensions/secguardian/scripts/bin" 2>/dev/null || true
-
-# ── 3. Source Archive ─────────────────────────────
-log "Packing source archive..."
-source_archive="$OUTPUT/secguardian-${VERSION}-source.tar.gz"
-git archive --format=tar.gz \
-    --prefix="secguardian-${VERSION}/" \
-    -o "$source_archive" HEAD
-shasum -a 256 "$source_archive" | cut -d' ' -f1 > "$source_archive.sha256"
-done_msg "secguardian-${VERSION}-source.tar.gz ($(du -h "$source_archive" | cut -f1))"
-
-# ── 4. Manifest ──────────────────────────────────
-log "Writing manifest..."
-cat > "$OUTPUT/manifest.json" << EOF
-{
-  "version": "$VERSION",
-  "date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "artifacts": [
-    {
-      "name": "secguardian-index-${VERSION}-darwin-arm64",
-      "os": "darwin",
-      "arch": "arm64",
-      "type": "indexer",
-      "description": "Code indexer binary (tree-sitter), called by AI Agent commands"
-    },
-    {
-      "name": "secguardian-index-${VERSION}-darwin-amd64",
-      "os": "darwin",
-      "arch": "amd64",
-      "type": "indexer",
-      "description": "Code indexer binary (tree-sitter), called by AI Agent commands"
-    },
-    {
-      "name": "secguardian-${VERSION}-claude-code-${PLATFORM_SUFFIX}.zip",
-      "platform": "claude-code",
-      "type": "extension",
-      "contents": ["commands", "skills", "knowledge", "scripts"]
-    },
-    {
-      "name": "secguardian-${VERSION}-opencode-${PLATFORM_SUFFIX}.zip",
-      "platform": "opencode",
-      "type": "extension",
-      "contents": ["commands", "skills", "knowledge", "scripts"],
-      "install": ".opencode/"
-    },
-    {
-      "name": "secguardian-${VERSION}-gemini-cli-${PLATFORM_SUFFIX}.zip",
-      "platform": "gemini-cli",
-      "type": "extension",
-      "contents": ["commands", "skills", "knowledge", "scripts", "GEMINI.md"],
-      "install": ".gemini/"
-    },
-    {
-      "name": "secguardian-${VERSION}-source.tar.gz",
-      "type": "source"
-    }
-  ],
-  "detectors": 67
-  "cwe_top25": "25/25 (100%)",
-  "owasp_top10": "10/10 (100%)",
-  "owasp_api_top10": "10/10 (100%)",
-  "guard_rules": 67,
-  "audit_rules": 17,
-  "review_rules": 5,
-  "total_rules": 89
-}
-EOF
-done_msg "manifest.json"
-
+# ── SHA256 ────────────────────────────────
 echo ""
-echo -e "${GREEN}${BOLD}═══ Release v${VERSION} complete ═══${NC}"
-echo -e "  Output: ${CYAN}$OUTPUT/${NC}"
-ls -lh "$OUTPUT/" | grep -v "^total" | grep -v "^d" | awk '{print "  " $NF " (" $5 ")"}'
+echo -e "${BOLD}═══ Step 4: SHA256 checksums ═══${NC}"
+
+cd "$RELEASE_DIR"
+if command -v shasum &>/dev/null; then
+    shasum -a 256 -- secguardian-*.tar.gz secguardian-*.zip > SHA256SUMS 2>/dev/null || true
+elif command -v sha256sum &>/dev/null; then
+    sha256sum -- secguardian-*.tar.gz secguardian-*.zip > SHA256SUMS 2>/dev/null || true
+fi
+echo "  → SHA256SUMS written"
+
+# ── Extract changelog ────────────────────
+RELEASE_NOTES=""
+if [ -f "$PROJECT_ROOT/CHANGELOG.md" ]; then
+    RELEASE_NOTES=$(python3 -c "
+import re, sys
+tag = '$RELEASE_TAG'
+ver = tag.lstrip('v')
+with open('$PROJECT_ROOT/CHANGELOG.md', 'r') as f:
+    content = f.read()
+pattern = r'## \[' + re.escape(ver) + r'\].*?(?=## \[|\Z)'
+m = re.search(pattern, content, re.DOTALL)
+print(m.group(0).strip() if m else '')
+")
+fi
+
+ok "SHA256 + changelog ready"
+
+# ════════════════════════════════════════════════════════════════
+# Step 5: Publish to GitHub
+# ════════════════════════════════════════════════════════════════
+
+if [ "$PUBLISH_TARGET" != "gitee" ]; then
+    echo ""
+    echo -e "${BOLD}═══ Step 5: Publishing to GitHub ═══${NC}"
+
+    log "Creating GitHub Release..."
+    gh release create "$RELEASE_TAG" \
+        --title "$RELEASE_TAG" \
+        --notes "$RELEASE_NOTES"
+
+    log "Uploading assets..."
+    gh release upload "$RELEASE_TAG" "$RELEASE_DIR/secguardian-${VERSION}.tar.gz" --clobber
+    gh release upload "$RELEASE_TAG" "$RELEASE_DIR/SHA256SUMS" --clobber
+
+    echo ""
+    gh release view "$RELEASE_TAG" --json url -q '.url'
+    ok "Published to GitHub"
+fi
+
+# ════════════════════════════════════════════════════════════════
+# Step 6: Publish to Gitee
+# ════════════════════════════════════════════════════════════════
+
+if [ "$PUBLISH_TARGET" = "all" ] || [ "$PUBLISH_TARGET" = "gitee" ]; then
+    echo ""
+    echo -e "${BOLD}═══ Step 6: Publishing to Gitee ═══${NC}"
+
+    # Source gitee-release.sh as a function library
+    # It provides publish_to_gitee() when sourced, otherwise runs standalone
+    GITEE_RELEASE_SCRIPT="$PROJECT_ROOT/scripts/gitee-release.sh"
+    if [ -f "$GITEE_RELEASE_SCRIPT" ]; then
+        # Prevent standalone execution when sourced
+        PUBLISH_TO_GITEE_CALLED_FROM_RELEASE=1 \
+        PUBLISH_VERSION="$VERSION" \
+        bash "$GITEE_RELEASE_SCRIPT" "$RELEASE_TAG"
+        ok "Published to Gitee"
+    else
+        warn "gitee-release.sh not found, skipping Gitee publish"
+    fi
+fi
+
+# ════════════════════════════════════════════════════════════════
 echo ""
-echo -e "  ${BOLD}Next:${NC} Upload to GitHub Releases:"
-echo -e "    gh release create v${VERSION} $OUTPUT/* --title 'v${VERSION}'"
+echo -e "${GREEN}${BOLD}═══ Release ${VERSION} complete ═══${NC}"
+echo ""

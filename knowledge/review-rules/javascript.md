@@ -1,3 +1,12 @@
+---
+detector: review.javascript
+type: review-rule
+language: javascript
+max_severity: Critical
+cwe: CWE-000
+anti_pattern_count: 18
+---
+
 # JavaScript/Node.js 安全反模式检测矩阵
 
 ## 原型污染 (Prototype Pollution)

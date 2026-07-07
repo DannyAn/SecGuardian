@@ -1,14 +1,19 @@
 ---
 detector: off-by-one
+description: Detects off-by-one errors where an array or buffer index is one position out of bounds
 severity: high
 cwe: CWE-193
+cvss: 7.5
 language: [c, cpp]
 tags: [memory, boundary, logic-error]
 precision: high
 confidence: dynamic
+target_functions: [arr, buf, code_context, data_flow_path, judgment_rationale, memset, ptr, strcpy, strlen, strncpy, variable_state]
+match_patterns: [for.*<=.*sizeof|for.*<=.*len|for.*<=.*count              # 正向循环边界差一, for.*i = .*; i >= 0; i--                                 # 倒序循环（i >= 0 可能最终写入 arr[-1]）, char \*ptr = ...|void \*ptr = ...|T \*ptr = ...           # 指针声明, strlen(src) + 分配大小                                     # 可疑：检查是否少分配了1字节, strncpy\(dst, src, sizeof\(dst\)\)                         # 可能不写 null 终止符]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# Off-by-One 错误 (Off-by-One Error)
 
 ## 威胁定义 (Threat Definition)
 

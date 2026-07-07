@@ -1,14 +1,19 @@
 ---
 detector: bad-cast
+description: Detects unsafe or invalid type casts that could lead to memory corruption
 severity: medium
 cwe: CWE-704
+cvss: 5.5
 language: [c, cpp]
 tags: [memory, type-safety, undefined-behavior]
 precision: high
 confidence: dynamic
+target_functions: [code_context, data_flow_path, judgment_rationale, uintptr_t, variable_state]
+match_patterns: [\(void\s*\*?\(\*\)\)                                 # C风格函数指针cast, reinterpret_cast<(?!.*char\*|.*void\*|.*uintptr_t|.*intptr_t)  # 非底层用途的 reinterpret_cast, static_cast<Derived\*>.*base_ptr                    # 向下转换, \([A-Za-z_]\w*\s*\*+\)\s*[&*]?\w+                   # C风格指针cast，非void*互转]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 不安全的类型转换 (Bad Cast)
 
 ## 威胁定义 (Threat Definition)
 

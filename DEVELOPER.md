@@ -345,6 +345,9 @@ bash scripts/deploy.sh cac
 
 ## 发布流程
 
+> ⚠️ **本文件发布流程已存档。最新发布流程以 `AGENTS.md §版本发布` 为准。**
+> 以下内容保留仅作为历史参考。
+
 ### 版本更新
 
 ```bash
@@ -368,19 +371,6 @@ bash scripts/sync-version.sh 0.5.0
 - [ ] 用 examples/ 验证 3 个命令均能正常输出
 - [ ] 运行 `bash scripts/deploy.sh all` 确认构建和部署无报错
 - [ ] 检查 `.codeagent/` 下的输出符合 Scan Output Protocol 2.0
-
-### 构建发布产物并发布到 Gitee
-
-```bash
-# 1. 构建所有发布产物到 dist/release/<version>/
-bash scripts/release.sh 0.4.0
-
-# 2. 发布到 Gitee Release（自动创建 tag + 上传产物）
-export GITEE_TOKEN="your-token"
-bash scripts/gitee-release.sh 0.4.0
-```
-
-产物说明见 `scripts/gitee-release.sh` 中的 Release Body，也可在 [Gitee Release 页面](https://gitee.com/jonyan/secguardian/releases) 查看。
 
 ---
 

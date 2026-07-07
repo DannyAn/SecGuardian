@@ -39,33 +39,48 @@ def main():
   secguard:  --command secguard  --detector web.sql-injection --severity Critical --cwe CWE-89 --file src/a.py --line 42
   secaudit:  --command secaudit  --detector audit.cryptography --severity High --cwe CWE-327 --file src/crypto.py --line 15 --skill-name cryptography
   secreview: --command secreview --detector memory.buffer-overflow --severity High --cwe CWE-120 --file src/buf.c --line 88 --review-pass vulnerability_detection
+
+  == --from-stdin standalone mode ==
+  No CLI args needed beyond --from-stdin. The full finding is a JSON object on stdin.
+  Example:
+    python3 record-finding.py --from-stdin << 'RECEOF'
+    {"detector": "web.sql-injection", "severity": "Critical", "cwe": "CWE-89",
+     "file": "src/app.py", "line": 42, "scan_dir": ".codeagent/secguardian/scans/x/",
+     "snippet": "...", "code_context": "...", "rationale": "...", "attack_scenario": "..."}
+    RECEOF
         ''')
+
+    # --from-stdin mode: make all args optional so standalone JSON works
+    from_stdin_mode = '--from-stdin' in sys.argv
+    required_mode = not from_stdin_mode
 
     # Core required fields
     p.add_argument('--command', default='',
                    choices=['secguard', 'secaudit', 'secreview'],
                    help='[logging only] Command type identifier')
-    p.add_argument('--scan-dir', required=True,
+    p.add_argument('--scan-dir', required=required_mode,
                    help='Scan output directory (parent of findings/)')
-    p.add_argument('--detector', required=True,
+    p.add_argument('--detector', required=required_mode,
                    help='Detector name (e.g. web.sql-injection, audit.cryptography)')
-    p.add_argument('--severity', required=True,
+    p.add_argument('--severity', required=required_mode,
                    choices=['Critical', 'High', 'Medium', 'Low', 'Info'])
-    p.add_argument('--cwe', required=True, help='CWE ID, e.g. CWE-89')
-    p.add_argument('--file', required=True, help='Source file path')
-    p.add_argument('--line', required=True, type=int, help='Line number')
+    p.add_argument('--cwe', required=required_mode, help='CWE ID, e.g. CWE-89')
+    p.add_argument('--file', required=required_mode, help='Source file path')
+    p.add_argument('--line', required=required_mode, type=int, help='Line number')
 
     # Optional common fields
     p.add_argument('--end-line', type=int, default=None,
                    help='End line (for location.end_line)')
     p.add_argument('--function', default='', help='Function name')
     p.add_argument('--title', default='', help='Finding title / fix description')
-    p.add_argument('--snippet', default='', help='Code snippet')
-    p.add_argument('--code-context', default='',
-                   help='Code context (defaults to --snippet value)')
-    p.add_argument('--rationale', default='', help='Judgment rationale')
-    p.add_argument('--attack-scenario', default='',
-                   help='Attack scenario description')
+    p.add_argument('--snippet', required=required_mode,
+                   help='Code snippet (REQUIRED per engine_contract.md Rule B)')
+    p.add_argument('--code-context', required=required_mode,
+                   help='Code context (REQUIRED per engine_contract.md Rule B)')
+    p.add_argument('--rationale', required=required_mode,
+                   help='Judgment rationale (REQUIRED per engine_contract.md Rule B)')
+    p.add_argument('--attack-scenario', required=required_mode,
+                   help='Attack scenario (REQUIRED per engine_contract.md Rule B)')
     p.add_argument('--cvss', type=float, default=0.0,
                    help='CVSS score (0.0-10.0)')
     p.add_argument('--fix-before', default='', help='Vulnerable code')
@@ -93,7 +108,90 @@ def main():
     p.add_argument('--review-focus', default='',
                    help='[secreview] Comma-separated review focus areas')
 
-    args = p.parse_args()
+    p.add_argument('--index-json', default='',
+                   help='[anchor validation] Path to index.json for file+line cross-reference')
+    p.add_argument('--from-stdin', action='store_true',
+                   help='Read finding JSON from stdin (eliminates shell quoting issues)')
+
+    # ── Normalize CLI args: convert --underscore_name to --hyphen-name ──
+    # AI agents naturally use Python-style underscore naming in shell commands.
+    # This normalization ensures --code_context works the same as --code-context,
+    # --attack_scenario the same as --attack-scenario, etc., for ALL args.
+    normalized_argv = []
+    for raw_arg in sys.argv[1:]:
+        if raw_arg.startswith('--') and '_' in raw_arg:
+            eq_pos = raw_arg.find('=')
+            if eq_pos > 0:
+                normalized_argv.append(raw_arg[:eq_pos].replace('_', '-') + raw_arg[eq_pos:])
+            else:
+                normalized_argv.append(raw_arg.replace('_', '-'))
+        else:
+            normalized_argv.append(raw_arg)
+
+    args, unknown = p.parse_known_args(normalized_argv)
+
+    # ── Reject unknown arguments (typo protection) ──
+    # This catches --attack-scannerio (typo for --attack-scenario)
+    # and any other misspelled or invented argument names.
+    unknown_filtered = [a for a in unknown if not a.startswith('-')]
+    unknown_opts = [a for a in unknown if a.startswith('-')]
+    if unknown_opts:
+        print("FATAL: Unknown argument(s): {}".format(' '.join(unknown_opts)), file=sys.stderr)
+        print("  These argument names were not recognized. Check spelling.", file=sys.stderr)
+        sys.exit(4)
+
+    # ── Read from stdin if --from-stdin (eliminates ALL shell quoting issues) ──
+    if args.from_stdin:
+        stdin_data = sys.stdin.read()
+        if not stdin_data.strip():
+            print("FATAL: --from-stdin specified but stdin is empty", file=sys.stderr)
+            sys.exit(3)
+        try:
+            stdin_json = json.loads(stdin_data)
+        except json.JSONDecodeError as e:
+            print(f"FATAL: --from-stdin JSON parse error: {e}", file=sys.stderr)
+            sys.exit(3)
+        # Map JSON fields to args (all fields can come from stdin — no CLI args needed)
+        for field in ['command', 'detector', 'severity', 'cwe', 'file', 'function',
+                       'title', 'snippet', 'code_context', 'rationale', 'attack_scenario',
+                       'fix_before', 'fix_after', 'review_pass', 'review_focus',
+                       'data_flow_path', 'skill_name', 'skill_category',
+                       'scan_dir', 'index_json']:
+            if field in stdin_json:
+                # JSON uses underscore names (code_context) which matches argparse dest
+                setattr(args, field, stdin_json[field])
+        if 'line' in stdin_json:
+            args.line = int(stdin_json['line'])
+        if 'end_line' in stdin_json:
+            args.end_line = int(stdin_json['end_line'])
+        if 'cvss' in stdin_json:
+            args.cvss = float(stdin_json['cvss'])
+        if 'fix_before_file' in stdin_json:
+            args.fix_before_file = stdin_json['fix_before_file']
+        if 'fix_after_file' in stdin_json:
+            args.fix_after_file = stdin_json['fix_after_file']
+
+    # ── Validate required fields (whether from CLI or stdin) ──
+    required_fields = {
+        'scan_dir': '--scan-dir / scan_dir',
+        'detector': '--detector / detector',
+        'severity': '--severity / severity',
+        'cwe': '--cwe / cwe',
+        'file': '--file / file',
+        'line': '--line / line',
+        'snippet': '--snippet / snippet',
+        'code_context': '--code-context / code_context',
+        'rationale': '--rationale / rationale',
+        'attack_scenario': '--attack-scenario / attack_scenario',
+    }
+    missing = []
+    for field, flag_name in required_fields.items():
+        val = getattr(args, field, None)
+        if val is None or (isinstance(val, str) and not val.strip()):
+            missing.append(flag_name)
+    if missing:
+        print("FATAL: Required field(s) missing: {}".format(', '.join(missing)), file=sys.stderr)
+        sys.exit(2)
 
     # Read fix from files if specified (avoids shell quoting issues with inline args)
     if args.fix_before_file and os.path.isfile(args.fix_before_file):
@@ -102,6 +200,54 @@ def main():
     if args.fix_after_file and os.path.isfile(args.fix_after_file):
         with open(args.fix_after_file, 'r') as f:
             args.fix_after = f.read().rstrip('\n')
+
+    # ── Anchor cross-validation (engine_contract.md Rule A) ──
+    if args.index_json and os.path.isfile(args.index_json):
+        try:
+            with open(args.index_json, 'r') as f:
+                idx = json.load(f)
+        except Exception as e:
+            print(f"ANCHOR_WARN: Cannot read index.json ({e}) — skipping anchor validation", file=sys.stderr)
+            idx = None
+
+        if idx:
+            files_list = idx.get('files') or []
+            functions = idx.get('symbols', {}).get('functions') or []
+            variables = idx.get('symbols', {}).get('variables') or []
+            types_list = idx.get('symbols', {}).get('types') or []
+
+            # Check 1: file exists in index
+            file_in_index = any(args.file == f or args.file.endswith(f) or f.endswith(args.file)
+                                for f in files_list)
+            if not file_in_index:
+                print("ANCHOR_FAIL: file '{}' not found in index.json files list".format(args.file), file=sys.stderr)
+                print("  Index files: {}".format(files_list[:5]), file=sys.stderr)
+                sys.exit(2)
+
+            # Check 2: line falls within some symbol's range or file exists
+            symbol_match = None
+            for sym_list, sym_type in [(functions, 'function'), (variables, 'variable'), (types_list, 'type')]:
+                for s in sym_list:
+                    s_file = s.get('file', '')
+                    s_start = s.get('start_line', 0)
+                    s_end = s.get('end_line', s_start)
+                    file_matches = (args.file == s_file or args.file.endswith(s_file) or s_file.endswith(args.file))
+                    if file_matches and s_start <= args.line <= (s_end or s_start + 50):
+                        symbol_match = (sym_type, s.get('name', ''))
+                        break
+                if symbol_match:
+                    break
+
+            if symbol_match:
+                print("ANCHOR_OK: found in {} '{}' at {}:{}-{}".format(
+                    symbol_match[0], symbol_match[1], args.file, args.line,
+                    "validated"), file=sys.stderr)
+            else:
+                print("ANCHOR_INFO: line {} in '{}' is module/class-level (not in function symbol table)".format(
+                    args.line, args.file), file=sys.stderr)
+                print("  File verified in index. Finding recorded normally — anchor at file level.", file=sys.stderr)
+    elif args.index_json:
+        print("ANCHOR_WARN: --index-json '{}' not found — skipping anchor validation".format(args.index_json), file=sys.stderr)
 
     # ── Compute finding ID ──────────────────────
     raw = f"{args.detector}:{args.file}:{args.line}:{args.cwe}"

@@ -1,14 +1,17 @@
 ---
-confidence: dynamic
-cwe: CWE-798
 detector: hardcoded-secrets
-language: [c, cpp, java, python, go, js]
-precision: very-high
+description: Detects hardcoded cryptographic keys, passwords, tokens, and other secrets in source code
 severity: high
+cwe: CWE-798
+cvss: 7.5
+language: [c, cpp, java, python, go, js]
 tags: [crypto, secrets, credentials]
+precision: very-high
+confidence: dynamic
+target_functions: [_max_length, _min_length, _name, admin_pass, api_key, api_secret, code_context, encryption_key, equals, getenv, judgment_rationale, jwt_secret, length, master_key, passwd, password, private_key, secret_key, strcmp, strlen, strncmp]
+match_patterns: [(password|passwd|api_key|api_secret|secret_key|private_key|encryption_key|jwt_secret|admin_pass|master_key)\s*=\s*"[^"], (strcmp|strncmp|\.equals|==)\s*\([^)]*"[^"]{3,}"[^)]*\)]
+exclude_patterns: [getenv\(|System\.getenv\(|os\.environ|process\.env|os\.Getenv\(, -----BEGIN CERTIFICATE-----|-----BEGIN PUBLIC KEY-----, \$\{\w+\}|\{\{[^}]*\}\}, *_min_length|*_max_length|*_name|*_type\s*=, ^\s*\w+\s+\*?\w+\s*;|=\s*\w+\(, 0x00,\s*0x00|=\{0\}]
 ---
-
-# 硬编码密钥/凭证 (Hardcoded Secrets)
 
 ## 威胁定义 (Threat Definition)
 

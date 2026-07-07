@@ -1,14 +1,19 @@
 ---
 detector: resource.socket-leak
+description: Detects socket descriptor leaks where network connections are not properly cleaned up
 severity: medium
 cwe: CWE-772
+cvss: 5.5
 language: [c, cpp]
 tags: [resource, socket, leak, network, fd, file-descriptor]
 precision: high
 confidence: dynamic
+target_functions: [accept, bind, handle_client, listen, socket]
+match_patterns: [socket(AF_INET, SOCK_STREAM, 0) 后函数内非全部路径有 close(fd), accept(server_fd, ...) 后函数内非全部路径有 close(client_fd), socket()/accept() 返回值赋给变量后跨函数传递，被调用函数未关闭]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# Socket 描述符泄漏 (Socket File Descriptor Leak)
 
 ## 威胁定义 (Threat Definition)
 

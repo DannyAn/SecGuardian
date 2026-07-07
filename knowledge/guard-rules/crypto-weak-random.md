@@ -1,14 +1,19 @@
 ---
 detector: weak-random
+description: Detects usage of weak or predictable random number generators for security-sensitive purposes
 severity: high
 cwe: CWE-338
+cvss: 7.5
 language: [c, cpp, java, python, go, js]
 tags: [crypto, randomness, prng]
 precision: very-high
 confidence: dynamic
+target_functions: [bytes, drand48, gen, getpid, getrandom, lrand48, open, rand, random, read, srand, srandom, time]
+match_patterns: []
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 弱随机数生成 (Weak Random)
 
 ## 威胁定义 (Threat Definition)
 

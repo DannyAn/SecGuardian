@@ -124,5 +124,11 @@ int main() {
     printf("  demo_deadlock()\n");
     printf("  demo_data_race()\n");
     printf("  demo_unsafe_signal()\n");
+
+    // VULNERABILITY [CWE-667]: Improper lock/unlock
+    pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
+    pthread_mutex_lock(&m);
+    // ... work ...
+    // BAD: forgot to unlock — mutex left locked
     return 0;
 }

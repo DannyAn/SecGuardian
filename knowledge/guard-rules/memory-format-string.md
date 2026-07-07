@@ -1,14 +1,19 @@
 ---
 detector: format-string
+description: Detects format string vulnerabilities where user input controls the format argument
 severity: critical
 cwe: CWE-134
+cvss: 9.8
 language: [c, cpp]
 tags: [printf, exploitation, information-disclosure]
 precision: very-high
 confidence: dynamic
+target_functions: [fprintf, getenv, my_log, syslog, va_end, va_start, vfprintf]
+match_patterns: []
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 格式化字符串漏洞 (Format String)
 
 ## 威胁定义 (Threat Definition)
 

@@ -5,6 +5,9 @@ description: "安全加固项排查 — 67<!-- @secguardian:detector_count --> �
 
 # /secguard - 安全加固项排查
 
+## ⚙️ Command Layer
+
+
 对源码执行安全加固扫描。支持全量扫描和 Git diff 增量扫描，支持命名空间过滤和逗号组合。
 
 ## 使用方式
@@ -66,6 +69,10 @@ SARIF 输出 (CI/CD 集成):
 └── delta.json               # 增量对比 (vs 上次扫描)
 ```
 
+> **🚫 全路径权限弹窗优化**: 完成 `cd "$USER_PROJECT"` 后，所有项目内文件路径使用**相对路径**。
+> 仅 `$SECGUARDIAN_HOME` 引用使用全路径（脚本和二进制在插件目录，不可避免）。
+> 全路径操作触发 AI CLI permission system 逐项确权弹窗，中断扫描流程。
+
 **执行完毕后必须输出扫描摘要和 scan-id：**
 
 ```
@@ -124,47 +131,99 @@ Filters: memory.*, system.*
 | `critical` | 所有 Critical 严重度 | 跨 namespace |
 | `*` (默认) | 全部 | 67<!-- @secguardian:detector_count --> |
 
+
+## 🛠️ Engine Layer
+
+> 以下内容属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行执行。未来 Engine 实现后，此处内容将被 Engine 取代。
+>
+> 🚫 **不要使用 `todowrite` 工具。** 使用原生 task 系统（`TaskCreate` + `TaskUpdate`）追踪进度。
+> `todowrite` 每次调用重传全部已完成项，每会话浪费 ≥50KB 无效 token。
+>
+> 🚫 **不要硬编码 `RECORDER` 路径。** 必须使用 `$SECGUARDIAN_HOME/scripts/record-finding.py`。
+> 硬编码路径在安装位置变动时全断。
+>
+> 🚫 **禁止用 `read` 工具读取 `$SECGUARDIAN_HOME/scripts/` 下的脚本文件。** 所有脚本通过 `Bash` 工具执行，CLI 接口已在本模板中完整文档化。用 `read` 读取脚本文件触发 OpenCode 外部目录权限弹窗，且浪费 token。
+
 ## 派发规则与执行步骤
 
-> **隔离约束**: 本命令只能加载 `$SECGUARDIAN_HOME/skills/` 下的 `secguard-*` 前缀 skill，禁止加载 `secaudit-*` 或 `secreview-*` 前缀的任何文件。知识文件仅从 `$SECGUARDIAN_HOME/knowledge/guard-rules/` 和 `$SECGUARDIAN_HOME/knowledge/languages/` 加载。
+> **隔离约束**: 本命令只能加载 `$SECGUARDIAN_HOME/skills/` 下的 `secguard-*` 前缀 skill，禁止加载 `secaudit-*` 或 `secreview-*` 前缀的任何文件。知识文件从 `$SECGUARDIAN_HOME/knowledge/` 用 bash `cat` 按需读取（不拷贝到项目目录）。
 
 你（AI Agent）在接收到 `/secguard` 命令后，必须按以下步骤执行来构建索引并进行安全扫描。
 
-### 前置检查（Pre-flight Checklist）
+### Step 1: 初始化（唯一 bash 调用，禁止拆分）
 
-# ── Resolve SECGUARDIAN_HOME ─────────────────
-if [ -z "$SECGUARDIAN_HOME" ]; then
-    for _sg_root in ".claude/plugins/secguardian" \
-                    ".config/opencode/extensions/secguardian" \
-                    ".gemini/extensions/secguardian"; do
-        if [ -f "$_sg_root/.secguardian-env" ]; then
-            source "$_sg_root/.secguardian-env"
+> ⚠️ 这是**唯一一次预初始化 bash 调用**，必须一次性完成：自动发现 → 健康检查 → 路径确认 → 建目录 → 写入 `.scan_state.secguard`。
+> **禁止**在 Step 1 前后插入任何独立的 bash 命令（如 `ls "$SECGUARDIAN_HOME/scripts/"`）— 那会在新 shell 中丢失变量且无意义。
+> `$SECGUARDIAN_HOME/scripts/` 已在自动发现中验明存在，无需冗余 `ls` 确认。
+
+- **⏳ 首选生成 scan_id**（格式: `sc-YYYYMMDD-HHMMSS-xxxx`，`xxxx` 为随机4位字符）。
+- **scan_id 一旦生成，后续所有路径必须使用此 scan_id。**
+
+```bash
+# ===== 阶段 A: SECGUARDIAN_HOME 自动发现 =====
+if [ -z "$SECGUARDIAN_HOME" ] || [ ! -d "$SECGUARDIAN_HOME/scripts" ]; then
+    for candidate in \
+        "/root/.config/opencode/extensions/secguardian" \
+        "$HOME/.config/opencode/extensions/secguardian" \
+        "$HOME/.claude/plugins/secguardian" \
+        "$HOME/.gemini/extensions/secguardian" \
+        "."; do
+        if [ -f "$candidate/scripts/record-finding.py" ]; then
+            export SECGUARDIAN_HOME="$candidate"
+            echo "SECGUARDIAN_HOME=$SECGUARDIAN_HOME"
             break
         fi
     done
 fi
-SECGUARDIAN_HOME="${SECGUARDIAN_HOME:-scripts/..}"
+if [ -z "$SECGUARDIAN_HOME" ] || [ ! -d "$SECGUARDIAN_HOME/scripts" ]; then
+    echo "FATAL: Cannot locate secguardian installation (no SECGUARDIAN_HOME with scripts/)"
+    echo "  Tried: /root/.config/opencode/extensions/secguardian, ~/.config/opencode/extensions/secguardian, ..."
+    exit 1
+fi
 
-> ⛔ **禁止使用 Glob 或 Read 工具探索文件路径（搜索文件）。已知路径的文件可以用 `cat` 或 `head` 读取（扩展目录下的文件不用 Read 工具，避免权限弹窗）**。所有路径检测必须通过 bash 命令（`[ -f ]`、`ls`）完成。先跑 `find_indexer` 再跑 `--health`。
+# ===== 阶段 B: 索引器健康检查 =====
+if ! "$SECGUARDIAN_HOME/scripts/secguardian-index" --health; then
+    echo "FATAL: secguardian-index health check failed"
+    exit 1
+fi
 
-在执行任何扫描步骤之前，必须逐项确认以下所有条件。**任一项未通过，扫描不得开始，向用户报告具体错误。**
+# ===== 阶段 C: 扫描路径确认 =====
+test -d "<path>" || { echo "FATAL: scan path <path> not found"; exit 1; }
 
-- [ ] 定位索引器 wrapper：由 `SECGUARDIAN_HOME` env var 或 `.secguardian-env` 文件定位，不再多路径搜索，然后执行 `find_indexer()` 自动搜索全部路径（优先用户级部署，最后回退本地仓库）
-- [ ] 执行 `{indexer} --health` 通过（输出必须包含 `HEALTH:OK` 或 `HEALTH:WARN`，不接受 `HEALTH:FAIL`）
-- [ ] 目标路径 `<path>` 存在且包含至少一个源码文件
-- [ ] **语言推断（仅当用户未提供 `language` 参数时）**：检查 `<path>` 下源码文件扩展名 → `*.c/*.cpp/*.h` → `cpp`, `*.py` → `python`, `*.java` → `java`, `*.go` → `go`。无需询问用户，扩展名即可判定。
-- [ ] 确认不会启动 clangd/LSP/compile_commands.json/bear 等外部工具 — indexer (tree-sitter) 已提供符号表+调用图+文件清单，所有代码结构数据从 index.json 获取
+# ===== 阶段 D: 创建扫描目录 =====
+SCAN_ID="sc-$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 2)"
+SCAN_DIR="$USER_PROJECT/.codeagent/secguardian/secguard/scans/$SCAN_ID"
+mkdir -p "$SCAN_DIR"
 
-> 若未通过，报告具体哪一项失败并终止。不要降级为手工逐文件扫描。
+# ===== 阶段 E: 持久化状态到 .scan_state.secguard =====
+cat > ".codeagent/secguardian/.scan_state.secguard" << STATEEOF
+USER_PROJECT="$USER_PROJECT"
+SCAN_ID="$SCAN_ID"
+SCAN_DIR="$SCAN_DIR"
+SECGUARDIAN_HOME="$SECGUARDIAN_HOME"
+RECORDER="$SECGUARDIAN_HOME/scripts/record-finding.py"
+STATEEOF
+echo "SCAN_DIR=$SCAN_DIR"
+```
 
----
+### 🔒 跨 Shell 状态传递规则（Step 1 之后所有 bash 调用）
 
-### Step 1: 建立输出目录
+> **每个 bash 调用都是独立 shell，变量不共享。禁止用 `/tmp/` 或任何系统临时目录传状态。**
 
-- **⏳ 首选生成 scan_id**（格式: `sc-YYYYMMDD-HHMMSS-xxxx`，`xxxx` 为随机4位字符）。
-- **scan_id 一旦生成，后续所有路径必须使用此 scan_id。**
-- 创建输出目录: `.codeagent/secguardian/secguard/scans/<scan_id>/`。
-- 记录扫描开始时间戳，用于 Step 4 计算 `duration_ms`。
+Step 1 已在 `.scan_state.secguard` 中持久化 `SCAN_ID`、`SCAN_DIR`、`USER_PROJECT`、`SECGUARDIAN_HOME`、`RECORDER`。
+从 Step 2 开始，**每个 bash 调用第一行必须是**：
+```bash
+source .codeagent/secguardian/.scan_state.secguard
+```
+此后 `$SCAN_DIR`、`$SCAN_ID`、`$USER_PROJECT`、`$SECGUARDIAN_HOME`、`$RECORDER` 均可直接使用。**禁止用 `cat /tmp/*.txt`**。
+`/tmp/` 在 Windows 不可用、触发 macOS 确权弹窗、且多用户不安全。
+>
+> **📂 知识库读取**: 知识库文件存储在 `$SECGUARDIAN_HOME/knowledge/`，使用 bash `cat` 按需读取，不拷贝到项目目录。
+> - 检测器规则：`cat "$SECGUARDIAN_HOME/knowledge/guard-rules/{name}.md"`
+> - language-index：`cat "$SECGUARDIAN_HOME/knowledge/language-index.md"`
+> - 语言画像：`cat "$SECGUARDIAN_HOME/knowledge/languages/{lang}.md"`
+> - 协议文件：`cat "$SECGUARDIAN_HOME/knowledge/protocols/{name}.md"`
+> - 禁止使用 `read` 工具读 `$SECGUARDIAN_HOME/knowledge/` 下的文件（触发 OpenCode 外部目录权限弹窗）。使用 bash `cat` 读取不会触发权限弹窗。
 
 ### Step 2: 构建语义索引（必须执行，不可跳过）
 
@@ -174,25 +233,32 @@ SECGUARDIAN_HOME="${SECGUARDIAN_HOME:-scripts/..}"
 > 索引自动复用同路径缓存。加 `--force` 强制重建。
 
 ```bash
-# 定位 indexer wrapper — 项目级 + 用户级全覆盖
+# SECGUARDIAN_HOME 已在 Pre-flight 中自动发现
 INDEXER="$SECGUARDIAN_HOME/scripts/secguardian-index"
-if [ ! -f "$INDEXER" ] && [ ! -f "$INDEXER" ]; then
-    # Dev fallback: try repo-relative path
-    INDEXER="scripts/secguardian-index"
-fi
 if [ ! -f "$INDEXER" ]; then
-    echo "FATAL: secguardian-index not found"
+    echo "FATAL: secguardian-index not found at $INDEXER"
     exit 1
 fi
 echo "Using: $INDEXER"
-# timeout: GNU timeut not available on macOS; use gtimeout if available or skip
-TIMEOUT_CMD=""
-if command -v timeout &>/dev/null; then TIMEOUT_CMD="timeout 120"
-elif command -v gtimeout &>/dev/null; then TIMEOUT_CMD="gtimeout 120"
+# 超时保护: timeout 30s，防止索引器挂死。macOS 需要 brew install coreutils。
+if command -v timeout &>/dev/null; then
+    timeout 30 "$INDEXER" --lang <language> --path <path> --output "$USER_PROJECT/.codeagent/secguardian/index.json" || {
+        echo "FAIL: Indexer timed out after 30s or failed — cannot continue"
+        echo "  Large codebases: use --skip-index to skip indexing (falls back to regex parser)."
+        echo "  macOS: brew install coreutils  (provides 'timeout' command)"
+        exit 1
+    }
+elif command -v gtimeout &>/dev/null; then
+    gtimeout 30 "$INDEXER" --lang <language> --path <path> --output "$USER_PROJECT/.codeagent/secguardian/index.json" || {
+        echo "FAIL: Indexer timed out after 30s or failed — cannot continue"
+        exit 1
+    }
+else
+    echo "WARNING: 'timeout' not found — indexer runs without timeout protection"
+    echo "  Install coreutils: brew install coreutils (macOS) or apt install coreutils (Linux)"
+    "$INDEXER" --lang <language> --path <path> --output "$USER_PROJECT/.codeagent/secguardian/index.json"
 fi
-# 缓存由 wrapper 透明处理：同路径复用 index.json（加 --force 强制重建，刷新缓存）
-$TIMEOUT_CMD $INDEXER --lang <language> --path <path> --output <user-project>/.codeagent/secguardian/index.json
-if [ ! -f "<user-project>/.codeagent/secguardian/index.json" ]; then
+if [ ! -f ""$USER_PROJECT/.codeagent/secguardian/index.json"" ]; then
     echo "FATAL: Indexer failed — cannot continue"
     exit 1
 fi
@@ -207,7 +273,7 @@ fi
 > 对 `None`/`null` 值安全。如果索引文件路径不对，会 exit 1。
 
 ```bash
-python3 scripts/validate-index.py \
+python3 "$SECGUARDIAN_HOME/scripts/validate-index.py" \
     --index .codeagent/secguardian/index.json \
     --scan-id <scan_id>
 ```
@@ -262,20 +328,57 @@ INDEX_FILE 输出示例:
 - `alloc_free.pairs` — 分配/释放对
 - `lock_graph.mutexes` — 锁使用记录
 
-#### 2.5b 构建检测目标映射（为后续执行加速）
+#### 2.5a.5 脱敏答案卡标注（防 AI 走捷径）
 
-预扫描 index.json，建立检测器 → 目标位置的映射。目的：后续 Step 4 执行检测时，AI 带着精确坐标跳转，不盲目遍历文件。
+> ⚠️ 源码中可能存在 `// VULNERABILITY [CWE-xxx]`、`// CWE-xxx`、`// BAD:` 等标注注释。
+> 这些注释让 AI 可直接读出问题所在，完全绕过 guard-rule 独立检测。**必须脱敏后方可读取。**
 
-| 检测器类型 | 预查索引数据源 |
-|-----------|--------------|
-| 内存安全（`memory.*`） | `alloc_free.pairs` 中的分配点、`symbols.functions` 中 unsafe 内存操作 |
-| 并发安全（`concurrency.*`） | `lock_graph.mutexes` 中的锁位置、`symbols.variables` 中共享变量 |
-| 加密安全（`crypto.*`） | `symbols.functions` 中加密函数调用点 |
-| Web 安全（`web.*`） | `symbols.functions` + `call_graph.edges` 中的 SQL/模板/用户输入处理 |
-| 系统/资源（`system.*`/`resource.*`） | `symbols.functions` 中系统调用/文件操作 |
+在执行 2.5b 扫描范围确定之前，先剥离已知答案卡模式，写入脱敏副本：
 
-> **关键约束**：此步骤构建的映射**仅用于加速执行**，不跳过任何已确定的检测器。
-> 即使某检测器在 index.json 中无直接匹配，AI 仍需执行它（确认代码中是否以其他方式实现了类似功能）。
+```bash
+source .codeagent/secguardian/.scan_state.secguard
+python3 "$SECGUARDIAN_HOME/scripts/strip-answer-cards.py" \
+  --index .codeagent/secguardian/index.json \
+  --source-root "$USER_PROJECT" \
+  --output-dir "$USER_PROJECT/.codeagent/secguardian/stripped/"
+```
+
+要求：
+- 此命令必须执行，输出应有 "✅ Answer-card strip: ... files modified, ... lines stripped"
+- 确认 `.codeagent/secguardian/stripped/` 目录已创建
+- **若输出 0 lines stripped**，记录 "INFO: no answer cards found in source — proceeding with original files"（非错误）
+- 阻止后续 `cat` 或 `head` 直接读取原始源码，AI 只能读脱敏副本
+
+#### 2.5b 确定读取范围 — index.json 符号表即唯一扫描清单
+
+> ⚠️ **index.json.symbols.functions 已是完整的函数→文件:行号 映射。不需要衍生文件。**
+
+读取 index.json 后，`symbols.functions` 就是 LLM 的唯一定位依据：
+
+```json
+// index.json 已包含:
+{
+  "symbols": {
+    "functions": [
+      {"name": "parse_task_name", "file": "src/parser.c", "start_line": 26, "end_line": 50},
+      {"name": "format_task_desc", "file": "src/parser.c", "start_line": 39, "end_line": 65}
+    ]
+  },
+  "alloc_free": {"pairs": [...]},
+  "lock_graph": {"mutexes": [...]}
+}
+```
+
+> **🔒 强制读取规则 (NON-NEGOTIABLE):**
+>
+> 1. **读取范围 = `index.json.symbols.functions` 中的所有条目。** 每个条目的 `file`+`start_line` 即读取起点。读取 ±10 行上下文。
+>    **⚠️ 必须从脱敏副本读取：** `.codeagent/secguardian/stripped/<file>`。`file` 字段值是相对于脱敏目录的路径（如 `file: "src/AuthController.java"` → 读 `.codeagent/secguardian/stripped/src/AuthController.java`）。禁止直接读原始文件路径。
+> 2. **不读符号表外的代码。** `symbols.functions` 中没有的文件 → 不读。符号表中没有的函数 → 不分析。
+> 3. **检测器预筛（语言感知，参见 3c.5 策略）。** 对每个检测器，按语言类型：
+>    - **C/C++**：在 `symbols.functions` 中查找关联 API 函数名（如 `strcpy`→buffer-overflow，`system`→command-injection）。无关联函数 → 跳过。
+>    - **Java/Python/Go/JS**：危险 API 是方法内调用（如 `Runtime.exec()`），不在符号表顶层。**必须加载该语言全部检测器**，不允许 AI 自主裁定"哪些可能匹配"。
+> 4. **alloc_free + lock_graph 作为补充信号。** 内存检测器查阅 `alloc_free.pairs`，并发检测器查阅 `lock_graph.mutexes`。
+> 5. **`--no-signal-filter`**: 用户可加此标志跳过预筛，执行全部检测器 + 读取全部文件。
 
 ### Step 3: 语言与检测器匹配
 
@@ -284,7 +387,9 @@ INDEX_FILE 输出示例:
 
 #### 3a 语言确定
 
-- 如果用户在命令中提供了 `language` 参数（如 `/secguard ./src cpp`），直接使用 `cpp`
+- 如果用户在命令中提供了 `language` 参数（如 `/secguard ./src cpp` 或 `/secguard ./src c`），直接使用该值
+  - ⚠️ `c` 和 `cpp` 共享同一套检测器规则，language-index.md 中包含 `## c` 和 `## cpp` 两个等价节
+  - 如果用户说 `c`，从 `## c` 节读取规则；如果用户说 `cpp`，从 `## cpp` 节读取
 - 如果用户未显式提供，从 Step 2b 生成的 index.json 摘要中的 `primary_language` 自动推断
 
 #### 3b 读取语言索引
@@ -304,6 +409,16 @@ echo "$data"
 
 AI 只需读取 `## cpp` 以下至下一个 `##` 之间的内容即获得完整的语言规则清单——不需解析 JSON，不需遍历全部文件。
 
+> 此外还需要读取对应语言的画像文件（dangerous API 列表、框架安全配置）。使用 bash `cat` 从项目内本地拷贝读取（避免 OpenCode 外部目录权限弹窗）：
+
+```bash
+LANG_PROFILE="$SECGUARDIAN_HOME/knowledge/languages/<language>.md"
+if [ -f "$LANG_PROFILE" ]; then
+    echo "=== Language Profile ==="
+    cat "$LANG_PROFILE"
+fi
+```
+
 #### 3c 应用 filter 裁剪
 
 - 无 filter 或 `all` 或 `*` → 使用该语言下的**全部**规则
@@ -311,10 +426,69 @@ AI 只需读取 `## cpp` 以下至下一个 `##` 之间的内容即获得完整�
 - `namespace.name`（如 `memory.null-dereference`）→ 只加载单个检测器
 - 逗号分隔（如 `memory.*,system.*`）→ 取并集
 - 检测器文件路径：`$SECGUARDIAN_HOME/knowledge/guard-rules/{namespace-name}.md`
+  （使用 `cat` 读取，避免 `read` 工具触发 OpenCode 外部目录权限弹窗）
 
-#### 3d 精确加载
+<!-- @secguardian:non-skippable step=pre-filter -->
+#### 3c.5 检测器预筛（不可跳过 — 语言感知）
 
-从裁剪后的清单中，精确加载每个检测器的 .md 文件（不遍历、不猜测）。
+> 这是核心架构约束：检测器必须经 index.json 符号表门控后才能加载全文。
+
+对裁剪后的检测器清单中的每个检测器，**按目标语言类型采用不同策略**：
+
+**C/C++（符号表精确匹配）：**
+1. **读取目标 API 名**：guard-rule 文件名即危险 API 名（如 `buffer-overflow` → `strcpy`、`command-injection` → `system`、`null-dereference` → `malloc`）
+2. **查 index.json.symbols.functions**：在符号表中查询该 API 是否作为**顶层函数**被调用
+3. **无匹配 → 跳过**：不加载规则全文，记录 "`Skipped: no matching symbol for {detector} in index.json`"
+4. **有匹配 → 进入 3d**：加载规则全文后执行检测
+5. **alloc_free.pairs / lock_graph.mutexes** 作为补充信号查阅
+
+**Java / Python / Go / JS 等 OO 语言（全量加载）：**
+> ⚠️ OO 语言中，危险 API（如 `Runtime.exec()`、`Statement.executeQuery()`）是**方法体内部的调用**，并非顶层函数名。
+> 索引器的 `symbols.functions` 只记录**用户自定义函数**（如 `executeCommand`），不记录其内部调用的库函数。
+> 因此不能用函数名精确匹配做预筛（那会跳过所有 Java 检测器 —— 这在 ses_0c48 已经证实只跑出 12/34 个）。
+> 但这也意味着 C 语言中通过精确匹配跳过 70-90% 检测器的节省在 OO 语言中不存在。
+
+1. 检查 `index.json` 中 `function_count > 0`（确认有代码需要分析）
+2. 有函数 → **必须加载该语言的所有检测器规则全文**（不允许 AI 自主裁定"哪些可能匹配"）
+3. 无函数（空项目）→ 跳过该语言所有检测器
+4. 加载顺序：Critical → High → Medium → Low → Info
+
+> 此策略对于 C/C++ 的 token 节省不变（精确匹配跳过 70-90%），对 OO 语言则确保不漏检。
+> Java 的 36 个检测器加载约消耗 2K token（规则文件摘要），可在一次 bash 调用中批量完成。
+
+#### 3d 检测器规则强制加载（不可跳过）
+
+> 这是**核心契约**：检测逻辑必须以 guard-rule 文件内容为准，而非 AI 自身知识。
+> 67 个 guard-rules 文件是唯一的检测语义来源。跳过文件加载 = 忽略自定义规则、精度调优、误报修正。
+> **检测器的 `rationale`、`fix_before`/`fix_after` 必须引用规则文件原文，否则 finding 无效。**
+
+<!-- @secguardian:non-skippable step=rule-loading -->
+
+对 3c.5 预筛后剩余的每个检测器或批量，**必须**执行：
+
+- **C/C++（少量命中）**：逐检测器 `cat`：
+  ```bash
+  cat "$SECGUARDIAN_HOME/knowledge/guard-rules/{namespace-name}.md"
+  ```
+- **Java / Python / Go / JS（全量加载）**：在一次 bash 调用中批量加载全部检测器：
+  ```bash
+  for rule in namespace1 namespace2 namespace3; do
+      echo "=== $rule ==="
+      cat "$SECGUARDIAN_HOME/knowledge/guard-rules/$rule.md"
+  done
+  ```
+
+然后：
+1. 从规则文件提取目标 API 签名、检测逻辑、修复模式
+2. 对照 index.json.symbols.functions 找到关联函数
+3. 从脱敏副本 `.codeagent/secguardian/stripped/<file>` 读取该函数代码（±10 行上下文），验证是否命中检测模式
+4. **记录 finding 时**：`rationale` 必须包含规则文件中的检测逻辑引用，`fix_before`/`fix_after` 必须遵循规则文件提供的修复模式
+
+> 🚫 **禁止行为**：
+> - 不加载规则文件直接凭知识检测（违反核心契约）
+> - 仅 `ls` 列目录后臆测规则内容
+> - 用 `read` 工具读 `$SECGUARDIAN_HOME/knowledge/` 下的文件（触发 OpenCode 权限弹窗）
+> - 用 `grep` 或 `find` 取代 index.json 符号表定位
 
 #### 3e 排序与执行
 
@@ -323,10 +497,24 @@ AI 只需读取 `## cpp` 以下至下一个 `##` 之间的内容即获得完整�
 
 > **不要向用户确认**，直接进入后续步骤。默认无 filter = 全量扫描。
 
+> ⚠️ **🚫 禁止将检测执行委托给子代理 (NON-NEGOTIABLE):**
+> YOU are the detection engine. Your analysis (reading index.json symbols + loading guard-rules + reading target functions) IS the scanner.
+> - ❌ 不允许启动 background task / sub-agent 来执行检测器
+> - ❌ 不允许用 grep/find 全文件扫描（必须通过 index.json 符号表定位目标函数）
+> - ✅ 正确做法：在当前上下文中，逐一读取 guard-rules → 查 index.json 符号表找到关联函数 → 读取该函数代码 → 应用检测逻辑 → 用 record-finding.py 记录 finding
+>
+> **为什么？** sub-agent 无法访问 index.json 和 guard-rules，只能全量 grep 642 个文件，完全绕过了索引器体系。
+
+<!-- @secguardian:non-skippable step=validate -->
+> **🚫 此验证步骤不可跳过。跳过验证不会加速扫描——验证减低了误报，是报告前的强制性安全检查。**
+> 如果必须跳过（如极短时间内重复测试），显式加 `--no-verify` flag（但在正式扫描中不鼓励）。
+
 ### Step 3.5: 三轮验证管道（误报消减）
 
 > ⚠️ 这是 v6.0 新增的验证步骤。在 Detector 产出 Finding 后、渲染报告前，执行三轮独立验证对每个 Finding 进行证据认证，最大化降低误报。
-> 跳过验证: 在命令末尾加 `--no-verify` flag。
+> 跳过验证: 在命令末尾加 `--no-verify` flag（会触发 self-check 警告）。
+>
+> **自动跳过**: 如果 Step 3e 中检出 0 个 finding，不执行验证管道（标注 `skipped_by_zero_findings`），直接进入 Step 4。
 
 **3.5a. 加载验证协议（多路径搜索）：**
 
@@ -412,32 +600,49 @@ PYEOF
 
 ### Step 4: 输出结构化 findings（遵循 Findings Protocol v5.0）
 
-> ⚠️ **v5.0 关键变更**: AI **不再输出单体 findings.json**。改为按 detector 分类，**每个 finding 输出一个独立文件**到 `findings/` 目录树下。`findings.json` 由渲染器自动生成（不含四段式，仅元数据+索引）。AI 只负责通过 `record-finding.py` 录制独立 finding 文件，渲染器调用时自动聚合 `findings_index`。渲染器通过 `--findings-dir` 聚合所有 finding 文件生成报告。**禁止直接写 report.md / results.sarif / 任何其他输出文件** — 这些由渲染器生成。
+> ⚠️ **唯一输出路径**: 所有 findings 必须通过 `record-finding.py` 逐条录制到 `findings/` 目录树下。
+> **禁止 AI 手写 `findings.json`。** `findings.json` 由 `render-report.py` 从 `findings/` 目录树自动聚合生成。
+> 渲染器调用: `python3 render-report.py --findings-dir <dir>/findings/ --output <dir>`
+> 参见 `internal/output/output_contract.md`。
 >
 > 调用 `record-finding.py`（通过多路径搜索定位）记录每个 finding：
+>
+> **🔗 锚定+证据约束 (engine_contract.md Rule A + Rule B):**
+> - 每个 finding 的 `file`+`line` MUST 可追溯到 index.json 的符号或文件列表
+> - 每个 finding MUST 提供 `--snippet`（漏洞代码行）、`--code-context`（上下文）、`--rationale`（判断依据）
+> - MUST 传 `--index-json` 进行锚定校验
+> - 无 index 锚点的 finding MUST 标记 `confidence: low` 并说明原因
 
 ```bash
-RECORDER="$SECGUARDIAN_HOME/scripts/record-finding.py"
-
+# ⚠️ RECORDER/SCAN_DIR/SCAN_ID 已从 .scan_state.secguard 加载，无需重复赋值
+# ⚠️ MUST use heredoc with --from-stdin. NEVER pass code as inline CLI args.
 python3 "$RECORDER" \
     --command secguard \
-    --scan-dir .codeagent/secguardian/secguard/scans/<scan_id> \
-    --detector <namespace.name> \
-    --severity Critical --cwe CWE-89 \
-    --file src/UserController.java --line 52 \
-    --fix-before "<bad_code>" --fix-after "<good_code>"
+    --scan-dir "$SCAN_DIR" \
+    --from-stdin << 'RECEOF'
+{
+  "command": "secguard",
+  "detector": "<namespace.name>",
+  "severity": "Critical",
+  "cwe": "CWE-89",
+  "file": "src/UserController.java",
+  "line": 52,
+  "function": "getUser",
+  "title": "SQL injection via string concatenation",
+  "snippet": "String query = \"SELECT * FROM users WHERE name = '\" + username + \"'\";",
+  "code_context": "public User getUser(String username) {\n    String query = \"SELECT * FROM users WHERE name = '\" + username + \"'\";\n    return jdbcTemplate.query(query, ...);\n}",
+  "rationale": "User input concatenated into SQL — violates OWASP A03:2021 Injection",
+  "attack_scenario": "Attacker provides ' OR '1'='1' -- to bypass auth and dump all users",
+  "cvss": 9.8,
+  "fix_before": "String query = \"SELECT * FROM users WHERE name = '\" + username + \"'\";",
+  "fix_after": "String query = \"SELECT * FROM users WHERE name = ?\";\nPreparedStatement ps = conn.prepareStatement(query);\nps.setString(1, username);",
+  "index_json": ".codeagent/secguardian/index.json"
+}
+RECEOF
 ```
 
 输出：`findings/<ns>/<detector>/<sha12>_<file>-<line>.json`
-> ⚠️ Shell 安全：当 fix 代码含 `"` `'` `;` 或路径字符（如 `/etc/`）时，
-> 先用 heredoc 写入文件再传 `--fix-before-file` / `--fix-after-file`：
-> ```bash
-> cat > /tmp/fix_before.txt << 'EOF'
-> String query = "SELECT * FROM users WHERE id = " + input;
-> EOF
-> python3 "$RECORDER" --command secguard --detector web.sql-injection \
->     --fix-before-file /tmp/fix_before.txt --fix-after-file /tmp/fix_after.txt
-> ```
+> `findings.json` 由渲染器从 `findings/` 目录树自动聚合。禁止 AI 手写。
 
 
 **4a. 按 detector 分组，以 SHA 前缀为文件名逐文件输出（每个文件 2-4KB）：**
@@ -520,16 +725,17 @@ findings/crypto/password-storage/f6e5d4c3b2a1_crypto_utils-20.json
 
 ```bash
 SCAN_DIR=".codeagent/secguardian/secguard/scans/<scan_id>"
-python3 scripts/validate-findings.py --findings-dir "$SCAN_DIR/findings/"
+python3 "$SECGUARDIAN_HOME/scripts/validate-findings.py" --findings-dir "$SCAN_DIR/findings/" --check-spec
 VALIDATE_EXIT=$?
 if [ $VALIDATE_EXIT -eq 0 ]; then
-    echo "  ✅ All findings pass validation"
+    echo "  ✅ All findings pass validation + spec cross-check"
 else
-    echo "  ⚠️  Findings validation completed with warnings — proceeding to renderer"
+    echo "  ⚠️  Spec validation found violations — findings must be regenerated"
+    echo "  AI must re-read guard-rule Detection Spec and fix severity/CWE/evidence"
 fi
 ```
 
-> 校验结果不阻塞渲染。validate-findings.py 的警告项可通过后续手动检查确认。
+> Spec 校验是强约束：finding 的 severity、CWE、evidence 必须匹配 Detection Spec（即 guard-rule 文件内容）。跳过规则文件加载的 finding 将被拒绝。
 
 **4d. 调用渲染器生成所有输出：**
 
@@ -539,6 +745,7 @@ RENDERER="$SECGUARDIAN_HOME/scripts/render-report.py"
 
 python3 "$RENDERER" \
     --command secguard \
+    --scan-id "$SCAN_ID" \
     --findings-dir .codeagent/secguardian/secguard/scans/<scan_id>/findings/ \
     --index .codeagent/secguardian/index.json \
     --output .codeagent/secguardian/secguard/scans/<scan_id>/
@@ -546,7 +753,7 @@ python3 "$RENDERER" \
 
 渲染器自动生成: `report.md` + `results.sarif` + `summary.json` + `manifest.json` + `status.json` + `delta.json`。
 
-> ⚠️ 如果渲染器不存在或执行失败，打印警告：`"Renderer unavailable — findings saved to findings/ directory tree only. Run: python3 scripts/render-report.py --findings-dir <path>/findings/ --index <path>/index.json --output <path>/"`
+> ⚠️ 如果渲染器不存在或执行失败，打印警告：`"Renderer unavailable — findings saved to findings/ directory tree only. Run: python3 $SECGUARDIAN_HOME/scripts/render-report.py --findings-dir <path>/findings/ --index <path>/index.json --output <path>/"`
 
 ### Step 5: 输出摘要
 
@@ -554,6 +761,10 @@ python3 "$RENDERER" \
 - 向用户输出 Markdown 格式的扫描摘要，包含：scan_id、检出总数、按严重度分组、Top 5 key findings。
 - `duration_ms` 由渲染器根据 `findings.json` 中的时间戳自动计算。
   不影响示例代码在测试环境中的使用。"
+
+## 📄 Output Layer
+
+> 以下输出格式遵循 `internal/output/output_contract.md`。
 
 ## secguard 扫描完成
 

@@ -1,14 +1,19 @@
 ---
 detector: resource.file-use-after-close
+description: Detects use after close vulnerabilities where a file handle is read after being closed
 severity: high
 cwe: CWE-672
+cvss: 7.5
 language: [c, cpp]
 tags: [resource, file, use-after-close, fd, dangling-pointer]
 precision: very-high
 confidence: dynamic
+target_functions: [caller, fclose, fcntl, fprintf, fsync, open, process_and_close, write]
+match_patterns: [close(fd) 后出现 write/read/send/recv/ioctl/fcntl/fstat/select/poll/epoll_ctl 等以 fd 为参数的操作, fclose(fp) 后出现 fprintf/fread/fwrite/fseek/fgets/fputs 等以 fp 为参数的操作, 跨函数 close-then-use：callee close(fd) → caller 继续使用同一 fd]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 文件句柄释放后使用 (File Descriptor Use-After-Close)
 
 ## 威胁定义 (Threat Definition)
 

@@ -1,14 +1,19 @@
 ---
 detector: insecure-temp-file
+description: Detects insecure temporary file creation using predictable paths or names
 severity: medium
 cwe: CWE-377
+cvss: 5.5
 language: [c, cpp]
 tags: [system, filesystem, temp]
 precision: high
 confidence: dynamic
+target_functions: [code_context, data_flow_path, fopen, getpid, judgment_rationale, mkstemp, mktemp, open, sprintf, temp_directory_path, tempnam, tmpfile, tmpnam, variable_state]
+match_patterns: [tmpnam|mktemp|tempnam                                  # 废弃/不安全的临时文件名生成, sprintf.*"/tmp/.*%d"                                    # 拼接进程ID — 可预测！, open("/tmp/fixed_...", O_CREAT                          # 固定文件名 — 完全可预测, open\(.*O_CREAT.*0666|open\(.*O_CREAT.*0777             # 过于宽松的权限]
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 不安全临时文件 (Insecure Temporary File)
 
 ## 威胁定义 (Threat Definition)
 

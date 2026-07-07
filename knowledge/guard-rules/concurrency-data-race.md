@@ -1,14 +1,19 @@
 ---
 detector: data-race
+description: Detects data races where multiple threads access the same memory without proper synchronization
 severity: high
 cwe: CWE-366
+cvss: 7.5
 language: [c, cpp]
 tags: [concurrency, threading, undefined-behavior]
 precision: medium
 confidence: dynamic
+target_functions: [finisher, worker]
+match_patterns: []
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# 数据竞争 (Data Race)
 
 ## 威胁定义 (Threat Definition)
 

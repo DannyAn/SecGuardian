@@ -1,14 +1,17 @@
 ---
 detector: error-log-sensitive-data
+description: Detects logging of sensitive information such as passwords, tokens, or PII
 severity: high
 cwe: CWE-532
+cvss: 6.5
 language: [c, cpp, java, python, go, js]
 tags: [error, logging, sensitive-data, privacy]
 precision: high
 confidence: dynamic
+target_functions: [apiKey, api_key, authenticated, code_context, console, creditCard, credit_card, cvv, debug, fprintf, getUsername, info, judgment_rationale, logger, logging, passwd, password, pin, privateKey, private_key, rintf, sanitize, secret, social_security, ssn, str, stringify, sub, substring, syslog, toString, token, warn]
+match_patterns: [(log|logger|logging|syslog|printf|console\.log|console\.error|log\.Printf).*, |creditCard|credit_card|ssn|social_security|cvv|pin), (logger|log)\.(info|debug|warn|error).*\+, log\.Printf.*%\+v            → 结构体含敏感字段, (logger|syslog|log\.Printf|console\.log).*\+(?!\s*%s), LOGGING.*request\.body       → Django settings, %msg.*%n                     → logback/log4j pattern 无过滤]
+exclude_patterns: []
 ---
-
-# 日志敏感数据泄露 (Log Sensitive Data Exposure)
 
 ## 威胁定义 (Threat Definition)
 

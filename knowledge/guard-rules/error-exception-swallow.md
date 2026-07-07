@@ -1,14 +1,17 @@
 ---
-confidence: dynamic
-cwe: CWE-391
 detector: error-exception-swallow
-language: [c, cpp, java, python, go, js]
-precision: very-high
+description: Detects empty catch blocks or silent error suppression that hides failures
 severity: medium
+cwe: CWE-391
+cvss: 4.5
+language: [c, cpp, java, python, go, js]
 tags: [error, exception, silent-failure, debugging]
+precision: very-high
+confidence: dynamic
+target_functions: [_accept, accept, access, arse, authenticate, checkPermission, check_permission, code_context, debug, encrypt, fetch, get, handler, insecureOperation, json, judgment_rationale, next, printStackTrace, process, pthread_mutex_lock, query, secureOperation, sensitive_operation, signal, then, uthenticate, validateInput, validate_token]
+match_patterns: [catch\s*\(.*\)\s*\{\s*\}                              → 完全空, catch\s*\(.*\)\s*\{\s*//.*\s*\}                        → 仅有注释, catch.*\{[^}]*\.printStackTrace\(\);[^}]*\}             → 仅打印不传播，且无 throw, except\s+.*:\s*pass\s*$, except\s+.*:\s*#\s*\w+, except\s+Exception:.*\bpass\b, \w+\([^)]*\)\s*;  # 函数调用返回值未赋值 — 需要结合已知返回错误码的函数列表, SSL_accept|pthread_mutex_lock|access\s*\( — 返回值未检查, _,\s*_\s*:=.*\.Parse|Authenticate|Validate, if err != nil \{.*log\.Print.*\n[^}]*\}\s*\n[^r]  # 仅 log 未 return, \.then\([^)]*\)$                                      → 无 .catch, \.catch\(\s*\(\)\s*=>\s*\{\s*\}\)                      → 空 catch]
+exclude_patterns: []
 ---
-
-# 异常吞掉 (Exception Swallow)
 
 ## 威胁定义 (Threat Definition)
 

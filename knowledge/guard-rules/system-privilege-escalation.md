@@ -1,14 +1,17 @@
 ---
 detector: privilege-escalation
+description: Detects improper privilege management that could allow privilege escalation
 severity: high
 cwe: CWE-269
+cvss: 7.5
 language: [c, cpp]
 tags: [system, privilege, setuid]
 precision: high
 confidence: dynamic
+target_functions: [cap_set_proc, code_context, execl, judgment_rationale, setegid, seteuid, setgid, setregid, setreuid, setuid]
+match_patterns: [seteuid(uid)              # 未丢弃 saved uid, setuid(uid);]
+exclude_patterns: []
 ---
-
-# 权限提升 (Privilege Escalation)
 
 ## 威胁定义 (Threat Definition)
 

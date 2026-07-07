@@ -1,14 +1,19 @@
 ---
 detector: code-injection
+description: Detects code injection vulnerabilities where user input is evaluated as code (eval, exec, etc.)
 severity: critical
 cwe: CWE-94
+cvss: 9.8
 language: [python]
 tags: [web, injection, rce]
 precision: high
 confidence: dynamic
+target_functions: [compile, eval, exec, import_module, load, loads, parse, safe_load]
+match_patterns: []
+exclude_patterns: []
+required_evidence: [code_context, judgment_rationale]
+optional_evidence: [data_flow_path, call_stack]
 ---
-
-# Python 代码注入检测
 
 ## 威胁定义 (Threat Definition)
 
