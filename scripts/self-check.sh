@@ -442,6 +442,59 @@ PASS=$((PASS + TS_PASS))
 FAIL=$((FAIL + TS_FAIL))
 echo ""
 
+# ── 13. Template security gate: pre-filter + no bulk copy ──
+echo "13. Template security gate (FEATURE-002)"
+SG_FAIL=0; SG_PASS=0
+for cmd in secguard secaudit secreview; do
+    f="commands/${cmd}.md"
+    if [ ! -f "$f" ]; then
+        echo "  ❌ ${cmd}: commands/${cmd}.md MISSING"
+        SG_FAIL=$((SG_FAIL + 1))
+        continue
+    fi
+    fail=0
+
+    # 13a: pre-filter non-skippable marker present
+    if grep -q '@secguardian:non-skippable step=pre-filter' "$f" 2>/dev/null; then
+        SG_PASS=$((SG_PASS + 1))
+    else
+        echo "  ❌ ${cmd}: 13a pre-filter gate marker MISSING"
+        echo "    Add: <!-- @secguardian:non-skippable step=pre-filter --> before pre-filter section"
+        fail=1
+    fi
+
+    # 13b: no cp -r knowledge bulk copy (exclude comment lines and blockquote lines)
+    cp_r=$(grep -n 'cp -r.*knowledge' "$f" 2>/dev/null | grep -v '^\s*#' | grep -v '^\s*>' || true)
+    if [ -z "$cp_r" ]; then
+        SG_PASS=$((SG_PASS + 1))
+    else
+        echo "  ❌ ${cmd}: 13b contains cp -r knowledge bulk copy"
+        echo "    $cp_r"
+        fail=1
+    fi
+
+    # 13c: no mkdir knowledge directory creation
+    mkdir_k=$(grep -n 'mkdir.*knowledge' "$f" 2>/dev/null | grep -v '^\s*#' | grep -v '^\s*>' || true)
+    if [ -z "$mkdir_k" ]; then
+        SG_PASS=$((SG_PASS + 1))
+    else
+        echo "  ❌ ${cmd}: 13c creates knowledge directory"
+        echo "    $mkdir_k"
+        fail=1
+    fi
+
+    if [ "$fail" -eq 0 ]; then
+        green "  ${cmd}: all 3 security gate checks passed"
+    fi
+done
+if [ "$SG_FAIL" -eq 0 ]; then
+    SG_PASS=$((SG_PASS + 1))
+    green "  All 3 commands pass template security gate"
+fi
+PASS=$((PASS + SG_PASS))
+FAIL=$((FAIL + SG_FAIL))
+echo ""
+
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 printf "  Passed: %d  Failed: %d\n" "$PASS" "$FAIL"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

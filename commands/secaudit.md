@@ -193,11 +193,10 @@ fi
 # ===== 阶段 C: 扫描路径确认 =====
 test -d "<path>" || { echo "FATAL: scan path <path> not found"; exit 1; }
 
-# ===== 阶段 D: 创建扫描目录 & 知识库拷贝 =====
+# ===== 阶段 D: 创建扫描目录 =====
 SCAN_ID="sec-$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 2)"
 SCAN_DIR="$USER_PROJECT/.codeagent/secguardian/secaudit/scans/$SCAN_ID"
-mkdir -p "$SCAN_DIR" "$USER_PROJECT/.codeagent/secguardian/knowledge"
-cp -r "$SECGUARDIAN_HOME/knowledge/." "$USER_PROJECT/.codeagent/secguardian/knowledge/"
+mkdir -p "$SCAN_DIR"
 
 # ===== 阶段 E: 持久化状态到 .scan_state.secaudit =====
 cat > ".codeagent/secguardian/.scan_state.secaudit" << STATEEOF
@@ -224,9 +223,11 @@ source .codeagent/secguardian/.scan_state.secaudit
 此后 `$SCAN_DIR`、`$SCAN_ID`、`$USER_PROJECT`、`$SECGUARDIAN_HOME`、`$RECORDER` 均可直接使用。**禁止用 `cat /tmp/*.txt`**。
 `/tmp/` 在 Windows 不可用、触发 macOS 确权弹窗、且多用户不安全。
 
-> **📂 知识库本地拷贝**: 知识库文件（guard-rules、audit-rules、language-index）已在 Step 1 拷贝到 `.codeagent/secguardian/knowledge/`。
-> - `read` 工具读取规则文件时，使用 `.codeagent/secguardian/knowledge/` 相对路径
-> - 禁止使用 `$SECGUARDIAN_HOME/knowledge/` 全路径（触发 OpenCode 外部目录权限弹窗）
+> **📂 知识库读取**: 知识库文件存储在 `$SECGUARDIAN_HOME/knowledge/`，使用 bash `cat` 按需读取，不拷贝到项目目录。
+> - 审计规则：`cat "$SECGUARDIAN_HOME/knowledge/audit-rules/{domain}.md"`
+> - language-index：`cat "$SECGUARDIAN_HOME/knowledge/language-index.md"`
+> - 协议文件：`cat "$SECGUARDIAN_HOME/knowledge/protocols/{name}.md"`
+> - 禁止使用 `read` 工具读 `$SECGUARDIAN_HOME/knowledge/` 下的文件（触发 OpenCode 外部目录权限弹窗）。使用 bash `cat` 读取不会触发权限弹窗。
 
 ### Step 2: 构建语义索引（必须执行，不可跳过）
 
@@ -281,9 +282,9 @@ python3 "$SECGUARDIAN_HOME/scripts/validate-index.py" \
 
 ### Step 3: 加载审计域规则并路由 Workflow
 
-> 默认加载 `.codeagent/secguardian/knowledge/audit-rules/` 中的 13 个审计域规则（已在 Step 1 拷贝到项目内），由 secaudit workflow 自动调度执行。
+> 默认加载 `$SECGUARDIAN_HOME/knowledge/audit-rules/` 中的 13 个审计域规则，由 secaudit workflow 自动调度执行。
 
-- **默认审计模式**: 加载 `skills/secaudit/SKILL.md` 作为执行引擎，各 phase 从 `.codeagent/secguardian/knowledge/audit-rules/` 加载对应的规则文件。
+- **默认审计模式**: 加载 `skills/secaudit/SKILL.md` 作为执行引擎，各 phase 从 `$SECGUARDIAN_HOME/knowledge/audit-rules/` 加载对应的规则文件。
   - workflow 中定义的 phase 顺序
   - 后处理（去重、评分、分类、修复路线图）由 workflow 定义
 - **单项聚焦**: `--focus <domain>` 时跳过不匹配的 phase，仅加载对应域的规则文件
@@ -291,9 +292,21 @@ python3 "$SECGUARDIAN_HOME/scripts/validate-index.py" \
 > YOU are the execution engine. 禁止启动 background task / sub-agent 执行检测器。
 > 禁止用 grep/find 全文件扫描。必须通过 index.json 符号表定位目标函数。
 
+<!-- @secguardian:non-skippable step=pre-filter -->
+#### 3.1 检测器预筛（不可跳过）
+
+> 加载审计域规则前，必须先经 index.json 符号表门控。
+
+对审计清单中的每个域：
+1. 读取该审计域关联的目标函数/API
+2. 在 `index.json.symbols.functions` 中查询目标是否存在
+3. **无匹配 → 跳过**：不加载规则全文，记录 "`Skipped: no matching symbol for {domain} in index.json`"
+4. **有匹配 → 加载规则**：进入 Step 3 加载规则全文后执行审计
+
 ### Step 4: 输出结构化 findings（遵循 Findings Protocol v5.0）
 
 > **v6.0**: secaudit 命令同样适用三轮验证管道（`commands/secguard.md` Step 3.5）。`--no-verify` 跳过验证。
+> **自动跳过**: 如果审计产出 0 个 finding，不执行验证管道（标注 `skipped_by_zero_findings`），直接进入渲染。
 > ⚠️ **v5.0 关键变更**: AI **不再输出单体 findings.json**。改为按 detector 分类，**每个 finding 输出一个独立文件**到 `findings/` 目录树下。`findings.json` 由渲染器自动生成（不含四段式，仅元数据+索引）。AI 只负责通过 `record-finding.py` 录制独立 finding 文件，渲染器调用时自动聚合 `findings_index`。渲染器通过 `--findings-dir` 聚合所有 finding 文件生成报告。**禁止直接写 report.md / results.sarif / 任何其他输出文件**。
 
 **4a. 按 detector 分组，以 SHA 前缀为文件名逐文件输出：**

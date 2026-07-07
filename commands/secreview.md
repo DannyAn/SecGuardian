@@ -200,11 +200,10 @@ fi
 # ===== Phase C: Scan path verification =====
 test -d "<path>" || { echo "FATAL: scan path <path> not found"; exit 1; }
 
-# ===== Phase D: Create scan dir & copy knowledge =====
+# ===== Phase D: Create scan dir =====
 SCAN_ID="pr-$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 2)"
 SCAN_DIR="$USER_PROJECT/.codeagent/secguardian/secreview/scans/$SCAN_ID"
-mkdir -p "$SCAN_DIR" "$USER_PROJECT/.codeagent/secguardian/knowledge"
-cp -r "$SECGUARDIAN_HOME/knowledge/." "$USER_PROJECT/.codeagent/secguardian/knowledge/"
+mkdir -p "$SCAN_DIR"
 
 # ===== Phase E: Persist state to .scan_state.secreview =====
 cat > ".codeagent/secguardian/.scan_state.secreview" << STATEEOF
@@ -231,9 +230,12 @@ source .codeagent/secguardian/.scan_state.secreview
 ```
 Then use `$SCAN_DIR`, `$SCAN_ID`, `$USER_PROJECT`, `$SECGUARDIAN_HOME`, `$RECORDER` directly. NEVER use `$(cat /tmp/*.txt)`.
 
-> **📂 Local knowledge copy**: All knowledge files (guard-rules, review-rules, language-index) were copied to `.codeagent/secguardian/knowledge/` in Step 1.
-> - Use `read` tool on `.codeagent/secguardian/knowledge/` relative paths (NOT `$SECGUARDIAN_HOME/knowledge/`)
-> - This avoids OpenCode permission prompts for external directories
+> **📂 Knowledge reading**: Knowledge files are at `$SECGUARDIAN_HOME/knowledge/`. Read on demand via bash `cat` — no directory copy.
+> - Review rules: `cat "$SECGUARDIAN_HOME/knowledge/review-rules/{lang}.md"`
+> - Language profile: `cat "$SECGUARDIAN_HOME/knowledge/languages/{lang}.md"`
+> - language-index: `cat "$SECGUARDIAN_HOME/knowledge/language-index.md"`
+> - Protocols: `cat "$SECGUARDIAN_HOME/knowledge/protocols/{name}.md"`
+> - DO NOT use `read` tool on `$SECGUARDIAN_HOME/knowledge/` (triggers permission prompts). Use bash `cat` instead — no permission prompt.
 
 ### Step 2: Build Semantic Index (Required)
 
@@ -288,10 +290,20 @@ python3 "$SECGUARDIAN_HOME/scripts/validate-index.py" \
 - Load the corresponding skill: `../skills/secreview/{language}/SKILL.md`.
 - Load the per-language profile (dangerous API lists) using bash `cat` — avoid `read` tool which triggers OpenCode external dir permission prompts:
   ```bash
-  LANG_PROFILE=".codeagent/secguardian/knowledge/languages/<language>.md"
+  LANG_PROFILE="$SECGUARDIAN_HOME/knowledge/languages/<language>.md"
   [ -f "$LANG_PROFILE" ] && echo "=== Language Profile ===" && cat "$LANG_PROFILE"
   ```
 - **Use index.json symbol table to locate review targets**, rather than traversing files.
+
+<!-- @secguardian:non-skippable step=pre-filter -->
+#### 3a. 检测器预筛（不可跳过）
+> 加载审阅规则前必须先经 index.json 符号表门控。
+
+对 language-index 中该语言的 review-rules 清单：
+1. **读取目标函数/API**：review-rules 关联的目标函数名
+2. **查 index.json.symbols.functions**：在符号表中查询目标是否存在
+3. **无匹配 → 跳过**：不加载规则全文，记录 "`Skipped: no matching symbol for {rule} in index.json`"
+4. **有匹配 → 加载规则**：进入 Step 4 加载规则后执行审阅
 
 ### Step 4: AI Security Code Review — Three Reasoning Dimensions
 
@@ -334,6 +346,8 @@ Evaluate against language-specific anti-patterns (from the skill file):
 > - ❌ 不允许启动 background task / sub-agent 来执行检测器
 > - ❌ 不允许用 grep/find 全文件扫描（必须通过 index.json 符号表定位目标函数）
 > - ✅ 正确做法：在当前上下文中，逐一读取 guard-rules → 查 index.json 符号表找到关联函数 → 读取该函数代码 → 应用检测逻辑 → 用 record-finding.py 记录 finding
+
+> **自动跳过**: 如果 Step 4 (Pass A/B/C) 检出 0 个 finding，跳过 Step 5 渲染管线，直接输出 "✅ 安全审阅通过，未发现安全问题" 并结束。
 
 ### Step 5: Output Structured Findings (Findings Protocol v5.0)
 
