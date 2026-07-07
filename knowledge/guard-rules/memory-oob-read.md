@@ -8,8 +8,55 @@ precision: high
 confidence: dynamic
 ---
 
-# 越界读取 (Out-of-bounds Read)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "memory.oob-read",
+  "type": "guard-rule",
+  "namespace": "memory",
+  "severity": "High",
+  "cwe": "CWE-125",
+  "cvss": 7.5,
+  "confidence": "dynamic",
+  "precision": "high",
+  "languages": [
+    "c",
+    "cpp"
+  ],
+  "target_functions": [
+    "arr",
+    "arr_size",
+    "code_context",
+    "fgets",
+    "gets",
+    "judgment_rationale",
+    "memcpy",
+    "memmove",
+    "read",
+    "strcat",
+    "strcpy",
+    "strlen",
+    "user",
+    "user_var"
+  ],
+  "match_patterns": [
+    "arr\\[user_var|arr\\[i\\] 中的 i 无边界检查",
+    "memcpy|memmove.*user|user.*memcpy",
+    "strlen|strcpy|strcat|printf.*%s"
+  ],
+  "exclude_patterns": [],
+  "required_evidence": [
+    "code_context",
+    "judgment_rationale"
+  ],
+  "optional_evidence": [
+    "data_flow_path",
+    "call_stack"
+  ]
+}
+```
 ## 威胁定义 (Threat Definition)
 
 程序读取超出缓冲区边界的数据，可能泄露敏感内存内容（密钥、栈 canary、ASLR 基址）。著名的 Heartbleed（CVE-2014-0160）即为此类漏洞。

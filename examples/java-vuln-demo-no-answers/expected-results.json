@@ -1,0 +1,31 @@
+{
+  "name": "fp-verification-demo-java",
+  "language": "java",
+  "total_cases": 12,
+  "p0_safe": 6,
+  "p1_suppressed": 2,
+  "p2_suppressed": 4,
+  "p3_suspected": 2,
+  "tp_confirmed": 2,
+  "expected_convergence_rate": "83.3%",
+  "expected_precision": "100%",
+  "test_cases": [
+    {"id": "P0-01", "file": "p0_safe_functions.java", "method": "safeQuery", "expected": "no_finding"},
+    {"id": "P0-02", "file": "p0_safe_functions.java", "method": "generateToken", "expected": "no_finding"},
+    {"id": "P0-03", "file": "p0_safe_functions.java", "method": "safeMove", "expected": "no_finding"},
+    {"id": "P0-04", "file": "p0_safe_functions.java", "method": "logEvent", "expected": "no_finding"},
+    {"id": "P0-05", "file": "p0_safe_functions.java", "method": "isSafePath", "expected": "no_finding"},
+    {"id": "P0-06", "file": "p0_safe_functions.java", "method": "encodeBase64", "expected": "no_finding"},
+    {"id": "P1-01", "file": "p1_safe_wrappers.java", "method": "findUser", "expected": "exempted"},
+    {"id": "P1-02", "file": "p1_safe_wrappers.java", "method": "writeLog", "expected": "exempted"},
+    {"id": "P2-01", "file": "p2_counter_evidence.java", "method": "safeResource", "expected": "counter_evidence_found"},
+    {"id": "P2-02", "file": "p2_counter_evidence.java", "method": "safeIncrement", "expected": "counter_evidence_found"},
+    {"id": "P2-03", "file": "p2_counter_evidence.java", "method": "safeCounter", "expected": "counter_evidence_found"},
+    {"id": "P2-04", "file": "p2_counter_evidence.java", "method": "syncWrite", "expected": "counter_evidence_found"},
+    {"id": "P3-01", "file": "p3_edge_case.java", "method": "execCommand", "expected": "suspected"},
+    {"id": "P3-02", "file": "p3_edge_case.java", "method": "reloadConfig", "expected": "suspected"},
+    {"id": "TP-01", "file": "tp_true_positives.java", "method": "vulnerableQuery", "expected": "confirmed"},
+    {"id": "TP-02", "file": "tp_true_positives.java", "method": "vulnerableExec", "expected": "confirmed"}
+  ],
+  "final_certified": 4
+}

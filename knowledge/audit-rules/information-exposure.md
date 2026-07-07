@@ -5,6 +5,26 @@ category: domain
 topic: [web, general]
 ---
 
+
+## Detection Spec
+
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "domain.information-exposure",
+  "type": "audit-rule",
+  "domain_name": "information-exposure",
+  "category": "domain",
+  "topics": [
+    "web",
+    "general"
+  ],
+  "severity": "High",
+  "cwe": "CWE-200",
+  "cvss": 7.5
+}
+```
+
 # Information Exposure
 
 ## 概述

@@ -8,8 +8,49 @@ precision: very-high
 confidence: dynamic
 ---
 
-# 文件句柄释放后使用 (File Descriptor Use-After-Close)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "resource.resource.file-use-after-close",
+  "type": "guard-rule",
+  "namespace": "resource",
+  "severity": "High",
+  "cwe": "CWE-672",
+  "cvss": 7.5,
+  "confidence": "dynamic",
+  "precision": "very-high",
+  "languages": [
+    "c",
+    "cpp"
+  ],
+  "target_functions": [
+    "caller",
+    "fclose",
+    "fcntl",
+    "fprintf",
+    "fsync",
+    "open",
+    "process_and_close",
+    "write"
+  ],
+  "match_patterns": [
+    "close(fd) 后出现 write/read/send/recv/ioctl/fcntl/fstat/select/poll/epoll_ctl 等以 fd 为参数的操作",
+    "fclose(fp) 后出现 fprintf/fread/fwrite/fseek/fgets/fputs 等以 fp 为参数的操作",
+    "跨函数 close-then-use：callee close(fd) → caller 继续使用同一 fd"
+  ],
+  "exclude_patterns": [],
+  "required_evidence": [
+    "code_context",
+    "judgment_rationale"
+  ],
+  "optional_evidence": [
+    "data_flow_path",
+    "call_stack"
+  ]
+}
+```
 ## 威胁定义 (Threat Definition)
 
 文件描述符（fd）或 `FILE*` 指针在 `close()`/`fclose()` 被释放后仍然被后续代码引用——包括读写操作、状态查询、或作为参数传递给其他函数，映射 CWE-672（Operation on a Resource after Expiration or Release）。释放后的 fd 值在进程 fd 表中成为空洞，随时可被其他线程的 `open()`/`socket()`/`accept()` 重新分配。后续对该 fd 的 `read()`/`write()`/`ioctl()` 等操作将作用于新分配的文件/连接而非原始目标，后果包括：(a) 数据写入错误文件/连接 → 数据泄漏或损坏；(b) 读取到不属于本模块的数据 → 信息泄露；(c) 状态操作（如 `fstat`/`fcntl`）返回错误文件的信息。多线程环境下，fd 复用窗口是不可预测的竞态窗口，漏洞表现为间歇性、低复现性的数据损坏，调试极度困难。

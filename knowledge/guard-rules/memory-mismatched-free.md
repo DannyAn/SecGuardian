@@ -8,8 +8,43 @@ precision: high
 confidence: dynamic
 ---
 
-# 释放函数不匹配 (Mismatched Free)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "memory.mismatched-free",
+  "type": "guard-rule",
+  "namespace": "memory",
+  "severity": "High",
+  "cwe": "CWE-762",
+  "cvss": 7.5,
+  "confidence": "dynamic",
+  "precision": "high",
+  "languages": [
+    "c",
+    "cpp"
+  ],
+  "target_functions": [
+    "free",
+    "malloc",
+    "my_alloc",
+    "my_free",
+    "pool_free",
+    "zone_alloc"
+  ],
+  "match_patterns": [],
+  "exclude_patterns": [],
+  "required_evidence": [
+    "code_context",
+    "judgment_rationale"
+  ],
+  "optional_evidence": [
+    "data_flow_path",
+    "call_stack"
+  ]
+}
+```
 ## 威胁定义 (Threat Definition)
 
 分配和释放函数不配对（`malloc`→`delete` 或 `new`→`free`），导致未定义行为。不同分配体系使用不同的内部数据结构，混用必然导致堆损坏。C/C++ 混合代码和自定义分配器是高发场景。

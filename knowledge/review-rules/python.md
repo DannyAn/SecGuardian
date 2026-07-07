@@ -1,3 +1,22 @@
+---
+detector: review.python
+type: review-rule
+---
+
+## Detection Spec
+
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "review.python",
+  "type": "review-rule",
+  "language": "python",
+  "max_severity": "Critical",
+  "cwe": "CWE-000",
+  "anti_pattern_count": 12
+}
+```
+
 # Python 安全反模式检测矩阵
 
 代码审查中需要关注的 Python 特有安全反模式及具体检测规则。

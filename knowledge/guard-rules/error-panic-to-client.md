@@ -8,8 +8,48 @@ precision: very-high
 confidence: dynamic
 ---
 
-# Go panic 返回客户端 (Panic Recovery Leak)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "error.error-panic-to-client",
+  "type": "guard-rule",
+  "namespace": "error",
+  "severity": "Medium",
+  "cwe": "CWE-248",
+  "cvss": 4.5,
+  "confidence": "dynamic",
+  "precision": "very-high",
+  "languages": [
+    "go"
+  ],
+  "target_functions": [
+    "code_context",
+    "func",
+    "handler",
+    "judgment_rationale"
+  ],
+  "match_patterns": [
+    "recover.*fmt\\.Fprintf.*w\\b|recover.*w\\.Write",
+    "recover.*json\\.NewEncoder\\(w\\)\\.Encode.*err\\|r\\b",
+    "recover.*w\\.Write\\(debug\\.Stack\\(\\)",
+    "recover.*http\\.Error\\(w,\\s*.*\\.Error\\(\\)",
+    "CustomRecovery.*gin\\.H\\{.error.*err\\}",
+    "CustomRecovery.*c\\.AbortWithStatusJSON.*err",
+    "recover.*status\\.Errorf.*panic.*%v"
+  ],
+  "exclude_patterns": [],
+  "required_evidence": [
+    "code_context",
+    "judgment_rationale"
+  ],
+  "optional_evidence": [
+    "data_flow_path",
+    "call_stack"
+  ]
+}
+```
 ## 威胁定义 (Threat Definition)
 
 Go 中 panic recover 处理不当，将内部 panic 详情（数组越界、nil 指针、堆栈 trace）直接返回给 HTTP 客户端，泄露内部实现细节、文件路径和数据结构。

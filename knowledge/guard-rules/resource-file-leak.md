@@ -8,8 +8,41 @@ precision: high
 confidence: dynamic
 ---
 
-# 文件句柄泄漏 (File Descriptor Leak)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "resource.resource-file-leak",
+  "type": "guard-rule",
+  "namespace": "resource",
+  "severity": "High",
+  "cwe": "CWE-775",
+  "cvss": 7.5,
+  "confidence": "dynamic",
+  "precision": "high",
+  "languages": [
+    "c",
+    "cpp"
+  ],
+  "target_functions": [
+    "code_context",
+    "do_work",
+    "fclose",
+    "fopen",
+    "freopen",
+    "ifs",
+    "open",
+    "openat",
+    "tmpfile"
+  ],
+  "match_patterns": [
+    "fopen\\s*\\(.*\\)(?!.*fclose)       # fopen 无对应 fclose",
+    "open\\s*\\(.*\\)(?!.*close\\s*\\()    # open 无对应 close"
+  ],
+  "exclude_patterns": []
+}
+```
 ## 威胁定义 (Threat Definition)
 
 `fopen()`/`open()` 返回的文件句柄未在函数退出前关闭。长时间运行的服务会耗尽文件描述符，导致无法打开新文件或接受新连接（DoS）。`malloc` 未 `free` 属于 `memory.memory-leak`（CWE-401），不在本检测器覆盖范围。

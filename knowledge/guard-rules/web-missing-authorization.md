@@ -8,8 +8,58 @@ precision: high
 confidence: dynamic
 ---
 
-# 缺失授权检查 (Missing Authorization)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "web.missing-authorization",
+  "type": "guard-rule",
+  "namespace": "web",
+  "severity": "High",
+  "cwe": "CWE-862",
+  "cvss": 7.8,
+  "confidence": "dynamic",
+  "precision": "high",
+  "languages": [
+    "java",
+    "python",
+    "go"
+  ],
+  "target_functions": [
+    "admin",
+    "admin_users",
+    "code_context",
+    "deleteUser",
+    "ecured",
+    "eleteMapping",
+    "findById",
+    "hasAdminRole",
+    "hasRole",
+    "judgment_rationale",
+    "listUsers",
+    "ostMapping",
+    "reAuthorize",
+    "role",
+    "route",
+    "utMapping"
+  ],
+  "match_patterns": [
+    "/admin|/api/admin|DELETE|管理",
+    "@PostMapping|@PutMapping|@DeleteMapping|@PatchMapping",
+    "公共函数有授权 → 内部函数跳过 → 外部可通过内部函数绕过"
+  ],
+  "exclude_patterns": [],
+  "required_evidence": [
+    "code_context",
+    "judgment_rationale"
+  ],
+  "optional_evidence": [
+    "data_flow_path",
+    "call_stack"
+  ]
+}
+```
 ## 威胁定义 (Threat Definition)
 
 已认证用户访问超出其权限的功能或数据——普通用户执行管理员操作。与 IDOR（对象级授权缺失）不同，本检测器关注功能级授权缺失。

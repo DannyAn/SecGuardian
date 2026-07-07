@@ -8,8 +8,43 @@ precision: high
 confidence: dynamic
 ---
 
-# XML External Entity (XXE) Injection
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "web.xxe",
+  "type": "guard-rule",
+  "namespace": "web",
+  "severity": "Critical",
+  "cwe": "CWE-611",
+  "cvss": 9.8,
+  "confidence": "dynamic",
+  "precision": "high",
+  "languages": [
+    "java",
+    "python",
+    "go"
+  ],
+  "target_functions": [
+    "newDocumentBuilder",
+    "newInstance",
+    "newSAXParser",
+    "parse",
+    "setFeature"
+  ],
+  "match_patterns": [],
+  "exclude_patterns": [],
+  "required_evidence": [
+    "code_context",
+    "judgment_rationale"
+  ],
+  "optional_evidence": [
+    "data_flow_path",
+    "call_stack"
+  ]
+}
+```
 ## 威胁定义 (Threat Definition)
 
 XML 解析器启用了外部实体（External Entity）处理，攻击者通过恶意 XML 读取本地文件（`<!ENTITY xxe SYSTEM "file:///etc/passwd">`）、发起 SSRF、或触发 DoS（Billion Laughs）。

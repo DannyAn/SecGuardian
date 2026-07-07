@@ -8,8 +8,50 @@ precision: medium
 confidence: dynamic
 ---
 
-# TOCTOU 竞态条件 (Time-of-Check Time-of-Use)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "system.toctou",
+  "type": "guard-rule",
+  "namespace": "system",
+  "severity": "High",
+  "cwe": "CWE-367",
+  "cvss": 7.5,
+  "confidence": "dynamic",
+  "precision": "medium",
+  "languages": [
+    "c",
+    "cpp"
+  ],
+  "target_functions": [
+    "access",
+    "code_context",
+    "data_flow_path",
+    "fopen",
+    "fstat",
+    "judgment_rationale",
+    "lstat",
+    "open",
+    "path",
+    "stat"
+  ],
+  "match_patterns": [
+    "access\\(.*path|stat\\(.*path|lstat\\(.*path       # → MUST: code_context (check行)",
+    "access\\|stat\\|lstat.*path"
+  ],
+  "exclude_patterns": [],
+  "required_evidence": [
+    "code_context",
+    "judgment_rationale"
+  ],
+  "optional_evidence": [
+    "data_flow_path",
+    "call_stack"
+  ]
+}
+```
 ## 威胁定义 (Threat Definition)
 
 程序在"检查条件"和"使用资源"之间存在时间差，攻击者利用这个窗口改变系统状态（替换符号链接、修改文件内容、改变权限）。覆盖文件系统 TOCTOU、权限检查竞态、数据库 SELECT-then-UPDATE 竞态。

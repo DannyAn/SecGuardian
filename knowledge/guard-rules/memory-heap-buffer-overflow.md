@@ -8,8 +8,41 @@ precision: high
 confidence: dynamic
 ---
 
-# 堆缓冲区溢出 (Heap Buffer Overflow)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "memory.heap-buffer-overflow",
+  "type": "guard-rule",
+  "namespace": "memory",
+  "severity": "Critical",
+  "cwe": "CWE-122",
+  "cvss": 9.8,
+  "confidence": "dynamic",
+  "precision": "high",
+  "languages": [
+    "c",
+    "cpp"
+  ],
+  "target_functions": [
+    "calloc",
+    "malloc",
+    "realloc",
+    "strncpy"
+  ],
+  "match_patterns": [],
+  "exclude_patterns": [],
+  "required_evidence": [
+    "code_context",
+    "judgment_rationale"
+  ],
+  "optional_evidence": [
+    "data_flow_path",
+    "call_stack"
+  ]
+}
+```
 ## 威胁定义 (Threat Definition)
 
 堆上分配的缓冲区发生溢出，覆盖相邻堆块的元数据（malloc chunk header）。攻击者可利用堆风水（heap feng shui）技术实现代码执行。

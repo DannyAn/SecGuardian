@@ -8,8 +8,42 @@ precision: high
 confidence: dynamic
 ---
 
-# 文件句柄重复关闭 (File Descriptor Double Close)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "resource.resource.file-double-close",
+  "type": "guard-rule",
+  "namespace": "resource",
+  "severity": "Medium",
+  "cwe": "CWE-675",
+  "cvss": 5.5,
+  "confidence": "dynamic",
+  "precision": "high",
+  "languages": [
+    "c",
+    "cpp"
+  ],
+  "target_functions": [
+    "fclose"
+  ],
+  "match_patterns": [
+    "同一 fd 变量在函数内出现 >=2 次 close(fd) 调用（不在互斥分支中）",
+    "goto cleanup 路径：正常路径已 close(fd)，错误路径 goto cleanup 再次 close(fd)",
+    "跨函数：callee close(fd) 后 caller 也 close(fd)"
+  ],
+  "exclude_patterns": [],
+  "required_evidence": [
+    "code_context",
+    "judgment_rationale"
+  ],
+  "optional_evidence": [
+    "data_flow_path",
+    "call_stack"
+  ]
+}
+```
 ## 威胁定义 (Threat Definition)
 
 同一文件描述符（fd）或 `FILE*` 指针被 `close()`/`fclose()` 关闭两次或以上，映射 CWE-675（Multiple Operations on Resource in Single-Operation Context）。第一次关闭后 fd 值被 OS 回收，可被其他线程的 `open()`/`socket()`/`accept()` 立即复用分配。第二次 `close()` 将关闭一个不相关的文件/连接，后果包括：(a) 数据丢失——正在写入的文件被意外关闭；(b) 连接中断——活跃的网络连接被关闭；(c) 无声数据损坏——应用程序无感知地继续操作已被其他线程重新分配的 fd。多线程环境下，fd 复用窗口极短（微秒级），漏洞触发具备间歇性与低可复现性。

@@ -8,8 +8,46 @@ precision: high
 confidence: dynamic
 ---
 
-# Socket 描述符泄漏 (Socket File Descriptor Leak)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "resource.resource.socket-leak",
+  "type": "guard-rule",
+  "namespace": "resource",
+  "severity": "Medium",
+  "cwe": "CWE-772",
+  "cvss": 5.5,
+  "confidence": "dynamic",
+  "precision": "high",
+  "languages": [
+    "c",
+    "cpp"
+  ],
+  "target_functions": [
+    "accept",
+    "bind",
+    "handle_client",
+    "listen",
+    "socket"
+  ],
+  "match_patterns": [
+    "socket(AF_INET, SOCK_STREAM, 0) 后函数内非全部路径有 close(fd)",
+    "accept(server_fd, ...) 后函数内非全部路径有 close(client_fd)",
+    "socket()/accept() 返回值赋给变量后跨函数传递，被调用函数未关闭"
+  ],
+  "exclude_patterns": [],
+  "required_evidence": [
+    "code_context",
+    "judgment_rationale"
+  ],
+  "optional_evidence": [
+    "data_flow_path",
+    "call_stack"
+  ]
+}
+```
 ## 威胁定义 (Threat Definition)
 
 `socket()`/`accept()` 创建的文件描述符（fd）在函数所有退出路径上未被 `close()` 释放，映射 CWE-772（Missing Release of Resource after Effective Lifetime）。对于长时间运行的网络服务（daemon），每个泄漏的 socket fd 永久占据一个文件描述符槽位，累积至 `ulimit -n` 上限后，进程无法接受新连接，造成拒绝服务（DoS）。与一般内存泄漏不同，fd 泄漏无法被 GC 回收，且进程重启前不可恢复。

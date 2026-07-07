@@ -8,8 +8,41 @@ precision: medium
 confidence: dynamic
 ---
 
-# 符号链接攻击 (Symlink Attack)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "system.symlink-attack",
+  "type": "guard-rule",
+  "namespace": "system",
+  "severity": "Medium",
+  "cwe": "CWE-61",
+  "cvss": 5.5,
+  "confidence": "dynamic",
+  "precision": "medium",
+  "languages": [
+    "c",
+    "cpp"
+  ],
+  "target_functions": [
+    "code_context",
+    "fchmodat",
+    "fchownat",
+    "judgment_rationale",
+    "open",
+    "remove",
+    "stat",
+    "unlink"
+  ],
+  "match_patterns": [
+    "open(path, 无 O_NOFOLLOW)",
+    "fchmodat|fchownat",
+    "stat(path)                # 使用 lstat 更安全"
+  ],
+  "exclude_patterns": []
+}
+```
 ## 威胁定义 (Threat Definition)
 
 程序对文件路径进行操作时，攻击者通过替换路径中某部分为符号链接，将操作重定向到敏感文件（如 `/etc/shadow`）。TOCTOU 场景中 access+open 的符号链接替换是典型攻击。

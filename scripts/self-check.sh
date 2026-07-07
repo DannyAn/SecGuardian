@@ -492,8 +492,26 @@ for cmd in secguard secaudit secreview; do
         fail=1
     fi
 
+    # 13e: strip-answer-cards.py invocation (prevents AI shortcut via VULNERABILITY comments)
+    # Only applies to secguard (the source-scanning command); secaudit/secreview have different workflows
+    if [ "$cmd" = "secguard" ]; then
+        if grep -q 'strip-answer-cards.py' "$f" 2>/dev/null; then
+            SG_PASS=$((SG_PASS + 1))
+        else
+            echo "  ❌ ${cmd}: 13e strip-answer-cards.py integration MISSING"
+            echo "    Add: strip-answer-cards.py invocation in Step 2.5"
+            fail=1
+        fi
+    else
+        SG_PASS=$((SG_PASS + 1))  # Auto-pass for non-scanning commands
+    fi
+
     if [ "$fail" -eq 0 ]; then
-        green "  ${cmd}: all 4 security gate checks passed"
+        if [ "$cmd" = "secguard" ]; then
+            green "  ${cmd}: all 5 security gate checks passed"
+        else
+            green "  ${cmd}: all 4 security gate checks passed"
+        fi
     fi
 done
 if [ "$SG_FAIL" -eq 0 ]; then
@@ -502,6 +520,42 @@ if [ "$SG_FAIL" -eq 0 ]; then
 fi
 PASS=$((PASS + SG_PASS))
 FAIL=$((FAIL + SG_FAIL))
+echo ""
+
+# ── 14. Detection Spec integrity ──
+echo "14. Detection Spec integrity"
+DS_FAIL=0; DS_PASS=0
+for dir in guard-rules audit-rules review-rules; do
+    dir_path="knowledge/${dir}"
+    if [ ! -d "$dir_path" ]; then
+        echo "  ⚠  $dir_path: directory not found"
+        continue
+    fi
+    count=0; ok=0; missing=0
+    for f in "$dir_path"/*.md; do
+        [ -f "$f" ] || continue
+        count=$((count + 1))
+        if grep -q '@secguardian:detection-spec' "$f" 2>/dev/null; then
+            ok=$((ok + 1))
+        else
+            echo "  ❌ ${dir}/$(basename "$f"): Detection Spec MISSING"
+            missing=$((missing + 1))
+        fi
+    done
+    if [ "$missing" -eq 0 ]; then
+        green "  ${dir}: $ok/$ok files have Detection Spec"
+        DS_PASS=$((DS_PASS + 1))
+    else
+        echo "  ❌ ${dir}: $missing/$count files missing Detection Spec"
+        DS_FAIL=$((DS_FAIL + 1))
+    fi
+done
+if [ "$DS_FAIL" -eq 0 ]; then
+    DS_PASS=$((DS_PASS + 1))
+    green "  All rule files have Detection Spec"
+fi
+PASS=$((PASS + DS_PASS))
+FAIL=$((FAIL + DS_FAIL))
 echo ""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

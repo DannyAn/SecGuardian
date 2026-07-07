@@ -8,8 +8,42 @@ precision: medium
 confidence: dynamic
 ---
 
-# Cross-Site Request Forgery (CSRF)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "web.csrf",
+  "type": "guard-rule",
+  "namespace": "web",
+  "severity": "High",
+  "cwe": "CWE-352",
+  "cvss": 7.8,
+  "confidence": "dynamic",
+  "precision": "medium",
+  "languages": [
+    "java",
+    "python",
+    "go"
+  ],
+  "target_functions": [
+    "csrf",
+    "disable",
+    "transfer",
+    "transfer_money"
+  ],
+  "match_patterns": [],
+  "exclude_patterns": [],
+  "required_evidence": [
+    "code_context",
+    "judgment_rationale"
+  ],
+  "optional_evidence": [
+    "data_flow_path",
+    "call_stack"
+  ]
+}
+```
 ## 威胁定义 (Threat Definition)
 
 攻击者诱导已认证用户点击恶意链接/表单，利用用户的已认证状态执行非预期的状态变更操作（转账、修改密码、删除数据）。CSRF 依赖"浏览器自动携带Cookie"的特性。

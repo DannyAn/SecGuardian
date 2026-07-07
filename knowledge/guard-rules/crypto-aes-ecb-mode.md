@@ -8,8 +8,58 @@ severity: high
 tags: [crypto, aes, ecb, mode]
 ---
 
-# AES ECB 模式使用 (AES ECB Mode Usage)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "crypto.crypto-aes-ecb-mode",
+  "type": "guard-rule",
+  "namespace": "crypto",
+  "severity": "High",
+  "cwe": "CWE-327",
+  "cvss": 7.5,
+  "confidence": "dynamic",
+  "precision": "very-high",
+  "languages": [
+    "c",
+    "cpp",
+    "java",
+    "python",
+    "go",
+    "js"
+  ],
+  "target_functions": [
+    "_ECB",
+    "_aes_128_ecb",
+    "_aes_256_ecb",
+    "aes",
+    "aes_128_ecb",
+    "aes_256_ecb",
+    "aes_256_gcm",
+    "code_context",
+    "createCipheriv",
+    "ctrl",
+    "ecb",
+    "encrypt",
+    "getInstance",
+    "init",
+    "judgment_rationale",
+    "mbedtls_aes_crypt_ecb",
+    "pyaes"
+  ],
+  "match_patterns": [
+    "Cipher\\.getInstance\\(.*ECB|Cipher\\.getInstance\\(\"AES\"\\)|Cipher\\.getInstance\\(\"DES\"\\)",
+    "EVP_aes_128_ecb|EVP_aes_256_ecb|mbedtls_aes_crypt_ecb",
+    "AES_encrypt.*AES_encrypt   → 循环中的逐块原始加密 (手动 ECB)",
+    "AES\\.MODE_ECB|pyaes\\.AESModeOfOperationECB",
+    "cryptography.*modes\\.ECB\\(\\)",
+    "crypto/des.*NewCipher.*\\n.*Encrypt → 逐块加密 (手动 ECB)",
+    "aes-128-ecb|aes-256-ecb|CryptoJS\\.mode\\.ECB"
+  ],
+  "exclude_patterns": []
+}
+```
 ## 威胁定义 (Threat Definition)
 
 AES-ECB 模式不提供语义安全——相同明文块产生相同密文块，导致数据模式可被观察。禁止用于任何安全敏感场景。

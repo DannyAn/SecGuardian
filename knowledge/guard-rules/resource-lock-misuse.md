@@ -8,8 +8,49 @@ precision: high
 confidence: dynamic
 ---
 
-# 锁误用 (Lock Misuse — Improper Locking)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "resource.resource.lock-misuse",
+  "type": "guard-rule",
+  "namespace": "resource",
+  "severity": "High",
+  "cwe": "CWE-667",
+  "cvss": 7.5,
+  "confidence": "dynamic",
+  "precision": "high",
+  "languages": [
+    "c",
+    "cpp"
+  ],
+  "target_functions": [
+    "caller",
+    "do_work",
+    "guard",
+    "helper",
+    "lock",
+    "pthread_mutex_lock",
+    "pthread_mutex_unlock"
+  ],
+  "match_patterns": [
+    "pthread_mutex_lock(&m) 后存在缺少 pthread_mutex_unlock(&m) 的退出路径",
+    "同一函数内两次 pthread_mutex_lock(&m) 且中间无 unlock（非递归锁）",
+    "pthread_mutex_lock(&m) 后存在 continue/break/goto 跳过对应 unlock",
+    "跨函数重复 lock：caller lock(m) → callee lock(m)（非递归锁）"
+  ],
+  "exclude_patterns": [],
+  "required_evidence": [
+    "code_context",
+    "judgment_rationale"
+  ],
+  "optional_evidence": [
+    "data_flow_path",
+    "call_stack"
+  ]
+}
+```
 ## 威胁定义 (Threat Definition)
 
 `pthread_mutex_lock`/`pthread_mutex_unlock`（或等效平台锁 API）的获取-释放配对不完整，映射 CWE-667（Improper Locking）。具体包括三种子类型：(a) **只锁不解**（lock without unlock）——任一路径缺少 unlock 导致其他线程永久阻塞；(b) **重复加锁**（double lock）——同一线程连续两次 lock 非递归互斥锁，造成自死锁；(c) **解锁未持有锁**（unlock without lock）——对未锁定或已释放的 mutex 调用 unlock，行为未定义（Pthreads 返回 EPERM，但程序逻辑已出错）。不同于 `concurrency.race-condition`（数据竞争）和 `concurrency.deadlock`（锁序死锁），本检测器聚焦于**单个锁对象的获取/释放配对完整性**。

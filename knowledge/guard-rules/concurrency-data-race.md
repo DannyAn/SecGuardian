@@ -8,8 +8,39 @@ precision: medium
 confidence: dynamic
 ---
 
-# 数据竞争 (Data Race)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "concurrency.data-race",
+  "type": "guard-rule",
+  "namespace": "concurrency",
+  "severity": "High",
+  "cwe": "CWE-366",
+  "cvss": 7.5,
+  "confidence": "dynamic",
+  "precision": "medium",
+  "languages": [
+    "c",
+    "cpp"
+  ],
+  "target_functions": [
+    "finisher",
+    "worker"
+  ],
+  "match_patterns": [],
+  "exclude_patterns": [],
+  "required_evidence": [
+    "code_context",
+    "judgment_rationale"
+  ],
+  "optional_evidence": [
+    "data_flow_path",
+    "call_stack"
+  ]
+}
+```
 ## 威胁定义 (Threat Definition)
 
 两个或多个线程同时访问同一内存位置且至少一个为写操作，无同步机制保护。在 C/C++ 中数据竞争是未定义行为，编译器可能做出破坏性的优化假设。

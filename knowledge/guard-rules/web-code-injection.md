@@ -8,8 +8,44 @@ precision: high
 confidence: dynamic
 ---
 
-# Python 代码注入检测
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "web.code-injection",
+  "type": "guard-rule",
+  "namespace": "web",
+  "severity": "Critical",
+  "cwe": "CWE-94",
+  "cvss": 9.8,
+  "confidence": "dynamic",
+  "precision": "high",
+  "languages": [
+    "python"
+  ],
+  "target_functions": [
+    "compile",
+    "eval",
+    "exec",
+    "import_module",
+    "load",
+    "loads",
+    "parse",
+    "safe_load"
+  ],
+  "match_patterns": [],
+  "exclude_patterns": [],
+  "required_evidence": [
+    "code_context",
+    "judgment_rationale"
+  ],
+  "optional_evidence": [
+    "data_flow_path",
+    "call_stack"
+  ]
+}
+```
 ## 威胁定义 (Threat Definition)
 
 不可信数据传递给 Python 代码执行函数（`eval`/`exec`/`compile`/`pickle.load`），导致攻击者在服务端执行任意 Python 代码。`eval("__import__('os').system('id')")` 即可完成 RCE。

@@ -1,3 +1,22 @@
+---
+detector: review.go
+type: review-rule
+---
+
+## Detection Spec
+
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "review.go",
+  "type": "review-rule",
+  "language": "go",
+  "max_severity": "Critical",
+  "cwe": "CWE-000",
+  "anti_pattern_count": 14
+}
+```
+
 # Go 安全反模式检测矩阵
 
 代码审查中需要关注的 Go 特有安全反模式及具体检测规则。

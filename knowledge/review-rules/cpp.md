@@ -1,3 +1,22 @@
+---
+detector: review.cpp
+type: review-rule
+---
+
+## Detection Spec
+
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "review.cpp",
+  "type": "review-rule",
+  "language": "cpp",
+  "max_severity": "Critical",
+  "cwe": "CWE-000",
+  "anti_pattern_count": 14
+}
+```
+
 # C/C++ 安全反模式检测矩阵
 
 代码审查中需要关注的 C/C++ 特有安全反模式及具体检测规则。

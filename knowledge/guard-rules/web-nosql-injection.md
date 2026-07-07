@@ -8,8 +8,58 @@ severity: critical
 tags: [web, nosql, mongodb, injection]
 ---
 
-# NoSQL 注入 (NoSQL Injection)
+## Detection Spec
 
+<!-- @secguardian:detection-spec -->
+```json
+{
+  "detector": "web.web-nosql-injection",
+  "type": "guard-rule",
+  "namespace": "web",
+  "severity": "Critical",
+  "cwe": "CWE-943",
+  "cvss": 9.8,
+  "confidence": "dynamic",
+  "precision": "high",
+  "languages": [
+    "js"
+  ],
+  "target_functions": [
+    "aggregate",
+    "body",
+    "code_context",
+    "find",
+    "findById",
+    "findOne",
+    "findOneAndUpdate",
+    "function",
+    "get",
+    "json",
+    "judgment_rationale",
+    "params",
+    "post",
+    "query",
+    "req",
+    "status"
+  ],
+  "match_patterns": [
+    "User\\.(find|findOne|findById|findOneAndUpdate)\\(req\\.body",
+    "User\\.(find|findOne)\\(req\\.query",
+    "\\.find\\(.*\\.body\\)|\\.findOne\\(.*\\.body\\)",
+    "\\$where.*\\+.*req\\.|req\\.query.*\\$where",
+    "\\$where\\s*:\\s*`.*\\$\\{.*req\\.",
+    "\\$where.*function\\(\\)\\s*\\{.*req\\.",
+    "\\$regex\\s*:\\s*req\\.(query|body|params)",
+    "\\$regex\\s*:\\s*new RegExp\\(req\\.",
+    "\\$regex\\s*:\\s*\\{\\s*\\$regex\\s*:\\s*.*input",
+    "aggregate\\(req\\.body\\.pipeline",
+    "\\$lookup.*req\\.(query|body)",
+    "\\$function.*req\\.(body|query).*lang.*js",
+    "\\$graphLookup.*req\\."
+  ],
+  "exclude_patterns": []
+}
+```
 ## 威胁定义 (Threat Definition)
 
 检测 Node.js/MongoDB 代码中是否将不可信数据直接作为查询操作符传入，导致认证绕过、数据泄露或代码执行。
