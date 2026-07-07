@@ -2,6 +2,19 @@
 
 All notable changes to SecGuardian.
 
+## [0.17.0] — 2026-07-07
+
+### ♻️ Detection Spec Schema Unification
+
+- **Frontmatter 单一数据源**: 85 个规则文件的 `## Detection Spec JSON block` 全部合并到 YAML frontmatter，消除两张皮
+- **validate-findings.py --check-spec**: 改为解析 YAML frontmatter 而非 JSON block，字段匹配（`critical` vs `Critical`）自动归一化
+- **self-check.sh §14**: 从 `@secguardian:detection-spec` 标记检查改为前端字段完整性检查
+- **移除 generate-detection-specs.py**: 不再需要独立生成脚本
+
+### 📦 6 Commit 历史拆分
+
+- 将原 163 文件单一大 commit 拆为 6 个逻辑独立的提交（docs / strip-scripts / stripped-demos / spec / pre-filter / refactor），便于 Review 和回滚
+
 ## [0.16.0] — 2026-07-07
 
 ### 🧠 Language-Aware Pre-Filter & Answer-Card Independence
