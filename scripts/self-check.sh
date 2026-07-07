@@ -231,8 +231,8 @@ fi
 echo ""
 # ── 8. Go compilation ──
 echo "8. Go compilation"
-(cd internal && gc=$(mktemp -d) && GOCACHE=$gc go build -o /dev/null . 2>/dev/null; ec=$?; rm -rf "$gc"; exit $ec) && green "go build OK" || red "go build FAILED"
-(cd internal && gc=$(mktemp -d) && GOCACHE=$gc CGO_ENABLED=0 go build -o /dev/null . 2>/dev/null; ec=$?; rm -rf "$gc"; exit $ec) && green "go build (no-CGO) OK" || red "go build (no-CGO) FAILED"
+(cd internal && gc=$(mktemp -d) && GOCACHE=$gc go build -o ../scripts/bin/secguardian-index . 2>/dev/null; ec=$?; rm -rf "$gc"; exit $ec) && green "go build OK" || red "go build FAILED"
+(cd internal && gc=$(mktemp -d) && GOCACHE=$gc CGO_ENABLED=0 go build -o ../scripts/bin/secguardian-index . 2>/dev/null; ec=$?; rm -rf "$gc"; exit $ec) && green "go build (no-CGO) OK" || red "go build (no-CGO) FAILED"
 echo ""
 
 
