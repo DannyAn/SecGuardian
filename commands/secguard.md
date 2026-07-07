@@ -381,6 +381,16 @@ echo "$data"
 
 AI 只需读取 `## cpp` 以下至下一个 `##` 之间的内容即获得完整的语言规则清单——不需解析 JSON，不需遍历全部文件。
 
+> 此外还需要读取对应语言的画像文件（dangerous API 列表、框架安全配置）。使用 bash `cat` 从项目内本地拷贝读取（避免 OpenCode 外部目录权限弹窗）：
+
+```bash
+LANG_PROFILE=".codeagent/secguardian/knowledge/languages/<language>.md"
+if [ -f "$LANG_PROFILE" ]; then
+    echo "=== Language Profile ==="
+    cat "$LANG_PROFILE"
+fi
+```
+
 #### 3c 应用 filter 裁剪
 
 - 无 filter 或 `all` 或 `*` → 使用该语言下的**全部**规则
