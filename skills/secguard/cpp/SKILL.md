@@ -1,186 +1,129 @@
 ---
 name: secguard-cpp
-description: 对 C/C++ 代码进行安全加固项排查，支持全量/增量扫描、命名空间过滤，输出符合 Scan Output Protocol 2.0。当用户请求C/C++安全扫描、内存安全检测、缓冲区溢出、C++代码审计、指针安全时使用。
+description: 对 C/C++ 代码进行安全加固项排查，编排 15 个子 skill（检视算子），按 index.json 信号驱动派发。当用户请求 C/C++ 安全扫描、内存安全检测、缓冲区溢出、C++ 代码审计、指针安全时使用。
 category: language-specific
 language: cpp
-topic: [memory, concurrency, system, crypto]
+topic: [memory, concurrency, system, io, security, semantics]
 ---
 
-# C/C++ 安全加固排查
+# C/C++ 安全加固排查 — 检视算子索引
 
-对 C/C++ 代码进行安全加固排查。编排 26 个检测器，支持全量/增量扫描和命名空间过滤。
+本文件是 `skills/secguard/cpp/` 下 15 个检视算子 skill 的主索引 / 派发表。
+每个算子是一个独立 skill 目录，包含自己的 `SKILL.md` + `references/`。
 
-## 📄 Output Protocol
+> **执行流程由 `commands/secguard.md` 的 Dispatcher 协议调度。**
+> 本文件只做三件事：(1) 查表选 skill；(2) 按信号分类；(3) 引用 Dispatcher。
 
-> 以下输出格式遵循 `internal/output/output_contract.md`。
+---
 
-## 输出协议
+## 1. 检视算子一览
 
-> **输出**: 遵循 `knowledge/protocols/scan-output.md`（报告格式：report.md + results.sarif + summary.json）。
+| # | Skill (目录名) | Severity | CWE | `signal_source` | `id` | Status |
+|---|---------------|----------|-----|-----------------|------|--------|
+| 1 | [`buffer_overflow/`](./buffer_overflow/) | 🔴 Critical | CWE-120 | `call_sites[cat="string", cat="memory"]` | `memory.buffer-overflow` | ✅ |
+| 2 | [`null_dereference/`](./null_dereference/) | 🔴 Critical | CWE-476 | `call_sites[cat="memory"]` | `memory.null-dereference` | 🏗️ |
+| 3 | [`memory_leak/`](./memory_leak/) | 🟠 High | CWE-401 | `call_sites[cat="memory"]` | `memory.memory-leak` | 🏗️ |
+| 4 | [`double_free/`](./double_free/) | 🔴 Critical | CWE-415 | `call_sites[cat="memory"]` | `memory.double-free` | 🏗️ |
+| 5 | [`use_after_free/`](./use_after_free/) | 🔴 Critical | CWE-416 | `call_sites[cat="memory"]` | `memory.use-after-free` | 🏗️ |
+| 6 | [`integer_overflow/`](./integer_overflow/) | 🔴 Critical | CWE-190 | `call_sites[cat="memory"]` | `memory.integer-overflow` | ✅ |
+| 7 | [`resource_leak/`](./resource_leak/) | 🟠 High | CWE-404 | `call_sites[cat="io"]` | `resource.resource-leak` | ✅ |
+| 8 | [`command_injection/`](./command_injection/) | 🔴 Critical | CWE-78 | `call_sites[cat="exec"]` | `injection.command-injection` | ✅ |
+| 9 | [`input_validation/`](./input_validation/) | 🟠 High | CWE-20 | `call_sites[cat="exec"]` | `validation.input-validation` | ✅ |
+| 10 | [`hardcoded_secrets/`](./hardcoded_secrets/) | 🟠 High | CWE-798 | `call_sites[cat="exec"]` | `crypto.hardcoded-secrets` | 🏗️ |
+| 11 | [`must_check/`](./must_check/) | 🟠 High | CWE-252 | `call_sites[cat="memory\|io"]` | `memory.must-check` | ✅ |
+| 12 | [`ownership_transfer/`](./ownership_transfer/) | 🟠 High | CWE-416 (related) | `call_sites[cat="memory"]` | `memory.ownership-transfer` | ✅ |
+| 13 | [`api_semantic_misuse/`](./api_semantic_misuse/) | 🟠 High | CWE-628 | `call_sites[cat="*"]` | `semantics.api-semantic-misuse` | ✅ |
+| 14 | [`lock_misuse/`](./lock_misuse/) | 🟠 High | CWE-667 | `call_sites[cat="concurrency"]` | `concurrency.lock-misuse` | 🏗️ |
+| 15 | [`error_propagation/`](./error_propagation/) | 🟡 Medium | CWE-390 | `call_sites[cat="error"]` | `error.error-propagation` | 🏗️ |
 
-## ⚙️ Engine Instructions
-### Engine Instructions
+**Status 说明**:
+- ✅ — `SKILL.md` 已编写，含完整检视协议
+- 🏗️ — 目录已创建（含 `references/`），`SKILL.md` 待实现
 
-> 以下执行指令属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行。未来 Engine 实现后将被 Engine 取代。
->
-> **🔗 锚定+证据约束 (Rule A + Rule B):** 每个 finding 的 `file`+`line` MUST 可追溯到 index.json 的符号或文件列表。每个 finding MUST 包含 `--snippet`、`--code-context`、`--rationale`、`--attack-scenario`。调用 `record-finding.py` 时必须传 `--index-json` 进行锚定校验。无 index 锚点时 MUST 标记 `confidence: low`。
->
-> **🚫 强制 index 驱动读取 (Mandatory):** MUST NOT 用 `cat`/`head`/`tail`/`read` 读取完整源文件。MUST 从 `symbols.functions` 查表定位目标函数 → 只读取该函数所在行及其前后 10 行。MUST NOT 读取未出现在符号表中的文件。
-
-## 执行流程
-
-> **前置**: Command 层面已执行 `secguardian-index` 生成 `index.json`（含 `symbols.functions`、`call_graph.edges`、`files`）。排查时优先利用符号表定位检测目标，而非遍历文件。
-
-### Phase 1: 解析输入 + 创建输出目录
-
-```
-输入: /secguard ./src git diff HEAD~1 memory.*,system.*
-
-解析:
-  path = ./src
-  mode = git-diff, ref = HEAD~1
-  filters = memory.*, system.*
-
-创建输出目录:
-  scan_id = 2026-05-23T14-30-00-a1b2 (当前时间 + 8位短UUID)
-  output_dir = .codeagent/secguardian/secguard/scans/scans/<scan_id>/
-  mkdir -p <output_dir>/findings/
-```
-
-### Phase 2: 使用索引器上下文
-
-> **核心原则：index.json 是唯一的数据源。禁止绕过它直接遍历文件系统或启动外部工具。**
-
-从 Command 层面生成的 `index.json` 中提取以下结构化数据。后续每个检测器执行前，先查对应数据再精准读取目标函数。
-
-#### 2.1 文件清单
-
-从 `files` 数组获取完整扫描文件列表。**不要用 `find`/`ls`/glob 重新遍历文件系统。**
-
-#### 2.2 符号定位表
-
-从 `symbols.functions` 构建查找表：
+**按严重度排序执行**:
 
 ```
-函数名 → {文件路径, 起始行, 结束行}
+Critical (6)  → High (8)  → Medium (1)
 ```
 
-**使用方式**：检测器需要找特定 API（如 `pthread_mutex_lock`、`fclose`、`socket`）时，先遍历 symbols.functions 按函数名匹配，得到 `文件:行号` 后精准读取该函数代码。**不要在无关文件中搜索。**
+---
 
-#### 2.3 调用图
+## 2. 信号源分类 → Skill 映射
 
-读取 `call_graph.edges`（caller → callee 列表），构建反向索引：
+`index.json` 的 `call_sites[].category` 字段决定触发哪些算子：
 
-```
-被调用函数 → [调用它的函数列表]
-```
+| call_sites Category | 触发的 Skill 目录 | 信号函数（示例） |
+|--------------------|------------------|-----------------|
+| `"memory"` | `buffer_overflow`, `null_dereference`, `memory_leak`, `double_free`, `use_after_free`, `integer_overflow`, `must_check`, `ownership_transfer` | `malloc`, `free`, `strcpy`, `strcat`, `sprintf`, `memcpy`, `gets` |
+| `"string"` | `buffer_overflow` | `strcpy`, `strcat`, `sprintf`, `snprintf`, `gets`, `memcpy` |
+| `"io"` | `resource_leak`, `must_check` | `fopen`, `open`, `socket`, `accept`, `fclose`, `close`, `fread`, `fwrite` |
+| `"exec"` | `command_injection`, `input_validation`, `hardcoded_secrets` | `system`, `popen`, `exec*`, `fork` |
+| `"concurrency"` | `lock_misuse` | `pthread_mutex_lock`, `pthread_mutex_unlock`, `lock_guard` |
+| `"error"` | `error_propagation` | 函数返回错误码后被忽略的路径 |
+| `"*"` | `api_semantic_misuse` | `realloc(p,0)`, `memmove` overlap, `snprintf` ignored return, `sizeof(ptr)` vs `sizeof(*ptr)` |
+| `"memory\|io"` | `must_check` | 分配 & IO 函数的返回值检查 |
 
-**使用方式**：需要跨函数追踪时（如检查 `handle(fd)` 内部是否 close fd），查调用图找到 handle 的实现位置后精准读取。
+---
 
-#### 2.4 分配/释放对
+## 3. 信号 → Skill 派发逻辑
 
-直接读取 `alloc_free.pairs`，每条记录包含：
-- `alloc_func`, `alloc_file`, `alloc_line` — 分配点
-- `free_sites[]` — 所有释放点（file + line）
-
-**使用方式**：内存类检测器（double-free、UAF、memory-leak、mismatched-free）直接从此数据出发，不再手工搜索 malloc/free。
-
-#### 2.5 锁图
-
-直接读取 `lock_graph.mutexes`，每条记录包含：
-- `file`, `lock_line`, `unlock_line` — lock/unlock 位置
-
-**使用方式**：lock-misuse 检测器直接遍历此数据，检查每个 lock 所在函数的所有退出路径。
-
-#### 2.6 禁止事项
-
-- ❌ **不要启动 clangd 或任何 LSP server** — indexer (tree-sitter) 已提供所有代码结构数据
-- ❌ **不要使用 compile_commands.json、bear 或任何编译数据库**
-- ❌ **不要逐文件全文读取** — 始终从 indexer 数据出发，精准定位后按需读取
-- ❌ **不要重新遍历文件系统** — index.json 的 `files` 数组是唯一的文件清单
-
-### Phase 3: 解析 Filters + 加载检测器
-
-1. 加载 `../../../knowledge/language-index.md` 获取命名空间映射
-2. 逗号分割 filter → 每个 filter 匹配命名空间 → 去重合并
-3. 先通过 index.json 符号表匹配过滤（跳过不包含相关符号的检测器）后，仅加载匹配到的 `active` 状态检测器详情
-
-### Phase 4: 按严重度排序执行
+C/C++ 使用**符号表精确匹配**预筛（区别于 OO 语言的全量加载）：
 
 ```
-Critical detectors → High detectors → Medium detectors
+对 index.json.call_sites 中的每条记录:
+  1. 遍历 call_sites:
+     - 按 category 匹配「信号源分类 → Skill 映射」(§2)
+     - 若 category 命中多个 skill → 全部加入候选集
+  2. 对候选集逐个 skill:
+     - 从 index.json.symbols.functions 查询该 skill 声明的 callee 列表
+     - callee 存在于符号表中 → 激活（加载 SKILL.md 检视协议）
+     - callee 不存在 → 跳过（记录 "Skipped: no matching symbol"）
+  3. 补充信号源（不依赖 call_sites）:
+     - alloc_free.pairs → 内存类 skill（memory_leak, double_free, use_after_free）
+     - lock_graph.mutexes → lock_misuse
+  4. 排序: Critical → High → Medium（按 §1 表）
+  5. 执行: 依序加载 skill SKILL.md → 执行检视协议 → record-finding.py
 ```
 
-对每个匹配到的检测器，加载 `knowledge/guard-rules/<name>.md` 详情，用于分析。注意：匹配到的检测器指经过 Phase 3 语言过滤+符号过滤后的子集，不是全部 67 个。
-注意：匹配到的检测器指经过 Phase 3 语言过滤+符号过滤后的子集，不是全部 67 个。，利用 Phase 2 加载的 index.json 符号表定位检测目标，而非遍历文件。
+**alloc_free.pairs 补充触发**:
 
-### Phase 5: 持久化输出
+即使 call_sites 中无显式 free/delete 调用，`alloc_free.pairs` 中不平衡的分配/释放对也会触发：
+- pair 无 `free_sites[]` → `memory_leak`
+- `free_sites[].length > 1` → `double_free`
+- 释放后同行再引用 → `use_after_free`
 
-> 遵循 `knowledge/protocols/scan-output.md` (v2.0，人读/机读分离)。
->
-> **每个检出必须满足四段式完整性**（Command 层 Step 4b 质量门禁强制检查）：
-> 1. **📍 Location** — 文件路径 + 行号 + 函数名 + 代码行内容
-> 2. **📋 Evidence** — 代码上下文（前后 3 行）+ 判定依据（引用 detector 的检测逻辑）+ 数据流路径
-> 3. **⚠️ Impact** — 攻击场景描述 + CVSS 3.1 评分 + 利用条件
-> 4. **🔧 Fix** — Before/After 代码 + 工作量 + 验证方法 + CWE 参考链接
->
-> SARIF 结果同样要求：`message.markdown` 包含完整四段式，`relatedLocations` 标注 Source → Sink 路径，`fixes` 包含 before/after 替换。
+---
 
-按以下结构写入 `.codeagent/secguardian/secguard/scans/scans/<scan-id>/`：
+## 4. 执行流程（引用 Dispatcher 协议）
 
-**人读**：
-- `report.md` — 完整安全扫描报告（Markdown）。每个检出包含：位置、证据链（上下文代码片段）、检测器判定依据、具体修复建议（含 before/after 代码）。
-- `manifest.json` — 扫描元数据 + 检出索引（引用 report.md 章节锚点）。
+> **完整执行流水线见 [`commands/secguard.md`](../../../commands/secguard.md)。**
+> 此处仅摘要与 skill 派发相关的步骤：
 
-**机读**（CI/CD 系统消费）：
-- `results.sarif` — SARIF 2.1.0（[OASIS 标准](https://docs.oasis-open.org/sarif/sarif/v2.1.0/)，GitHub Code Scanning / GitLab SAST / Azure DevOps 原生支持）。
-- `summary.json` — 轻量仪表盘统计（按严重度/命名空间分组）。
-- `status.json` — CI 门禁判定（pass/fail + exit_code）。
-- `delta.json` — 与上次扫描的增量对比（新增/修复/仍存在）。
+| Step | 职责 | 归属层 |
+|------|------|--------|
+| Step 1 | 初始化 + 索引构建 | Command |
+| Step 2 | 读取 index.json（symbols / call_graph / alloc_free / lock_graph） | Command |
+| Step 2.5 | 脱敏 + 扫描范围确定 | Command |
+| Step 3a-3c | 语言匹配 + filter 裁剪 + 预筛 | Command |
+| **Step 3c.5** | **C/C++ 符号表精确匹配 → 激活候选 skill** | **Skill (本文件 §3)** |
+| **Step 3d** | **加载激活 skill 的 SKILL.md → 执行检视协议** | **Skill (各算子目录)** |
+| Step 3.5 | 三轮验证管道（P1-P3） | Command |
+| Step 4 | record-finding.py 持久化 + render-report.py | Command |
+| Step 5 | 输出摘要 | Command |
 
-SARIF 格式要求（[GitHub 2025-07 起强制](https://github.blog/changelog/2025-07-22-code-scanning-per-tool-category/)）：
-- `partialFingerprints` 去重（基于 `id` + `detector.name` + `location.file` + `location.line`）
-- 每个 tool/category 独立上传，禁止合并多个工具结果
+各算子的检视协议遵循统一的 5 步模式：
 
-向用户输出扫描摘要并告知输出目录路径。
+1. **信号确认** — 验证 callee 真实存在（排除注释/宏/条件编译）
+2. **证据链构建** — Source → Propagate → Sink 数据流追踪
+3. **参数审计** — 按 callee 类型执行差异化检查
+4. **跨函数补证** — 深度 1（超出降级为 suspicious）
+5. **五轮反思** — 事实校对 → 因果闭环 → 寻找豁免 → 根因归并 → 保守定性
 
+---
 
+## 5. 参考文件
 
-
-## 执行指令（I/O 优化版）
-
-> 以下执行方式遵循 `engine_contract.md` 和 `output_contract.md` 的性能要求。
-
-### 源文件读取（index.json.symbols.functions 驱动）
-
-> **🔒 读取范围 = index.json.symbols.functions (NON-NEGOTIABLE):** `symbols.functions` 已是完整的函数→文件:行号 映射。LLM 只读取符号表中列出的位置（`start_line`±10行）。不在符号表中的文件 → 不读。不在符号表中的函数 → 不分析。符号表中无关联函数名的检测器 → 跳过。
-
-1. 从 `index.json` -> `symbols.functions` 获取完整的函数→文件:行号 映射
-2. 对每个检测器，先在符号表中查关联函数名 → 有则定位读取该函数±10行 → 无则跳过
-
-### 检测器加载（批量 + 按需）
-
-1. 先加载 `knowledge/language-index.md`（57 行）获取全量检测器清单
-2. 按符号匹配过滤（快速排除不匹配的检测器）
-3. 仅对匹配的检测器加载详情
-
-### Finding 输出（批量）
-
-1. 所有 findings 收集到临时结构
-2. 用 `python3 render-report.py --findings <dir>/findings.json --output <dir>` 批量输出
-
-## 错误处理
-
-- 部分检测器执行失败 → `scan.status = "partial"`，在 manifest 中记录失败的 detector
-- git diff 失败（非 git 仓库）→ 降级为 `mode: "full"`
-- 没有 active 检测器 → 提前返回，无 findings
-
-## 🎯 Detector Selection (Skill Layer)
-
-> **📊 信号预筛 (engine_contract.md Rule C):** 基于 index.json 信号触发检测器：`symbols.functions` 含 `malloc`/`realloc` 无 `free`→memory-leak；含 `strcpy`/`sprintf`/`gets`→buffer-overflow；含 `system`/`popen`/`exec`→command-injection；含 `MD5_Init`/`SHA1`→weak-crypto。无信号匹配时 MUST 标记 `confidence: low`。
-
-> 以下检测器选择规则属于 Skill 层职责。Skill 决定 WHICH detectors 运行，不决定 HOW 运行。
-
-## 可用检测器
-
-完整列表见 [language-index.md](../../../knowledge/language-index.md)，26 个（6 active + 20 planned）。
+| 文件 | 内容 |
+|------|------|
+| [`references/cpp-security-cheatsheet.md`](./references/cpp-security-cheatsheet.md) | 快速参考：Top 10 信号 + 安全替代函数 |
+| [`references/examples/`](./references/examples/) | CWE 示例代码片段 |

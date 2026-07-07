@@ -1,6 +1,6 @@
 ---
 name: secaudit
-description: "AI Release Security Audit — 17-domain audit framework with knowledge-driven detection"
+description: "AI Release Security Audit — 15-skill EPIC-3 architecture via Dispatcher protocol with 13 audit domains"
 ---
 
 # /secaudit - AI Release Security Audit
@@ -119,6 +119,11 @@ Skill: aud-input-validation
 
 
 ## 派发规则与执行步骤
+
+> **架构说明**: SecGuardian EPIC-3 已将执行管线重构为 15 个聚焦的 C/C++ detection skills，通过统一的 Dispatcher 协议调度。
+> 共享执行流程（初始化、索引、输出协议、摘要）定义在 `commands/secguard.md` Dispatcher 中。
+> secaudit 在此框架上增加 13 个审计域的深度分析能力。secaudit 独有逻辑（审计域加载、域规则校验、四段式证据）保
+> 留在本文件中；共享管线步骤遵循 Dispatcher 协议。
 
 你（AI Agent）在接收到 `/secaudit` 命令后，必须按以下步骤执行来构建索引并进行安全审计。
 
@@ -295,13 +300,13 @@ python3 "$SECGUARDIAN_HOME/scripts/validate-index.py" \
 <!-- @secguardian:non-skippable step=pre-filter -->
 #### 3.1 检测器预筛（不可跳过 — 语言感知）
 
-> 加载审计域规则前，必须先经 index.json 符号表门控。按语言类型采用不同策略。
+> 加载审计域规则前，必须先经 index.json 信号门控。按语言类型采用不同策略。**`call_sites` 是 C/C++ 预筛的主要信号源。**
 
 **C/C++（符号表精确匹配）：**
 对审计清单中的每个域：
 1. 读取该审计域关联的目标函数/API
-2. 在 `index.json.symbols.functions` 中查询目标是否存在
-3. **无匹配 → 跳过**：不加载规则全文，记录 "`Skipped: no matching symbol for {domain} in index.json`"
+2. 在 `index.json.call_sites` 中查询目标 API 是否被调用。`call_sites` 记录了每个危险 API（如 `strcpy`、`system`、`malloc`）的文件、行号和上下文，是预筛的唯一信号来源
+3. **无匹配 → 跳过**：不加载规则全文，记录 "`Skipped: no matching call_site for {domain} in index.json`"
 4. **有匹配 → 进入 3.1a**：规则强制加载后执行审计
 
 **Java / Python / Go / JS 等 OO 语言（全量加载）：**
@@ -340,7 +345,7 @@ cat "$SECGUARDIAN_HOME/knowledge/audit-rules/{domain-name}.md"
 
 ### Step 4: 输出结构化 findings（遵循 Findings Protocol v5.0）
 
-> **v6.0**: secaudit 命令同样适用三轮验证管道（`commands/secguard.md` Step 3.5）。`--no-verify` 跳过验证。
+> **EPIC-3**: secaudit 命令复用 Dispatcher 的三轮验证管道（参见 `commands/secguard.md` Step 3.5）。`--no-verify` 跳过验证。
 > **自动跳过**: 如果审计产出 0 个 finding，不执行验证管道（标注 `skipped_by_zero_findings`），直接进入渲染。
 > ⚠️ **v5.0 关键变更**: AI **不再输出单体 findings.json**。改为按 detector 分类，**每个 finding 输出一个独立文件**到 `findings/` 目录树下。`findings.json` 由渲染器自动生成（不含四段式，仅元数据+索引）。AI 只负责通过 `record-finding.py` 录制独立 finding 文件，渲染器调用时自动聚合 `findings_index`。渲染器通过 `--findings-dir` 聚合所有 finding 文件生成报告。**禁止直接写 report.md / results.sarif / 任何其他输出文件**。
 

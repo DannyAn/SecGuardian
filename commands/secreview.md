@@ -1,6 +1,6 @@
 ---
 name: secreview
-description: "AI Security Code Review — 5-language PR security review with exploit scenario analysis"
+description: "AI Security Code Review — 5-language PR security review via EPIC-3 Dispatcher protocol"
 ---
 
 # /secreview - AI Security Code Review for Pull Requests
@@ -125,6 +125,8 @@ Output directory: <user-project>/.codeagent/secguardian/secreview/scans/pr-20260
 > 🚫 **Do NOT use `read` tool on `$SECGUARDIAN_HOME/scripts/` files.** All scripts execute via `Bash` tool — their CLI interfaces are fully documented in this template. Reading script files triggers unnecessary OpenCode permission prompts and wastes tokens.
 
 ## Dispatch Rules & Execution Steps
+
+> **Architecture**: SecGuardian EPIC-3 refactors the execution pipeline into 15 focused C/C++ detection skills, dispatched via the unified Dispatcher protocol defined in `commands/secguard.md`. Shared execution flow (init, indexing, output protocol, summary) follows the Dispatcher. secreview adds per-language review rules and three-reasoning-pass analysis (vulnerability, business logic, anti-pattern). secreview-specific logic stays here; shared pipeline steps follow the Dispatcher protocol.
 
 You (the AI Agent) must follow these steps when executing `/secreview` to perform the security code review.
 
@@ -297,13 +299,13 @@ python3 "$SECGUARDIAN_HOME/scripts/validate-index.py" \
 
 <!-- @secguardian:non-skippable step=pre-filter -->
 #### 3a. 检测器预筛（不可跳过 — 语言感知）
-> 加载审阅规则前必须先经 index.json 符号表门控。按语言类型采用不同策略。
+> 加载审阅规则前必须先经 index.json 信号门控。按语言类型采用不同策略。**`call_sites` 是 C/C++ 预筛的主要信号源。**
 
 **C/C++（符号表精确匹配）：**
 对 language-index 中该语言的 review-rules 清单：
 1. **读取目标函数/API**：review-rules 关联的目标函数名
-2. **查 index.json.symbols.functions**：在符号表中查询目标是否存在
-3. **无匹配 → 跳过**：不加载规则全文，记录 "`Skipped: no matching symbol for {rule} in index.json`"
+2. **查 index.json.call_sites**：在 `call_sites` 中查询目标 API 是否被调用。`call_sites` 记录了每个危险 API（如 `strcpy`、`system`、`malloc`）的文件、行号和上下文，是预筛的唯一信号来源
+3. **无匹配 → 跳过**：不加载规则全文，记录 "`Skipped: no matching call_site for {rule} in index.json`"
 4. **有匹配 → 进入 3b**：规则强制加载后执行审阅
 
 **Java / Python / Go / JS 等 OO 语言（全量加载）：**
