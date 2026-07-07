@@ -121,6 +121,8 @@ Output directory: <user-project>/.codeagent/secguardian/secreview/scans/pr-20260
 >
 > 🚫 **不要硬编码 `RECORDER` 路径。** 必须使用 `$SECGUARDIAN_HOME/scripts/record-finding.py`。
 > 硬编码路径在安装位置变动时全断。
+>
+> 🚫 **Do NOT use `read` tool on `$SECGUARDIAN_HOME/scripts/` files.** All scripts execute via `Bash` tool — their CLI interfaces are fully documented in this template. Reading script files triggers unnecessary OpenCode permission prompts and wastes tokens.
 
 ## Dispatch Rules & Execution Steps
 

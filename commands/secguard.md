@@ -141,6 +141,8 @@ Filters: memory.*, system.*
 >
 > 🚫 **不要硬编码 `RECORDER` 路径。** 必须使用 `$SECGUARDIAN_HOME/scripts/record-finding.py`。
 > 硬编码路径在安装位置变动时全断。
+>
+> 🚫 **禁止用 `read` 工具读取 `$SECGUARDIAN_HOME/scripts/` 下的脚本文件。** 所有脚本通过 `Bash` 工具执行，CLI 接口已在本模板中完整文档化。用 `read` 读取脚本文件触发 OpenCode 外部目录权限弹窗，且浪费 token。
 
 ## 派发规则与执行步骤
 
