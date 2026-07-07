@@ -19,7 +19,7 @@
 #
 # 每 OS/arch 的压缩包本身也是有效的 extension manager 安装包。
 # 例如 Claude Code 用户可直接:
-#   claude plugin install secguardian-0.14.0-darwin-arm64.tar.gz
+#   claude plugin install secguardian-0.15.1-darwin-arm64.tar.gz
 #
 # 支持平台: darwin-arm64, darwin-amd64, linux-amd64, linux-arm64, windows-amd64
 
@@ -73,7 +73,7 @@ show_help() {
 说明:
   - 从当前目录自动检测匹配当前平台的压缩包
   - 内包也支持直接通过 extension manager 安装：
-      claude plugin install secguardian-0.14.0-darwin-arm64.tar.gz
+      claude plugin install secguardian-0.15.1-darwin-arm64.tar.gz
   - 支持的平台: darwin-arm64, darwin-amd64, linux-amd64, linux-arm64, windows-amd64
   - Windows: 从 Git Bash / WSL / MSYS2 中运行
   - 安装后重启 AI CLI 即可使用 /secguard /secaudit /secreview /secfix

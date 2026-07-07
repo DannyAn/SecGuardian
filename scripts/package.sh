@@ -166,19 +166,25 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
         > "$dist_dir/.claude-plugin/plugin.json"
     echo "    plugin: $ext"
 
-    # Determine command name
-    cmd=$(jq -r '.command' "$ext_json")
-    cmd_src="$PROJECT_ROOT/commands/${cmd}.md"
-    if [ -f "$cmd_src" ]; then
-        cp "$cmd_src" "$dist_dir/commands/"
-        echo "    command: /$cmd"
-    else
-        echo "    [WARN] command file not found: ${cmd}.md"
-    fi
+    # Determine command name(s) — supports both "command" (string) and "commands" (array)
+    cmds=$(jq -r 'if .commands then .commands[] else .command end' "$ext_json")
+    cmd_count=0
+    for cmd in $cmds; do
+        cmd_src="$PROJECT_ROOT/commands/${cmd}.md"
+        if [ -f "$cmd_src" ]; then
+            cp "$cmd_src" "$dist_dir/commands/"
+            echo "    command: /$cmd"
+            cmd_count=$((cmd_count + 1))
+        else
+            echo "    [WARN] command file not found: ${cmd}.md"
+        fi
+    done
+    # Use first command as primary key for skill/knowledge resolution
+    cmd=$(echo "$cmds" | head -1)
 
     # Copy skill directories (each contains SKILL.md + optional references/)
     skill_count=0
-    for skill_name in $(jq -r '.skills[]' "$ext_json"); do
+    for skill_name in $(jq -r '.skills // [] | .[]' "$ext_json"); do
         skill_dir="$PROJECT_ROOT/skills/${cmd}/${skill_name}"
         flat_skill="$PROJECT_ROOT/skills/${cmd}/SKILL.md"
         if [ -d "$skill_dir" ]; then
@@ -222,7 +228,7 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
     echo "    standards: $std_count"
 
     lang_count=0
-    for lang in $(jq -r '.knowledge.languages[]' "$ext_json"); do
+    for lang in $(jq -r '.knowledge.languages // [] | .[]' "$ext_json"); do
         lf="$PROJECT_ROOT/knowledge/languages/${lang}.md"
         if [ -f "$lf" ]; then
             cp "$lf" "$dist_dir/knowledge/languages/"

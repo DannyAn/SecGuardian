@@ -565,7 +565,7 @@ deploy_opencode() {
     cat > "$ext_dir/codeagent-extension.json" << JSON
 {
   "name": "$brand",
-  "version": "0.14.0",
+  "version": "$(jq -r '.version' "$PROJECT_ROOT/manifest.json")",
   "description": "SecGuardian XuanWu — 企业级白盒安全 AI Agent 辅助解决方案"
 }
 JSON
@@ -660,7 +660,7 @@ deploy_gemini() {
     cat > "$ext_dir/gemini-extension.json" << JSON
 {
   "name": "secguardian",
-  "version": "0.14.0",
+  "version": "$(jq -r '.version' "$PROJECT_ROOT/manifest.json")",
   "description": "SecGuardian XuanWu — 企业级白盒安全 AI Agent 辅助解决方案",
   "author": "SecGuardian",
   "homepage": "https://github.com/DannyAn/SecGuardian",
@@ -782,17 +782,16 @@ do_zip() {
         opencode_root="$PROJECT_ROOT/.opencode"
     fi
     if [ -n "${opencode_root:-}" ]; then
-        local ver="$(grep -m1 '"version"' "$PROJECT_ROOT/extensions/secguard-secguardian/extension.json" | sed 's/.*: *"\([^"]*\)".*/\1/')"
+        local ver="$(jq -r '.version' "$PROJECT_ROOT/manifest.json")"
         local nga_zip="$archive_dir/secguardian-nga-v${ver}.zip"
         (cd "$opencode_root" && zip -rq "$nga_zip" plugins/secguardian.js extensions/secguardian/)
         log_done "$(basename "$nga_zip")"
     fi
 
-    # Gemini CLI: 完整布局 (skills/ + knowledge/ + commands/ + scripts/ + GEMINI.md)
-    if [ -d "$TARGET_ROOT/.gemini/skills" ]; then
+    # Gemini CLI: extension format (under extensions/secguardian/)
+    if [ -d "$TARGET_ROOT/.gemini/extensions/secguardian/skills" ]; then
         local cac_zip="$archive_dir/cac-secguardian.zip"
-        (cd "$TARGET_ROOT/.gemini" && zip -rq "$cac_zip" skills/ knowledge/ commands/ scripts/ GEMINI.md 2>/dev/null || \
-         zip -rq "$cac_zip" skills/ commands/ GEMINI.md)
+        (cd "$TARGET_ROOT/.gemini/extensions/secguardian/" && zip -rq "$cac_zip" .)
         log_done "cac-secguardian.zip"
     fi
 

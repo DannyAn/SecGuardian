@@ -102,19 +102,6 @@
           "note": "v0.5.0 新增"
         }
       }
-    },
-    "secfix-secguardian": {
-      "command": "secfix",
-      "description": "🧪 Trial: Patch Generator — generates unified diff patches from findings",
-      "status": "trial",
-      "platforms": [
-        "claude-code",
-        "opencode",
-        "gemini-cli"
-      ],
-      "scripts": [
-        "secfix.py"
-      ]
     }
   },
   "knowledge": {
