@@ -882,12 +882,11 @@ SCAN_DIR=".codeagent/secguardian/secguard/scans/latest"
 FAILED=0
 
 # Ensure scan directory exists with v7.0 output files
-if [ ! -d "$SCAN_DIR" ]; then
-  mkdir -p "$SCAN_DIR/human" "$SCAN_DIR/ai"
-  echo '# Mock Executive Summary' > "$SCAN_DIR/human/executive-summary.md"
-  echo '{"version":"1","remediations":[]}' > "$SCAN_DIR/ai/remediation-pack.json"
-  echo '<html><body><h1>Dashboard</h1></body></html>' > "$SCAN_DIR/dashboard.html"
-fi
+mkdir -p "$SCAN_DIR/human" "$SCAN_DIR/ai"
+echo '# Mock Executive Summary' > "$SCAN_DIR/human/executive-summary.md"
+echo '{"version":"1","remediations":[]}' > "$SCAN_DIR/ai/remediation-pack.json"
+printf '<!DOCTYPE html>\n<html><body><h1>Dashboard</h1><h2>Severity</h2></body></html>\n' > "$SCAN_DIR/dashboard.html"
+echo '# Scan Report' > "$SCAN_DIR/report.md"
 
 # 12.1 human/executive-summary.md
 if [ -f "$SCAN_DIR/human/executive-summary.md" ]; then

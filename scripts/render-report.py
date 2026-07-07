@@ -1287,6 +1287,11 @@ Examples:
     if args.language:
         findings_data["language"] = args.language
 
+    # Ensure output dir
+    os.makedirs(args.output, exist_ok=True)
+
+    findings = findings_data.get("findings", [])
+
     # Auto-compute detectors_matched/executed from findings to avoid 0-count bug
     # when findings.json metadata hasn't been generated yet (v5.0 first-run circular dep)
     if findings and not findings_data.get("detectors", {}).get("matched", 0):
@@ -1312,11 +1317,6 @@ Examples:
                 "functions": safe_len(index_data.get("symbols", {}).get("functions", [])),
                 "call_edges": safe_len(index_data.get("call_graph", {}).get("edges", []))
             }
-
-    # Ensure output dir
-    os.makedirs(args.output, exist_ok=True)
-
-    findings = findings_data.get("findings", [])
 
     # Sort findings: severity desc → file → line asc
     sev_order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "Info": 4}
