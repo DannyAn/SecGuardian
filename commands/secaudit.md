@@ -152,47 +152,77 @@ fi
 
 ---
 
-> **🚫 全路径权限弹窗优化**: 完成 `cd "$USER_PROJECT"` 后，所有项目内文件路径使用**相对路径**。
-> 仅 `$SECGUARDIAN_HOME` 引用使用全路径（脚本和二进制在插件目录，不可避免）。
-> 全路径操作触发 AI CLI permission system 逐项确权弹窗，中断扫描流程。
+### Step 1: 初始化（唯一 bash 调用，禁止拆分）
 
-### 🔒 跨 Shell 状态传递规则（Step 1 之后的所有 bash 调用必须遵守）
-
-> **每个 bash 调用都是独立 shell，变量不共享。禁止用 `/tmp/` 或任何系统临时目录传状态。**
-
-Step 1 末尾将 `SCAN_ID`、`SCAN_DIR`、`USER_PROJECT` 持久化到 `.codeagent/secguardian/.scan_state.secaudit`。
-从 Step 2 开始，**每个 bash 调用第一行必须是**：
-```bash
-source .codeagent/secguardian/.scan_state.secaudit
-```
-此后直接使用 `$SCAN_DIR`、`$SCAN_ID`、`$USER_PROJECT`。禁止使用 `$(cat /tmp/*.txt)`。
-
----
-
-### Step 1: 建立输出目录
+> ⚠️ 这是**唯一一次预初始化 bash 调用**，必须一次性完成：自动发现 → 健康检查 → 路径确认 → 建目录 → 写入 `.scan_state.secaudit`。
+> **禁止**在 Step 1 前后插入任何独立的 bash 命令（如 `ls "$SECGUARDIAN_HOME/scripts/"`）— 那会在新 shell 中丢失变量且无意义。
+> `$SECGUARDIAN_HOME/scripts/` 已在自动发现中验明存在，无需冗余 `ls` 确认。
 
 - **⏳ 首选生成 scan_id**（格式: `sec-YYYYMMDD-HHMMSS-xxxx`，`xxxx` 为随机4位字符）。
 - **scan_id 一旦生成，后续所有路径必须使用此 scan_id。**
-- 创建输出目录: `.codeagent/secguardian/secaudit/scans/<scan_id>/`。
-- **持久化状态供跨 shell 使用：**
+
 ```bash
-USER_PROJECT="$(pwd)"
+# ===== 阶段 A: SECGUARDIAN_HOME 自动发现 =====
+if [ -z "$SECGUARDIAN_HOME" ] || [ ! -d "$SECGUARDIAN_HOME/scripts" ]; then
+    for candidate in \
+        "/root/.config/opencode/extensions/secguardian" \
+        "$HOME/.config/opencode/extensions/secguardian" \
+        "$HOME/.claude/plugins/secguardian" \
+        "$HOME/.gemini/extensions/secguardian" \
+        "$(dirname "$(dirname "$(realpath "$0")")")" \
+        "."; do
+        if [ -f "$candidate/scripts/record-finding.py" ]; then
+            export SECGUARDIAN_HOME="$candidate"
+            echo "SECGUARDIAN_HOME=$SECGUARDIAN_HOME"
+            break
+        fi
+    done
+fi
+if [ -z "$SECGUARDIAN_HOME" ] || [ ! -d "$SECGUARDIAN_HOME/scripts" ]; then
+    echo "FATAL: Cannot locate secguardian installation (no SECGUARDIAN_HOME with scripts/)"
+    exit 1
+fi
+
+# ===== 阶段 B: 索引器健康检查 =====
+if ! "$SECGUARDIAN_HOME/scripts/secguardian-index" --health; then
+    echo "FATAL: secguardian-index health check failed"
+    exit 1
+fi
+
+# ===== 阶段 C: 扫描路径确认 =====
+test -d "<path>" || { echo "FATAL: scan path <path> not found"; exit 1; }
+
+# ===== 阶段 D: 创建扫描目录 & 知识库拷贝 =====
 SCAN_ID="sec-$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 2)"
 SCAN_DIR="$USER_PROJECT/.codeagent/secguardian/secaudit/scans/$SCAN_ID"
 mkdir -p "$SCAN_DIR" "$USER_PROJECT/.codeagent/secguardian/knowledge"
-# 将知识库拷贝到项目内（消除 OpenCode read 工具访问外部目录的权限弹窗）
 cp -r "$SECGUARDIAN_HOME/knowledge/." "$USER_PROJECT/.codeagent/secguardian/knowledge/"
-cat > "$USER_PROJECT/.codeagent/secguardian/.scan_state.secaudit" << STATEEOF
-SCAN_ID="$SCAN_ID"
+
+# ===== 阶段 E: 持久化状态到 .scan_state.secaudit =====
+cat > ".codeagent/secguardian/.scan_state.secaudit" << STATEEOF
 USER_PROJECT="$USER_PROJECT"
+SCAN_ID="$SCAN_ID"
 SCAN_DIR="$SCAN_DIR"
 SECGUARDIAN_HOME="$SECGUARDIAN_HOME"
 STATEEOF
 echo "SCAN_DIR=$SCAN_DIR"
 ```
+
 - 记录审计开始时间戳，用于 Step 4 计算 `duration_ms`。
 
-> **📂 知识库本地拷贝**: 知识库文件已在 Step 1 拷贝到 `.codeagent/secguardian/knowledge/`。
+### 🔒 跨 Shell 状态传递规则（Step 1 之后所有 bash 调用）
+
+> **每个 bash 调用都是独立 shell，变量不共享。禁止用 `/tmp/` 或任何系统临时目录传状态。**
+
+Step 1 已在 `.scan_state.secaudit` 中持久化 `SCAN_ID`、`SCAN_DIR`、`USER_PROJECT`、`SECGUARDIAN_HOME`。
+从 Step 2 开始，**每个 bash 调用第一行必须是**：
+```bash
+source .codeagent/secguardian/.scan_state.secaudit
+```
+此后 `$SCAN_DIR`、`$SCAN_ID`、`$USER_PROJECT`、`$SECGUARDIAN_HOME` 均可直接使用。**禁止用 `cat /tmp/*.txt`**。
+`/tmp/` 在 Windows 不可用、触发 macOS 确权弹窗、且多用户不安全。
+
+> **📂 知识库本地拷贝**: 知识库文件（guard-rules、audit-rules、language-index）已在 Step 1 拷贝到 `.codeagent/secguardian/knowledge/`。
 > - `read` 工具读取规则文件时，使用 `.codeagent/secguardian/knowledge/` 相对路径
 > - 禁止使用 `$SECGUARDIAN_HOME/knowledge/` 全路径（触发 OpenCode 外部目录权限弹窗）
 
@@ -249,9 +279,9 @@ python3 "$SECGUARDIAN_HOME/scripts/validate-index.py" \
 
 ### Step 3: 加载审计域规则并路由 Workflow
 
-> 默认加载 `knowledge/audit-rules/` 中的 13 个审计域规则，由 secaudit workflow 自动调度执行。
+> 默认加载 `.codeagent/secguardian/knowledge/audit-rules/` 中的 13 个审计域规则（已在 Step 1 拷贝到项目内），由 secaudit workflow 自动调度执行。
 
-- **默认审计模式**: 加载 `skills/secaudit/SKILL.md` 作为执行引擎，各 phase 从 `knowledge/audit-rules/` 加载对应的规则文件。
+- **默认审计模式**: 加载 `skills/secaudit/SKILL.md` 作为执行引擎，各 phase 从 `.codeagent/secguardian/knowledge/audit-rules/` 加载对应的规则文件。
   - workflow 中定义的 phase 顺序
   - 后处理（去重、评分、分类、修复路线图）由 workflow 定义
 - **单项聚焦**: `--focus <domain>` 时跳过不匹配的 phase，仅加载对应域的规则文件

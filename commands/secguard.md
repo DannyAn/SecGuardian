@@ -144,16 +144,21 @@ Filters: memory.*, system.*
 
 ## 派发规则与执行步骤
 
-> **隔离约束**: 本命令只能加载 `$SECGUARDIAN_HOME/skills/` 下的 `secguard-*` 前缀 skill，禁止加载 `secaudit-*` 或 `secreview-*` 前缀的任何文件。知识文件仅从 `$SECGUARDIAN_HOME/knowledge/guard-rules/` 和 `$SECGUARDIAN_HOME/knowledge/languages/` 加载。
+> **隔离约束**: 本命令只能加载 `$SECGUARDIAN_HOME/skills/` 下的 `secguard-*` 前缀 skill，禁止加载 `secaudit-*` 或 `secreview-*` 前缀的任何文件。知识文件仅从 `.codeagent/secguardian/knowledge/guard-rules/` 和 `.codeagent/secguardian/knowledge/languages/` 加载（已在 Step 1 拷贝到项目内，避免外部目录权限弹窗）。
 
 你（AI Agent）在接收到 `/secguard` 命令后，必须按以下步骤执行来构建索引并进行安全扫描。
 
-### 前置检查（Pre-flight）
+### Step 1: 初始化（唯一 bash 调用，禁止拆分）
 
-> ⚠️ `$SECGUARDIAN_HOME` 在部分平台（如 OpenCode）可能未设置。必须在第一步之前自动发现。
+> ⚠️ 这是**唯一一次预初始化 bash 调用**，必须一次性完成：自动发现 → 健康检查 → 路径确认 → 建目录 → 写入 `.scan_state.secguard`。
+> **禁止**在 Step 1 前后插入任何独立的 bash 命令（如 `ls "$SECGUARDIAN_HOME/scripts/"`）— 那会在新 shell 中丢失变量且无意义。
+> `$SECGUARDIAN_HOME/scripts/` 已在自动发现中验明存在，无需冗余 `ls` 确认。
+
+- **⏳ 首选生成 scan_id**（格式: `sc-YYYYMMDD-HHMMSS-xxxx`，`xxxx` 为随机4位字符）。
+- **scan_id 一旦生成，后续所有路径必须使用此 scan_id。**
 
 ```bash
-# SECGUARDIAN_HOME 自动发现（多路径搜索）
+# ===== 阶段 A: SECGUARDIAN_HOME 自动发现 =====
 if [ -z "$SECGUARDIAN_HOME" ] || [ ! -d "$SECGUARDIAN_HOME/scripts" ]; then
     for candidate in \
         "/root/.config/opencode/extensions/secguardian" \
@@ -174,56 +179,43 @@ if [ -z "$SECGUARDIAN_HOME" ] || [ ! -d "$SECGUARDIAN_HOME/scripts" ]; then
     echo "  Tried: /root/.config/opencode/extensions/secguardian, ~/.config/opencode/extensions/secguardian, ..."
     exit 1
 fi
-```
 
-执行 `/secguard` 前，完成以下前置验证：
-1. [ ] **索引器健康检查**：`$SECGUARDIAN_HOME/scripts/secguardian-index --health`
-2. [ ] **扫描路径确认**：`test -d <path>`（确认目标路径存在）
+# ===== 阶段 B: 索引器健康检查 =====
+if ! "$SECGUARDIAN_HOME/scripts/secguardian-index" --health; then
+    echo "FATAL: secguardian-index health check failed"
+    exit 1
+fi
 
-❌ health 检查失败时输出错误信息并终止。`SECGUARDIAN_HOME` 发现失败时输出具体搜索路径并终止。
+# ===== 阶段 C: 扫描路径确认 =====
+test -d "<path>" || { echo "FATAL: scan path <path> not found"; exit 1; }
 
-### 🔒 跨 Shell 状态传递规则（Step 1 之后的所有 bash 调用必须遵守）
-
-> **每个 bash 调用都是独立 shell，变量不共享。禁止用 `/tmp/` 或任何系统临时目录传状态。**
-
-Step 1 末尾将 `SCAN_ID`、`SCAN_DIR`、`USER_PROJECT` 持久化到 `.codeagent/secguardian/.scan_state.secguard`。
-从 Step 2 开始，**每个 bash 调用第一行必须是**：
-```bash
-source .codeagent/secguardian/.scan_state.secguard
-```
-此后直接使用 `$SCAN_DIR`、`$SCAN_ID`、`$USER_PROJECT`。禁止使用 `$(cat /tmp/*.txt)`。
-`/tmp/` 在 Windows 不可用、触发 macOS 确权弹窗、且多用户不安全。
-
-### Step 1: 建立输出目录
-
-- **⏳ 首选生成 scan_id**（格式: `sc-YYYYMMDD-HHMMSS-xxxx`，`xxxx` 为随机4位字符）。
-- **scan_id 一旦生成，后续所有路径必须使用此 scan_id。**
-- 创建输出目录: `.codeagent/secguardian/secguard/scans/<scan_id>/`。
-- **🚫 绝对禁止使用 `/tmp/` 或任何系统临时目录存储状态。** `/tmp/` 在 Windows 不可用、触发确权弹窗、且多用户不安全。
-- **跨 shell 状态传递**: 将 `SCAN_DIR` 写入 `.codeagent/secguardian/.scan_state.secguard`，后续步骤 `source` 该文件获取变量。
-
-```bash
-# Step 1 末尾: 持久化状态（唯一一次写入 .scan_state.secguard）
-USER_PROJECT="$(pwd)"
+# ===== 阶段 D: 创建扫描目录 & 知识库拷贝 =====
 SCAN_ID="sc-$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 2)"
 SCAN_DIR="$USER_PROJECT/.codeagent/secguardian/secguard/scans/$SCAN_ID"
 mkdir -p "$SCAN_DIR" "$USER_PROJECT/.codeagent/secguardian/knowledge"
-# 将知识库拷贝到项目内（消除 OpenCode read 工具访问外部目录的权限弹窗）
 cp -r "$SECGUARDIAN_HOME/knowledge/." "$USER_PROJECT/.codeagent/secguardian/knowledge/"
-cat > "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard" << STATEEOF
-SCAN_ID="$SCAN_ID"
+
+# ===== 阶段 E: 持久化状态到 .scan_state.secguard =====
+cat > ".codeagent/secguardian/.scan_state.secguard" << STATEEOF
 USER_PROJECT="$USER_PROJECT"
+SCAN_ID="$SCAN_ID"
 SCAN_DIR="$SCAN_DIR"
 SECGUARDIAN_HOME="$SECGUARDIAN_HOME"
 STATEEOF
 echo "SCAN_DIR=$SCAN_DIR"
 ```
 
-> 后续每个 Step 的 bash 调用**第一行必须是**:
-> ```bash
-> source .codeagent/secguardian/.scan_state.secguard
-> ```
-> 此后 `$SCAN_DIR`、`$SCAN_ID`、`$USER_PROJECT` 即可用。**禁止用 `cat /tmp/*.txt`**。
+### 🔒 跨 Shell 状态传递规则（Step 1 之后所有 bash 调用）
+
+> **每个 bash 调用都是独立 shell，变量不共享。禁止用 `/tmp/` 或任何系统临时目录传状态。**
+
+Step 1 已在 `.scan_state.secguard` 中持久化 `SCAN_ID`、`SCAN_DIR`、`USER_PROJECT`、`SECGUARDIAN_HOME`。
+从 Step 2 开始，**每个 bash 调用第一行必须是**：
+```bash
+source .codeagent/secguardian/.scan_state.secguard
+```
+此后 `$SCAN_DIR`、`$SCAN_ID`、`$USER_PROJECT`、`$SECGUARDIAN_HOME` 均可直接使用。**禁止用 `cat /tmp/*.txt`**。
+`/tmp/` 在 Windows 不可用、触发 macOS 确权弹窗、且多用户不安全。
 >
 > **📂 知识库本地拷贝**: 知识库文件（guard-rules、language-index、protocols）已在 Step 1 拷贝到 `.codeagent/secguardian/knowledge/`。
 > - `read` 工具读取检测器规则时，必须使用 `.codeagent/secguardian/knowledge/` 相对路径
@@ -433,7 +425,7 @@ AI 只需读取 `## cpp` 以下至下一个 `##` 之间的内容即获得完整�
 
 ```bash
 find_protocol() {
-    PROTOCOL="$SECGUARDIAN_HOME/knowledge/protocols/verification-protocol.md"
+    PROTOCOL=".codeagent/secguardian/knowledge/protocols/verification-protocol.md"
     [ -f "$PROTOCOL" ] && echo "$PROTOCOL" || echo ""
 }
 if [ -n "$(find_protocol)" ]; then

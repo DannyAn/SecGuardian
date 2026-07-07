@@ -159,48 +159,77 @@ Before starting any review, verify each condition below. **If any check fails, r
 
 ---
 
-> **🚫 全路径权限弹窗优化**: 完成 `cd "$USER_PROJECT"` 后，所有项目内文件路径使用**相对路径**。
-> 仅 `$SECGUARDIAN_HOME` 引用使用全路径（脚本和二进制在插件目录，不可避免）。
-> 全路径操作触发 AI CLI permission system 逐项确权弹窗，中断扫描流程。
+### Step 1: Initialize (single bash call, DO NOT split)
+
+> ⚠️ This is the **single pre-init bash call** — it MUST complete everything in one go: auto-discovery → health check → path verification → dir creation → `.scan_state.secreview` write.
+> **DO NOT** insert standalone bash commands before/after Step 1 (e.g. `ls "$SECGUARDIAN_HOME/scripts/"`) — those run in a new shell without the variable.
+> `$SECGUARDIAN_HOME/scripts/` was already validated during auto-discovery; redundant `ls` is unnecessary.
+
+- **⏳ Generate scan_id FIRST** (format: `pr-YYYYMMDD-HHMMSS-xxxx`, `xxxx` is 4 random chars).
+- **Once scan_id is generated, ALL subsequent paths must use this scan_id.**
+
+```bash
+# ===== Phase A: SECGUARDIAN_HOME auto-discovery =====
+if [ -z "$SECGUARDIAN_HOME" ] || [ ! -d "$SECGUARDIAN_HOME/scripts" ]; then
+    for candidate in \
+        "/root/.config/opencode/extensions/secguardian" \
+        "$HOME/.config/opencode/extensions/secguardian" \
+        "$HOME/.claude/plugins/secguardian" \
+        "$HOME/.gemini/extensions/secguardian" \
+        "$(dirname "$(dirname "$(realpath "$0")")")" \
+        "."; do
+        if [ -f "$candidate/scripts/record-finding.py" ]; then
+            export SECGUARDIAN_HOME="$candidate"
+            echo "SECGUARDIAN_HOME=$SECGUARDIAN_HOME"
+            break
+        fi
+    done
+fi
+if [ -z "$SECGUARDIAN_HOME" ] || [ ! -d "$SECGUARDIAN_HOME/scripts" ]; then
+    echo "FATAL: Cannot locate secguardian installation (no SECGUARDIAN_HOME with scripts/)"
+    exit 1
+fi
+
+# ===== Phase B: Indexer health check =====
+if ! "$SECGUARDIAN_HOME/scripts/secguardian-index" --health; then
+    echo "FATAL: secguardian-index health check failed"
+    exit 1
+fi
+
+# ===== Phase C: Scan path verification =====
+test -d "<path>" || { echo "FATAL: scan path <path> not found"; exit 1; }
+
+# ===== Phase D: Create scan dir & copy knowledge =====
+SCAN_ID="pr-$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 2)"
+SCAN_DIR="$USER_PROJECT/.codeagent/secguardian/secreview/scans/$SCAN_ID"
+mkdir -p "$SCAN_DIR" "$USER_PROJECT/.codeagent/secguardian/knowledge"
+cp -r "$SECGUARDIAN_HOME/knowledge/." "$USER_PROJECT/.codeagent/secguardian/knowledge/"
+
+# ===== Phase E: Persist state to .scan_state.secreview =====
+cat > ".codeagent/secguardian/.scan_state.secreview" << STATEEOF
+USER_PROJECT="$USER_PROJECT"
+SCAN_ID="$SCAN_ID"
+SCAN_DIR="$SCAN_DIR"
+SECGUARDIAN_HOME="$SECGUARDIAN_HOME"
+STATEEOF
+echo "SCAN_DIR=$SCAN_DIR"
+```
+
+- Record review start timestamp for Step 4 `duration_ms` calculation.
 
 ### 🔒 Cross-Shell State Passing (ALL bash calls after Step 1 MUST follow)
 
 > **Each bash call is an independent shell — variables are not shared. NEVER use `/tmp/` for state.**
 > `/tmp/` breaks on Windows, triggers macOS permission prompts, and is multi-user unsafe.
 
-Step 1 writes `SCAN_ID`, `SCAN_DIR`, `USER_PROJECT` to `.codeagent/secguardian/.scan_state.secreview`.
+Step 1 persists `SCAN_ID`, `SCAN_DIR`, `USER_PROJECT`, `SECGUARDIAN_HOME` in `.scan_state.secreview`.
 From Step 2 onward, **every bash call MUST start with**:
 ```bash
 source .codeagent/secguardian/.scan_state.secreview
 ```
-Then use `$SCAN_DIR`, `$SCAN_ID`, `$USER_PROJECT` directly. NEVER use `$(cat /tmp/*.txt)`.
+Then use `$SCAN_DIR`, `$SCAN_ID`, `$USER_PROJECT`, `$SECGUARDIAN_HOME` directly. NEVER use `$(cat /tmp/*.txt)`.
 
----
-
-### Step 1: Create Output Directory
-
-- **⏳ Generate scan_id FIRST** (format: `pr-YYYYMMDD-HHMMSS-xxxx`, `xxxx` is 4 random chars).
-- Create output directory: `<user-project>/.codeagent/secguardian/secreview/scans/<scan_id>/`.
-- **Once scan_id is generated, ALL subsequent paths must use this scan_id.**
-- **Persist state for cross-shell use:**
-```bash
-USER_PROJECT="$(pwd)"
-SCAN_ID="pr-$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 2)"
-SCAN_DIR="$USER_PROJECT/.codeagent/secguardian/secreview/scans/$SCAN_ID"
-mkdir -p "$SCAN_DIR" "$USER_PROJECT/.codeagent/secguardian/knowledge"
-# 将知识库拷贝到项目内（消除 OpenCode read 工具访问外部目录的权限弹窗）
-cp -r "$SECGUARDIAN_HOME/knowledge/." "$USER_PROJECT/.codeagent/secguardian/knowledge/"
-cat > "$USER_PROJECT/.codeagent/secguardian/.scan_state.secreview" << STATEEOF
-SCAN_ID="$SCAN_ID"
-USER_PROJECT="$USER_PROJECT"
-SCAN_DIR="$SCAN_DIR"
-SECGUARDIAN_HOME="$SECGUARDIAN_HOME"
-STATEEOF
-echo "SCAN_DIR=$SCAN_DIR"
-```
-- Record review start timestamp for Step 4 `duration_ms` calculation.
-
-> **📂 Local knowledge copy**: All knowledge files are copied to `.codeagent/secguardian/knowledge/` during Step 1.
+> **📂 Local knowledge copy**: All knowledge files (guard-rules, review-rules, language-index) were copied to `.codeagent/secguardian/knowledge/` in Step 1.
 > - Use `read` tool on `.codeagent/secguardian/knowledge/` relative paths (NOT `$SECGUARDIAN_HOME/knowledge/`)
 > - This avoids OpenCode permission prompts for external directories
 
@@ -255,7 +284,7 @@ python3 "$SECGUARDIAN_HOME/scripts/validate-index.py" \
 
 - Extract `primary_language` from the summary.
 - Load the corresponding skill: `../skills/secreview/{language}/SKILL.md`.
-- Reference `$SECGUARDIAN_HOME/knowledge/languages/{language}.md` for dangerous API lists and framework security notes.
+- Reference `.codeagent/secguardian/knowledge/languages/{language}.md` for dangerous API lists and framework security notes.
 - **Use index.json symbol table to locate review targets**, rather than traversing files.
 
 ### Step 4: AI Security Code Review — Three Reasoning Dimensions
