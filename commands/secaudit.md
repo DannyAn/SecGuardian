@@ -28,9 +28,9 @@ description: "AI Release Security Audit — 15-skill EPIC-3 architecture via Dis
 
 ## Audit Framework
 
-安全规则统一存放在 `knowledge/audit-rules/` 中，AI Agent 按 workflow 加载对应域的知识文件进行检测。
+安全规则统一存放在 `skills/secaudit/rules/` 中，AI Agent 按 workflow 加载对应域的知识文件进行检测。
 
-审计规则统一存储在 `knowledge/audit-rules/` 中，AI Agent 按 workflow 加载对应域的知识文件进行检测。未来扩展（如 `owasp-asvs`、`pci-dss`）只需在 `knowledge/` 下新增规则目录。
+审计规则统一存储在 `skills/secaudit/rules/` 中，AI Agent 按 workflow 加载对应域的知识文件进行检测。未来扩展（如 `owasp-asvs`、`pci-dss`）只需在 `knowledge/` 下新增规则目录。
 
 ## 使用方式
 
@@ -79,35 +79,59 @@ description: "AI Release Security Audit — 15-skill EPIC-3 architecture via Dis
 └── delta.json               # 增量对比 (vs 上次扫描)
 ```
 
-**执行完毕后必须输出审计摘要：**
+**执行完毕后必须输出审计摘要，遵循 `knowledge/protocols/scan-output.md §CLI 输出摘要` 的统一格式。**
+
+**secaudit 特有规则：**
+- **统计表**：用 `项目 | 数值` 格式，内容包括扫描文件、分析路径数、检出数
+- **类别列**：填充数据流路径简写（如 `HTTP param → SQL`）
+- **0 发现 → 不出现发现表**
+
+**0 发现（审计通过）：**
 
 ```
-## secaudit 审计完成 — input-validation
+## secaudit 完成
 
-Scan ID: sec-20260523-143000-b3c4
-Project: <project-name>
-Workspace: <user-project>
-Skill: aud-input-validation
+Scan ID: sec-YYYYMMDD-HHMMSS-xxxx | Project: <project> | Path: <path> | Language: <lang> | Mode: <mode>
 
-### 结果
-- 分析路径: 15 (Source → Propagation → Sink)
-- 完整链路: 15 analyzed
-- 检出: 4 (Critical: 2, High: 2)
+### 扫描统计
 
-### 发现
-| ID | Severity | Path | File |
-|----|----------|------|------|
-| C-001 | Critical | HTTP param → SQL exec | src/handler.py:42 |
-| C-002 | Critical | File upload → os.system | src/upload.py:108 |
-| H-001 | High | Cookie → response.write | src/middleware.js:56 |
+| 项目 | 数值 |
+|------|------|
+| 扫描文件 | 15 |
+| 分析路径 | 15 |
+| 检出 | 0 |
 
-输出目录: .codeagent/secguardian/secaudit/scans/sec-20260523-143000-b3c4/
+### 安全评分
 
-💡 **如何使用审计结果？**
-- **快速看汇总** → 打开 `manifest.json`
-- **★ 人读审计报告** → 打开 `report.md`（每个发现含完整四段式：📍 Location → 📋 Evidence → ⚠️ Impact → 🔧 Fix）
-- **CI/CD 集成** → 消费 `results.sarif`
-- **🤖 AI Agent 修复** → 读取 `ai/remediation-pack.json` 自动修复：`读取 report.md §4，按每个发现的 🔧 Fix 方案修改代码`
+**100/100 🟢 Grade A — 审计通过，未发现安全议题。**
+```
+
+**有发现（检出 > 0）：**
+
+```
+## secaudit 完成 — <domain>
+
+Scan ID: sec-YYYYMMDD-HHMMSS-xxxx | Project: <project> | Path: <path> | Language: <lang> | Mode: <mode>
+
+### 扫描统计
+
+| 项目 | 数值 |
+|------|------|
+| 扫描文件 | 15 |
+| 分析路径 | 15 |
+| 检出 | 4 (Critical: 2, High: 2) |
+
+### 发现详情
+
+| # | Severity | CWE | 类别 | 位置 | 摘要 |
+|---|----------|-----|------|------|------|
+| 1 | 🔴 Critical | CWE-089 | HTTP param → SQL | src/handler.py:42 | SQL injection via string concat |
+| 2 | 🔴 Critical | CWE-078 | File upload → system | src/upload.py:108 | OS command injection |
+| 3 | 🟠 High | CWE-644 | Cookie → response | src/middleware.js:56 | XSS via unescaped cookie |
+
+### 安全评分
+
+**65/100 🟡 Grade C — 存在需关注的审计发现。**
 ```
 
 
@@ -115,12 +139,13 @@ Skill: aud-input-validation
 
 ## 可用审计域
 
-**审计域**: `knowledge/audit-rules/`（13 个审计域，覆盖 OWASP ASVS + CWE Top 25）
+**审计域**: `skills/secaudit/rules/`（13 个审计域，覆盖 OWASP ASVS + CWE Top 25）
 
 
 ## 派发规则与执行步骤
 
-> **架构说明**: SecGuardian EPIC-3 已将执行管线重构为 15 个聚焦的 C/C++ detection skills，通过统一的 Dispatcher 协议调度。
+> **架构说明 (Signal Matrix — EPIC-007)**: SecGuardian 已将执行管线重构为 15 个聚焦的 C/C++ detection skills，通过统一的 Dispatcher 协议调度。
+> securrity audit 使用**全部 7 信号类型** (S1–S7: call_sites, string_literals, declarations, value_constants, imports, config_patterns, control_flow) 进行版本发布级全域审计。
 > 共享执行流程（初始化、索引、输出协议、摘要）定义在 `commands/secguard.md` Dispatcher 中。
 > secaudit 在此框架上增加 13 个审计域的深度分析能力。secaudit 独有逻辑（审计域加载、域规则校验、四段式证据）保
 > 留在本文件中；共享管线步骤遵循 Dispatcher 协议。
@@ -129,89 +154,29 @@ Skill: aud-input-validation
 
 ### 前置检查（Pre-flight Checklist）
 
-# ── Resolve SECGUARDIAN_HOME ─────────────────
-if [ -z "$SECGUARDIAN_HOME" ] || [ ! -d "$SECGUARDIAN_HOME/scripts" ]; then
-    for _sg_root in "$HOME/.claude/plugins/secguardian" \
-                    "$HOME/.config/opencode/extensions/secguardian" \
-                    "$HOME/.gemini/extensions/secguardian" \
-                    "/root/.config/opencode/extensions/secguardian"; do
-        if [ -f "$_sg_root/scripts/record-finding.py" ]; then
-            export SECGUARDIAN_HOME="$_sg_root"
-            break
-        fi
-    done
-fi
-if [ -z "$SECGUARDIAN_HOME" ] || [ ! -d "$SECGUARDIAN_HOME/scripts" ]; then
-    echo "FATAL: Cannot locate secguardian installation"
-    exit 1
-fi
+> ⛔ **禁止使用 Glob 或 Read 工具探索文件路径。** 已知路径的文件用 `cat` 读取（扩展目录下避免权限弹窗）。索引器已提供符号表+调用图，所有代码结构数据从 index.json 获取，无需 LSP/compile_commands.json。
 
-> ⛔ **禁止使用 Glob 或 Read 工具探索文件路径（搜索文件）。已知路径的文件可以用 `cat` 或 `head` 读取（扩展目录下的文件不用 Read 工具，避免权限弹窗）**。所有路径检测必须通过 bash 命令（`[ -f ]`、`ls`）完成。先跑 `find_indexer` 再跑 `--health`。
+执行审计前确认：
 
-在执行任何审计步骤之前，必须逐项确认以下所有条件。**任一项未通过，审计不得开始，向用户报告具体错误。**
-
-- [ ] 定位索引器：由 `SECGUARDIAN_HOME` env var 或 `.secguardian-env` 文件确定路径，无需多平台搜索
-- [ ] 执行 `{indexer} --health` 通过（输出必须包含 `HEALTH:OK` 或 `HEALTH:WARN`，不接受 `HEALTH:FAIL`）
 - [ ] 目标路径 `<path>` 存在且包含至少一个源码文件
-- [ ] 确认不会启动 clangd/LSP/compile_commands.json/bear 等外部工具 — indexer (tree-sitter) 已提供符号表+调用图+文件清单，所有代码结构数据从 index.json 获取
+- [ ] 不使用 clangd/LSP/bear 等外部工具
+- [ ] `SECGUARDIAN_HOME`/健康检查/目录创建由 Step 1 的 `init-scan.sh` 统一处理
 
-> 若未通过，报告具体哪一项失败并终止。不要降级为手工逐文件审计。
+> 若未通过，报告具体失败项并终止。不要降级为手工审计。
 
 ---
 
-### Step 1: 初始化（唯一 bash 调用，禁止拆分）
+### Step 1: 初始化（唯一 bash 调用，使用共享 init-scan.sh）
 
-> ⚠️ 这是**唯一一次预初始化 bash 调用**，必须一次性完成：自动发现 → 健康检查 → 路径确认 → 建目录 → 写入 `.scan_state.secaudit`。
-> **禁止**在 Step 1 前后插入任何独立的 bash 命令（如 `ls "$SECGUARDIAN_HOME/scripts/"`）— 那会在新 shell 中丢失变量且无意义。
-> `$SECGUARDIAN_HOME/scripts/` 已在自动发现中验明存在，无需冗余 `ls` 确认。
-
-- **⏳ 首选生成 scan_id**（格式: `sec-YYYYMMDD-HHMMSS-xxxx`，`xxxx` 为随机4位字符）。
-- **scan_id 一旦生成，后续所有路径必须使用此 scan_id。**
+> **唯一一次预初始化 bash 调用**。通过 `scripts/init-scan.sh` 完成 SECGUARDIAN_HOME 自动发现、健康检查、路径确认、建目录、写 `.scan_state.secaudit`。
 
 ```bash
-# ===== 阶段 A: SECGUARDIAN_HOME 自动发现 =====
-if [ -z "$SECGUARDIAN_HOME" ] || [ ! -d "$SECGUARDIAN_HOME/scripts" ]; then
-    for candidate in \
-        "/root/.config/opencode/extensions/secguardian" \
-        "$HOME/.config/opencode/extensions/secguardian" \
-        "$HOME/.claude/plugins/secguardian" \
-        "$HOME/.gemini/extensions/secguardian" \
-        "."; do
-        if [ -f "$candidate/scripts/record-finding.py" ]; then
-            export SECGUARDIAN_HOME="$candidate"
-            echo "SECGUARDIAN_HOME=$SECGUARDIAN_HOME"
-            break
-        fi
-    done
-fi
-if [ -z "$SECGUARDIAN_HOME" ] || [ ! -d "$SECGUARDIAN_HOME/scripts" ]; then
-    echo "FATAL: Cannot locate secguardian installation (no SECGUARDIAN_HOME with scripts/)"
-    exit 1
-fi
+# ===== 自动发现 SECGUARDIAN_HOME（不能 source 一个还没找到的脚本）=====
+for candidate in "/root/.config/opencode/extensions/secguardian" "$HOME/.config/opencode/extensions/secguardian" "$HOME/.claude/plugins/secguardian" "$HOME/.gemini/extensions/secguardian" "."; do [ -f "$candidate/scripts/record-finding.py" ] && export SECGUARDIAN_HOME="$candidate" && break; done
+[ -z "$SECGUARDIAN_HOME" ] && { echo "FATAL: Cannot locate secguardian"; exit 1; }
 
-# ===== 阶段 B: 索引器健康检查 =====
-if ! "$SECGUARDIAN_HOME/scripts/secguardian-index" --health; then
-    echo "FATAL: secguardian-index health check failed"
-    exit 1
-fi
-
-# ===== 阶段 C: 扫描路径确认 =====
-test -d "<path>" || { echo "FATAL: scan path <path> not found"; exit 1; }
-
-# ===== 阶段 D: 创建扫描目录 =====
-SCAN_ID="sec-$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 2)"
-SCAN_DIR="$USER_PROJECT/.codeagent/secguardian/secaudit/scans/$SCAN_ID"
-mkdir -p "$SCAN_DIR"
-
-# ===== 阶段 E: 持久化状态到 .scan_state.secaudit =====
-cat > ".codeagent/secguardian/.scan_state.secaudit" << STATEEOF
-USER_PROJECT="$USER_PROJECT"
-SCAN_ID="$SCAN_ID"
-SCAN_DIR="$SCAN_DIR"
-SECGUARDIAN_HOME="$SECGUARDIAN_HOME"
-RECORDER="$SECGUARDIAN_HOME/scripts/record-finding.py"
-STATEEOF
-echo "SCAN_DIR=$SCAN_DIR"
+# ===== 共享 init-scan.sh =====
+source "$SECGUARDIAN_HOME/scripts/init-scan.sh" secaudit <path>
 ```
 
 - 记录审计开始时间戳，用于 Step 4 计算 `duration_ms`。
@@ -223,14 +188,15 @@ echo "SCAN_DIR=$SCAN_DIR"
 Step 1 已在 `.scan_state.secaudit` 中持久化 `SCAN_ID`、`SCAN_DIR`、`USER_PROJECT`、`SECGUARDIAN_HOME`、`RECORDER`。
 从 Step 2 开始，**每个 bash 调用第一行必须是**：
 ```bash
-source .codeagent/secguardian/.scan_state.secaudit
+USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
+source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secaudit"
 ```
-此后 `$SCAN_DIR`、`$SCAN_ID`、`$USER_PROJECT`、`$SECGUARDIAN_HOME`、`$RECORDER` 均可直接使用。**禁止用 `cat /tmp/*.txt`**。
+此后 `$SCAN_DIR`、`$SCAN_ID`、`$USER_PROJECT`、`$SECGUARDIAN_HOME`、`$RECORDER` 在 bash 命令中才能正确展开。**禁止用 `cat /tmp/*.txt`**。
 `/tmp/` 在 Windows 不可用、触发 macOS 确权弹窗、且多用户不安全。
 
 > **📂 知识库读取**: 知识库文件存储在 `$SECGUARDIAN_HOME/knowledge/`，使用 bash `cat` 按需读取，不拷贝到项目目录。
-> - 审计规则：`cat "$SECGUARDIAN_HOME/knowledge/audit-rules/{domain}.md"`
-> - language-index：`cat "$SECGUARDIAN_HOME/knowledge/language-index.md"`
+> - 审计规则：`cat "$SECGUARDIAN_HOME/skills/secaudit/rules/{domain}.md"`
+> - 检测规则（按需）：`cat "$SECGUARDIAN_HOME/skills/secguard/{lang}/rules/{rule}/rule.md"`
 > - 协议文件：`cat "$SECGUARDIAN_HOME/knowledge/protocols/{name}.md"`
 > - 禁止使用 `read` 工具读 `$SECGUARDIAN_HOME/knowledge/` 下的文件（触发 OpenCode 外部目录权限弹窗）。使用 bash `cat` 读取不会触发权限弹窗。
 
@@ -287,9 +253,9 @@ python3 "$SECGUARDIAN_HOME/scripts/validate-index.py" \
 
 ### Step 3: 加载审计域规则并路由 Workflow
 
-> 默认加载 `$SECGUARDIAN_HOME/knowledge/audit-rules/` 中的 13 个审计域规则，由 secaudit workflow 自动调度执行。
+> 默认加载 `$SECGUARDIAN_HOME/skills/secaudit/rules/` 中的 13 个审计域规则，由 secaudit workflow 自动调度执行。
 
-- **默认审计模式**: 加载 `skills/secaudit/SKILL.md` 作为执行引擎，各 phase 从 `$SECGUARDIAN_HOME/knowledge/audit-rules/` 加载对应的规则文件。
+- **默认审计模式**: 加载 `skills/secaudit/SKILL.md` 作为执行引擎，各 phase 从 `$SECGUARDIAN_HOME/skills/secaudit/rules/` 加载对应的规则文件。
   - workflow 中定义的 phase 顺序
   - 后处理（去重、评分、分类、修复路线图）由 workflow 定义
 - **单项聚焦**: `--focus <domain>` 时跳过不匹配的 phase，仅加载对应域的规则文件
@@ -300,18 +266,18 @@ python3 "$SECGUARDIAN_HOME/scripts/validate-index.py" \
 <!-- @secguardian:non-skippable step=pre-filter -->
 #### 3.1 检测器预筛（不可跳过 — 语言感知）
 
-> 加载审计域规则前，必须先经 index.json 信号门控。按语言类型采用不同策略。**`call_sites` 是 C/C++ 预筛的主要信号源。**
+> 加载审计域规则前，必须先经 index.json 信号门控。按语言类型采用不同策略。**`call_sites` 是 C/C++ 预筛的主要信号源，同时 `imports`/`string_literals`/`control_flow` 提供辅助信号。**
 
 **C/C++（符号表精确匹配）：**
 对审计清单中的每个域：
 1. 读取该审计域关联的目标函数/API
-2. 在 `index.json.call_sites` 中查询目标 API 是否被调用。`call_sites` 记录了每个危险 API（如 `strcpy`、`system`、`malloc`）的文件、行号和上下文，是预筛的唯一信号来源
+2. 在 `index.json.call_sites` 中查询目标 API 是否被调用。`call_sites` 记录了每个危险 API（如 `strcpy`、`system`、`malloc`）的文件、行号和上下文，是预筛的主要信号来源。辅助信号：`imports` 检测依赖（如 `openssl`、`sqlite3`），`string_literals` 检测硬编码凭据
 3. **无匹配 → 跳过**：不加载规则全文，记录 "`Skipped: no matching call_site for {domain} in index.json`"
 4. **有匹配 → 进入 3.1a**：规则强制加载后执行审计
 
 **Java / Python / Go / JS 等 OO 语言（全量加载）：**
 > ⚠️ OO 语言中危险 API（如 `Runtime.exec()`）是方法内调用，不在索引器符号表顶层。
-> 共 13 个 audit-rules，全量加载成本极低。
+> 共 13 个 rules，全量加载成本极低。
 
 1. 检查 `index.json` 中 `function_count > 0`
 2. 有函数 → **必须加载所有审计域规则全文**（不允许 AI 自主裁定"哪些可能匹配"）
@@ -319,8 +285,8 @@ python3 "$SECGUARDIAN_HOME/scripts/validate-index.py" \
 
 #### 3.1a 审计规则强制加载（不可跳过）
 
-> **核心契约**：审计逻辑必须以 audit-rules 文件内容为准，而非 AI 自身知识。
-> 13 个 audit-rules 文件是唯一的审计语义来源。跳过文件加载 = 忽略自定义审计规则、分析方法更新、修复模式修正。
+> **核心契约**：审计逻辑必须以 rules 文件内容为准，而非 AI 自身知识。
+> 13 个 rules 文件是唯一的审计语义来源。跳过文件加载 = 忽略自定义审计规则、分析方法更新、修复模式修正。
 > **finding 的 `rationale`、`fix_before`/`fix_after` 必须引用规则文件原文，否则 finding 无效。**
 
 <!-- @secguardian:non-skippable step=rule-loading -->
@@ -328,7 +294,7 @@ python3 "$SECGUARDIAN_HOME/scripts/validate-index.py" \
 对预筛后有匹配的每个审计域，**必须**执行：
 
 ```bash
-cat "$SECGUARDIAN_HOME/knowledge/audit-rules/{domain-name}.md"
+cat "$SECGUARDIAN_HOME/skills/secaudit/rules/{domain-name}.md"
 ```
 
 然后：
