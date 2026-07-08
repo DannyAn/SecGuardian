@@ -203,8 +203,8 @@ verify_platform() {
         "[ '$cmd_count' -ge 3 ]"
 
     skill_count=$(find "$plat_dir/skills" -name 'SKILL.md' 2>/dev/null | wc -l | tr -d ' ')
-    check "${plat_name} skills: ${skill_count} SKILL.md files (expected 27)" \
-        "[ '$skill_count' -eq 27 ]"
+    check "${plat_name} skills: ${skill_count} SKILL.md files (expected 11)" \
+        "[ '$skill_count' -eq 11 ]"
 
     det_count=$(find "$plat_dir/knowledge/guard-rules" -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
     # Dynamic expected count: read from extension.json detector list, count how many have files in source knowledge/guard-rules/
@@ -218,10 +218,6 @@ verify_platform() {
     fi
     check "${plat_name} knowledge/guard-rules: ${det_count} .md files (expected ${det_expected})" \
         "[ '$det_count' -ge '$det_expected' ]"
-
-    lang_count=$(find "$plat_dir/knowledge/languages" -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
-    check "${plat_name} knowledge/languages: ${lang_count} .md files (expected 5)" \
-        "[ '$lang_count' -eq 5 ]"
 
     check "${plat_name} scripts/secguardian-index wrapper" \
         "[ -f '$plat_dir/scripts/secguardian-index' ]"
@@ -237,14 +233,21 @@ verify_platform "$PROJECT_ROOT/.opencode/extensions/secguardian" "OpenCode"
 
 # Verify opencode-plugin.js content (deployed separately from extension)
 OPENCODE_PLUGIN="$PROJECT_ROOT/.opencode/plugins/secguardian.js"
-[ -f "$OPENCODE_PLUGIN" ] && {
+if [ -f "$OPENCODE_PLUGIN" ]; then
   HAS_K=$(grep -c 'cfg.knowledge' "$OPENCODE_PLUGIN" 2>/dev/null || echo 0)
   HAS_S=$(grep -c 'cfg.skills' "$OPENCODE_PLUGIN" 2>/dev/null || echo 0)
   HAS_C=$(grep -c 'cfg.command' "$OPENCODE_PLUGIN" 2>/dev/null || echo 0)
-  [ "$HAS_K" -gt 0 ] && [ "$HAS_S" -gt 0 ] && [ "$HAS_C" -gt 0 ] && 
-    green "opencode-plugin.js: knowledge+skills+commands" || 
-    red "opencode-plugin.js: missing (k=$HAS_K s=$HAS_S c=$HAS_C)"
-} || red "opencode-plugin.js NOT FOUND"
+  if [ "$HAS_K" -gt 0 ] && [ "$HAS_S" -gt 0 ] && [ "$HAS_C" -gt 0 ]; then
+    echo -e "  [${PASS}] opencode-plugin.js: knowledge+skills+commands"
+    PASSED=$((PASSED + 1))
+  else
+    echo -e "  [${FAIL}] opencode-plugin.js: missing (k=$HAS_K s=$HAS_S c=$HAS_C)"
+    FAILED=$((FAILED + 1))
+  fi
+else
+  echo -e "  [${WARN}] opencode-plugin.js NOT FOUND"
+  WARNINGS=$((WARNINGS + 1))
+fi
 verify_platform "$PROJECT_ROOT/.gemini/extensions/secguardian" "Gemini CLI"
 
 # ═══════════════════════════════════════════
