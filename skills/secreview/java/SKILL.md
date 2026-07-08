@@ -20,14 +20,52 @@ Focus areas: dangerous function usage, framework security (Spring), deserializat
 >
 > **🔗 锚定+证据约束 (Rule A + Rule B):** 每个 finding 的 `file`+`line` MUST 可追溯到 index.json 的符号或文件列表。MUST 提供 `--snippet`、`--code-context`、`--rationale`、`--attack-scenario`。调用 `record-finding.py` 时必须传 `--index-json` 进行锚定校验。无 index 锚点时 MUST 标记 `confidence: low`。
 
+### 🧠 Finding Strategy: Assessment over Detection
+
+secreview's value is NOT re-detecting what secguard already finds. The overlap in vulnerability **categories** is intentional — the differentiation is in **output and judgment**:
+
+- **secguard** = "This IS a vulnerability" (fixed severity, deterministic check)
+- **secreview** = "Is this EXPLOITABLE in this PR context?" (signal-based confidence, dynamic assessment)
+
+**Decision rules to avoid redundant output:**
+
+| If the code contains... | secreview does... |
+|------------------------|-------------------|
+| Vulnerable API on changed lines | Assess exploitability: trace data flow via `call_graph.edges`, assign confidence, estimate business impact → **surface finding** |
+| Vulnerable API in unchanged context (adjacent function) | Regression check only → **P2/INFO**, no blocking |
+| Vulnerable API not in `index.json` signals | No signal anchor → **skip** (not in diff scope) |
+| Known vulnerability class but no exploit path | No tainted data flow → **downgrade severity**, may not block |
+
+**Every finding MUST include all three:** `confidence` (from signal triage), `exploitability` (from data flow), `business_impact` (from PR context). A bare "uses dangerous API" without assessment is a secguard finding, not a secreview finding.
+
 ## Execution Phases
 
 ### Phase 1: Load Context
 
 1. Read `index.json` — `files`, `symbols.functions`, `call_graph.edges`
-2. Load `knowledge/languages/java.md` for Java dangerous API list
+2. Load `skills/secguard-java/references/language-features.md` for Java dangerous API list
 3. Load `knowledge/standards/sei-cert-java.md` for SEI CERT Java mapping
 4. If git diff mode, load `delta.json` for changed function scope
+
+### 🔬 Signal-Based Review Triage
+
+Before scanning, triage the change set using `index.json` signals. This determines **review priority** and **finding confidence**.
+
+| Priority | Signal Pattern | Implication |
+|----------|---------------|-------------|
+| P0 | `call_sites` hit + diff line + new `control_flow` path | New vulnerability path likely introduced |
+| P1 | `call_sites` hit + diff line | New attack surface added |
+| P2 | `call_sites` hit in adjacent (context) function | Regression risk |
+| P3 | `string_literals` suspicious in diff | Credential/config leak risk |
+| P4 | `control_flow` change in auth/security function | Logic flaw risk |
+
+**Confidence assignment (must include in evidence rationale):**
+| Level | Signal Basis | Output |
+|-------|-------------|--------|
+| HIGH | `call_sites` match + data flow path (via `call_graph.edges`) | Verifiable tainted path from input to sink |
+| MEDIUM | `call_sites` match, no data flow path | Sink present but exploitability unconfirmed |
+| LOW | pattern match only, no signal anchor | Indication only, manual validation needed |
+
 
 ### Phase 2: Vulnerability Detection by Code Review
 
