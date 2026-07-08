@@ -102,13 +102,30 @@ system(cmd);
 
 见 `references/cross-function.md`。
 
-### Step 5: 5 轮反思
+### Step 4.5: 多信号归并分析
 
-1. 参数来源是否为完全硬编码的字符串字面量？若是，不报告。
-2. 参数是否包含任何形式的用户输入（argv、getenv、scanf、socket、文件）？若有，即使部分也报告。
-3. 参数是否经 snprintf/sprintf 格式化拼接，且格式化字符串中含有 %s 对应用户输入？报告。
-4. 是否有严格的输入验证（白名单、枚举验证、正则白名单）若验证充分，降级为 low confidence 或抑制。
-5. execve/execv 是否使用参数数组形式（argv[]）？若所有参数均为硬编码字面量，不报告。
+当同一 caller function 内有多个信号时，先聚合再分析：
+1. 按行号分组，检查信号间依赖（如 integer_overflow 绕过 → buffer_overflow 失效）
+2. 归并后形成统一分析基线（避免重复读取同一段源码）
+3. 在证据链中标注 cross_signal_analysis: true
+
+### Step 5: 事实锚定反思（3 问判定矩阵）
+
+必须回答 3 个域专用事实问题。答案必须基于源码证据链中的行号引用。
+
+**Q1**: 参数来自外部源（argv, getenv, scanf, socket）?
+**Q2**: Sink 前有校验（白名单/黑名单/正则）?
+**Q3**: 纯字符串字面量（完全硬编码）?
+
+判定矩阵规则:
+| Q1 | Q2 | Q3 | 结论 |
+|----|----|----|------|
+| YES(安全) | YES | YES | SUPPRESS — 三绿灯，安全可证 |
+| YES(安全) | YES | NO | informational — 基本安全但有隐患 |
+| YES(安全) | NO | — | CONFIRMED — 条件不满足即漏洞 |
+| NO(危险) | YES | YES | CONFIRMED — 危险信号已确认 |
+| NO(危险) | NO | — | CONFIRMED — 多角度证实漏洞 |
+| Mixed | Mixed | Mixed | 强制详细分析后判断 |
 
 ## 参考文件
 

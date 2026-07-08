@@ -96,13 +96,30 @@ char conn[] = "jdbc:postgresql://host:5432/db?user=user&password=pass"; // MATCH
 
 见 `references/cross-function.md`。
 
-### Step 5: 5 轮反思
+### Step 4.5: 多信号归并分析
 
-1. 匹配的是硬编码的字面量还是运行时读取的值（getenv/函数调用/文件读取）？后者不报告。
-2. 变量名是否明确标识其为凭证（password/secret/key/token）？如仅是配置项（*_min_length/*_name/*_type），是误报。
-3. 文件是否在 test/mock/fixture/demo 目录？测试目录中的（非生产前缀）假凭证可抑制。
-4. 值是否为模板变量占位符（${VAR} / {{VAR}} / 全零 / 重复字符）？是则抑制。
-5. 是否为公开证书/公钥（BEGIN CERTIFICATE / BEGIN PUBLIC KEY）？是则抑制。
+当同一 caller function 内有多个信号时，先聚合再分析：
+1. 按行号分组，检查信号间依赖（如 integer_overflow 绕过 → buffer_overflow 失效）
+2. 归并后形成统一分析基线（避免重复读取同一段源码）
+3. 在证据链中标注 cross_signal_analysis: true
+
+### Step 5: 事实锚定反思（3 问判定矩阵）
+
+必须回答 3 个域专用事实问题。答案必须基于源码证据链中的行号引用。
+
+**Q1**: 字符串值具有密钥特征（高熵/特定格式/敏感变量名）?
+**Q2**: 该值最终用于安全敏感操作（加密API/认证/鉴权）?
+**Q3**: 是生产代码中的测试/示例/占位符（位于 test/mock/example 目录）?
+
+判定矩阵规则:
+| Q1 | Q2 | Q3 | 结论 |
+|----|----|----|------|
+| YES(安全) | YES | YES | SUPPRESS — 三绿灯，安全可证 |
+| YES(安全) | YES | NO | informational — 基本安全但有隐患 |
+| YES(安全) | NO | — | CONFIRMED — 条件不满足即漏洞 |
+| NO(危险) | YES | YES | CONFIRMED — 危险信号已确认 |
+| NO(危险) | NO | — | CONFIRMED — 多角度证实漏洞 |
+| Mixed | Mixed | Mixed | 强制详细分析后判断 |
 
 ## 参考文件
 

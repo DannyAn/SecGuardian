@@ -93,13 +93,30 @@ free(p);         // cond 为真时 double-free
 - 若函数 A 调用函数 B，且 A 和 B 都对同一指针调用了 free → 确认
 - 若 A 先 free 再调用 B，B 内部再 free（同指针通过全局/参数传入）→ double-free
 
-### Step 5: 5 轮反思
+### Step 4.5: 多信号归并分析
 
-1. **事实校对**: 两次 free 的指针变量名是否完全相同？是否存在别名？
-2. **因果闭环**: 两次 free 之间是否有一条可达的执行路径？
-3. **寻找豁免**: free 之间是否有 NULL 赋值、指针再分配、goto 控制？
-4. **根因归并**: 同一指针的多次 free 合并为 1 个 finding
-5. **保守定性**: 路径条件不确定（如配置变量）→ 降级；无条件直通 → 按严重度定级
+当同一 caller function 内有多个信号时，先聚合再分析：
+1. 按行号分组，检查信号间依赖（如 integer_overflow 绕过 → buffer_overflow 失效）
+2. 归并后形成统一分析基线（避免重复读取同一段源码）
+3. 在证据链中标注 cross_signal_analysis: true
+
+### Step 5: 事实锚定反思（3 问判定矩阵）
+
+必须回答 3 个域专用事实问题。答案必须基于源码证据链中的行号引用。
+
+**Q1**: 两次 free 之间同一指针没有重新分配?
+**Q2**: 第二次 free 不在错误处理路径中?
+**Q3**: 指针在第一次 free 后已被置 NULL?
+
+判定矩阵规则:
+| Q1 | Q2 | Q3 | 结论 |
+|----|----|----|------|
+| YES(安全) | YES | YES | SUPPRESS — 三绿灯，安全可证 |
+| YES(安全) | YES | NO | informational — 基本安全但有隐患 |
+| YES(安全) | NO | — | CONFIRMED — 条件不满足即漏洞 |
+| NO(危险) | YES | YES | CONFIRMED — 危险信号已确认 |
+| NO(危险) | NO | — | CONFIRMED — 多角度证实漏洞 |
+| Mixed | Mixed | Mixed | 强制详细分析后判断 |
 
 ## 输出格式
 

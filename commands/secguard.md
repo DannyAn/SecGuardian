@@ -104,7 +104,7 @@ description: "EPIC-3 Dispatcher — 信号驱动的安全加固扫描，15 个 C
 │  Phase 2: Worker 调度                                          │
 │    对每个有信号的 Skill，启动 Worker (subagent):                │
 │      - 输入: 信号清单 + SKILL.md + references/                  │
-│      - Worker 执行 5 步检视协议 + 5 轮反思                      │
+│      - Worker 执行 5 步检视协议 + 事实锚定反思                      │
 │      - 输出: findings 文件 + 盲区报告                            │
 │                                                               │
 │  Phase 3: 汇总与渲染                                           │
@@ -232,6 +232,7 @@ source .codeagent/secguardian/.scan_state.secguard
 > - 协议文件：`cat "$SECGUARDIAN_HOME/knowledge/protocols/{name}.md"`
 > - language-index：`cat "$SECGUARDIAN_HOME/knowledge/language-index.md"`
 > - 语言画像：`cat "$SECGUARDIAN_HOME/knowledge/languages/{lang}.md"`
+> - Guard-Rules→Skills 映射: `cat "$SECGUARDIAN_HOME/knowledge/guard-rules-to-skills.md"`
 > - Skill 定义：`cat "$SECGUARDIAN_HOME/skills/secguard/{lang}/{skill}/SKILL.md"`
 > - 禁止使用 `read` 工具读 `$SECGUARDIAN_HOME/` 下的文件（触发 OpenCode 外部目录权限弹窗）。使用 bash `cat` 读取不会触发权限弹窗。
 
@@ -411,6 +412,11 @@ FOR EACH skill WITH signals:
   4. 启动 Worker (subagent)
 ```
 
+> **重要**: Worker 协议从 5 轮反思升级为事实锚定反思（§5.2 W5 更新点）。
+> 旧协议已被实验证伪：同 LLM 同上下文同框架 → 5 轮产出同质化结论。
+> 新协议用 3 个域专用 Yes/No 事实问题替代 5 轮空转。
+> 详见 [`skills/secguard/cpp/SKILL.md §域专用 Q Schema`](../skills/secguard/cpp/SKILL.md)。
+
 **Worker 输入结构：**
 
 ```json
@@ -453,7 +459,7 @@ FOR EACH skill WITH signals:
 
 ### 5.2 Worker 执行协议（5 步）
 
-每个 Worker 按以下 5 步协议独立执行。**必须在 5 轮反思通过后才能输出 finding。**
+每个 Worker 按以下 5 步协议独立执行。**必须在事实锚定反思通过后才能输出 finding。**
 
 #### Step W1: 信号确认
 
@@ -523,48 +529,64 @@ Sink:  system(user_input)  at executor.c:80
    - 传入未检查的用户输入（`strcpy(dst, argv[1])` → 直接报告）
 4. **depth > 1**（即调用者的调用者）→ 降级为 `suspicious`，不计入确认发现
 
-#### Step W5: 5 轮反思
+#### Step W4.5: 多信号归并分析（★ 新增）
 
-**必须完成全部 5 轮才能输出 finding。每轮通不过则降级严重度或抑制。**
+当同一函数内有多个信号时，先聚合再逐条分析：
 
-| 轮次 | 名称 | 问题 | 不通过则 |
-|------|------|------|---------|
-| 1 | 事实校对 | 证据链中每个断言是否有源码行支撑? | 降一级严重度 |
-| 2 | 因果闭环 | Source 大小 < Sink 写入大小 → 是否必然溢出? | 降级为可疑 |
-| 3 | 寻找豁免 | 是否有运行时检查、编译期常量、平台保证? | 抑制 |
-| 4 | 根因归并 | 同一缓冲区的多个 Sink → 合并为 1 个 finding | 去重 |
-| 5 | 保守定性 | 证据不完整 → 降级; 证据完整 → 按规则定级 | 最终定级 |
+1. 对同一 caller function 的信号按行号分组
+2. 检查是否存在**信号间依赖**：
+   - buffer_overflow 信号依赖 integer_overflow 信号（整数溢出绕过 size check → buffer overflow 的 Q1 假设失效）
+   - lock_misuse 信号需同一函数内 lock/unlock 配对分析
+3. 归并后形成统一分析基线：
+   - 引用已分析的相邻信号结论（如 Q3 已查明的源数据长度）
+   - 避免重复读取同一段源码
+4. 在证据链中标注 "cross_signal_analysis: true"
 
-**详细说明:**
+示例: parse_packet 函数有 2 个 memcpy 调用（line 53, line 60）。
+- 信号 1 (line 53): memcpy(&packet->header, header, sizeof(PacketHeader)) → 固定大小拷贝，安全
+- 信号 2 (line 60): memcpy(packet->data, raw_data+HEADER_SIZE, header->data_size) → 运行时大小，需跨信号分析
+- 归并: 确认信号1安全; 信号2需同时检查 integer_overflow 状态
 
-**轮次 1 — 事实校对:**
-- 证据链中的每行代码引用是否有对应的源码内容?
-- `sizeof(dst)` 的值是否被确认（手动计算或跟踪）?
-- 调用的行号是否精确匹配源码位置?
-- ❌ 不通过: 证据链中任一断言无法被源码行直接支撑 → 降一级严重度（Critical→High, High→Medium, 等）
+#### Step W5: 事实锚定反思（替代旧 5 轮反思）
 
-**轮次 2 — 因果闭环:**
-- Source 的大小 < Sink 写入大小 → 是否必然导致溢出? 有没有中间校验?
-- 对于 `strcpy_s(dst, sizeof(dst), src)`，`sizeof(dst)` 真的是 `dst` 的大小吗（指针 vs 数组）?
-- 是否有中间代码截断或检查了长度?
-- ❌ 不通过: 因果关系不闭合（"可能"溢出但不是"必然"溢出）→ 降级为可疑
+**基于 3 个域专用事实锚定问题, 一轮判定, 不再 5 轮空转。**
 
-**轮次 3 — 寻找豁免:**
-- 是否存在运行时检查? (e.g., `if (strlen(src) < sizeof(dst)`)
-- 是否存在编译期常量保证? (e.g., `char dst[64]`, `src` 总是 `char[8]`)
-- 平台是否有自动保护? (e.g., FORTIFY_SOURCE, Safe CRT)
-- 函数自身的语义保证? (e.g., `getenv` 返回值可能为 NULL，但代码检查了)
-- ❌ 找到豁免 → **抑制**，不输出 finding，记入抑制统计
+旧 5 轮反思已被实验证伪:
+- 同 LLM 同上下文同框架 → 5 轮产出同质化结论
+- Test C (DES key未初始化) 中 5 轮反思全部遗漏该问题
+- 事实锚定 Q2 "密钥已正确初始化?" 直接发现
 
-**轮次 4 — 根因归并:**
-- 同一缓冲区是否被多个 Sink 操作? (e.g., `strcpy(dst, a)` + `strcat(dst, b)`)
-- 同一函数是否多次调用同一危险函数? (e.g., 多个 `strcpy` 到不同缓冲区)
-- ❌ 相同的根因（同一缓冲区、同一条数据流路径）→ 合并为 1 个 finding
+**通用 Q 框架:**
+```
+Q1: [域专用，迫使检查最关键的"是否有漏洞"条件]
+Q2: [域专用，迫使检查条件是否真实（如参数来源、初始化状态）]
+Q3: [域专用，迫使检查豁免/补偿条件是否存在]
+```
 
-**轮次 5 — 保守定性:**
-- 证据不完整（如缺少 Source 信息、Propagate 路径不完整）→ 降级
-- 证据完整、跨函数 depth ≤ 1、无豁免 → 按规则定义的严重度定级
-- 终审裁决: `confirmed` / `suspected` / `suppressed`
+**判定矩阵规则（每个 skill 在各自 SKILL.md 中定义域专用 Q schema）:**
+
+| Q1 | Q2 | Q3 | 结论 |
+|----|----|----|------|
+| YES(安全) | YES | YES | **SUPPRESS** — 三绿灯，安全可证 |
+| YES(安全) | YES | NO | **informational** — 基本安全但有隐患 |
+| YES(安全) | NO | — | **CONFIRMED** — 条件不满足即漏洞 |
+| NO(危险) | YES | — | **CONFIRMED** — 危险信号已确认 |
+| NO(危险) | NO | — | **CONFIRMED** — 多角度证实漏洞 |
+| Mixed | Mixed | Mixed | 强制详细分析后判断 |
+
+**执行步骤:**
+
+1. 根据 skill_id 从 SKILL.md 读取域专用 Q1-Q2-Q3
+2. 回答 3 个事实锚定问题（仅 Yes/No，答案必须基于源码证据链中的行号引用）
+3. 查判定矩阵 → 决定 verdict
+4. 三绿灯: 直接抑制，记入抑制统计（含三条证据引用）
+5. 确认: 输出 finding（证据链必须引用 Q1-Q2-Q3 的结论）
+
+**与旧 5 轮反思的关键差异:**
+- 旧 5 轮是"让 LLM 反思自己"（自我循环，同质结论）
+- 事实锚定是"问 LLM 3 个无法回避的事实问题"（域专用，发现盲区）
+- 旧 5 轮 = 5 次 LLM 调用 ↓ 新协议 = 1 次 LLM 调用（Step W1-W5 合并在 1 次 Agent 调用中）
+- 旧 5 轮在 Test C 遗漏密钥初始化 → 新协议 Q2 直接发现
 
 ### 5.3 Worker 输出格式
 
@@ -610,8 +632,15 @@ python3 "$RECORDER" \
   },
   "attack_scenario": "攻击者设置 USER_INPUT 环境变量为超长字符串 → 覆盖栈上 dst 之后的数据",
   "cvss": 8.5,
-  "reflection_rounds": 5,
-  "rounds_passed": [true, true, true, true, true],
+  "fact_anchored_reflection": {
+    "q1": {"question": "Q1 from domain-specific Q schema", "answer": "YES/NO"},
+    "q2": {"question": "Q2 from domain-specific Q schema", "answer": "YES/NO"},
+    "q3": {"question": "Q3 from domain-specific Q schema", "answer": "YES/NO"},
+    "matrix_verdict": "confirmed/suppressed/informational",
+    "rationale": "判定依据: Q1=X, Q2=Y → 查判定矩阵得结论 Z"
+  },
+  "final_verdict": "confirmed",
+
   "final_verdict": "confirmed",
   "fix_before": "strcpy_s(dst, sizeof(dst), input)",
   "fix_after": "if (strnlen(input, sizeof(dst)) >= sizeof(dst)) return ERROR;\nstrcpy_s(dst, sizeof(dst), input);",
@@ -660,7 +689,7 @@ RECEOF
 - **禁止非终止状态**: Worker 不得输出"需要更多上下文"、"无法确定"、"信息不足"等。必须做出确定判断：`confirmed` / `suppressed` / `downgraded_to_suspicious`
 - **0 findings ≠ no_signal**: 区分 `no_signal`（无信号，真安全）和 `all_suppressed`（有信号但全部被抑制，检测盲区）
 - **跨函数 depth 限制**: max depth 1，超过一律降级为 `suspicious`，不报告为确认漏洞
-- **5 轮反思强制**: 任何 finding 必须经过 5 轮反思，`reflection_rounds` 字段必须为 5
+- **事实锚定反思强制**: 任何 finding 必须经过事实锚定反思，`fact_anchored_reflection` 字段必须包含 Q1-Q2-Q3 答案及矩阵裁决
 - **suppress-first**: 不确定 → 抑制。仅报告有完整证据链的 finding
 
 ### 5.4 特殊 Skill 处理
@@ -676,7 +705,7 @@ RECEOF
    - 硬编码加密 IV/盐: `iv = "..."`, `salt = "..."`
    - 注释中的凭据: `// password: ...`, `// user: ... / pass: ...`
 3. 根据 `min_string_length`（灵敏度配置）过滤短字符串
-4. 执行 5 轮反思确认
+4. 执行事实锚定反思确认
 
 #### error_propagation（独立扫描）
 
@@ -689,7 +718,7 @@ RECEOF
    - `int ret = func()` → 部分检查（需确认 ret 后续使用）
    - `func()` → 返回值被丢弃（报告）
    - `(void)func()` → 显式丢弃（是否报告取决于灵敏度配置）
-4. 执行 5 轮反思确认
+4. 执行事实锚定反思确认
 
 ### 5.5 信号数量过大时的裁剪策略
 
@@ -898,8 +927,8 @@ findings/exec/command_injection/f6e5d4c3b2a1_executor-89.json
 | 条目 | 规则 |
 |------|------|
 | 输入 | 信号清单 + SKILL.md + references/ + 源码根路径 |
-| 执行步骤 | W1 信号确认 → W2 证据链构建 → W3 安全变体审计 → W4 跨函数补证 → W5 5 轮反思 |
-| 5 轮反思 | 事实校对 → 因果闭环 → 寻找豁免 → 根因归并 → 保守定性 |
+| 执行步骤 | W1 信号确认 → W2 证据链构建 → W3 安全变体审计 → W4 跨函数补证 → W5 事实锚定反思 |
+| 事实锚定反思 | 3 个域专用事实锚定问题 + 判定矩阵 |
 | 输出 | finding（通过 record-finding.py）+ blindspot.json（每个 Worker） |
 | 禁止 | 非终止状态（"需要更多上下文"、"无法确定"） |
 | suppress | 不确定 → 抑制。仅完全证据链才报告 |
@@ -915,7 +944,7 @@ findings/exec/command_injection/f6e5d4c3b2a1_executor-89.json
 1. 保留 Phase 1（索引与信号生成）不变
 2. 跳过 Agent 启动步骤，Dispatcher 自身作为唯一 Worker
 3. 按 Skill 优先级逐个执行 5 步检视协议
-4. 保留所有其他约束（5 轮反思、suppress-first、depth 限制、禁止非终止状态）
+4. 保留所有其他约束（事实锚定反思、suppress-first、depth 限制、禁止非终止状态）
 5. Phase 3 汇总与渲染不变
 
 此降级方案的唯一损失是并发度，检测质量保持不变。

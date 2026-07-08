@@ -50,9 +50,28 @@ Max depth 1, beyond → downgrade to suspicious
 - 检查被调用函数中是否存在溢出防护
 - 如果数据流跨越更多层且无显式保护，标记为 suspicious 而非 confirmed
 
-### Step 5: 5 轮反思
-1. **事实校对**: 确认算术运算的两侧操作数类型、来源、可能取值范围
-2. **因果闭环**: 该溢出的确会影响分配大小或安全检查的有效性
-3. **寻找豁免**: 上游是否已做范围限定（如 `if (size > 1000) return`）或使用 checked 函数
-4. **根因归并**: 同函数内多个溢出是否由同一个未检查的输入变量导致
-5. **保守定性**: 确认报告为 critical，除非有明确的防护屏障
+### Step 4.5: 多信号归并分析
+
+当同一 caller function 内有多个信号时，先聚合再分析：
+1. 按行号分组，检查信号间依赖（如 integer_overflow 绕过 → buffer_overflow 失效）
+2. 归并后形成统一分析基线（避免重复读取同一段源码）
+3. 在证据链中标注 cross_signal_analysis: true
+
+### Step 5: 事实锚定反思（3 问判定矩阵）
+
+必须回答 3 个域专用事实问题。答案必须基于源码证据链中的行号引用。
+
+**Q1**: 运算结果用于内存分配或缓冲区大小?
+**Q2**: 参与运算的操作数中有不可信输入?
+**Q3**: 运算前有溢出检查（如 __builtin_mul_overflow）?
+
+判定矩阵规则:
+| Q1 | Q2 | Q3 | 结论 |
+|----|----|----|------|
+| YES(安全) | YES | YES | SUPPRESS — 三绿灯，安全可证 |
+| YES(安全) | YES | NO | informational — 基本安全但有隐患 |
+| YES(安全) | NO | — | CONFIRMED — 条件不满足即漏洞 |
+| NO(危险) | YES | YES | CONFIRMED — 危险信号已确认 |
+| NO(危险) | NO | — | CONFIRMED — 多角度证实漏洞 |
+| Mixed | Mixed | Mixed | 强制详细分析后判断 |
+

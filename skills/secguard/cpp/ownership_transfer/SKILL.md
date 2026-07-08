@@ -65,9 +65,28 @@ Max depth 1, beyond → downgrade to suspicious
 - 检查函数返回值是否为所有权转移信号（如 realloc 返回值）
 - 对 C++ unique_ptr 的 move，追踪到构造后原对象不再使用
 
-### Step 5: 5 轮反思
-1. **事实校对**: 确认释放操作（free/realloc/delete）确实发生，且释放后代码路径确实可达
-2. **因果闭环**: 后续使用的确解引用了已释放的内存，而非仅对指针变量重新赋值
-3. **寻找豁免**: 指针在释放后有 `p = NULL` 赋值、或者释放通过 `RAII`/智能指针管理
-4. **根因归并**: 同函数内多次悬空使用是否来自单次释放，应合并为一条 finding
-5. **保守定性**: realloc 模式中，如果 realloc 返回值未被检查且旧指针被使用，标记为 confirmed; 跨函数所有权转移不明确时降级为 suspicious
+### Step 4.5: 多信号归并分析
+
+当同一 caller function 内有多个信号时，先聚合再分析：
+1. 按行号分组，检查信号间依赖（如 integer_overflow 绕过 → buffer_overflow 失效）
+2. 归并后形成统一分析基线（避免重复读取同一段源码）
+3. 在证据链中标注 cross_signal_analysis: true
+
+### Step 5: 事实锚定反思（3 问判定矩阵）
+
+必须回答 3 个域专用事实问题。答案必须基于源码证据链中的行号引用。
+
+**Q1**: 原所有者释放后新所有者继续使用同一指针?
+**Q2**: 释放后原指针被置 NULL?
+**Q3**: 所有权转移通过 RAII/智能指针/显式契约明确管理?
+
+判定矩阵规则:
+| Q1 | Q2 | Q3 | 结论 |
+|----|----|----|------|
+| YES(安全) | YES | YES | SUPPRESS — 三绿灯，安全可证 |
+| YES(安全) | YES | NO | informational — 基本安全但有隐患 |
+| YES(安全) | NO | — | CONFIRMED — 条件不满足即漏洞 |
+| NO(危险) | YES | YES | CONFIRMED — 危险信号已确认 |
+| NO(危险) | NO | — | CONFIRMED — 多角度证实漏洞 |
+| Mixed | Mixed | Mixed | 强制详细分析后判断 |
+

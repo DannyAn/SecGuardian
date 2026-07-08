@@ -121,14 +121,28 @@ memset(p, 0, 64);
 
 如果 API 调用发生在包装函数中，查调用图（`call_graph.edges`），向上追溯一级 caller 并检查包装函数的调用语义是否正确。具体处理见 `references/cross-function.md`。
 
-### Step 5: 5 轮反思
+### Step 4.5: 多信号归并分析
 
-1. 参数来源是编译器可计算的常量表达式吗？如果是，即使 size 看起来很小时也可能是正确的（如 `memset(buf, 0, 4)` for a 4-byte struct）。
-2. strncpy 的 buf 是否在后续使用前被其它代码 null-terminate 了？例如下面模式安全：
-   ```
-   strncpy(buf, src, sizeof(buf));
-   buf[sizeof(buf)-1] = '\0';
-   ```
-3. realloc(p, 0) 是否存在于已知的兼容性封装中（如某些 allocator 库的重新分配语义）？若是则标记 low confidence。
-4. memcpy 重叠是否因索引计算在运行时才能确定（如 `memcpy(buf + off, buf, n)` where off > 0 but small)？运行时重叠需标记。
-5. snprintf 返回值被忽略但 size 远大于最大可能输出（如固定格式+固定参数）→ 可降级为 low severity 或低信噪比 FP（false positive）。仅在输入长度不可控时标记 high。
+当同一 caller function 内有多个信号时，先聚合再分析：
+1. 按行号分组，检查信号间依赖（如 integer_overflow 绕过 → buffer_overflow 失效）
+2. 归并后形成统一分析基线（避免重复读取同一段源码）
+3. 在证据链中标注 cross_signal_analysis: true
+
+### Step 5: 事实锚定反思（3 问判定矩阵）
+
+必须回答 3 个域专用事实问题。答案必须基于源码证据链中的行号引用。
+
+**Q1**: API 使用违反其文档约定或常见语义?
+**Q2**: 参数值导致 API 执行意外操作?
+**Q3**: API 副作用影响程序状态且未被补偿?
+
+判定矩阵规则:
+| Q1 | Q2 | Q3 | 结论 |
+|----|----|----|------|
+| YES(安全) | YES | YES | SUPPRESS — 三绿灯，安全可证 |
+| YES(安全) | YES | NO | informational — 基本安全但有隐患 |
+| YES(安全) | NO | — | CONFIRMED — 条件不满足即漏洞 |
+| NO(危险) | YES | YES | CONFIRMED — 危险信号已确认 |
+| NO(危险) | NO | — | CONFIRMED — 多角度证实漏洞 |
+| Mixed | Mixed | Mixed | 强制详细分析后判断 |
+

@@ -70,13 +70,30 @@ signal_source: call_sites[category="string", category="memory"]
 - 深度=1 调用者 → 确认实际传入参数的大小关系
 - 深度 > 1 → 降级为 "suspicious"，标记 confidence: medium
 
-### Step 5: 5 轮反思
+### Step 4.5: 多信号归并分析
 
-1. **事实校对**: 证据链中每个断言是否有源码支撑？
-2. **因果闭环**: Source→Sink 的因果是否必然？
-3. **寻找豁免**: 是否有运行时检查、编译期常量、平台保证？
-4. **根因归并**: 同一目标多个问题 → 合并为 1 个 finding
-5. **保守定性**: 证据不完整 → 降级；证据完整 → 按严重度定级
+当同一 caller function 内有多个信号时，先聚合再分析：
+1. 按行号分组，检查信号间依赖（如 integer_overflow 绕过 → buffer_overflow 失效）
+2. 归并后形成统一分析基线（避免重复读取同一段源码）
+3. 在证据链中标注 cross_signal_analysis: true
+
+### Step 5: 事实锚定反思（3 问判定矩阵）
+
+必须回答 3 个域专用事实问题。答案必须基于源码证据链中的行号引用。
+
+**Q1**: 目标缓冲区大小 ≥ 拷贝大小?
+**Q2**: 拷贝大小是编译期常量?
+**Q3**: 源缓冲区至少有 n 字节可读?
+
+判定矩阵规则:
+| Q1 | Q2 | Q3 | 结论 |
+|----|----|----|------|
+| YES(安全) | YES | YES | SUPPRESS — 三绿灯，安全可证 |
+| YES(安全) | YES | NO | informational — 基本安全但有隐患 |
+| YES(安全) | NO | — | CONFIRMED — 条件不满足即漏洞 |
+| NO(危险) | YES | YES | CONFIRMED — 危险信号已确认 |
+| NO(危险) | NO | — | CONFIRMED — 多角度证实漏洞 |
+| Mixed | Mixed | Mixed | 强制详细分析后判断 |
 
 ## 输出格式
 

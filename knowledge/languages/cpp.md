@@ -191,3 +191,29 @@ C/C++ 在嵌入式（SQLite）、桌面应用和数据库驱动开发中都有 S
 5. `malloc(size)` 整数溢出 → High
 6. TOCTOU `access+open` → High
 7. 未启用栈保护 → Medium
+
+## 危险函数 → Skill 映射表
+
+本文件描述的所有危险函数，在技能架构中由以下 15 个 Skill 覆盖:
+
+| 危险函数 | CWE | 对应 Skill | 检测方式 |
+|----------|-----|-----------|---------|
+| strcpy, strcat, sprintf, gets, memcpy, snprintf | CWE-120 | **buffer_overflow** | call_sites[category="string\|memory"] → Q schema |
+| malloc, calloc, realloc 无 NULL 检查 | CWE-476 | **null_dereference** | call_sites[category="memory"] → Q1: check NULL? |
+| malloc/free 不配对 | CWE-401 | **memory_leak** | alloc_free.pairs |
+| 同一指针多次 free | CWE-415 | **double_free** | alloc_free.pairs |
+| free 后继续使用 | CWE-416 | **use_after_free** | alloc_free.pairs + usage analysis |
+| malloc(count × size) 整数溢出 | CWE-190 | **integer_overflow** | call_sites[category="memory"] → Q2: untrusted operand? |
+| fopen/open/socket 未 close | CWE-404 | **resource_leak** | call_sites[category="io"] |
+| system/popen (参数来自外部) | CWE-78 | **command_injection** | call_sites[category="exec"] → Q1: external source? |
+| 外部输入未校验 | CWE-20 | **input_validation** | call_sites[category="exec"] |
+| 硬编码密钥/密码 | CWE-798 | **hardcoded_secrets** | 静态分析(无 call_site) |
+| 函数返回值未检查 | CWE-252 | **must_check** | call_sites[category="memory\|io"] |
+| 所有权转移后使用 | CWE-416(related) | **ownership_transfer** | call_sites[category="memory"] |
+| API 语义误用(realloc, memmove) | CWE-628 | **api_semantic_misuse** | call_sites[category="*"] |
+| lock/unlock 不配对 | CWE-667 | **lock_misuse** | call_sites[category="sync"] |
+| 错误码吞没/未传播 | CWE-390 | **error_propagation** | 静态分析(无 call_site) |
+
+> **架构关系**: 本文件是语言画像(知识库), Skills 是检测算子(执行层)。
+> 知识库提供危险函数清单和 C/C++ 特性参考; Skills 提供具体的检测协议和事实锚定反思。
+> `knowledge/guard-rules/` 下的 CWE 规则文件是规范来源, Skills 的 `references/rule.md` 是其运行时适配副本。两边不重复内容, 各司其职。

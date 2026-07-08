@@ -69,10 +69,28 @@ ret = write(fd, buf, n);   → Source（ssize_t 返回 < 0 表示错误）
 
 如果检测到调用点在该函数内直接使用返回值前缺乏检查，但上层 caller 在调用前已经验证了前置条件（传参前提是文件已打开、内存已分配），则 Step 4 可以补充证据。具体处理见 `references/cross-function.md`。
 
-### Step 5: 5 轮反思
+### Step 4.5: 多信号归并分析
 
-1. 缺失的错误检查是否被函数约定（precondition）覆盖？例如函数注释说 "caller must ensure fopen success before calling" — 这种情况下调用者应检查，但被检查函数自身缺乏防御性检查。若 function 是 internal/static 且 caller 都检查了 → 降级为 low。
-2. malloc 的返回值是否在函数开始时被 assert 检查？`assert(ptr != NULL)` 在 Debug 模式有效，Release 模式编译时（`NDEBUG` 定义）无效果 → 标记但 confidence: medium。
-3. read/write 的错误返回在前一条语句中是否有 `errno` 检查？某些代码风格是忽略立即返回值但后续检查 errno → 安全但不是良好实践，标记 low。
-4. 函数重载或包装是否改变语义？例如 `checked_malloc()` 封装了 `fprintf(stderr, "OOM"); exit(1);` — 如果包装函数保证了不返回 NULL → 不需要再检查。
-5. 空指针检查是否在实际解引用之后才执行？（如 `ptr = malloc(n); use(ptr); if (!ptr) return error;`）→ 明显的假阳性检测（解引用发生在检查之前，实际情况是 null deref）。
+当同一 caller function 内有多个信号时，先聚合再分析：
+1. 按行号分组，检查信号间依赖（如 integer_overflow 绕过 → buffer_overflow 失效）
+2. 归并后形成统一分析基线（避免重复读取同一段源码）
+3. 在证据链中标注 cross_signal_analysis: true
+
+### Step 5: 事实锚定反思（3 问判定矩阵）
+
+必须回答 3 个域专用事实问题。答案必须基于源码证据链中的行号引用。
+
+**Q1**: 错误码被函数返回值正确传播（包括中间函数）?
+**Q2**: 错误路径有日志/处理/清理?
+**Q3**: 错误码不会被后续操作覆盖（多错误路径串联）?
+
+判定矩阵规则:
+| Q1 | Q2 | Q3 | 结论 |
+|----|----|----|------|
+| YES(安全) | YES | YES | SUPPRESS — 三绿灯，安全可证 |
+| YES(安全) | YES | NO | informational — 基本安全但有隐患 |
+| YES(安全) | NO | — | CONFIRMED — 条件不满足即漏洞 |
+| NO(危险) | YES | YES | CONFIRMED — 危险信号已确认 |
+| NO(危险) | NO | — | CONFIRMED — 多角度证实漏洞 |
+| Mixed | Mixed | Mixed | 强制详细分析后判断 |
+

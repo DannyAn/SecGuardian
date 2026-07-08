@@ -117,13 +117,30 @@ malloc((size_t)n);
 
 见 `references/cross-function.md`。
 
-### Step 5: 5 轮反思
+### Step 4.5: 多信号归并分析
 
-1. 输入来源是否为外部不可信（argv、getenv、stdin、socket）？若是，必须验证。
-2. 输入使用前是否有验证？验证覆盖哪些维度——NULL 存在性检查、长度检查、类型检查、范围检查？
-3. 验证是白名单模式（允许特定字符集/格式）还是黑名单模式（过滤几个危险字符）？白名单优于黑名单。
-4. scanf/sscanf 的 %s 格式是否指定了宽度限制？未指定宽度 → 缓冲区溢出。
-5. atoi/atol 的结果是否用于安全敏感操作（malloc 大小、数组索引、缓冲区操作）？atoi 无法报告错误，优先使用 strtol 带完整错误检测。
+当同一 caller function 内有多个信号时，先聚合再分析：
+1. 按行号分组，检查信号间依赖（如 integer_overflow 绕过 → buffer_overflow 失效）
+2. 归并后形成统一分析基线（避免重复读取同一段源码）
+3. 在证据链中标注 cross_signal_analysis: true
+
+### Step 5: 事实锚定反思（3 问判定矩阵）
+
+必须回答 3 个域专用事实问题。答案必须基于源码证据链中的行号引用。
+
+**Q1**: 输入来自不可信源?
+**Q2**: 使用前有验证（长度/格式/范围/类型）?
+**Q3**: 验证足够严格（白名单而非黑名单）?
+
+判定矩阵规则:
+| Q1 | Q2 | Q3 | 结论 |
+|----|----|----|------|
+| YES(安全) | YES | YES | SUPPRESS — 三绿灯，安全可证 |
+| YES(安全) | YES | NO | informational — 基本安全但有隐患 |
+| YES(安全) | NO | — | CONFIRMED — 条件不满足即漏洞 |
+| NO(危险) | YES | YES | CONFIRMED — 危险信号已确认 |
+| NO(危险) | NO | — | CONFIRMED — 多角度证实漏洞 |
+| Mixed | Mixed | Mixed | 强制详细分析后判断 |
 
 ## 参考文件
 

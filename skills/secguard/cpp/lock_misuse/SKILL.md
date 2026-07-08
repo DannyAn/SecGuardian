@@ -54,10 +54,28 @@ signal_source: call_sites[category="sync"]
 - 如果 unlock 函数被包装 → 检查所有 caller 是否都正确地先 lock 后 unlock
 - 如果 lock/unlock 跨函数边界（lock 在 foo, unlock 在 bar）→ 标记但 confidence: medium（可能是有效 RAII 或状态机）
 
-### Step 5: 5 轮反思
+### Step 4.5: 多信号归并分析
 
-1. lock 和 unlock 是否位于同一个函数的对称位置（如函数开头 lock，所有 return 前 unlock）？不对称时标 confidence: high。
-2. double-lock 是否来自条件编译宏导致的重复展开？（如 `#ifdef DEBUG` 块内再加锁）→ 若明显是宏展开则 confidence: low。
-3. unlock without lock 是否对应于 `pthread_mutex_trylock` 返回 EBUSY 后的错误路径？若 trylock 失败则不调用 unlock → 正确。
-4. 信号处理器中调用 lock 是否可以证实该信号只能由其他线程触发（`pthread_kill`）而非本线程（`raise`/`alarm`）？无法证实时标记 high confidence。
-5. lock order inversion 是否同一函数内获取多个锁且顺序一致？跨函数检查调用图是否构成环形依赖（如 A→B→C→A）。
+当同一 caller function 内有多个信号时，先聚合再分析：
+1. 按行号分组，检查信号间依赖（如 integer_overflow 绕过 → buffer_overflow 失效）
+2. 归并后形成统一分析基线（避免重复读取同一段源码）
+3. 在证据链中标注 cross_signal_analysis: true
+
+### Step 5: 事实锚定反思（3 问判定矩阵）
+
+必须回答 3 个域专用事实问题。答案必须基于源码证据链中的行号引用。
+
+**Q1**: 所有退出路径都有 unlock?
+**Q2**: 存在 unlock 调用?
+**Q3**: 子函数能释放此锁?
+
+判定矩阵规则:
+| Q1 | Q2 | Q3 | 结论 |
+|----|----|----|------|
+| YES(安全) | YES | YES | SUPPRESS — 三绿灯，安全可证 |
+| YES(安全) | YES | NO | informational — 基本安全但有隐患 |
+| YES(安全) | NO | — | CONFIRMED — 条件不满足即漏洞 |
+| NO(危险) | YES | YES | CONFIRMED — 危险信号已确认 |
+| NO(危险) | NO | — | CONFIRMED — 多角度证实漏洞 |
+| Mixed | Mixed | Mixed | 强制详细分析后判断 |
+

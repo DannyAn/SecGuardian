@@ -75,13 +75,30 @@ cleanup:
 
 见 `references/cross-function.md`。
 
-### Step 5: 5 轮反思
+### Step 4.5: 多信号归并分析
 
-1. 是否所有退出路径都覆盖了？特别注意中间 return 语句（非函数末尾 return）。
-2. 资源是否通过返回值传递给了调用者（ownership transfer）？若是，检查调用者是否负责关闭。
-3. 资源是否存储在全局/静态变量中？若是，检查是否有模块级清理机制。
-4. C++ 代码是否使用了 RAII（std::ifstream/std::ofstream）？RAII 对象不报告泄漏。
-5. 是否存在 `dup()`/`dup2()` 后关闭新 fd 而非原始 fd？dup 创建的是独立 fd，不构成泄漏。
+当同一 caller function 内有多个信号时，先聚合再分析：
+1. 按行号分组，检查信号间依赖（如 integer_overflow 绕过 → buffer_overflow 失效）
+2. 归并后形成统一分析基线（避免重复读取同一段源码）
+3. 在证据链中标注 cross_signal_analysis: true
+
+### Step 5: 事实锚定反思（3 问判定矩阵）
+
+必须回答 3 个域专用事实问题。答案必须基于源码证据链中的行号引用。
+
+**Q1**: 资源打开后有对应的关闭操作?
+**Q2**: 所有退出路径（含错误路径）都有关闭?
+**Q3**: 资源句柄所有权传给了调用者或全局?
+
+判定矩阵规则:
+| Q1 | Q2 | Q3 | 结论 |
+|----|----|----|------|
+| YES(安全) | YES | YES | SUPPRESS — 三绿灯，安全可证 |
+| YES(安全) | YES | NO | informational — 基本安全但有隐患 |
+| YES(安全) | NO | — | CONFIRMED — 条件不满足即漏洞 |
+| NO(危险) | YES | YES | CONFIRMED — 危险信号已确认 |
+| NO(危险) | NO | — | CONFIRMED — 多角度证实漏洞 |
+| Mixed | Mixed | Mixed | 强制详细分析后判断 |
 
 ## 参考文件
 

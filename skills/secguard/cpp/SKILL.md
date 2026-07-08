@@ -21,24 +21,22 @@ topic: [memory, concurrency, system, io, security, semantics]
 | # | Skill (目录名) | Severity | CWE | `signal_source` | `id` | Status |
 |---|---------------|----------|-----|-----------------|------|--------|
 | 1 | [`buffer_overflow/`](./buffer_overflow/) | 🔴 Critical | CWE-120 | `call_sites[cat="string", cat="memory"]` | `memory.buffer-overflow` | ✅ |
-| 2 | [`null_dereference/`](./null_dereference/) | 🔴 Critical | CWE-476 | `call_sites[cat="memory"]` | `memory.null-dereference` | 🏗️ |
-| 3 | [`memory_leak/`](./memory_leak/) | 🟠 High | CWE-401 | `call_sites[cat="memory"]` | `memory.memory-leak` | 🏗️ |
-| 4 | [`double_free/`](./double_free/) | 🔴 Critical | CWE-415 | `call_sites[cat="memory"]` | `memory.double-free` | 🏗️ |
-| 5 | [`use_after_free/`](./use_after_free/) | 🔴 Critical | CWE-416 | `call_sites[cat="memory"]` | `memory.use-after-free` | 🏗️ |
+| 2 | [`null_dereference/`](./null_dereference/) | 🔴 Critical | CWE-476 | `call_sites[cat="memory"]` | `memory.null-dereference` | ✅ |
+| 3 | [`memory_leak/`](./memory_leak/) | 🟠 High | CWE-401 | `call_sites[cat="memory"]` | `memory.memory-leak` | ✅ |
+| 4 | [`double_free/`](./double_free/) | 🔴 Critical | CWE-415 | `call_sites[cat="memory"]` | `memory.double-free` | ✅ |
+| 5 | [`use_after_free/`](./use_after_free/) | 🔴 Critical | CWE-416 | `call_sites[cat="memory"]` | `memory.use-after-free` | ✅ |
 | 6 | [`integer_overflow/`](./integer_overflow/) | 🔴 Critical | CWE-190 | `call_sites[cat="memory"]` | `memory.integer-overflow` | ✅ |
 | 7 | [`resource_leak/`](./resource_leak/) | 🟠 High | CWE-404 | `call_sites[cat="io"]` | `resource.resource-leak` | ✅ |
 | 8 | [`command_injection/`](./command_injection/) | 🔴 Critical | CWE-78 | `call_sites[cat="exec"]` | `injection.command-injection` | ✅ |
 | 9 | [`input_validation/`](./input_validation/) | 🟠 High | CWE-20 | `call_sites[cat="exec"]` | `validation.input-validation` | ✅ |
-| 10 | [`hardcoded_secrets/`](./hardcoded_secrets/) | 🟠 High | CWE-798 | `call_sites[cat="exec"]` | `crypto.hardcoded-secrets` | 🏗️ |
+| 10 | [`hardcoded_secrets/`](./hardcoded_secrets/) | 🟠 High | CWE-798 | `call_sites[cat="exec"]` | `crypto.hardcoded-secrets` | ✅ |
 | 11 | [`must_check/`](./must_check/) | 🟠 High | CWE-252 | `call_sites[cat="memory\|io"]` | `memory.must-check` | ✅ |
 | 12 | [`ownership_transfer/`](./ownership_transfer/) | 🟠 High | CWE-416 (related) | `call_sites[cat="memory"]` | `memory.ownership-transfer` | ✅ |
 | 13 | [`api_semantic_misuse/`](./api_semantic_misuse/) | 🟠 High | CWE-628 | `call_sites[cat="*"]` | `semantics.api-semantic-misuse` | ✅ |
-| 14 | [`lock_misuse/`](./lock_misuse/) | 🟠 High | CWE-667 | `call_sites[cat="concurrency"]` | `concurrency.lock-misuse` | 🏗️ |
-| 15 | [`error_propagation/`](./error_propagation/) | 🟡 Medium | CWE-390 | `call_sites[cat="error"]` | `error.error-propagation` | 🏗️ |
+| 14 | [`lock_misuse/`](./lock_misuse/) | 🟠 High | CWE-667 | `call_sites[cat="concurrency"]` | `concurrency.lock-misuse` | ✅ |
+| 15 | [`error_propagation/`](./error_propagation/) | 🟡 Medium | CWE-390 | `call_sites[cat="error"]` | `error.error-propagation` | ✅ |
 
-**Status 说明**:
-- ✅ — `SKILL.md` 已编写，含完整检视协议
-- 🏗️ — 目录已创建（含 `references/`），`SKILL.md` 待实现
+**Status**: 全部 15 个 skill 已完成实现，含事实锚定反思 + 多信号归并协议。
 
 **按严重度排序执行**:
 
@@ -111,13 +109,32 @@ C/C++ 使用**符号表精确匹配**预筛（区别于 OO 语言的全量加载
 | Step 4 | record-finding.py 持久化 + render-report.py | Command |
 | Step 5 | 输出摘要 | Command |
 
-各算子的检视协议遵循统一的 5 步模式：
+各算子的检视协议遵循统一的 6 步模式：
 
 1. **信号确认** — 验证 callee 真实存在（排除注释/宏/条件编译）
 2. **证据链构建** — Source → Propagate → Sink 数据流追踪
 3. **参数审计** — 按 callee 类型执行差异化检查
 4. **跨函数补证** — 深度 1（超出降级为 suspicious）
-5. **五轮反思** — 事实校对 → 因果闭环 → 寻找豁免 → 根因归并 → 保守定性
+4.5 **多信号归并** — 同一函数的多个信号聚合分析（如 line53 memcpy 安全的 + line60 memcpy 危险 → 整合分析）
+5. **事实锚定反思** — 3 个域专用 Yes/No 事实问题 + 判定矩阵（替代旧 5 轮反思）
+
+### 域专用 Q Schema（每个 skill 在 SKILL.md 中定义各自的 Q1-Q2-Q3）
+
+判定矩阵规则：
+- **三绿灯**（Q1=Yes, Q2=Yes, Q3=Yes，且全安全）→ SUPPRESS
+- **两绿灯+单黄灯**（大概率安全，有条件抑制）→ downgrade to informational
+- **两红灯+单绿灯**（大概率确认）→ CONFIRMED
+- **三红灯**（全否定）→ CONFIRMED
+- **混合模式**（Yes/No 不一致）→ 强制详细分析
+
+### 与旧 5 轮反思的区别
+
+| 方面 | 旧（5 轮反思） | 新（事实锚定反思） |
+|------|---------------|-------------------|
+| 调用次数 | 5 轮 LLM 调用 | 1 轮 LLM 调用 |
+| 收敛性 | 同 LLM 同上下文 → 同质化结论（已被实验证伪） | 事实锚定问题迫使从不同角度检查 |
+| 防遗漏 | 依赖 LLM 主动性 | 每个域有专用问题（如密钥初始化?）强制检查 |
+| Δ 值 | Test C 证明 5 轮反射遗漏密钥初始化问题 | Test C 中 Q2 直接发现密钥未初始化 |
 
 ---
 
@@ -127,3 +144,4 @@ C/C++ 使用**符号表精确匹配**预筛（区别于 OO 语言的全量加载
 |------|------|
 | [`references/cpp-security-cheatsheet.md`](./references/cpp-security-cheatsheet.md) | 快速参考：Top 10 信号 + 安全替代函数 |
 | [`references/examples/`](./references/examples/) | CWE 示例代码片段 |
+| [`../../../../knowledge/guard-rules-to-skills.md`](../../../../knowledge/guard-rules-to-skills.md) | **Guard-Rules ↔ Skills 映射（解决知识库与检测算子的双份维护问题）** |

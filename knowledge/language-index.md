@@ -93,3 +93,21 @@ audit-rules/cryptography, audit-rules/data-protection, audit-rules/dependency-se
 audit-rules/infra-hardening, audit-rules/input-validation, audit-rules/logging-and-monitoring, audit-rules/output-encoding, audit-rules/secrets-management
 audit-rules/secure-transport, review-rules/javascript
 
+## 技能架构参考 (C/C++ v2)
+skills/secguard/cpp/SKILL.md — 15 个 C/C++ 检视算子主索引/派发表
+skills/secguard/cpp/buffer_overflow/ — CWE-120 缓冲区溢出检视算子
+skills/secguard/cpp/null_dereference/ — CWE-476 空解引用检视算子
+skills/secguard/cpp/memory_leak/ — CWE-401 内存泄漏检视算子
+skills/secguard/cpp/double_free/ — CWE-415 双重释放检视算子
+skills/secguard/cpp/use_after_free/ — CWE-416 释放后使用检视算子
+skills/secguard/cpp/integer_overflow/ — CWE-190 整数溢出检视算子
+skills/secguard/cpp/resource_leak/ — CWE-404 资源泄漏检视算子
+skills/secguard/cpp/command_injection/ — CWE-78 命令注入检视算子
+skills/secguard/cpp/input_validation/ — CWE-20 输入验证检视算子
+skills/secguard/cpp/hardcoded_secrets/ — CWE-798 硬编码秘密检视算子
+skills/secguard/cpp/must_check/ — CWE-252 返回值必须检查检视算子
+skills/secguard/cpp/ownership_transfer/ — CWE-416(related) 所有权转移检视算子
+skills/secguard/cpp/api_semantic_misuse/ — CWE-628 API语义误用检视算子
+skills/secguard/cpp/lock_misuse/ — CWE-667 锁误用检视算子
+skills/secguard/cpp/error_propagation/ — CWE-390 错误传播检视算子
+
