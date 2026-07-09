@@ -215,12 +215,49 @@ def load_all_specs() -> dict:
     return specs
 
 
+def list_findings(findings_dir):
+    """Print a human-readable summary table of all findings."""
+    rows = []
+    for root, dirs, files in sorted(os.walk(findings_dir)):
+        for fname in sorted(files):
+            if not fname.endswith('.json'):
+                continue
+            try:
+                with open(os.path.join(root, fname)) as f:
+                    data = json.load(f)
+                finding = data.get('finding') if isinstance(data, dict) and 'finding' in data else data
+                if not isinstance(finding, dict):
+                    continue
+                rows.append((
+                    finding.get('severity', '?'),
+                    finding.get('cwe', '?'),
+                    finding.get('file', '?'),
+                    finding.get('line', '?'),
+                    finding.get('title', '?')
+                ))
+            except (json.JSONDecodeError, OSError):
+                continue
+
+    if not rows:
+        print("  (no findings)")
+        return
+
+    # Align columns
+    for sev, cwe, file, line, title in rows:
+        sev_pad = sev.rjust(8)
+        cwe_str = f"CWE-{cwe}" if cwe and not str(cwe).startswith('CWE-') else str(cwe)
+        print(f"  {sev_pad} | {cwe_str} | {file}:{line} | {title}")
+    print(f"\n  Total: {len(rows)} finding(s)")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--findings-dir', required=True)
     parser.add_argument('--quiet', action='store_true')
     parser.add_argument('--check-spec', action='store_true',
                         help='Enable Detection Spec cross-validation against guard-rules/audit-rules/review-rules')
+    parser.add_argument('--list', action='store_true', dest='show_list',
+                        help='Print a human-readable findings table summary after validation')
     args, _ = parser.parse_known_args()
 
     if not os.path.isdir(args.findings_dir):
@@ -288,6 +325,10 @@ def main():
         parts.append(f"{total_errors} validation error(s)")
     if spec_errors:
         parts.append(f"{spec_errors} spec violation(s)")
+
+    if args.show_list:
+        print(f"\n=== Findings list ===")
+        list_findings(args.findings_dir)
 
     if total_errors > 0:
         print(f"\n❌ {', '.join(parts)}")

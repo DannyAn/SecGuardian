@@ -796,11 +796,11 @@ bash scripts/package.sh >/dev/null 2>&1
 EXT="dist/secguard-secguardian"
 
 [ -d "$EXT" ] && pass "package.sh: dist/secguard-secguardian created" || fail "BUILD FAILED"
-for dir in guard-rules audit-rules review-rules; do
+for dir in audit-rules review-rules; do
     c=$(find "$EXT/knowledge/$dir" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
     [ "$c" -gt 0 ] && pass "knowledge/$dir: $c files" || fail "knowledge/$dir: MISSING"
 done
-[ -f "$EXT/knowledge/language-index.md" ] && pass "knowledge/language-index.md" || fail "language-index.md MISSING"
+	# language-index.md retired -- rules now in skills/secguard/{lang}/rules/*/rule.md
 for cmd in secguard secaudit secreview; do
     [ -f "dist/${cmd}-secguardian/commands/${cmd}.md" ] && pass "dist/${cmd}-secguardian/commands/${cmd}.md" || fail "dist/${cmd}-secguardian MISSING"
 done

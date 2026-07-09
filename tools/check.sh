@@ -91,10 +91,7 @@ echo "5. Knowledge 文件检查"
 for ext in "${EXTS[@]}"; do
     jf="$PROJECT_ROOT/extensions/$ext/extension.json"
     echo "  [$ext]"
-    for lang in $(jq -r '.knowledge.languages[]' "$jf"); do
-        lf="$PROJECT_ROOT/knowledge/languages/${lang}.md"
-        [ -f "$lf" ] && pass "language: $lang" || { fail "language: $lang"; ((ERRORS++)); }
-    done
+    # languages removed — content migrated to skills/{cmd}/references/language-features.md
 done
 echo ""
 
@@ -114,8 +111,8 @@ echo ""
 
 # ── 7. 文件统计 ──────────────────────────────────
 echo "7. 文件统计"
-echo "  Knowledge languages: $(ls "$PROJECT_ROOT/knowledge/languages/"*.md 2>/dev/null | wc -l | tr -d ' ')"
-echo "  Knowledge detectors: $(ls "$PROJECT_ROOT/knowledge/detectors/"*.md 2>/dev/null | wc -l | tr -d ' ')"
+echo "  Knowledge languages: 0 (migrated to skills/)"
+echo "  Knowledge detectors: 0 (migrated to skills/)"
 echo "  Skills: $(find "$PROJECT_ROOT/skills" -name SKILL.md -maxdepth 2 | wc -l | tr -d ' ')"
 echo "  Commands (.md): $(ls "$PROJECT_ROOT/commands/"*.md 2>/dev/null | wc -l | tr -d ' ')"
 echo "  Demo languages: $(ls -d "$PROJECT_ROOT/examples/"*-vuln-demo 2>/dev/null | wc -l | tr -d ' ')"

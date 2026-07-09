@@ -24,7 +24,7 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] || [ "${1:-}" = "help" ]; then
     cat << 'EOF'
 SecGuardian — Gemini TOML 命令生成器
 
-读取 commands/<name>.md，自动生成 commands/gemini/<name>.toml。
+读取 commands/claude/<name>.md，自动生成 commands/gemini/<name>.toml。
 
 用法:
   bash scripts/gen-toml.sh       # 生成全部 TOML
@@ -42,7 +42,7 @@ SecGuardian — Gemini TOML 命令生成器
   - prompt: 跳过 frontmatter，将正文 + {{args}} 嵌入 TOML multiline string
 
 何时使用:
-  修改 commands/<name>.md 后运行此脚本，确保 Gemini CLI 的 TOML 文件与
+  修改 commands/claude/<name>.md 后运行此脚本，确保 Gemini CLI 的 TOML 文件与
   Markdown 命令保持同步。
 
 示例:
@@ -53,7 +53,7 @@ EOF
 fi
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-CMD_SRC="$PROJECT_ROOT/commands"
+CMD_SRC="$PROJECT_ROOT/commands/claude"
 TOML_OUT="$PROJECT_ROOT/commands/gemini"
 
 mkdir -p "$TOML_OUT"
@@ -109,4 +109,4 @@ for md_file in "$CMD_SRC"/*.md; do
 done
 
 echo "  生成 $gen_count 个 TOML 文件 → $TOML_OUT/"
-echo "  提示: 如果修改了 commands/*.md，重新运行本脚本即可同步 TOML。"
+echo "  提示: 如果修改了 commands/claude/*.md，重新运行本脚本即可同步 TOML。"

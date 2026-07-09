@@ -151,19 +151,31 @@ for entry in "${TARGETS[@]}"; do
     mkdir -p "$staging/.claude-plugin" \
              "$staging/commands/secguardian" \
              "$staging/skills" \
-             "$staging/knowledge/languages" \
-             "$staging/knowledge/guard-rules" \
              "$staging/knowledge/protocols" \
              "$staging/knowledge/standards" \
              "$staging/scripts/bin" \
              "$staging/plugins"
 
-    # Merge .md commands (Claude + OpenCode)
+    # Merge .md commands (Claude Code version — development anchor)
     for d in "$DIST"/*-secguardian/; do
-        [ -d "$d/commands" ] && find "$d/commands" -maxdepth 1 -name '*.md' -exec cp {} "$staging/commands/" \;
+        if [ -d "$d/commands/claude" ]; then
+            for f in "$d/commands/claude"/*.md; do
+                [ -f "$f" ] && cp "$f" "$staging/commands/"
+            done
+        fi
     done
     for f in "$staging/commands"/*.md; do
         [ -f "$f" ] && cp "$f" "$staging/commands/secguardian/"
+    done
+
+    # OpenCode .md commands (subdirectory — install.sh promotes on opencode install)
+    mkdir -p "$staging/commands/opencode"
+    for d in "$DIST"/*-secguardian/; do
+        if [ -d "$d/commands/opencode" ]; then
+            for f in "$d/commands/opencode"/*.md; do
+                [ -f "$f" ] && cp "$f" "$staging/commands/opencode/"
+            done
+        fi
     done
 
     # Gemini .toml commands
@@ -183,7 +195,7 @@ for entry in "${TARGETS[@]}"; do
     done
 
     # Merge knowledge
-    for cat in languages guard-rules protocols; do
+    for cat in languages protocols; do
         for d in "$DIST"/*-secguardian/; do
             [ -d "$d/knowledge/$cat" ] && find "$d/knowledge/$cat" -name '*.md' -exec cp {} "$staging/knowledge/$cat/" \;
         done
@@ -191,12 +203,9 @@ for entry in "${TARGETS[@]}"; do
     [ -f "$PROJECT_ROOT/knowledge/threat-catalog.md" ] && cp "$PROJECT_ROOT/knowledge/threat-catalog.md" "$staging/knowledge/"
     [ -f "$PROJECT_ROOT/SECURITY.md" ] && cp "$PROJECT_ROOT/SECURITY.md" "$staging/knowledge/"
     [ -d "$PROJECT_ROOT/knowledge/standards" ] && find "$PROJECT_ROOT/knowledge/standards" -name '*.md' -exec cp {} "$staging/knowledge/standards/" \; 2>/dev/null || true
-    cp -r "$PROJECT_ROOT/knowledge/audit-rules" "$staging/knowledge/" 2>/dev/null || true
-    cp -r "$PROJECT_ROOT/knowledge/review-rules" "$staging/knowledge/" 2>/dev/null || true
-    cp "$PROJECT_ROOT/knowledge/language-index.md" "$staging/knowledge/" 2>/dev/null || true
 
     # Scripts + wrappers
-    for wrapper in secguardian-index secguardian-index.ps1 render-report.py validate-index.py validate-findings.py record-finding.py; do
+    for wrapper in init-scan.sh secguardian-index secguardian-index.ps1 render-report.py validate-index.py validate-findings.py record-finding.py strip-answer-cards.py; do
         if [ -f "$PROJECT_ROOT/scripts/$wrapper" ]; then
             cp "$PROJECT_ROOT/scripts/$wrapper" "$staging/scripts/$wrapper"
             chmod +x "$staging/scripts/$wrapper" 2>/dev/null || true

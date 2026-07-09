@@ -152,6 +152,7 @@ install_claude() {
 
     # 清理不属于 Claude 的额外文件
     rm -f "$target/codeagent-extension.json" 2>/dev/null || true
+    rm -rf "$target/commands/opencode" 2>/dev/null || true
     rm -f "$target/gemini-extension.json" 2>/dev/null || true
     rm -f "$target/GEMINI.md" 2>/dev/null || true
     rm -f "$target/plugins/secguardian.js" 2>/dev/null || true
@@ -184,6 +185,14 @@ install_opencode() {
 
     # 复制全部内容
     cp -r "$src/." "$target/"
+
+    # 替换 .md 命令为 OpenCode 版本（flat 目录为 Claude 版）
+    rm -f "$target/commands/"*.md
+    if [ -d "$target/commands/opencode" ]; then
+        cp "$target/commands/opencode/"*.md "$target/commands/"
+        rm -rf "$target/commands/opencode"
+    fi
+    rm -rf "$target/commands/secguardian" 2>/dev/null || true
 
     # 清理不属于 OpenCode 的额外文件
     rm -f "$target/.claude-plugin/plugin.json" 2>/dev/null || true
@@ -234,6 +243,8 @@ install_gemini() {
         [ -f "$f" ] && rm "$f"
     done
     rm -rf "$target/commands/secguardian" 2>/dev/null || true
+    rm -rf "$target/commands/claude" 2>/dev/null || true
+    rm -rf "$target/commands/opencode" 2>/dev/null || true
 
     # 写入正确 SECGUARDIAN_HOME
     echo 'export SECGUARDIAN_HOME=$HOME/.gemini/extensions/secguardian' > "$target/.secguardian-env"

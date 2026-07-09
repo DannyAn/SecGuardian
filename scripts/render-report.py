@@ -34,58 +34,10 @@ from collections import Counter, defaultdict
 
 # ── Constants ───────────────────────────────────
 
-def load_detector_index_from_files(detectors_dir=None):
-    """Build detector -> {index, cwe} mapping from knowledge/guard-rules/*.md files.
-
-    Dynamically reads detector files to avoid hardcoding the DETECTOR_RULE_INDEX.
-    Falls back to builtin DETECTOR_RULE_INDEX_FALLBACK if files are unavailable.
-    """
-    if detectors_dir is None:
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        detectors_dir = os.path.join(script_dir, "..", "knowledge", "guard-rules")
-
-    if not os.path.isdir(detectors_dir):
-        return None  # caller should use fallback
-
-    index = {}
-    detector_files = sorted(f for f in os.listdir(detectors_dir) if f.endswith('.md'))
-
-    for i, fname in enumerate(detector_files):
-        # Convert filename: memory-null-dereference.md -> memory.null-dereference
-        name = fname[:-3]
-        parts = name.split('-', 1)
-        detector_name = f"{parts[0]}.{parts[1]}" if len(parts) == 2 else name
-
-        # Parse CWE from file frontmatter
-        cwe_list = []
-        filepath = os.path.join(detectors_dir, fname)
-        try:
-            with open(filepath) as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith('cwe:') or line.startswith('CWE:'):
-                        cwe_list = [c.strip() for c in line.split(':', 1)[1].split(',')
-                                    if c.strip().startswith('CWE-')]
-                        break
-                    if line == '---' and cwe_list:
-                        break  # past frontmatter
-        except Exception:
-            pass
-
-        if not cwe_list:
-            cwe_list = ["CWE-000"]
-
-        index[detector_name] = {"index": i, "cwe": cwe_list}
-
-    return index if index else None
-
-# Try dynamic loading, fall back to builtin
-_DYNAMIC_INDEX = load_detector_index_from_files()
-
-if _DYNAMIC_INDEX:
-    DETECTOR_RULE_INDEX = _DYNAMIC_INDEX
-else:
-    DETECTOR_RULE_INDEX = {
+# Detector → CWE index (builtin, single source of truth).
+# Dynamic loading from files was removed — rules are now under skills/secguard/{lang}/rules/{name}/rule.md
+# and the builtin index below covers all 67 detectors comprehensively.
+DETECTOR_RULE_INDEX = {
     "system.command-injection":        {"index": 0,  "cwe": ["CWE-77", "CWE-94"]},
     "web.sql-injection":               {"index": 1,  "cwe": ["CWE-89"]},
     "crypto.hardcoded-secrets":        {"index": 2,  "cwe": ["CWE-798"]},
@@ -154,7 +106,62 @@ else:
     "system.secrets-detection":        {"index": 65, "cwe": ["CWE-798"]},
     "system.symlink-attack":           {"index": 66, "cwe": ["CWE-61"]},
     "system.toctou":                   {"index": 67, "cwe": ["CWE-367"]},
-}  # DETECTOR_RULE_INDEX_FALLBACK — used only when detector files unavailable
+}  # DETECTOR_RULE_INDEX — all 67 detectors, used for SARIF ruleIndex + CWE lookup
+
+# ── CWE → OWASP ASVS mapping (report appendix) ──────
+# 完整映射见 knowledge/standards/cwe-mapping.md。此处只保留 render-report.py 输出所需子集。
+# 由 generate_report_md() 的 §5 Appendix 调用，基于 findings 的 CWE 字段反查合规标准。
+CWE_TO_ASVS = {
+    "CWE-20": "V5 (Input Validation)", "CWE-22": "V5 (Input Validation)",
+    "CWE-61": "V12 (Infrastructure)", "CWE-77": "V5 (Input Validation)",
+    "CWE-78": "V5 (Input Validation)", "CWE-79": "V5 (Output Encoding)",
+    "CWE-89": "V5 (Input Validation)", "CWE-94": "V5 (Input Validation)",
+    "CWE-117": "V7 (Logging)", "CWE-122": "V12 (Infrastructure)",
+    "CWE-125": "V12 (Infrastructure)", "CWE-134": "V12 (Infrastructure)",
+    "CWE-190": "V12 (Infrastructure)", "CWE-193": "V12 (Infrastructure)",
+    "CWE-200": "V8 (Data Protection)", "CWE-209": "V7 (Error Handling)",
+    "CWE-248": "V7 (Error Handling)", "CWE-269": "V4 (Access Control)",
+    "CWE-276": "V4 (Access Control)", "CWE-287": "V2 (Authentication)",
+    "CWE-306": "V2 (Authentication)", "CWE-311": "V8 (Data Protection)",
+    "CWE-312": "V8 (Data Protection)", "CWE-319": "V9 (Communication)",
+    "CWE-326": "V8 (Data Protection)", "CWE-327": "V8 (Data Protection)",
+    "CWE-329": "V8 (Data Protection)", "CWE-338": "V8 (Data Protection)",
+    "CWE-347": "V3 (Session Management)", "CWE-352": "V3 (Session Management)",
+    "CWE-362": "V4 (Access Control)", "CWE-366": "V12 (Infrastructure)",
+    "CWE-367": "V4 (Access Control)", "CWE-377": "V12 (Infrastructure)",
+    "CWE-391": "V7 (Error Handling)", "CWE-400": "V4 (Rate Limiting)",
+    "CWE-401": "V12 (Infrastructure)", "CWE-404": "V12 (Infrastructure)",
+    "CWE-415": "V12 (Infrastructure)", "CWE-416": "V12 (Infrastructure)",
+    "CWE-434": "V5 (File Upload)", "CWE-457": "V12 (Infrastructure)",
+    "CWE-476": "V12 (Infrastructure)", "CWE-479": "V12 (Infrastructure)",
+    "CWE-489": "V7 (Error Handling)", "CWE-502": "V5 (Input Validation)",
+    "CWE-522": "V2 (Authentication)", "CWE-523": "V2 (Authentication)",
+    "CWE-525": "V8 (Data Protection)", "CWE-532": "V7 (Logging)",
+    "CWE-544": "V7 (Error Handling)", "CWE-601": "V5 (Input Validation)",
+    "CWE-611": "V5 (Input Validation)", "CWE-639": "V4 (Access Control)",
+    "CWE-667": "V12 (Infrastructure)", "CWE-675": "V12 (Infrastructure)",
+    "CWE-704": "V12 (Infrastructure)", "CWE-762": "V12 (Infrastructure)",
+    "CWE-798": "V2 (Authentication)", "CWE-833": "V12 (Infrastructure)",
+    "CWE-862": "V4 (Access Control)", "CWE-863": "V4 (Access Control)",
+    "CWE-915": "V4 (Access Control)", "CWE-916": "V2 (Authentication)",
+    "CWE-918": "V5 (Input Validation)", "CWE-943": "V5 (Input Validation)",
+    "CWE-1104": "V14 (Dependency)", "CWE-1321": "V5 (Input Validation)",
+    "CWE-1336": "V5 (Input Validation)",
+}
+
+CWE_TO_CERT = {
+    "CWE-61": "FIO15-C", "CWE-79": "MSC03-J", "CWE-89": "IDS00-J",
+    "CWE-120": "ARR30-C, STR31-C", "CWE-122": "MEM35-C", "CWE-125": "ARR30-C",
+    "CWE-134": "FIO30-C", "CWE-190": "INT30-C, INT32-C", "CWE-193": "ARR30-C",
+    "CWE-327": "MSC61-J", "CWE-338": "MSC63-J", "CWE-362": "CON33-C",
+    "CWE-366": "CON43-C", "CWE-367": "FIO01-C", "CWE-377": "FIO21-C",
+    "CWE-401": "MEM31-C, MEM51-CPP", "CWE-404": "FIO22-C", "CWE-415": "MEM30-C, MEM31-C",
+    "CWE-416": "MEM30-C", "CWE-457": "EXP33-C", "CWE-476": "EXP34-C",
+    "CWE-479": "SIG30-C", "CWE-502": "SER01-J", "CWE-667": "CON35-C",
+    "CWE-675": "FIO46-C", "CWE-704": "EXP05-C", "CWE-762": "MEM51-CPP",
+    "CWE-833": "CON35-C", "CWE-911": "MEM30-CPP",
+}
+
 
 # ── Helpers ─────────────────────────────────────
 
@@ -527,6 +534,28 @@ def generate_report_md(findings_data):
     if detectors.get("namespaces_used"):
         lines.append(f"- Namespaces: {', '.join(detectors['namespaces_used'])}")
     lines.append("")
+
+    # §5.1 Compliance Standard Mapping (CWE → OWASP ASVS / SEI CERT)
+    mapped = {}
+    for f in findings:
+        cwe = f.get("cwe", "")
+        if cwe in CWE_TO_ASVS or cwe in CWE_TO_CERT:
+            mapped.setdefault(cwe, {"asvs": set(), "cert": set()})
+            if cwe in CWE_TO_ASVS:
+                mapped[cwe]["asvs"].add(CWE_TO_ASVS[cwe])
+            if cwe in CWE_TO_CERT:
+                mapped[cwe]["cert"].add(CWE_TO_CERT[cwe])
+
+    if mapped:
+        lines.append("### Compliance Standard Mapping\n")
+        lines.append("| CWE | OWASP ASVS | SEI CERT |")
+        lines.append("|-----|-----------|----------|")
+        for cwe in sorted(mapped):
+            asvs = ", ".join(sorted(mapped[cwe]["asvs"])) if mapped[cwe]["asvs"] else "—"
+            cert = ", ".join(sorted(mapped[cwe]["cert"])) if mapped[cwe]["cert"] else "—"
+            lines.append(f"| [{cwe}](https://cwe.mitre.org/data/definitions/{cwe.replace('CWE-','')}.html) | {asvs} | {cert} |")
+        lines.append("")
+        lines.append("> 完整映射表见 `knowledge/standards/cwe-mapping.md`\n")
 
     commit = findings_data.get("git_commit", "unknown")
     lines.append(f"\n*Report generated by SecGuardian Renderer v1.0 | Scan ID: {findings_data['scan_id']} | Commit: {commit}*\n")

@@ -182,7 +182,6 @@ deploy_claude() {
            "$plugin_dir"
 
     mkdir -p "$plugin_dir/.claude-plugin" "$plugin_dir/commands" "$plugin_dir/skills" \
-             "$plugin_dir/knowledge/languages" "$plugin_dir/knowledge/guard-rules" \
              "$plugin_dir/knowledge/protocols" "$plugin_dir/knowledge/standards" \
              "$plugin_dir/scripts/bin"
 
@@ -201,9 +200,9 @@ JSON
 
     local total_skills=0 total_cmds=0
     for d in "$DIST"/*/; do
-        # Commands
-        if [ -d "$d/commands" ]; then
-            for f in "$d/commands"/*.md; do
+        # Commands — Claude Code platform
+        if [ -d "$d/commands/claude" ]; then
+            for f in "$d/commands/claude"/*.md; do
                 [ -f "$f" ] && cp "$f" "$plugin_dir/commands/" && total_cmds=$((total_cmds + 1))
             done
         fi
@@ -214,7 +213,7 @@ JSON
             done
         fi
         # Knowledge: merge across all extensions
-        for cat in languages guard-rules protocols; do
+        for cat in languages protocols; do
             if [ -d "$d/knowledge/$cat" ]; then
                 find "$d/knowledge/$cat" -name '*.md' -exec cp {} "$plugin_dir/knowledge/$cat/" \;
             fi
@@ -236,18 +235,21 @@ JSON
     [ -f "$PROJECT_ROOT/knowledge/threat-catalog.md" ] && cp "$PROJECT_ROOT/knowledge/threat-catalog.md" "$plugin_dir/knowledge/"
     [ -f "$PROJECT_ROOT/SECURITY.md" ] && cp "$PROJECT_ROOT/SECURITY.md" "$plugin_dir/knowledge/"
     [ -d "$PROJECT_ROOT/knowledge/standards" ] && cp -r "$PROJECT_ROOT/knowledge/standards/"* "$plugin_dir/knowledge/standards/" 2>/dev/null || true
-    cp -r "$PROJECT_ROOT/knowledge/audit-rules" "$plugin_dir/knowledge/"
-    cp -r "$PROJECT_ROOT/knowledge/review-rules" "$plugin_dir/knowledge/"
-    cp "$PROJECT_ROOT/knowledge/language-index.md" "$plugin_dir/knowledge/"
 
     # Copy wrapper scripts, renderer, and binaries into plugin
-    for wrapper in secguardian-index secguardian-index.ps1 render-report.py validate-index.py validate-findings.py record-finding.py strip-answer-cards.py; do
+    for wrapper in init-scan.sh secguardian-index secguardian-index.ps1 render-report.py validate-index.py validate-findings.py record-finding.py strip-answer-cards.py; do
         if [ -f "$PROJECT_ROOT/scripts/$wrapper" ]; then
             cp "$PROJECT_ROOT/scripts/$wrapper" "$plugin_dir/scripts/$wrapper"
             chmod +x "$plugin_dir/scripts/$wrapper" 2>/dev/null || true
         fi
     done
     deploy_indexer_binary "$plugin_dir/scripts/bin"
+
+    # ── Create skills/*/scripts/ symlinks ──────
+    for sd in "$plugin_dir/skills"/*/; do
+        [ -d "$sd" ] && ln -sfn ../../scripts "$sd/scripts"
+    done
+    log_info "skill scripts symlinks: ${total_skills} created"
 
     # ── Write .secguardian-env ──────────────────
     echo 'export SECGUARDIAN_HOME=$HOME/.claude/plugins/secguardian' > "$plugin_dir/.secguardian-env"
@@ -557,7 +559,7 @@ deploy_opencode() {
     done
 
     mkdir -p "$ext_dir/commands" "$skills_dir" "$scripts_dir/bin" \
-             "$knowledge_dir/languages" "$knowledge_dir/guard-rules" \
+             "$knowledge_dir/languages" \
              "$knowledge_dir/protocols" "$knowledge_dir/standards" \
              "$opencode_dir/plugins" "$opencode_dir/commands"
 
@@ -576,11 +578,11 @@ JSON
         log_done "opencode plugin: plugins/secguardian.js"
     fi
 
-    # ── Deploy command templates ─────────────────
+    # ── Deploy command templates — OpenCode platform ────
     local cmd_n=0 skill_n=0
     for d in "$DIST"/*/; do
-        if [ -d "$d/commands" ]; then
-            for f in "$d/commands"/*.md; do
+        if [ -d "$d/commands/opencode" ]; then
+            for f in "$d/commands/opencode"/*.md; do
                 [ -f "$f" ] && cp "$f" "$ext_dir/commands/" && \
                 cp "$f" "$opencode_dir/commands/" && cmd_n=$((cmd_n + 1))
             done
@@ -597,7 +599,7 @@ JSON
     done
 
     # ── Deploy knowledge ─────────────────────────
-    for cat in languages guard-rules protocols; do
+    for cat in languages protocols; do
         for d in "$DIST"/*/; do
             if [ -d "$d/knowledge/$cat" ]; then
                 find "$d/knowledge/$cat" -name '*.md' -exec cp {} "$knowledge_dir/$cat/" \;
@@ -607,20 +609,24 @@ JSON
     [ -f "$PROJECT_ROOT/knowledge/threat-catalog.md" ] && cp "$PROJECT_ROOT/knowledge/threat-catalog.md" "$knowledge_dir/"
     [ -f "$PROJECT_ROOT/SECURITY.md" ] && cp "$PROJECT_ROOT/SECURITY.md" "$knowledge_dir/"
     [ -d "$PROJECT_ROOT/knowledge/standards" ] && cp -r "$PROJECT_ROOT/knowledge/standards/"* "$knowledge_dir/standards/" 2>/dev/null || true
-    cp -r "$PROJECT_ROOT/knowledge/audit-rules" "$knowledge_dir/"
-    cp -r "$PROJECT_ROOT/knowledge/review-rules" "$knowledge_dir/"
-    cp "$PROJECT_ROOT/knowledge/language-index.md" "$knowledge_dir/"
 
     log_done "$cmd_n commands, $skill_n skills, knowledge/ + scripts/"
 
     # ── Deploy scripts + indexer ─────────────────
-    for wrapper in secguardian-index secguardian-index.ps1 render-report.py validate-index.py validate-findings.py record-finding.py strip-answer-cards.py; do
+    for wrapper in init-scan.sh secguardian-index secguardian-index.ps1 render-report.py validate-index.py validate-findings.py record-finding.py strip-answer-cards.py; do
         if [ -f "$PROJECT_ROOT/scripts/$wrapper" ]; then
             cp "$PROJECT_ROOT/scripts/$wrapper" "$scripts_dir/$wrapper"
             chmod +x "$scripts_dir/$wrapper" 2>/dev/null || true
         fi
     done
     deploy_indexer_binary "$scripts_dir/bin"
+
+    # ── Create skills/*/scripts/ symlinks ──────
+    # Each skill gets scripts/ → ../../scripts, so path references stay skill-relative.
+    for sd in "$skills_dir"/*/; do
+        [ -d "$sd" ] && ln -sfn ../../scripts "$sd/scripts"
+    done
+    log_info "skill scripts symlinks: ${skill_n} created"
 
     # ── Write .secguardian-env ──────────────────
     echo 'export SECGUARDIAN_HOME=$HOME/.config/opencode/extensions/secguardian' > "$ext_dir/.secguardian-env"
@@ -651,7 +657,6 @@ deploy_gemini() {
            "$ext_dir"
 
     mkdir -p "$ext_dir/commands" "$ext_dir/skills" \
-             "$ext_dir/knowledge/languages" "$ext_dir/knowledge/guard-rules" \
              "$ext_dir/knowledge/protocols" "$ext_dir/knowledge/standards" \
              "$ext_dir/scripts/bin"
 
@@ -675,7 +680,7 @@ JSON
                 [ -d "$sd" ] && cp -r "$sd" "$ext_dir/skills/$(basename "$d" | sed 's/-secguardian//')-$(basename "$sd")" && skill_n=$((skill_n + 1))
             done
         fi
-        for cat in languages guard-rules protocols; do
+        for cat in languages protocols; do
             if [ -d "$d/knowledge/$cat" ]; then
                 find "$d/knowledge/$cat" -name '*.md' -exec cp {} "$ext_dir/knowledge/$cat/" \;
             fi
@@ -686,9 +691,6 @@ JSON
     [ -f "$PROJECT_ROOT/knowledge/threat-catalog.md" ] && cp "$PROJECT_ROOT/knowledge/threat-catalog.md" "$ext_dir/knowledge/"
     [ -f "$PROJECT_ROOT/SECURITY.md" ] && cp "$PROJECT_ROOT/SECURITY.md" "$ext_dir/knowledge/"
     [ -d "$PROJECT_ROOT/knowledge/standards" ] && cp -r "$PROJECT_ROOT/knowledge/standards/"* "$ext_dir/knowledge/standards/" 2>/dev/null || true
-    cp -r "$PROJECT_ROOT/knowledge/audit-rules" "$ext_dir/knowledge/"
-    cp -r "$PROJECT_ROOT/knowledge/review-rules" "$ext_dir/knowledge/"
-    cp "$PROJECT_ROOT/knowledge/language-index.md" "$ext_dir/knowledge/"
 
     # Generate TOML commands
     log_info "生成 Gemini TOML 命令..."
@@ -703,11 +705,17 @@ JSON
     fi
 
     # Wrapper scripts and binaries
-    for wrapper in secguardian-index secguardian-index.ps1 render-report.py validate-index.py validate-findings.py record-finding.py strip-answer-cards.py; do
+    for wrapper in init-scan.sh secguardian-index secguardian-index.ps1 render-report.py validate-index.py validate-findings.py record-finding.py strip-answer-cards.py; do
         [ -f "$PROJECT_ROOT/scripts/$wrapper" ] && cp "$PROJECT_ROOT/scripts/$wrapper" "$ext_dir/scripts/"
     done
     chmod +x "$ext_dir/scripts/"* 2>/dev/null || true
     deploy_indexer_binary "$ext_dir/scripts/bin"
+
+    # ── Create skills/*/scripts/ symlinks ──────
+    for sd in "$ext_dir/skills"/*/; do
+        [ -d "$sd" ] && ln -sfn ../../scripts "$sd/scripts"
+    done
+    log_info "skill scripts symlinks: ${skill_n} created"
 
     # ── Write .secguardian-env ──────────────────
     echo 'export SECGUARDIAN_HOME=$HOME/.gemini/extensions/secguardian' > "$ext_dir/.secguardian-env"

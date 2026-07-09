@@ -9,11 +9,9 @@
 #
 # 输出: dist/<extension-name>/
 #   ├── extension.json
-#   ├── commands/<cmd>.md
-#   ├── skills/<skill-name>/SKILL.md
-#   ├── knowledge/languages/
-#   ├── knowledge/guard-rules/
-
+#   ├── commands/claude/<cmd>.md
+#   ├── commands/opencode/<cmd>.md
+#   ├── skills/<skill-name>/rules.md
 #   ├── knowledge/protocols/
 #   ├── knowledge/standards/
 #   └── scripts/
@@ -29,9 +27,8 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-python3 "$PROJECT_ROOT/scripts/sync-language-index.sh"
-echo ">>> Generating Gemini .toml files..."
-python3 "$PROJECT_ROOT/scripts/sync-toml.sh"
+echo ">>> Generating Gemini .toml files from commands/claude/..."
+bash "$PROJECT_ROOT/scripts/gen-toml.sh"
 
 # ── Help ──────────────────────────────────────
 if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] || [ "${1:-}" = "help" ]; then
@@ -46,7 +43,7 @@ SecGuardian — Extension 打包脚本
 
 构建流程:
   1. 读取 extension.json 中的 skills/languages/detectors/protocols/standards 清单
-  2. 从 skills/ 目录复制 SKILL.md + references/
+  2. 从 skills/ 目录复制 rules.md + references/
   3. 从 knowledge/ 目录复制对应的安全知识文件
   4. 从 commands/ 目录复制 slash command 定义
   5. 跨平台编译 secguardian-index 二进制，放入 scripts/bin/
@@ -75,7 +72,7 @@ find "$BUILD_BIN_DIR" -name 'secguardian-index' ! -name 'secguardian-index-*' -t
 # Build matrix: (target, os, arch, cgo_flag)
 BUILD_TARGETS=(
     "darwin-arm64:darwin:arm64:CGO_ENABLED=1"
-    "darwin-amd64:darwin:amd64:CGO_ENABLED=0"
+    "darwin-amd64:darwin:amd64:CGO_ENABLED=1"
     "linux-amd64:linux:amd64:CGO_ENABLED=0"
     "linux-arm64:linux:arm64:CGO_ENABLED=0"
     "windows-amd64.exe:windows:amd64:CGO_ENABLED=0"
@@ -96,8 +93,10 @@ elif [ -f "$PROJECT_ROOT/internal/go.mod" ] && command -v go &>/dev/null; then
         desc="${target_suffix%.exe}"
         tag="${cgo_flag#*=}"
         mode="$([ "$tag" = "1" ] && echo "tree-sitter" || echo "regex")"
+        tags=""
+        if [ "$tag" = "1" ]; then tags="-tags cgo"; fi
         (cd "$PROJECT_ROOT/internal" && \
-            env ${cgo_flag} GOOS=$os GOARCH=$arch go build -o "$BUILD_TMP/secguardian-index-${target_suffix}" . && \
+            env ${cgo_flag} GOOS=$os GOARCH=$arch go build $tags -o "$BUILD_TMP/secguardian-index-${target_suffix}" . && \
             echo "    [OK] ${desc} (${mode})" || \
             { rc=$?; echo "    [FAIL] ${desc} (${mode}) — see errors above"; exit $rc; }) &
     done
@@ -123,7 +122,7 @@ elif [ -f "$PROJECT_ROOT/internal/go.mod" ] && command -v go &>/dev/null; then
     fi
     echo "  → All ${BUILD_OK} platforms compiled. Binaries in: $BUILD_BIN_DIR/"
     ls -lh "$BUILD_BIN_DIR/" 2>/dev/null | grep -v "^total" | awk '{print "    " $NF " (" $5 ")"}' || true
-    echo "  → Note: tree-sitter (CGO) on native platform, pure-Go regex fallback on cross-compiled platforms."
+    echo "  → Note: tree-sitter (CGO) on macOS (native), pure-Go regex fallback on cross-compiled (linux/windows)."
 else
     echo "    [SKIP] Go not available — indexer binaries not built"
 fi
@@ -145,10 +144,6 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
     dist_dir="$DIST/$ext"
     rm -rf "$dist_dir"
     mkdir -p "$dist_dir/commands" "$dist_dir/skills" \
-             "$dist_dir/knowledge/languages" \
-             "$dist_dir/knowledge/guard-rules" \
-             "$dist_dir/knowledge/audit-rules" \
-             "$dist_dir/knowledge/review-rules" \
              "$dist_dir/knowledge/protocols" \
              "$dist_dir/knowledge/standards" \
              "$dist_dir/scripts/bin"
@@ -169,20 +164,30 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
     # Determine command name(s) — supports both "command" (string) and "commands" (array)
     cmds=$(jq -r 'if .commands then .commands[] else .command end' "$ext_json")
     cmd_count=0
+    # Create platform subdirectories for commands
+    for plat_dir in claude opencode; do
+        mkdir -p "$dist_dir/commands/$plat_dir"
+    done
     for cmd in $cmds; do
-        cmd_src="$PROJECT_ROOT/commands/${cmd}.md"
-        if [ -f "$cmd_src" ]; then
-            cp "$cmd_src" "$dist_dir/commands/"
-            echo "    command: /$cmd"
+        cmd_found=0
+        for plat_dir in claude opencode; do
+            plat_src="$PROJECT_ROOT/commands/${plat_dir}/${cmd}.md"
+            if [ -f "$plat_src" ]; then
+                cp "$plat_src" "$dist_dir/commands/$plat_dir/"
+                cmd_found=$((cmd_found + 1))
+            fi
+        done
+        if [ "$cmd_found" -gt 0 ]; then
+            echo "    command: /$cmd (claude + opencode)"
             cmd_count=$((cmd_count + 1))
         else
-            echo "    [WARN] command file not found: ${cmd}.md"
+            echo "    [WARN] command file not found: ${cmd}.md (checked claude/ and opencode/)"
         fi
     done
     # Use first command as primary key for skill/knowledge resolution
     cmd=$(echo "$cmds" | head -1)
 
-    # Copy skill directories (each contains SKILL.md + optional references/)
+    # Copy skill directories (each contains rules.md + references/)
     skill_count=0
     for skill_name in $(jq -r '.skills // [] | .[]' "$ext_json"); do
         skill_dir="$PROJECT_ROOT/skills/${cmd}/${skill_name}"
@@ -193,10 +198,10 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
         elif [ -f "$flat_skill" ]; then
            mkdir -p "$dist_dir/skills/${skill_name}"
            cp "$flat_skill" "$dist_dir/skills/${skill_name}/"
-            # 复制 references/ 目录（如果存在，如 secaudit 的分析方法参考）
-            if [ -d "$PROJECT_ROOT/skills/${cmd}/references" ]; then
-                cp -r "$PROJECT_ROOT/skills/${cmd}/references" "$dist_dir/skills/${skill_name}/"
-            fi
+            # 复制全部子目录（references/、rules/ 等）
+            for _sdir in "$PROJECT_ROOT/skills/${cmd}"/*/; do
+                [ -d "$_sdir" ] && cp -r "$_sdir" "$dist_dir/skills/${skill_name}/"
+            done
             echo "    [FLAT] ${cmd}/${skill_name}/SKILL.md (flat → dir)"
             skill_count=$((skill_count + 1))
         else
@@ -227,49 +232,10 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
     fi
     echo "    standards: $std_count"
 
-    lang_count=0
-    for lang in $(jq -r '.knowledge.languages // [] | .[]' "$ext_json"); do
-        lf="$PROJECT_ROOT/knowledge/languages/${lang}.md"
-        if [ -f "$lf" ]; then
-            cp "$lf" "$dist_dir/knowledge/languages/"
-            lang_count=$((lang_count + 1))
-        fi
-    done
-    echo "    languages: $lang_count"
-
-    # Copy detectors declared in extension.json (optional field)
+    # detectors: retired — all content in rules/*/rule.md
     detector_count=0
-    if jq -e '.knowledge.detectors' "$ext_json" > /dev/null 2>&1; then
-        for detector in $(jq -r '.knowledge.detectors[]' "$ext_json"); do
-            df="$PROJECT_ROOT/knowledge/guard-rules/${detector}.md"
 
-            if [ -f "$df" ]; then
-                cp "$df" "$dist_dir/knowledge/guard-rules/"
-
-                detector_count=$((detector_count + 1))
-            fi
-        done
-    fi
-    echo "    detectors: $detector_count"
-
-    # Copy audit-rules (all files for secaudit-* extensions)
-    mkdir -p "$dist_dir/knowledge/audit-rules"
-    for ar in "$PROJECT_ROOT/knowledge/audit-rules/"*.md; do
-        [ -f "$ar" ] && cp "$ar" "$dist_dir/knowledge/audit-rules/" 2>/dev/null || true
-    done
-
-    # Copy review-rules (all files for secreview-* extensions)
-    mkdir -p "$dist_dir/knowledge/review-rules"
-    for rr in "$PROJECT_ROOT/knowledge/review-rules/"*.md; do
-        [ -f "$rr" ] && cp "$rr" "$dist_dir/knowledge/review-rules/" 2>/dev/null || true
-    done
-
-    # Copy language-index.md
-    if [ -f "$PROJECT_ROOT/knowledge/language-index.md" ]; then
-        cp "$PROJECT_ROOT/knowledge/language-index.md" "$dist_dir/knowledge/" 2>/dev/null || true
-    fi
-
-    # Copy protocols declared in extension.json (optional field)
+# Copy protocols declared in extension.json (optional field)
     protocol_count=0
     if jq -e '.knowledge.protocols' "$ext_json" > /dev/null 2>&1; then
         for protocol in $(jq -r '.knowledge.protocols[]' "$ext_json"); do
@@ -296,9 +262,13 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
     fi
 
     # Copy shared utility scripts
+    cp "$PROJECT_ROOT/scripts/init-scan.sh" "$dist_dir/scripts/init-scan.sh"
+    chmod +x "$dist_dir/scripts/init-scan.sh"
     cp "$PROJECT_ROOT/scripts/record-finding.py" "$dist_dir/scripts/record-finding.py"
     cp "$PROJECT_ROOT/scripts/validate-index.py" "$dist_dir/scripts/validate-index.py"
     cp "$PROJECT_ROOT/scripts/validate-findings.py" "$dist_dir/scripts/validate-findings.py"
+    cp "$PROJECT_ROOT/scripts/render-report.py" "$dist_dir/scripts/render-report.py"
+    cp "$PROJECT_ROOT/scripts/strip-answer-cards.py" "$dist_dir/scripts/strip-answer-cards.py"
 
 
 
@@ -322,5 +292,14 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
 
     echo "    packaged: $dist_dir"
 done
+
+# ── Post-build: Cross-platform command verification ──
+echo ""
+echo "==> Verifying cross-platform command files..."
+if [ -f "$PROJECT_ROOT/scripts/verify-commands.sh" ]; then
+    bash "$PROJECT_ROOT/scripts/verify-commands.sh"
+else
+    echo "  [WARN] scripts/verify-commands.sh not found — skipping verification"
+fi
 
 echo "==> Done. Output in $DIST/"
