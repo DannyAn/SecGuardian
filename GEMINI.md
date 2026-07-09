@@ -21,6 +21,7 @@
 /secguard ./src *            # 全量扫描，自动检测语言
 /secaudit ./src python       # 全量安全审计（13 个审计域）
 /secreview ./src java        # 安全编码规范检视
+/secfix ./src cpp           # 修复建议生成 (输出 patch files)
 ```
 
 首次使用需执行 `/skills reload` 让 Gemini CLI 扫描 skills 目录。
@@ -45,5 +46,8 @@
 | 源码 | 部署后 (Gemini CLI) |
 |------|-------------------|
 | `skills/secguard/cpp/SKILL.md` | `.gemini/extensions/secguardian/skills/` |
-| `knowledge/guard-rules/*.md` | `.gemini/extensions/secguardian/knowledge/guard-rules/` |
-| `knowledge/protocols/scan-output.md` | `.gemini/extensions/secguardian/knowledge/protocols/` |
+| `skills/secguard/{lang}/rules/{detector}/rule.md` | `.gemini/extensions/secguardian/skills/` |
+| `skills/secaudit/rules/*.md` | `.gemini/extensions/secguardian/skills/secaudit/rules/` |
+| `skills/secreview/{lang}/rules/{lang}.md` | `.gemini/extensions/secguardian/skills/secreview/rules/` |
+| `knowledge/protocols/*.md` | `.gemini/extensions/secguardian/knowledge/protocols/` |
+| `knowledge/standards/*.md` | `.gemini/extensions/secguardian/knowledge/standards/` |

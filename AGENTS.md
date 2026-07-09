@@ -9,45 +9,83 @@
 ## 项目解剖
 
 ```
-secguardian/                # v0.6.0, Go 1.25.3, parser + indexer 有 go test 覆盖
+secguardian/                # v0.19.0, Go 1.25.3, parser + indexer 有 go test 覆盖
 │
 ├── internal/               # ★ 唯一原生代码: Go 索引器 → 产出 secguardian-index 二进制
 │   ├── parser/             #   双解析器: parser_ts.go(cgo) + parser_re.go(!cgo), 编译期二选一
-│   ├── indexer/            #   符号表/调用图/alloc-free配对/锁图 构建
+│   ├── indexer/            #   符号表/调用图/alloc-free配对/锁图 + prescreener
 │   ├── context/            #   共享数据模型 AnalysisContext
 │   └── main.go             #   入口: --path, --output, --health, --version
 │
-├── commands/               # 3 个 slash command 定义: secguard.md, secaudit.md, secreview.md
+├── commands/               # 4 个 slash command × 3 平台
+│   ├── opencode/           #   OpenCode 平台: secguard/secaudit/secreview/secfix
+│   ├── claude/             #   Claude Code 平台: 同上
+│   └── gemini/             #   Gemini CLI 平台: 同上 (TOML 格式)
 │
-├── skills/                 # AI Agent 的扫描说明书 (Markdown, 由 agent 在扫描时加载)
-│   ├── secguard/            #   /secguard 命令 → cpp/go/java/python/js 各有 SKILL.md
-│   ├── secaudit/            #   /secaudit 命令 → 17 个审计 skill
-│   └── secreview/           #   /secreview 命令 → 5 语言检视
+├── skills/                 # AI Agent 的扫描说明书 (Markdown)
+│   ├── secguard/           #   60 个 API 级检测器 (cpp 15 / java 10 / python 11 / go 10 / js 13)
+│   │   ├── cpp/            #     15 rules: buffer_overflow, null_dereference, ...
+│   │   ├── java/           #     10 rules: command_injection, deserialization, ...
+│   │   ├── python/         #     11 rules: code_injection, sql_injection, ...
+│   │   ├── go/             #     10 rules: command_injection, cgo_memory, ...
+│   │   ├── js/             #     13 rules: prototype_pollution, ssrf, ...
+│   │   └── *各语言含 SKILL.md + references/ + rules/{detector}/rule.md
+│   ├── secaudit/           #   13 个审计域规则 (OWASP ASVS 映射)
+│   │   ├── SKILL.md
+│   │   └── rules/          #     input-validation.md, cryptography.md, ...
+│   └── secreview/          #   5 语言 code review 规则
+│       ├── cpp/, java/, python/, go/, js/
+│       └── *各语言含 SKILL.md + rules/{lang}.md + references/
 │
 ├── knowledge/              # 可复用知识库 (全部 Markdown)
-│   ├── detectors/          #   60 个检测规则 (自包含: 定义→检测→修复→白名单)
-│   ├── languages/          #   5 语言画像 (cpp/go/java/python/js)
-│   ├── protocols/          #   输出协议 v5.0: report.md + results.sarif + summary.json + manifest.json + status.json + delta.json
+│   ├── protocols/          #   扫描输出协议 (scan-output.md, sarif-output.md, verification-protocol.md)
 │   ├── standards/          #   SEI CERT C/C++/Java + OWASP Cheat Sheet 映射
 │   └── threat-catalog.md   #   威胁目录索引
 │
-├── examples/               # 故意含漏洞的测试代码 (cpp-vuln-demo, python-vuln-demo, java-vuln-demo)
+├── examples/               # 故意含漏洞的测试代码
+│   ├── cpp-vuln-demo/      #   生产规模 C/C++ 含漏洞示例
+│   ├── java-vuln-demo/     #   Java/Spring 漏洞示例
+│   ├── python-vuln-demo/   #   Python Web 漏洞示例
+│   ├── go-vuln-demo/       #   Go 漏洞示例
+│   ├── js-vuln-demo/       #   JS/Node 漏洞示例
+│   └── *no-answers 变体: 剥离了答案标注的干净版本
 │
 ├── scripts/                # 构建/部署/验证 脚本
 │   ├── deploy.sh all        #   ★ 日常唯一入口
 │   ├── dev-verify.sh       #   25 项部署健康检查
+│   ├── self-check.sh       #   L1 设计一致性验证
+│   ├── e2e-verify.sh       #   L4/L5 端到端验证
 │   ├── package.sh          #   跨平台编译 + 组装 extension 包 → dist/
 │   ├── deploy.sh           #   部署 dist/ → 三平台插件目录
-│   ├── secguardian-index   #   索引器 shell wrapper (查找 bin/ 下匹配平台的二进制)
+│   ├── secguardian-index   #   索引器 shell wrapper
+│   ├── init-scan.sh        #   扫描初始化 (自动发现 + 健康检查 + 建目录)
+│   ├── record-finding.py   #   finding 录制器
+│   ├── render-report.py    #   报告渲染器
+│   ├── validate-index.py   #   索引验证器
+│   ├── validate-findings.py #   finding 校验器
 │   └── bin/                #   5 平台预编译二进制
 │
-├── extensions/             # 每个产品的 extension.json 清单 (skills/languages/detectors 声明)
+├── docs/                   # 架构文档 + SDD 决策记录
+│   ├── sdd/                 #   Spec-Driven Development 完整体系
+│   │   ├── README.md        #   方法论总纲
+│   │   ├── brainstorm-log.md#   Brainstorm 决策日志
+│   │   └── epics/           #   Epic 到 Task 的完整闭环
+│   ├── LLM-Investigation-Architecture-Guide.md  # 本回合架构指导
+│   └── ...                  # 其他架构/设计文档
+│
+├── extensions/             # 每个产品的 extension.json 清单
 ├── dist/                   # 构建输出 → 被 deploy.sh 部署
 ├── manifest.json           # 项目注册表: 版本/产品/技能/检测器/覆盖率
-├── CLAUDE.md               # 薄引用层（平台特有注册/命名空间。共享内容见本文件）
-├── GEMINI.md               # 薄引用层（平台特有命令用法。共享内容见本文件）
+├── AGENTS.md               # ★ 规范来源 (本文件)
+├── CLAUDE.md               # 薄引用层 (平台特有注册/命名空间)
+├── GEMINI.md               # 薄引用层 (平台特有命令用法)
 └── .codeagent/             # 扫描输出归档: secguard/scans/<scan-id>/
 ```
+
+> **核心认知**: 这不是传统 SAST。只有 Go 索引器是编译代码，其余全部是 Markdown 知识文件，由 AI Agent 在扫描时动态加载。
+> - **检测器**不在 `knowledge/`，在 `skills/secguard/{lang}/rules/{detector}/rule.md`
+> - **语言画像**不在 `knowledge/`，在 `skills/secguard/{lang}/references/language-features.md`
+> - 修改任何 `.md` → `deploy.sh all` → AI 重启即可生效。
 
 > **核心认知**: 这不是传统 SAST。只有 Go 索引器是编译代码，其余全部是 Markdown 知识文件，由 AI Agent 在扫描时动态加载。修改任何 `.md` → `deploy.sh all` → AI 重启即可生效。
 

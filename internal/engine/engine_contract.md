@@ -95,7 +95,7 @@ secguardian-index → index.json (deterministic signals)
 AI Agent loads:
   - index.json (signals for anchoring + pre-filtering)
   - skills/<command>/<lang>/SKILL.md (detector selection)
-  - knowledge/detectors/*.md (detector rule definitions)
+  - skills/secguard/{lang}/rules/{detector}/rule.md (detector rule definitions)
                            │
                            ▼
 LLM processes rules against signals (single pass)

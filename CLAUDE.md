@@ -69,12 +69,14 @@ commands/
 │   │   │   ├── secguard.md               # /secguard
 │   │   │   ├── secaudit.md               # /secaudit
 │   │   │   ├── secreview.md              # /secreview
+│   │   │   ├── secfix.md                # /secfix
 │   │   │   └── secguardian/              # 命名空间子目录
 │   │   │       ├── secguard.md           # /secguardian:secguard
 │   │   │       ├── secaudit.md           # /secguardian:secaudit
+│   │   │       ├── secfix.md            # /secguardian:secfix
 │   │   │       └── secreview.md          # /secguardian:secreview
-│   │   ├── skills/                       # 17 个安全审计 skills
-│   │   ├── knowledge/                    # 60 检测器 + 5 语言画像 + 协议
+│   │   ├── skills/                       # 60 secguard rules (5 lang) + 13 audit rules + 5 review rules
+│   │   ├── knowledge/                    # protocols + standards + threat-catalog
 │   │   └── scripts/                      # secguardian-index 二进制
 │   ├── cache/secguardian-local/          # 插件缓存（claude plugin install 创建）
 │   ├── marketplaces/secguardian-local/   # 本地 marketplace
