@@ -142,6 +142,14 @@ def main():
         sys.exit(4)
 
 
+    # ── Reject --from-file without a file path argument ──
+    if '--from-file' in sys.argv and not args.from_file:
+        print("FATAL: --from-file must be followed by a file path", file=sys.stderr)
+        print("  Correct: --from-file=\"\$SCAN_DIR/findings/finding-{id}.json\"", file=sys.stderr)
+        print("  Or:      --from-file \"\$SCAN_DIR/findings/finding-{id}.json\"", file=sys.stderr)
+        print("  Wrong:   --from-file (alone)  --from-file is an argument, not a flag.", file=sys.stderr)
+        sys.exit(2)
+
     # ── Reject placeholder scan_dir values ──
     # AI agents sometimes use SCAN_DIR_PLACEHOLDER as a literal instead of the real path.
     # This creates a SCAN_DIR_PLACEHOLDER directory in the project root — a user-facing bug.

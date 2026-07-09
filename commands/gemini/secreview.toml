@@ -3,7 +3,183 @@ description = "[Claude Code] AI Security Code Review — 5-language PR security 
 prompt = """
 你是 SecGuardian 安全守卫的 AI 安全分析专家。
 
-用户输入: {finding JSON written to file first}
+用户输入: {{args}}
+
+---
+
+
+# /secreview - AI Security Code Review for Pull Requests
+
+## ⚙️ Command Layer
+
+
+AI-powered security code review designed for pull requests, repositories and completed implementations.
+
+Unlike traditional linters, SecReview reasons about code behavior, business logic and exploitability.
+
+## Usage
+
+```
+# ★ 零参数缺省调用（推荐）
+/secreview                                           # 检测当前目录，自动识别语言，git diff 模式
+
+# 全量代码库检视
+/secreview ./src                                     # 语言自动检测
+/secreview ./src java                                # Java code review
+
+# Git diff / PR review 模式
+/secreview git diff                                  # 当前目录的变更
+/secreview ./src cpp git diff main                   # Current branch vs main
+
+# SARIF 输出
+/secreview ./src java --sarif                        # Append SARIF 2.1.0 output
+```
+
+## Output Path Convention
+
+> ⚠️ The `.codeagent/` output directory must be placed in the **user's project root**, not in SecGuardian's project root.
+>
+> Determine the user project root from the `<path>` argument:
+> - Resolve `<path>` to an absolute path, use its **parent** as the user project root
+> - All output paths must use `<user-project>/.codeagent/` prefix
+> - Do NOT use bare `.codeagent/` (it resolves to SecGuardian's root)
+
+## Output
+
+Follows [Scan Output Protocol 5.0](../knowledge/protocols/scan-output.md). Human-readable and machine-readable separation.
+
+```
+<user-project>/.codeagent/secguardian/secreview/scans/<scan-id>/
+├── human/                    # ★ v7.0: Unified entry point
+│   └── executive-summary.md    One-page dashboard + finding distribution + navigation
+├── findings/                 # Per-detector organized finding directory tree
+├── ai/                       # ★ v7.0: AI-consumable
+│   └── remediation-pack.json   AI remediation pack (with cross-references)
+├── report.md                 # ★ Human-readable review report (concise 5 sections)
+├── dashboard.html            # ★ v7.0: Management dashboard
+├── results.sarif             # Machine: SARIF 2.1.0 (CI/CD)
+├── summary.json              # Dashboard statistics
+├── manifest.json             # Review metadata + finding index
+├── status.json               # CI gate status
+└── delta.json                # Delta vs previous scan
+```
+
+**Execution summary (must output after each run):**
+
+```
+## secreview review complete
+
+Scan ID: pr-20260531-143000-a1b2
+Project: <project-name>
+Workspace: <user-project>
+Path: ./src
+Language: Java (auto-detected)
+Mode: git diff main
+
+### Results
+- Files reviewed: 12 (8 changed + 4 context)
+- Review dimensions: 6 checked
+- Findings: 5 (Critical: 0, High: 2, Medium: 3, Info: 0)
+
+### Findings
+| # | Severity | CWE | File | Summary |
+|---|----------|-----|------|---------|
+| #1 | 🟠 High | CWE-089 | src/service/UserService.java:89 | SQL injection via string concatenation |
+| #2 | 🟠 High | CWE-807 | src/controller/AdminController.java:23 | Trust boundary violation in auth bypass |
+| #3 | 🟡 Medium | CWE-532 | src/handler/AuthHandler.java:156 | Sensitive data in log output |
+| #4 | 🟡 Medium | CWE-200 | src/filter/RequestFilter.java:42 | ThreadLocal data leak across requests |
+| #5 | 🟡 Medium | CWE-829 | src/service/OrderService.java:203 | Unsafe deserialization from user input |
+
+> Each finding includes exploit scenario, CWE mapping, severity assessment, CVE-like CVSS scoring, and fix recommendation.
+
+Output directory: <user-project>/.codeagent/secguardian/secreview/scans/pr-20260531-143000-a1b2/
+
+💡 **How to use review results?**
+- **Quick summary** -> `manifest.json`
+- **★ Unified entry** -> `human/executive-summary.md`
+- **Engineer remediation** -> Per-finding in `findings/` directory
+- **Management dashboard** -> Open `dashboard.html` in browser
+- **Full review report** -> `report.md` (5-section concise report)
+- **🤖 AI Agent fix** -> Read `ai/remediation-pack.json`
+- **CI/CD integration** -> Consume `results.sarif`
+```
+
+## Difference from /secguard
+
+| Dimension | secguard | secreview |
+|-----------|----------|-----------|
+| SDLC Stage | During coding | During pull request / code review |
+| Primary Users | Individual developers | Developers + Reviewers + PR approvers |
+| Granularity | API-level + detector filtered | Function/module-level semantic + business logic |
+| Focus | Does this API call introduce a vulnerability? | Is the change safe to merge? |
+| Output | CWE + CVSS + detection detail | CWE + exploit scenario + business logic impact |
+| Severity | Critical -> Info | High -> Info (PR-blocking semantics) |
+| Typical Mode | Full codebase scan | Git diff / PR changeset |
+
+
+## 🛠️ Engine Layer
+
+> secreview 的三轮推理（Pass A: 漏洞检测 / B: 业务逻辑 / C: 反模式）符合 Investigation Engine 的多假设模式。
+> 每个 Pass 等价于一个 Hypothesis → Investigator → Judge 循环。
+> 详见 `secguard.md §Phase 2` 的 Investigation Pipeline 执行协议。
+>
+> 🚫 **不要使用 `todowrite` 工具。** 使用原生 task 系统（`TaskCreate` + `TaskUpdate`）追踪进度。
+> `todowrite` 每次调用重传全部已完成项，每会话浪费 ≥50KB 无效 token。
+>
+> 🚫 **不要硬编码 `RECORDER` 路径。** 必须使用 `$SCRIPTS_DIR/record-finding.py`。
+> 硬编码路径在安装位置变动时全断。
+>
+> 🚫 **Do NOT use `read` tool on `$SCRIPTS_DIR/` files.** All scripts execute via `Bash` tool — their CLI interfaces are fully documented in this template. Reading script files triggers unnecessary OpenCode permission prompts and wastes tokens.
+
+## Dispatch Rules & Execution Steps
+
+> **Architecture (Signal Matrix — EPIC-007)**: SecGuardian EPIC-3 refactors the execution pipeline into 15 focused C/C++ detection skills, dispatched via the unified Dispatcher protocol defined in `commands/secguard.md`. Security code review uses **S1 + S2 + S7 signals** (call_sites, string_literals, control_flow) for PR diff-context analysis. Shared execution flow (init, indexing, output protocol, summary) follows the Dispatcher. secreview adds per-language review rules and three-reasoning-pass analysis (vulnerability, business logic, anti-pattern). secreview-specific logic stays here; shared pipeline steps follow the Dispatcher protocol.
+
+You (the AI Agent) must follow these steps when executing `/secreview` to perform the security code review.
+
+### Pre-flight Checklist
+
+### 前置检查（Pre-flight Checklist）
+
+> ⛔ **禁止使用 Glob 或 Read 工具探索文件路径（搜索文件）。已知路径的文件用 `cat` 读取。**
+
+执行审阅前确认：
+
+- [ ] 目标路径 `<path>` 存在且包含至少一个源码文件
+- [ ] **语言检测**（当用户省略 `language` 参数时）：扩展名检查 -> `cpp`/`python`/`java`/`go`
+- [ ] 不使用 clangd/LSP/bear 等外部工具
+- [ ] `SECGUARDIAN_HOME`/健康检查/目录创建由 Step 1 的 `init-scan.sh` 统一处理
+
+> 若未通过，报告具体失败项并终止。不要降级为手工审阅。
+
+---
+
+<!-- @secguardian:ordering rule=scan_id FIRST -->
+### Step 1: 初始化（唯一 bash 调用，使用共享 init-scan.sh）
+
+> **唯一一次预初始化 bash 调用**。通过 `scripts/init-scan.sh` 完成 SECGUARDIAN_HOME 自动发现、健康检查、路径确认、建目录、写 `.scan_state.secreview`。
+
+```bash
+source "$HOME/.claude/plugins/secguardian/scripts/init-scan.sh" secreview "<path>"
+```
+
+- Record review start timestamp for Step 4 `duration_ms` calculation.
+
+### 🔒 Cross-Shell State Passing (ALL bash calls after Step 1 MUST follow)
+
+> **Each bash call is an independent shell — variables are not shared. NEVER use `/tmp/` for state.**
+> `/tmp/` breaks on Windows, triggers macOS permission prompts, and is multi-user unsafe.
+
+Step 1 persists `SCAN_ID`, `SCAN_DIR`, `USER_PROJECT`, `SECGUARDIAN_HOME`, `RECORDER` in `.scan_state.secreview`.
+From Step 2 onward, **every bash call MUST start with**:
+```bash
+USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
+source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secreview"
+```
+After this, `$SCAN_DIR`, `$SCAN_ID`, `$USER_PROJECT`, `$SECGUARDIAN_HOME`, `$RECORDER` expand correctly inside bash commands. NEVER use `$(cat /tmp/*.txt)`.
+
+> **📂 Knowledge reading**: Knowledge files are at `$SECGUARDIAN_HOME/knowledge/`. Read on demand via bash `cat` — no directory copy.
+> - Review rules: `cat "$SECGUARDIAN_HOME/skills/secreview/{finding JSON written to file first}
 ```
 
 Key requirements (secreview-specific):
