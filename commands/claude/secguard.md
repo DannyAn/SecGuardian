@@ -81,7 +81,7 @@ platform: claude
 
 ## Engine Layer — Dispatcher Protocol v2
 
-> 本协议实现 EPIC-3 架构重构。从"LLM 全权扫描"（加载 67 规则 × 遍历 642 文件）转变为"信号驱动的 Worker 调度"（索引器预扫描 → Dispatcher 按信号分派 → Worker 只看相关代码）。
+> 本协议实现 EPIC-3 架构重构。从"LLM 全权扫描"（加载 67 规则 × 遍历 642 文件）转变为"信号驱动的 Investigation Pipeline"（索引器预扫描 → Dispatcher 信号提取 → Hypothesis Generator → Investigator → Judge）。
 >
 > 所有共享架构信息以 [`AGENTS.md`](../AGENTS.md) 为准。
 >
@@ -102,13 +102,16 @@ platform: claude
 │    2. secguard 信号: S1 call_sites + S2 string_literals    │
 │    3. 从 call_sites 提取信号，按 category 分组                  │
 │    4. 从 string_literals 分发到 hardcoded_secrets             │
-│    5. 生成 Worker 任务清单                                     │
+│    5. 输出 Signal Summary 给 Hypothesis Generator              │
 │                                                               │
-│  Phase 2: Worker 调度                                          │
-│    对每个有信号的 Skill，启动 Worker (subagent):                │
-│      - 输入: 信号清单 + SKILL.md + references/                  │
-│      - Worker 执行 5 步检视协议 + 事实锚定反思                      │
-│      - 输出: findings 文件 + 盲区报告                            │
+│  Phase 2: 信号移交给 Investigation Pipeline                     │
+│    所有 Signal 传递给 Hypothesis Generator:                        │
+│      - 输入: 信号清单 + 源码上下文 + index.json                    │
+│      - H1: 此调用有何风险?                                      │
+│      - H2: 参数是否可控?                                       │
+│      - H3: 边界条件?                                           │
+│      - Investigator: 针对每个 Hypothesis 自主调查 Evidence         │
+│      - Judge: 独立裁决 (Confirmed / Suspicious / Safe / Unknown)  │
 │                                                               │
 │  Phase 3: 汇总与渲染                                           │
 │    1. 合并所有 Worker findings                                  │
@@ -117,44 +120,42 @@ platform: claude
 └──────────────────────────────────────────────────────────────┘
 ```
 
-### 信号 → Skill 映射表 (Signal Matrix — EPIC-007)
+### Signal Type 分类 (Investigation Engine — EPIC-010)
+
+> **Dispatcher 不判定漏洞类型。** Signal 只是调查入口，不是结论。
+> 错误: `malloc → Null Dereference Skill`
+> 正确: `malloc → Signal(memory allocation)`
+>
+> 🚫 Dispatcher 禁止：
+> - 判断漏洞类型（不得将 Signal 映射为 buffer_overflow/null_dereference 等）
+> - Suppress 或 Confirm 任何信号
+> - 限制调查方向（不得指定"只看什么漏洞"）
+>
+> Dispatcher 只做：建立索引 → 提供上下文 → 输出 Signal 清单。
 
 ```
-┌─ S1: call_sites ───────────────────────────────────────┐
-│ category          →  Skill(s)                           │
-├─────────────────────────────────────────────────────────┤
-string               →  buffer_overflow
-                        must_check
-                        api_semantic_misuse
-
-memory               →  buffer_overflow
-                        null_dereference
-                        memory_leak
-                        double_free
-                        use_after_free
-                        integer_overflow
-                        ownership_transfer
-                        must_check
-                        api_semantic_misuse
-
-io                   →  resource_leak
-                        must_check
-
-exec                 →  command_injection
-                        input_validation
-
-sync                 →  lock_misuse
-
-crypto               →  hardcoded_secrets
-
-* (all)              →  error_propagation
+┌─ Signal Type 分类 ────────────────────────────────────────┐
+│ 操作类型               →  Signal Type                        │
+├───────────────────────────────────────────────────────────┤
+│ malloc / calloc / realloc →  memory_allocation              │
+│ memcpy / memmove         →  memory_copy                     │
+│ strcpy / strcat / sprintf →  string_copy                    │
+│ getenv / scanf / read    →  user_input                      │
+│ system / popen / exec    →  exec_operation                  │
+│ pthread_mutex_lock       →  lock_operation                  │
+│ free / delete            →  memory_deallocation             │
+│ fopen / open / socket    →  resource_acquire                │
+│ snprintf / gets / others →  string_copy                     │
+├───────────────────────────────────────────────────────────┤
+│ 非 call_site 信号:                                         │
+│ string_literals (secret/password/token) →  credential       │
+│ control_flow (guard patterns)          →  guard_pattern     │
 ```
 
-**特殊 Skill（非 call_site 驱动）:**
-- `hardcoded_secrets` — **S2 string_literals 驱动**。扫描源码中的字符串/密钥模式。即使 call_sites 中 crypto 为零，只要 string_literals 有 `api_key`/`password`/`secret`/`jwt`/`token` 类信号，就启动 Worker。
-- `error_propagation` — 扫描被忽略的函数返回值（扫描 `must_check` 标记函数的调用点，不依赖 call_sites 信号）
-
-这两类 Skill 始终参与 Worker 调度，即使 Phase 1 未产出对应 category 的信号。
+**每信号至少 3~5 个 Hypothesis（由 Hypothesis Generator 负责，非 Dispatcher 职责）:**
+- `memory_allocation` → H1: NULL 未检查 / H2: Double Free / H3: Memory Leak / H4: Ownership 错误 / H5: 实际安全
+- `memory_copy` → H1: 长度错误 / H2: 来源污染 / H3: 整数溢出导致长度错误 / H4: 生命周期错误 / H5: 实际安全
+- `string_copy` → H1: 缓冲区溢出 / H2: 来源污染 / H3: 截断导致逻辑错误 / H4: Underflow / H5: 实际安全
 
 ---
 
@@ -242,9 +243,16 @@ python3 "$SCRIPTS_DIR/validate-index.py" \
 
 若返回非 0，**立即终止扫描**并向用户报告索引生成出错。
 
-### Step 4: 解析信号 (Signal Matrix) 并生成 Worker 任务清单
+### Step 4: 信号提取 (Signal Extraction) — Dispatcher 核心职责
 
-**此步骤由 Dispatcher 在上下文中直接执行（无 bash 调用）—— 读取 index.json 的 `call_sites` 和 `string_literals` 字段，按信号类型 + category 分组，映射到 Skill 清单。**
+**此步骤由 Dispatcher 在上下文中直接执行（无 bash 调用）—— 读取 index.json 的 `call_sites` 和 `string_literals` 字段，按 Signal Type 分类，添加上下文人，输出 Signal 清单给 Investigation Pipeline。**
+
+> 🚫 **Dispatcher 在此步骤禁止：**
+> - 判定漏洞类型（不得说"这个是 buffer_overflow"）
+> - Suppress 或 Confirm 信号（不得说"这个看起来安全，跳过"）
+> - 限制调查方向（不得说"只看 memory 类型的"）
+>
+> ✅ **Dispatcher 只做：** 分类 → 添加上下文 → 输出 Signal Summary
 
 #### 4a. 读取 index.json
 
@@ -260,7 +268,8 @@ python3 "$SCRIPTS_DIR/validate-index.py" \
       "line": 142,
       "arguments": ["dst", "sizeof(dst)", "src"],
       "safe_variant": true,
-      "category": "string"
+      "prescreen_verdict": "safe",
+      "prescreen_reason": "sizeof(dst)=64 matches char dst[64]"
     },
     {
       "caller": "idm_hwd_rsp_parse",
@@ -269,7 +278,8 @@ python3 "$SCRIPTS_DIR/validate-index.py" \
       "line": 100,
       "arguments": ["1", "in_len"],
       "safe_variant": false,
-      "category": "memory"
+      "prescreen_verdict": "unknown",
+      "prescreen_reason": ""
     }
   ],
   "symbols": { "functions": [...] },
@@ -282,85 +292,114 @@ python3 "$SCRIPTS_DIR/validate-index.py" \
       "value": "sk-abcdef1234567890abcdef1234567890",
       "context": "global",
       "kinds": ["api_key"]
-    },
-    {
-      "file": "src/crypto.c",
-      "line": 26,
-      "value": "SuperSecretPassw0rd!",
-      "context": "authenticate_user",
-      "kinds": ["secret"]
     }
   ]
 }
 ```
 
-#### 4b. 按信号类型 + category 分组
+#### 4b. 按 Signal Type 分类（操作类型，非漏洞类型）
 
 ```
-┌─ S1: call_sites ──────────────────────────────────┐
-string  → [call_sites where category="string"]
-memory  → [call_sites where category="memory"]
-io      → [call_sites where category="io"]
-exec    → [call_sites where category="exec"]
-sync    → [call_sites where category="sync"]
-crypto  → [call_sites where category="crypto"]
+┌─ Signal Type 分类 ──────────────────────────────────────┐
+memory_allocation  → [call_site_0, call_site_1, ...]      │
+memory_copy        → [call_site_5, call_site_6, ...]      │
+string_copy        → [call_site_2, call_site_3, ...]      │
+user_input         → [call_site_7, call_site_8, ...]      │
+lock_operation     → [call_site_9, ...]                   │
+exec_operation     → [call_site_10, ...]                  │
+memory_deallocation→ [call_site_11, ...]                  │
+resource_acquire   → [call_site_12, ...]                  │
+credential         → [string_literal_0, ...]              │
+───────────────────────────────────────────────────────────
 ```
 
-#### 4c. 生成 Worker 任务清单
+分类依据（knownLibFuncs 映射）:
 
-对每个有信号的 category 和 string_literals 类别，按映射表关联到对应 Skill。若信号数 > BATCH_SIZE(50)，按 §5.5 拆分为多个 Batch 任务。每个 Worker 任务包含：
+| Indexer Callee 匹配 | Signal Type |
+|-------------------|-------------|
+| malloc / calloc / realloc | memory_allocation |
+| memcpy / memmove / memcpy_s | memory_copy |
+| strcpy / strcat / sprintf / gets / snprintf | string_copy |
+| getenv / scanf / read / recv | user_input |
+| pthread_mutex_lock / spin_lock | lock_operation |
+| system / popen / exec / execvp | exec_operation |
+| free / delete | memory_deallocation |
+| fopen / open / socket / connect | resource_acquire |
+| string_literals 含 secret/password/token/api_key | credential |
+
+#### 4c. 信号上下文人（Enrich Signals — 添加上下文，不判定漏洞）
+
+对每个 Signal，从源码文件中读取 ±3 行上下文，加上函数名、prescreen_verdict、signal_id：
 
 ```json
 {
-  "skill_id": "buffer_overflow",
-  "category": "string",
-  "severity": "critical",
-  "cwe": "CWE-120",
-  "signal_count": 3,
-  "signals": [
-    {
-      "caller": "idm_portal_auth",
-      "callee": "strcpy_s",
-      "file": "src/ctrlplane/portal/idm_portal_auth.c",
-      "line": 142,
-      "arguments": ["dst", "sizeof(dst)", "src"],
-      "safe_variant": true,
-      "category": "string"
-    }
+  "signal_id": "sig-001",
+  "type": "memory_allocation",
+  "callee": "calloc",
+  "callee_signature": "void* calloc(size_t nmemb, size_t size)",
+  "file": "src/ctrlplane/pdt/hwd/idm_hwd_rsp_parse.c",
+  "line": 100,
+  "args": [
+    {"name": "nmemb", "value": "1", "resolved": true},
+    {"name": "size", "value": "in_len", "resolved": false}
   ],
-  "skill_path": "$SECGUARDIAN_HOME/skills/secguard-cpp/buffer_overflow/",
-  "source_root": "$USER_PROJECT"
+  "context": {
+    "function": "idm_hwd_rsp_parse",
+    "function_line": 85,
+    "source_before": "  int in_len = parse_header(data);\n  if (in_len <= 0) return -1;\n",
+    "source_after": "  if (!ptr) return -1;\n  process(ptr);\n"
+  },
+  "prescreen_verdict": "unknown",
+  "prescreen_reason": ""
 }
 ```
 
-#### 4d. 写入 Worker 任务清单到文件（可选的持久化）
+#### 4d. 输出 Signal Summary（替代旧版 Worker 任务清单）
 
-```bash
-USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
-source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
+Dispatcher 输出 Signal 分类摘要 + 全量 Signal 清单。**不产生 Worker 任务清单**。
 
-# Dispatcher 将 Worker 任务清单写入 workers/ 目录
-# 格式: workers/<skill_id>/task.json
+```json
+{
+  "signal_summary": {
+    "total_signals_raw": 1030,
+    "total_signals_after_prescreen": 150,
+    "signal_types": {
+      "memory_allocation": 47,
+      "memory_copy": 312,
+      "string_copy": 554,
+      "user_input": 23,
+      "lock_operation": 89,
+      "exec_operation": 5,
+      "resource_acquire": 0
+    },
+    "prescreen_summary": {
+      "safe": 880,
+      "unknown": 150
+    }
+  },
+  "signals": [ /* 全量 enriched Signal 数组 */ ]
+}
 ```
 
-#### 4e. 脱敏答案卡标注（如果 index.json 包含源码行）
+**Phase 1 至此结束。** Signal 清单传递给 Hypothesis Generator（在 SKILL.md 中实现）。
 
-> 源码中可能存在 `// VULNERABILITY [CWE-xxx]`、`// CWE-xxx`、`// BAD:` 等标注注释。
-> Worker 直接读源码时会看到这些标注，影响独立判断。必须预先脱敏。
+> #### 📋 Dispatcher 完成说明
+>
+> Dispatcher 已经完成其职责：
+> 1. ✅ 建立索引（符号表、调用图、alloc/free、锁图）
+> 2. ✅ 提取 Signal 并按操作类型分类
+> 3. ✅ 添加上下文人（±3 行源码 + 函数上下文）
+> 4. ✅ 输出 Signal Summary
+>
+> **以下步骤由 Investigation Pipeline 负责（FEATURE-003）：**
+> - Hypothesis Generator: 每个 Signal 生成 3~5 个假设
+> - Investigator: 为每个 Hypothesis 收集 Evidence
+> - Counter Evidence: 尝试推翻自己的假设
+> - Judge: 基于 Evidence + Counter Evidence 独立裁决
+>
+> 这些步骤在 SKILL.md 中定义（正在迁移中，当前为 Worker 协议过渡版）。
 
-```bash
-USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
-source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
-
-# strip-answer-cards.py removed (EPIC-009) — demo sources now no-answers format
-echo "  Strip-answer-cards: deprecated — prescreener handles deterministic filtering"
-```
-
-若输出 "no answer cards found"，记录 INFO（非错误）。后续 Worker 从脱敏副本读取源码。
-
----
-
-## Phase 2: Worker 调度
+## Phase 2: Worker 协议（过渡期 — 将由 Investigation Pipeline 替代）
 
 > **核心执行阶段**。Dispatcher 为每个有信号的 Skill 启动 Worker，独立执行 5 步检视协议，输出 findings。
 >
@@ -738,202 +777,23 @@ RECEOF
    - `(void)func()` → 显式丢弃（是否报告取决于灵敏度配置）
 4. 执行事实锚定反思确认
 
-### 5.5 Batch 分批派发协议（★ 生产级扩展）
+### 5.5 Worker 执行（过渡期 — 后续由 Investigation Pipeline 替代）
 
-当单个 Skill 的信号数量超过 `BATCH_SIZE`（默认 50）时，Dispatcher 不再截断，而是**拆分为多个 Batch Worker**并按 Workflow 并行调度。
-
-| 场景 | 计算 | 示例 (buffer_overflow ~2500 signals) |
-|------|------|----------------------------------------|
-| 信号数 <= BATCH_SIZE | 直接派发 1 个 Worker | — |
-| 信号数 > BATCH_SIZE | `n_batches = ceil(signal_count / BATCH_SIZE)` | 2500/50 = 50 batches |
-| Worker 数 | = n_batches | 50 Workers（Workflow 自动并行约 10 个并发） |
-
-#### 5.5.1 Batch 拆分规则
-
-```
-FOR EACH skill WITH signals:
-  n_batches = ceil(len(signals) / BATCH_SIZE)
-  IF n_batches == 1:
-    → 正常派发 1 个 Worker（同旧协议 §5.1）
-  ELSE:
-    1. 将 signals 按文件分组（同文件信号保持在一起）
-    2. 均分为 n_batches 组，确保每组约 BATCH_SIZE 个信号
-    3. 每组生成一个 Worker 任务（batch-N/task.json）
-    4. 启动 n_batches 个 Worker，每个 Worker 在 $SCAN_DIR/workers/<skill_id>/batch-N/ 下输出
-```
-
-**分组原则**：
-- 同一文件的信号尽量分在同一 Batch（减少重复读取源码开销）
-- 同一 caller function 的信号不分拆（保持 W4.5 多信号归并的完整性）
-- Batch Worker 无状态：每个 Worker 完全独立，不共享上下文
-
-#### 5.5.2 Worker 任务清单（Batch 版本）
-
-```json
-{
-  "skill_id": "buffer_overflow",
-  "category": "string",
-  "severity": "critical",
-  "cwe": "CWE-120",
-  "batch": {
-    "index": 3,
-    "total": 50,
-    "size": 50
-  },
-  "signal_count": 50,
-  "signals": [
-    {
-      "caller": "idm_portal_auth",
-      "callee": "strcpy",
-      "file": "src/ctrlplane/portal/idm_portal_auth.c",
-      "line": 142,
-      "arguments": ["dst", "src"],
-      "safe_variant": false,
-      "category": "string"
-    }
-  ],
-  "skill_path": "$SECGUARDIAN_HOME/skills/secguard-cpp/buffer_overflow/",
-  "source_root": "$USER_PROJECT"
-}
-```
-
-#### 5.5.3 Worker 输出目录结构
-
-```
-$SCAN_DIR/workers/
-├── buffer_overflow/
-│   ├── batch-00/
-│   │   ├── task.json              # 该 Batch 的任务定义
-│   │   ├── blindspot.json         # 该 Batch 的盲区报告
-│   │   └── findings/              # record-finding.py 录制的 finding
-│   ├── batch-01/
-│   │   ├── task.json
-│   │   ├── blindspot.json
-│   │   └── findings/
-│   └── ...  (最多 n_batches)
-├── double_free/
-│   └── batch-00/                  # 信号数 <= BATCH_SIZE，仅 1 个 Batch
-│       ├── task.json
-│       ├── blindspot.json
-│       └── findings/
-└── ...
-```
-
-#### 5.5.4 BATCH_SIZE 配置
-
-| 参数 | 默认值 | 说明 | 调整依据 |
-|------|--------|------|---------|
-| `BATCH_SIZE` | 50 | 每 Batch 最大信号数 | Worker context window 决定 |
-| `MAX_BATCH_WORKERS` | 100 | 单 Skill 最大 Batch Worker 数 | Workflow 工具上限 |
-
-超出 `MAX_BATCH_WORKERS` 时，Dispatcher 记录 WARNING，将超额信号标记为 `unprocessed`（与旧截断策略相同）。
-
-#### 5.5.5 Worker 协议适配
-
-Batch Worker 完全遵循 §5.2 的标准 5 步协议，仅有以下差异：
-
-| 项目 | 单 Worker | Batch Worker |
-|------|-----------|-------------|
-| 信号范围 | 全部 | 仅本 Batch 的 signals |
-| 多信号归并(W4.5) | 跨全量信号 | **仅限本 Batch 内**同一 caller function |
-| 盲区统计范围 | 本次扫描 | 仅 Batch 级别（Aggregator 合并） |
-| 输出前缀 | workers/<skill_id>/ | workers/<skill_id>/batch-N/ |
-| 独立性 | 完全独立 | 完全独立，不依赖其他 Batch |
-
-> **重要限制**：跨 Batch 的同函数信号归并不在 Worker 层进行——由后续 Aggregator (§5.6) 在汇总时处理。
-
-### 5.6 Aggregator 协议（★ 新增）
-
-> 所有同 Skill 的 Batch Worker 完成后，Aggregator 合并它们的产出去重。
-
-Dispatcher 为每个有 >= 2 个 Batch 的 Skill 启动一个 Aggregator 子 agent。对于只有 1 个 Worker 的 Skill，跳过 Aggregator。
-
-#### 5.6.1 Aggregator 输入
-
-```json
-{
-  "aggregator_context": {
-    "skill_id": "buffer_overflow",
-    "batch_count": 50,
-    "total_signals": 2500,
-    "batches": [
-      "workers/buffer_overflow/batch-00/",
-      "workers/buffer_overflow/batch-01/",
-      "..."
-    ],
-    "scan_dir": ".codeagent/secguardian/secguard/scans/sc-20260707-143000-a1b2",
-    "finding_manifest": {
-      "batch-00": {"reported": 1, "suppressed": 42, "suspicious": 2, "false_signals": 5},
-      "batch-01": {"reported": 0, "suppressed": 38, "suspicious": 3, "false_signals": 9}
-    }
-  }
-}
-```
-
-#### 5.6.2 Aggregator 执行协议（3 步）
-
-**Step A1: 跨 Batch 去重**
-
-遍历所有 Batch 的 findings，识别跨 Batch 的重复报告：
-
-| 去重规则 | 判定条件 | 保留策略 |
-|----------|---------|---------|
-| 同一 `file:line:CWE` | 完全匹配 | 保留第一个 Batch 的 finding（时间优先） |
-| 同一缓冲区多个 Sink | 同一函数内同一缓冲区的 strcpy+strcat | 合并为 1 个复合 finding |
-| 证据链冗余 | Source/Propagate 完全相同 | 合并或丢弃副本 |
-
-**Step A2: 合并盲区统计**
-
-```json
-{
-  "skill_id": "buffer_overflow",
-  "total_signals": 2500,
-  "batches_dispatched": 50,
-  "batches_with_findings": 3,
-  "batches_all_suppressed": 45,
-  "batches_no_signal": 2,
-  "total_findings_after_dedup": 2,
-  "total_suppressed": 2320,
-  "total_suspicious": 125,
-  "total_false_signals": 51,
-  "total_unprocessed": 0,
-  "suppression_reasons": [
-    {"reason": "sizeof(dst) matches dsize correctly", "count": 980},
-    {"reason": "compile-time constant string source", "count": 750}
-  ],
-  "depth_exceeded": {
-    "count": 125,
-    "max_traced": 1,
-    "downgraded_to_suspicious": 125
-  },
-  "findings": [
-    {"file": "src/parser.c", "line": 36, "cwe": "CWE-120", "title": "...", "batch": "batch-00"},
-    {"file": "src/network.c", "line": 89, "cwe": "CWE-120", "title": "...", "batch": "batch-03"}
-  ]
-}
-```
-
-**Step A3: 输出合并后产物**
-
-Aggregator 输出到 `$SCAN_DIR/workers/<skill_id>/aggregated/`:
-
-```
-workers/buffer_overflow/aggregated/
-├── blindspot.json      # 合并后的盲区报告
-├── findings/           # 去重后的 finding（符号链接或副本）
-└── summary.json        # 合并摘要
-```
-
----
-
+> ⚠️ **过渡期状态：** Worker 协议（W1-W5）将在 EPIC-010 FEATURE-003 完成后被 Investigation Pipeline 取代。
+> - Hypothesis Generator: 替代 W1（信号确认）— 生成多假设而非确认单一方向
+> - Investigator: 替代 W2+W3+W4 — 自主调查而非按步执行 Rule
+> - Counter Evidence: 新增 — 尝试推翻自己的假设
+> - Judge: 替代 W5（判定矩阵）— 基于 Evidence 独立裁决
+>
+> 当前 Worker 协议（§5.1-§5.4）内容保持不变，以保证扫描功能可用。
 ## Phase 3: 汇总与渲染
 
 > 所有 Worker 和 Aggregator 执行完毕后，Dispatcher 汇总结果并生成报告。
 
-### Step 6: 汇总 Worker 产物（Batch 感知）
+### Step 6: 收集 Finding 产物
 
-1. 遍历 `$SCAN_DIR/workers/<skill_id>/` 下的每个 Worker 输出
-2. 若存在 `aggregated/blindspot.json`（该 Skill 有多个 Batch）：
+1. 遍历 `$SCAN_DIR/workers/<skill_id>/` 下各 Worker 的输出
+2. 收集所有 finding 文件到 `$SCAN_DIR/findings/` 统一目录
    - 使用 Aggregator 合并后的产物（已去重、已合并统计）
    - 收集 `aggregated/findings/` 下的 finding 文件
    - 收集 `aggregated/blindspot.json` 作为该 Skill 的盲区报告
@@ -1126,7 +986,11 @@ findings/exec/command_injection/f6e5d4c3b2a1_executor-89.json
 
 ---
 
-## 附录 A: 15 个 Skill 清单
+## 附录 A: 检测器清单（输出规范 — 非调度用途）
+
+> **注意：** 以下检测器清单仅用于 finding 输出格式规范。
+> Dispatcher 不再按此清单分派 Worker。
+> Investigation Pipeline 根据 Signal Type 自动决定调查方向。
 
 | # | Skill | call_sites category | Source | 检测内容 |
 |---|-------|---------------------|--------|---------|
@@ -1150,7 +1014,10 @@ findings/exec/command_injection/f6e5d4c3b2a1_executor-89.json
 
 ---
 
-## 附录 B: Worker 协议摘要
+## 附录 B: Worker 协议摘要（过渡期 — 将被 Investigation Pipeline 替代）
+
+> ⚠️ **过渡期：** 当前保留 Worker 协议以保证扫描功能可用。
+> FEATURE-003 完成后将替换为 Hypothesis + Investigator + Judge 协议。
 
 | 条目 | 规则 |
 |------|------|
