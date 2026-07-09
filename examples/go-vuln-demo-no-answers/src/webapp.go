@@ -1,17 +1,3 @@
-/**
- * webapp.go — Web security vulnerability examples (Go)
- *
-
-
-
-
-
-
-
-
-
-
- */
 
 package main
 
@@ -100,9 +86,9 @@ func adminPanel(w http.ResponseWriter, r *http.Request) {
 
 
 func getUserProfile(w http.ResponseWriter, r *http.Request) {
-	// Parse user ID from URL
+	
 	parts := strings.Split(r.URL.Path, "/")
-	userID := parts[len(parts)-1] // last segment
+	userID := parts[len(parts)-1] 
 
 	fmt.Fprintf(w, `{"userId":%s,"ssn":"123-45-6789"}`, userID)
 }
@@ -112,7 +98,7 @@ func parseXML(w http.ResponseWriter, r *http.Request) {
 	body, _ := ioutil.ReadAll(r.Body)
 
 	var data interface{}
-	xml.Unmarshal(body, &data) // default decoder allows entities
+	xml.Unmarshal(body, &data) 
 	fmt.Fprintf(w, "Parsed XML")
 }
 

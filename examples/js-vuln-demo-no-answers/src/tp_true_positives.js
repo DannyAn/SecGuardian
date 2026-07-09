@@ -1,4 +1,4 @@
-// TP — True Positives: 真实漏洞
+
 const { exec } = require('child_process');
 
 

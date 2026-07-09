@@ -4,7 +4,7 @@
 function safeResource() {
     const handle = { close: () => {} };
     try {
-        // 使用资源
+        
     } finally {
         handle.close();
     }

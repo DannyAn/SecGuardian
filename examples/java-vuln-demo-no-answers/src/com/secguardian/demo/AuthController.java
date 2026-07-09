@@ -1,17 +1,5 @@
 package com.secguardian.demo;
 
-/**
- * AuthController.java — Authentication & web security vulnerability examples
- *
-
-
-
-
-
-
-
-
- */
 
 import org.springframework.web.bind.annotation.*;
 import javax.servlet.http.HttpServletRequest;
@@ -25,7 +13,7 @@ public class AuthController {
     @GetMapping("/api/admin/users")
 
     public String listAllUsers() {
-        // No authentication check — any user can access admin API
+        
         return "All users: [alice, bob, charlie]";
     }
 

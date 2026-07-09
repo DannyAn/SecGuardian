@@ -1,14 +1,3 @@
-/**
- * windows.c — Windows-specific security vulnerability examples
- *
-
-
-
-
-
-
-
- */
 
 #include <windows.h>
 #include <stdio.h>
@@ -17,7 +6,7 @@
 void run_user_command(const char *user_input) {
     char cmd[256];
 
-    // User input directly in command string
+    
     wsprintfA(cmd, "cmd.exe /c %s", user_input);
     STARTUPINFOA si = {sizeof(si)};
     PROCESS_INFORMATION pi;
@@ -28,7 +17,7 @@ void run_user_command(const char *user_input) {
 void write_user_file(const char *filename) {
     char path[MAX_PATH];
 
-    // ..\..\ passable on Windows too
+    
     GetTempPathA(MAX_PATH, path);
     strcat(path, filename);
     HANDLE h = CreateFileA(path, GENERIC_WRITE, 0, NULL,
@@ -41,7 +30,7 @@ void create_temp_file_unsafe() {
     char path[MAX_PATH];
     char temp_file[MAX_PATH];
 
-    // GetTempFileName can be predicted by attacker
+    
     GetTempPathA(MAX_PATH, path);
     GetTempFileNameA(path, "SG", 0, temp_file);
     HANDLE h = CreateFileA(temp_file, GENERIC_WRITE, 0, NULL,
@@ -55,7 +44,7 @@ void drop_and_elevate() {
 
     if (OpenProcessToken(GetCurrentProcess(), TOKEN_ALL_ACCESS, &hToken)) {
 
-        // Should use CreateRestrictedToken + SAFER API
+        
     }
 }
 
@@ -64,7 +53,7 @@ void impersonate_logged_on_user() {
     HANDLE hToken;
     if (ImpersonateLoggedOnUser(hToken)) {
 
-        // Could be a stolen token from a higher-privilege process
+        
         RevertToSelf();
     }
 }
@@ -85,7 +74,7 @@ void store_registry_credential() {
 
 void allocate_user_size(DWORD user_size) {
 
-    // user_size could be near 4GB, exhausting virtual memory
+    
     LPVOID mem = VirtualAlloc(NULL, user_size,
                               MEM_COMMIT, PAGE_READWRITE);
     if (mem) {
@@ -94,7 +83,6 @@ void allocate_user_size(DWORD user_size) {
     }
 }
 
-/* ── Main ─────────────────────────────────────────────────── */
 int main() {
     printf("Windows vulnerability demo\n");
     run_user_command("dir C:\\");

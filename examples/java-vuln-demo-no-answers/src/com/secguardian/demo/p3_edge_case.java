@@ -11,7 +11,7 @@ public class p3_edge_case {
         for (String bad : blacklist) {
             if (cmd.contains(bad)) return "blocked";
         }
-        return RuntimeWrapper.exec(cmd);  // 仍有绕过风险
+        return RuntimeWrapper.exec(cmd);  
     }
 
 
@@ -19,9 +19,9 @@ public class p3_edge_case {
     private Object configLock = new Object();
 
     public void reloadConfig() {
-        if (!configLoaded) {                // 检查
-            synchronized (configLock) {     // 加锁
-                // 加载配置...
+        if (!configLoaded) {                
+            synchronized (configLock) {     
+                
                 configLoaded = true;
             }
         }

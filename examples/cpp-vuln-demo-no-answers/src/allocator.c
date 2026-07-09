@@ -1,11 +1,3 @@
-/**
- * allocator.c — Memory allocator (demonstrates double-free + use-after-free + null dereference)
- *
-
-
-
-
- */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,7 +13,7 @@ typedef struct {
 static AllocEntry *g_entries[16];
 static int g_entry_count = 0;
 
-// Allocate a new entry with a buffer of the given size
+
 AllocEntry *alloc_entry(size_t size) {
     if (g_entry_count >= 16) return NULL;
 
@@ -40,7 +32,7 @@ AllocEntry *alloc_entry(size_t size) {
     return entry;
 }
 
-// Find an entry that is no longer referenced
+
 AllocEntry *find_unused_entry() {
     for (int i = 0; i < g_entry_count; i++) {
         if (g_entries[i] && g_entries[i]->ref_count <= 0) {
@@ -50,7 +42,7 @@ AllocEntry *find_unused_entry() {
     return NULL;
 }
 
-// Release an entry
+
 void release_entry(AllocEntry *entry) {
     if (!entry) return;
 
@@ -62,7 +54,7 @@ void release_entry(AllocEntry *entry) {
     }
 }
 
-// Cleanup all entries
+
 void cleanup_entries() {
     for (int i = 0; i < g_entry_count; i++) {
         if (g_entries[i]) {
@@ -70,36 +62,36 @@ void cleanup_entries() {
             g_entries[i]->buffer = NULL;
             free(g_entries[i]);
 
-            // After this loop iterates, g_entries[i] is freed
-            // If another entry pointer equals g_entries[i] (aliasing),
-            // the next iteration will double-free
+            
+            
+            
         }
     }
     g_entry_count = 0;
 }
 
-// Process a buffer that was already released
+
 void process_released_buffer() {
     AllocEntry *entry = alloc_entry(256);
     if (!entry) return;
 
-    // Store pointer for later use
+    
     char *buf = entry->buffer;
 
-    // Release the entry (frees buf)
+    
     release_entry(entry);
 
 
-    // buf was freed by release_entry but is still used here
+    
     if (buf) {
-        memset(buf, 0, 256);  // Writing to freed memory!
+        memset(buf, 0, 256);  
     }
 }
 
-// Allocate a buffer from user-provided size
+
 int alloc_user_buffer(int user_size) {
 
-    // malloc can return NULL if user_size is very large
+    
     char *buf = (char *)malloc(user_size);
     assert(buf != NULL);
 
@@ -111,10 +103,10 @@ int alloc_user_buffer(int user_size) {
     return 0;
 }
 
-// Allocate a buffer with user-provided count
+
 void *alloc_objects(size_t count, size_t obj_size) {
 
-    // count * obj_size could overflow, resulting in a small allocation
+    
     return malloc(count * obj_size);
 }
 
@@ -125,14 +117,14 @@ int main() {
     release_entry(e1);
     release_entry(e2);
 
-    // Trigger double-free aliasing
+    
     AllocEntry *e3 = alloc_entry(64);
-    g_entries[0] = e3;  // Make e1 slot point to e3 too
-    cleanup_entries();    // Double-free: g_entries[0] and g_entries[2] both point to e3
+    g_entries[0] = e3;  
+    cleanup_entries();    
 
-    process_released_buffer();  // Use-after-free
-    alloc_user_buffer(1024);    // OK
-    alloc_user_buffer(2147483647);  // Integer overflow in allocation
+    process_released_buffer();  
+    alloc_user_buffer(1024);    
+    alloc_user_buffer(2147483647);  
 
     return 0;
 }

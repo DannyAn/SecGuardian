@@ -1,14 +1,5 @@
 package com.secguardian.demo;
 
-/**
- * UserController.java — Web security vulnerability examples (Java)
- *
-
-
-
-
-
- */
 
 import org.springframework.web.bind.annotation.*;
 import javax.xml.parsers.*;
@@ -34,7 +25,7 @@ public class UserController {
         try {
 
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            // No XXE-prevention settings (featues disabled)
+            
             DocumentBuilder builder = factory.newDocumentBuilder();
             Document doc = builder.parse(new ByteArrayInputStream(xmlData.getBytes()));
             return "Parsed XML successfully";

@@ -1,4 +1,4 @@
-# P1 — Semantic Verification: 安全框架抑制
+
 
 class SafeQuery:
     """强制参数化查询的封装"""

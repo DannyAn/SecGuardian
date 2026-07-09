@@ -1,4 +1,4 @@
-# P3 — Edge Cases: 部分保护不充分
+
 import subprocess
 import threading
 
@@ -13,7 +13,7 @@ class CommandExecutor:
         for bad in self.BLACKLIST:
             if bad in cmd:
                 return "blocked"
-        # 仍有绕过风险：编码、路径组合等
+        
         return subprocess.check_output(cmd, shell=True).decode()
 
 
@@ -25,8 +25,8 @@ class ConfigManager:
         self._lock = threading.Lock()
     
     def reload(self):
-        if not self._loaded:             # 检查
-            with self._lock:             # 加锁
+        if not self._loaded:             
+            with self._lock:             
                 self._load_config()
                 self._loaded = True
     

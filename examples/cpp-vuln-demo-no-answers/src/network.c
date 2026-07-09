@@ -1,11 +1,3 @@
-/**
- * network.c — Network packet handler (demonstrates integer overflow + null dereference)
- *
-
-
-
-
- */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,7 +23,7 @@ typedef struct {
 static NetworkPacket *packet_queue[MAX_PACKETS];
 static int queue_size = 0;
 
-// Parse an incoming packet from raw bytes
+
 int parse_packet(const uint8_t *raw_data, uint32_t raw_size) {
     if (!raw_data || raw_size < sizeof(PacketHeader)) {
         return -1;
@@ -39,23 +31,23 @@ int parse_packet(const uint8_t *raw_data, uint32_t raw_size) {
 
     const PacketHeader *header = (const PacketHeader *)raw_data;
 
-    // Verify sizes
+    
 
-    // header->data_size + HEADER_SIZE could overflow (wrap to small value)
-    // e.g. data_size = 0xFFFFFFF1 → data_size + HEADER_SIZE = 0x1
+    
+    
     if (header->data_size + HEADER_SIZE > raw_size) {
         return -2;
     }
 
     NetworkPacket *packet = (NetworkPacket *)malloc(sizeof(NetworkPacket));
 
-    // malloc can return NULL, but no check before use
+    
     memcpy(&packet->header, header, sizeof(PacketHeader));
 
 
-    // header->data_size comes from network and is not validated for sane max value
-    // If data_size is very large (e.g. 0xFFFFFFFF after overflow bypass above),
-    // malloc may allocate insufficient memory or fail, leading to heap overflow
+    
+    
+    
     packet->data = (uint8_t *)malloc(header->data_size);
     memcpy(packet->data, raw_data + HEADER_SIZE, header->data_size);
 
@@ -75,7 +67,7 @@ int parse_packet(const uint8_t *raw_data, uint32_t raw_size) {
     return 0;
 }
 
-// Process all queued packets
+
 void process_packets() {
     for (int i = 0; i < queue_size; i++) {
         NetworkPacket *p = packet_queue[i];
@@ -86,7 +78,7 @@ void process_packets() {
     }
 }
 
-// Cleanup packet queue
+
 void cleanup_packets() {
     for (int i = 0; i < queue_size; i++) {
         if (packet_queue[i]) {
@@ -99,11 +91,11 @@ void cleanup_packets() {
 }
 
 int main() {
-    // Simulate a malicious packet with crafted data_size to trigger overflow
+    
     uint8_t malicious_packet[HEADER_SIZE] = {0};
     PacketHeader *hdr = (PacketHeader *)malicious_packet;
     hdr->packet_id = 1;
-    hdr->data_size = 0xFFFFFFF1;  // Crafted to bypass the size check via integer overflow
+    hdr->data_size = 0xFFFFFFF1;  
     hdr->flags = 0x01;
 
     parse_packet(malicious_packet, sizeof(malicious_packet));

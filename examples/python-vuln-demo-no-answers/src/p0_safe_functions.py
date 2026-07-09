@@ -1,4 +1,4 @@
-# P0 — 安全函数，不应产生 Finding
+
 import secrets
 import subprocess
 import logging

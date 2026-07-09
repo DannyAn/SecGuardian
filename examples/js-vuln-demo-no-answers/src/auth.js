@@ -1,22 +1,12 @@
-/**
- * auth.js — Authentication & Authorization vulnerability examples (Node.js)
- *
-
-
-
-
-
-
- */
 
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 
-// ═══════════════════════════════════════════
 
-// ═══════════════════════════════════════════
 
-// BadAdminRoute — admin endpoint without any auth check
+
+
+
 function badAdminRoute(req, res) {
 
     res.json({
@@ -26,38 +16,38 @@ function badAdminRoute(req, res) {
     });
 }
 
-// BadVerifyToken — token verification that doesn't check signature
+
 function badVerifyToken(token, secret) {
 
-    const decoded = jwt.decode(token);  // decode() does NOT verify signature!
+    const decoded = jwt.decode(token);  
     return decoded;
 }
 
-// ═══════════════════════════════════════════
 
-// ═══════════════════════════════════════════
+
+
 
 const JWT_SECRET = 'mysecretkey123';
 
 function badSignJWT(user) {
 
     const token = jwt.sign(
-        { username: user.username, role: 'admin' },  // role from client input!
-        'secret',  // literally "secret" as signing key
+        { username: user.username, role: 'admin' },  
+        'secret',  
         { algorithm: 'HS256' }
     );
     return token;
 }
 
-// BadJWTNoExpiry — JWT without expiration
+
 function badSignJWTNoExpiry(user) {
 
     return jwt.sign({ user: user.username, admin: true }, JWT_SECRET);
 }
 
-// ═══════════════════════════════════════════
 
-// ═══════════════════════════════════════════
+
+
 
 const API_KEY = 'sk-1234567890abcdef-production-key';
 const DB_PASSWORD = 'admin123!@#';
@@ -68,9 +58,9 @@ function badAuthenticate(token) {
     return token === 'supersecrettoken123';
 }
 
-// ═══════════════════════════════════════════
 
-// ═══════════════════════════════════════════
+
+
 
 function badUserProfile(req, res) {
 
@@ -79,14 +69,14 @@ function badUserProfile(req, res) {
     res.json({
         userId: userData.id,
         email: userData.email,
-        ssn: userData.ssn,  // SSN exposed without auth!
+        ssn: userData.ssn,  
         creditCard: userData.cc
     });
 }
 
-// ═══════════════════════════════════════════
 
-// ═══════════════════════════════════════════
+
+
 
 function badLogin(req, res) {
 
@@ -96,15 +86,15 @@ function badLogin(req, res) {
         return res.json({ token: badSignJWT(user) });
     }
     return res.status(401).json({ error: 'Invalid credentials' });
-    // Attacker can try unlimited passwords — no rate limiting, no account lockout
+    
 }
 
-// ═══════════════════════════════════════════
-// CORRECTED VERSIONS
-// ═══════════════════════════════════════════
+
+
+
 
 function goodAdminRoute(req, res) {
-    // Verify auth token first
+    
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -120,7 +110,7 @@ function goodAdminRoute(req, res) {
 }
 
 function goodSignJWT(user) {
-    // Never set admin from user input; use env for secret; set expiry
+    
     return jwt.sign(
         { username: user.username, role: user.role },
         process.env.JWT_SECRET,
@@ -131,14 +121,14 @@ function goodSignJWT(user) {
 function goodAuthenticate(token) {
     const expected = process.env.API_TOKEN;
     if (!expected) return false;
-    // Use timing-safe comparison
+    
     return crypto.timingSafeEqual(
         Buffer.from(token),
         Buffer.from(expected)
     );
 }
 
-// Rate limiter middleware (conceptual)
+
 const loginAttempts = new Map();
 function goodLogin(req, res) {
     const ip = req.ip;
@@ -154,7 +144,7 @@ function goodLogin(req, res) {
     if (!user || user.password !== password) {
         attempts.count++;
         if (attempts.count >= 5) {
-            attempts.lockedUntil = Date.now() + 15 * 60 * 1000;  // 15 min lockout
+            attempts.lockedUntil = Date.now() + 15 * 60 * 1000;  
         }
         loginAttempts.set(ip, attempts);
         return res.status(401).json({ error: 'Invalid credentials' });

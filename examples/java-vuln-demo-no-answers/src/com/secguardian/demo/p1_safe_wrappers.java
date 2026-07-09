@@ -4,7 +4,7 @@ package com.secguardian.demo;
 import java.sql.*;
 
 class SafeQuery {
-    // 强制参数化查询的封装
+    
     public static ResultSet query(Connection conn, String sql, Object... params) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             for (int i = 0; i < params.length; i++) {
@@ -20,7 +20,7 @@ public class p1_safe_wrappers {
 
     public void findUser(Connection conn, String userId) throws SQLException {
         String sql = "SELECT * FROM users WHERE id = ?";
-        SafeQuery.query(conn, sql, userId);  // SafeQuery 强制 PreparedStatement
+        SafeQuery.query(conn, sql, userId);  
     }
 
 
@@ -33,6 +33,6 @@ class FileLogger {
     public static void write(String dir, String filename, String content) {
         String safePath = dir.replaceAll("[^a-zA-Z0-9/_-]", "");
         java.nio.file.Path p = java.nio.file.Paths.get(safePath, filename);
-        // 实际写入逻辑（路径已清洗）
+        
     }
 }

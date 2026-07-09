@@ -33,7 +33,7 @@ public class p0_safe_functions {
 
     private static final Logger logger = Logger.getLogger("App");
     public void logEvent(String user) {
-        logger.info("User login: {0}", user);  // %s 占位符，非拼接
+        logger.info("User login: {0}", user);  
     }
 
 

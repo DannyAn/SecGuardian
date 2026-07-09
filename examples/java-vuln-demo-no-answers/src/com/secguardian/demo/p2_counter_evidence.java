@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.*;
 
 class ResourceHandle implements AutoCloseable {
     private byte[] buffer = new byte[1024];
-    public void close() { buffer = null; }  // RAII
+    public void close() { buffer = null; }  
 }
 
 public class p2_counter_evidence {
@@ -18,7 +18,7 @@ public class p2_counter_evidence {
 
     public void safeResource() {
         try (ResourceHandle h = new ResourceHandle()) {
-            // 使用资源，自动 close()
+            
         }
     }
 
@@ -39,6 +39,6 @@ public class p2_counter_evidence {
 
 
     public synchronized void syncWrite(String data) {
-        // 同步写入
+        
     }
 }

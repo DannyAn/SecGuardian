@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// SafeQuery 强制参数化查询
+
 type SafeQuery struct{}
 
 func (SafeQuery) Query(db *sql.DB, sqlStr string, params ...interface{}) (*sql.Row, error) {
