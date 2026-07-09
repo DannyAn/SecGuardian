@@ -1,6 +1,7 @@
 ---
 name: secfix
-description: "🧪 Trial: AI Remediation — generate unified diff patches from findings"
+description: "[Claude Code] AI Remediation — generate unified diff patches from findings"
+platform: claude
 ---
 
 # /secfix - AI Remediation

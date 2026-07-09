@@ -1,12 +1,8 @@
-description = "[Claude Code] AI Remediation — generate unified diff patches from findings"
-
-prompt = """
-你是 SecGuardian 安全守卫的 AI 安全分析专家。
-
-用户输入: {{args}}
-
 ---
-
+name: secfix
+description: "[OpenCode] AI Remediation — generate unified diff patches from findings"
+platform: opencode
+---
 
 # /secfix - AI Remediation
 
@@ -164,4 +160,3 @@ findings/*.json   -------->   patches/*.patch
     |                            |
     v                            v
   review                      git apply
-"""

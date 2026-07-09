@@ -1,4 +1,4 @@
-description = "AI Security Code Review — 5-language PR security review with exploit scenario analysis"
+description = "[Claude Code] AI Security Code Review — 5-language PR security review via EPIC-3 Dispatcher protocol"
 
 prompt = """
 你是 SecGuardian 安全守卫的 AI 安全分析专家。
@@ -124,101 +124,40 @@ Output directory: <user-project>/.codeagent/secguardian/secreview/scans/pr-20260
 > 🚫 **不要使用 `todowrite` 工具。** 使用原生 task 系统（`TaskCreate` + `TaskUpdate`）追踪进度。
 > `todowrite` 每次调用重传全部已完成项，每会话浪费 ≥50KB 无效 token。
 >
-> 🚫 **不要硬编码 `RECORDER` 路径。** 必须使用 `$SECGUARDIAN_HOME/scripts/record-finding.py`。
+> 🚫 **不要硬编码 `RECORDER` 路径。** 必须使用 `$SCRIPTS_DIR/record-finding.py`。
 > 硬编码路径在安装位置变动时全断。
 >
-> 🚫 **Do NOT use `read` tool on `$SECGUARDIAN_HOME/scripts/` files.** All scripts execute via `Bash` tool — their CLI interfaces are fully documented in this template. Reading script files triggers unnecessary OpenCode permission prompts and wastes tokens.
+> 🚫 **Do NOT use `read` tool on `$SCRIPTS_DIR/` files.** All scripts execute via `Bash` tool — their CLI interfaces are fully documented in this template. Reading script files triggers unnecessary OpenCode permission prompts and wastes tokens.
 
 ## Dispatch Rules & Execution Steps
+
+> **Architecture (Signal Matrix — EPIC-007)**: SecGuardian EPIC-3 refactors the execution pipeline into 15 focused C/C++ detection skills, dispatched via the unified Dispatcher protocol defined in `commands/secguard.md`. Security code review uses **S1 + S2 + S7 signals** (call_sites, string_literals, control_flow) for PR diff-context analysis. Shared execution flow (init, indexing, output protocol, summary) follows the Dispatcher. secreview adds per-language review rules and three-reasoning-pass analysis (vulnerability, business logic, anti-pattern). secreview-specific logic stays here; shared pipeline steps follow the Dispatcher protocol.
 
 You (the AI Agent) must follow these steps when executing `/secreview` to perform the security code review.
 
 ### Pre-flight Checklist
 
-# ── Resolve SECGUARDIAN_HOME ─────────────────
-if [ -z "$SECGUARDIAN_HOME" ] || [ ! -d "$SECGUARDIAN_HOME/scripts" ]; then
-    for _sg_root in "$HOME/.claude/plugins/secguardian" \
-                    "$HOME/.config/opencode/extensions/secguardian" \
-                    "$HOME/.gemini/extensions/secguardian" \
-                    "/root/.config/opencode/extensions/secguardian"; do
-        if [ -f "$_sg_root/scripts/record-finding.py" ]; then
-            export SECGUARDIAN_HOME="$_sg_root"
-            break
-        fi
-    done
-fi
-if [ -z "$SECGUARDIAN_HOME" ] || [ ! -d "$SECGUARDIAN_HOME/scripts" ]; then
-    echo "FATAL: Cannot locate secguardian installation"
-    exit 1
-fi
+### 前置检查（Pre-flight Checklist）
 
-> ⛔ **DO NOT use Glob or Read tools to discover file paths**. All path checks must use bash commands (`[ -f ]`, `ls`, etc.). Always run `find_indexer` before `--health`.
+> ⛔ **禁止使用 Glob 或 Read 工具探索文件路径（搜索文件）。已知路径的文件用 `cat` 读取。**
 
-Before starting any review, verify each condition below. **If any check fails, report the specific error and abort.**
+执行审阅前确认：
 
-- [ ] Locate indexer: resolved via `SECGUARDIAN_HOME` env var or auto-discovery from `$HOME/.claude/plugins/secguardian`, `$HOME/.config/opencode/extensions/secguardian`
-- [ ] Run `{indexer} --health` passes (output must contain `HEALTH:OK` or `HEALTH:WARN`; `HEALTH:FAIL` is not accepted)
-- [ ] Target `<path>` exists and contains at least one source file
-- [ ] **Language detection (only when user omits `language` parameter)** check source extensions in `<path>`: `*.c/*.cpp/*.h` -> `cpp`, `*.py` -> `python`, `*.java` -> `java`, `*.go` -> `go`. No need to ask the user.
-- [ ] Confirm no external tools (clangd/LSP/compile_commands.json/bear) will be started. The indexer (tree-sitter) already provides symbol table + call graph + file manifest.
+- [ ] 目标路径 `<path>` 存在且包含至少一个源码文件
+- [ ] **语言检测**（当用户省略 `language` 参数时）：扩展名检查 -> `cpp`/`python`/`java`/`go`
+- [ ] 不使用 clangd/LSP/bear 等外部工具
+- [ ] `SECGUARDIAN_HOME`/健康检查/目录创建由 Step 1 的 `init-scan.sh` 统一处理
 
-> If any check fails, report which one and abort. Do not degrade to manual file-by-file review.
+> 若未通过，报告具体失败项并终止。不要降级为手工审阅。
 
 ---
 
-### Step 1: Initialize (single bash call, DO NOT split)
+### Step 1: 初始化（唯一 bash 调用，使用共享 init-scan.sh）
 
-> ⚠️ This is the **single pre-init bash call** — it MUST complete everything in one go: auto-discovery → health check → path verification → dir creation → `.scan_state.secreview` write.
-> **DO NOT** insert standalone bash commands before/after Step 1 (e.g. `ls "$SECGUARDIAN_HOME/scripts/"`) — those run in a new shell without the variable.
-> `$SECGUARDIAN_HOME/scripts/` was already validated during auto-discovery; redundant `ls` is unnecessary.
-
-- **⏳ Generate scan_id FIRST** (format: `pr-YYYYMMDD-HHMMSS-xxxx`, `xxxx` is 4 random chars).
-- **Once scan_id is generated, ALL subsequent paths must use this scan_id.**
+> **唯一一次预初始化 bash 调用**。通过 `scripts/init-scan.sh` 完成 SECGUARDIAN_HOME 自动发现、健康检查、路径确认、建目录、写 `.scan_state.secreview`。
 
 ```bash
-# ===== Phase A: SECGUARDIAN_HOME auto-discovery =====
-if [ -z "$SECGUARDIAN_HOME" ] || [ ! -d "$SECGUARDIAN_HOME/scripts" ]; then
-    for candidate in \
-        "/root/.config/opencode/extensions/secguardian" \
-        "$HOME/.config/opencode/extensions/secguardian" \
-        "$HOME/.claude/plugins/secguardian" \
-        "$HOME/.gemini/extensions/secguardian" \
-        "."; do
-        if [ -f "$candidate/scripts/record-finding.py" ]; then
-            export SECGUARDIAN_HOME="$candidate"
-            echo "SECGUARDIAN_HOME=$SECGUARDIAN_HOME"
-            break
-        fi
-    done
-fi
-if [ -z "$SECGUARDIAN_HOME" ] || [ ! -d "$SECGUARDIAN_HOME/scripts" ]; then
-    echo "FATAL: Cannot locate secguardian installation (no SECGUARDIAN_HOME with scripts/)"
-    exit 1
-fi
-
-# ===== Phase B: Indexer health check =====
-if ! "$SECGUARDIAN_HOME/scripts/secguardian-index" --health; then
-    echo "FATAL: secguardian-index health check failed"
-    exit 1
-fi
-
-# ===== Phase C: Scan path verification =====
-test -d "<path>" || { echo "FATAL: scan path <path> not found"; exit 1; }
-
-# ===== Phase D: Create scan dir =====
-SCAN_ID="pr-$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 2)"
-SCAN_DIR="$USER_PROJECT/.codeagent/secguardian/secreview/scans/$SCAN_ID"
-mkdir -p "$SCAN_DIR"
-
-# ===== Phase E: Persist state to .scan_state.secreview =====
-cat > ".codeagent/secguardian/.scan_state.secreview" << STATEEOF
-USER_PROJECT="$USER_PROJECT"
-SCAN_ID="$SCAN_ID"
-SCAN_DIR="$SCAN_DIR"
-SECGUARDIAN_HOME="$SECGUARDIAN_HOME"
-RECORDER="$SECGUARDIAN_HOME/scripts/record-finding.py"
-STATEEOF
-echo "SCAN_DIR=$SCAN_DIR"
+source "$HOME/.claude/plugins/secguardian/scripts/init-scan.sh" secreview "<path>"
 ```
 
 - Record review start timestamp for Step 4 `duration_ms` calculation.
@@ -231,14 +170,14 @@ echo "SCAN_DIR=$SCAN_DIR"
 Step 1 persists `SCAN_ID`, `SCAN_DIR`, `USER_PROJECT`, `SECGUARDIAN_HOME`, `RECORDER` in `.scan_state.secreview`.
 From Step 2 onward, **every bash call MUST start with**:
 ```bash
-source .codeagent/secguardian/.scan_state.secreview
+USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
+source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secreview"
 ```
-Then use `$SCAN_DIR`, `$SCAN_ID`, `$USER_PROJECT`, `$SECGUARDIAN_HOME`, `$RECORDER` directly. NEVER use `$(cat /tmp/*.txt)`.
+After this, `$SCAN_DIR`, `$SCAN_ID`, `$USER_PROJECT`, `$SECGUARDIAN_HOME`, `$RECORDER` expand correctly inside bash commands. NEVER use `$(cat /tmp/*.txt)`.
 
 > **📂 Knowledge reading**: Knowledge files are at `$SECGUARDIAN_HOME/knowledge/`. Read on demand via bash `cat` — no directory copy.
-> - Review rules: `cat "$SECGUARDIAN_HOME/knowledge/review-rules/{lang}.md"`
-> - Language profile: `cat "$SECGUARDIAN_HOME/knowledge/languages/{lang}.md"`
-> - language-index: `cat "$SECGUARDIAN_HOME/knowledge/language-index.md"`
+> - Review rules: `cat "$SECGUARDIAN_HOME/skills/secreview/{lang}/rules/{lang}.md"`
+> - Language profile: `cat "$SECGUARDIAN_HOME/skills/secguard-{lang}/references/language-features.md"`
 > - Protocols: `cat "$SECGUARDIAN_HOME/knowledge/protocols/{name}.md"`
 > - DO NOT use `read` tool on `$SECGUARDIAN_HOME/knowledge/` (triggers permission prompts). Use bash `cat` instead — no permission prompt.
 
@@ -250,28 +189,23 @@ Then use `$SCAN_DIR`, `$SCAN_ID`, `$USER_PROJECT`, `$SECGUARDIAN_HOME`, `$RECORD
 > Index caching is automatic. Add `--force` to force a rebuild.
 
 ```bash
-INDEXER="$SECGUARDIAN_HOME/scripts/secguardian-index"
-if [ ! -f "$INDEXER" ]; then
-    echo "FATAL: secguardian-index not found at $INDEXER"
-    exit 1
-fi
-echo "Using: $INDEXER"
+INDEXER="$SCRIPTS_DIR/secguardian-index"
 # 超时保护: timeout 30s，防止索引器挂死。macOS 需要 brew install coreutils。
 if command -v timeout &>/dev/null; then
-    timeout 30 "$INDEXER" --path <path> --output <user-project>/.codeagent/secguardian/index.json || {
+    timeout 30 "$INDEXER" --path "$SCAN_PATH" --output "$USER_PROJECT/.codeagent/secguardian/index.json" || {
         echo "FAIL: Indexer timed out after 30s or failed — cannot continue"
         echo "  macOS: brew install coreutils  (provides 'timeout' command)"
         exit 1
     }
 elif command -v gtimeout &>/dev/null; then
-    gtimeout 30 "$INDEXER" --path <path> --output <user-project>/.codeagent/secguardian/index.json || {
+    gtimeout 30 "$INDEXER" --path "$SCAN_PATH" --output "$USER_PROJECT/.codeagent/secguardian/index.json" || {
         echo "FAIL: Indexer timed out after 30s or failed — cannot continue"
         exit 1
     }
 else
     echo "WARNING: 'timeout' not found — indexer runs without timeout protection"
     echo "  Install coreutils: brew install coreutils (macOS) or apt install coreutils (Linux)"
-    "$INDEXER" --path <path> --output <user-project>/.codeagent/secguardian/index.json
+    "$INDEXER" --path "$SCAN_PATH" --output "$USER_PROJECT/.codeagent/secguardian/index.json"
 fi
 if [ ! -f "<user-project>/.codeagent/secguardian/index.json" ]; then
     echo "FATAL: Indexer failed — cannot continue"
@@ -282,7 +216,7 @@ fi
 **2b. Validate index integrity (required):**
 
 ```bash
-python3 "$SECGUARDIAN_HOME/scripts/validate-index.py" \
+python3 "$SCRIPTS_DIR/validate-index.py" \
     --index <user-project>/.codeagent/secguardian/index.json \
     --scan-id <scan_id>
 ```
@@ -295,34 +229,34 @@ python3 "$SECGUARDIAN_HOME/scripts/validate-index.py" \
 - Load the corresponding skill: `../skills/secreview/{language}/SKILL.md`.
 - Load the per-language profile (dangerous API lists) using bash `cat` — avoid `read` tool which triggers OpenCode external dir permission prompts:
   ```bash
-  LANG_PROFILE="$SECGUARDIAN_HOME/knowledge/languages/<language>.md"
+  LANG_PROFILE="$SECGUARDIAN_HOME/skills/secguard-<language>/references/language-features.md"
   [ -f "$LANG_PROFILE" ] && echo "=== Language Profile ===" && cat "$LANG_PROFILE"
   ```
 - **Use index.json symbol table to locate review targets**, rather than traversing files.
 
 <!-- @secguardian:non-skippable step=pre-filter -->
 #### 3a. 检测器预筛（不可跳过 — 语言感知）
-> 加载审阅规则前必须先经 index.json 符号表门控。按语言类型采用不同策略。
+> 加载审阅规则前必须先经 index.json 信号门控。按语言类型采用不同策略。**`call_sites` 是 C/C++ 预筛的主要信号源，同时 `imports`/`string_literals`/`control_flow` 提供辅助信号。**
 
 **C/C++（符号表精确匹配）：**
-对 language-index 中该语言的 review-rules 清单：
-1. **读取目标函数/API**：review-rules 关联的目标函数名
-2. **查 index.json.symbols.functions**：在符号表中查询目标是否存在
-3. **无匹配 → 跳过**：不加载规则全文，记录 "`Skipped: no matching symbol for {rule} in index.json`"
+对 `skills/secreview/{lang}/rules/{lang}.md` 的审阅清单：
+1. **读取目标函数/API**：rules 关联的目标函数名
+2. **查 index.json.call_sites**：在 `call_sites` 中查询目标 API 是否被调用。`call_sites` 记录了每个危险 API（如 `strcpy`、`system`、`malloc`）的文件、行号和上下文，是预筛的主要信号来源。辅助信号：`imports` 检测依赖，`string_literals` 检测硬编码凭据，`control_flow` 检测守卫逻辑
+3. **无匹配 → 跳过**：不加载规则全文，记录 "`Skipped: no matching call_site for {rule} in index.json`"
 4. **有匹配 → 进入 3b**：规则强制加载后执行审阅
 
 **Java / Python / Go / JS 等 OO 语言（全量加载）：**
 > ⚠️ OO 语言中危险 API 是方法内调用，不在索引器符号表顶层。
-> review-rules 每语言仅 1 个文件，全量加载成本极低。
+> rules 每语言仅 1 个文件，全量加载成本极低。
 
 1. 检查 `index.json` 中 `function_count > 0`
-2. 有函数 → **必须加载该语言 review-rules 全文**（不允许 AI 自主裁定）
+2. 有函数 → **必须加载该语言 rules 全文**（不允许 AI 自主裁定）
 3. 无函数 → 跳过
 
 #### 3b. 审阅规则强制加载（不可跳过）
 
-> **核心契约**：审阅逻辑必须以 review-rules 文件内容为准，而非 AI 自身知识。
-> 5 个语言的 review-rules 文件是唯一的审阅语义来源。跳过文件加载 = 忽略自定义审阅规则、检测模式更新、修复修正。
+> **核心契约**：审阅逻辑必须以 rules 文件内容为准，而非 AI 自身知识。
+> 5 个语言的 rules 文件是唯一的审阅语义来源。跳过文件加载 = 忽略自定义审阅规则、检测模式更新、修复修正。
 > **finding 的 `rationale`、`fix_before`/`fix_after` 必须引用规则文件原文，否则 finding 无效。**
 
 <!-- @secguardian:non-skippable step=rule-loading -->
@@ -330,7 +264,7 @@ python3 "$SECGUARDIAN_HOME/scripts/validate-index.py" \
 对预筛后有匹配的每个 review-rule，**必须**执行：
 
 ```bash
-cat "$SECGUARDIAN_HOME/knowledge/review-rules/{lang}.md"
+cat "$SECGUARDIAN_HOME/skills/secreview/{lang}/rules/{lang}.md"
 ```
 
 然后：
@@ -382,10 +316,10 @@ Evaluate against language-specific anti-patterns (from the skill file):
 > Findings from all three passes are consolidated into a single output. Each finding should reference which pass(es) identified it.
 
 > ⚠️ **🚫 禁止将检测执行委托给子代理 (NON-NEGOTIABLE):**
-> YOU are the detection engine. Your analysis (reading index.json symbols + loading guard-rules + reading target functions) IS the scanner.
+> YOU are the detection engine. Your analysis (reading index.json symbols + loading detection rules from `skills/secguard/{lang}/rules/*/rule.md` + reading target functions) IS the scanner.
 > - ❌ 不允许启动 background task / sub-agent 来执行检测器
 > - ❌ 不允许用 grep/find 全文件扫描（必须通过 index.json 符号表定位目标函数）
-> - ✅ 正确做法：在当前上下文中，逐一读取 guard-rules → 查 index.json 符号表找到关联函数 → 读取该函数代码 → 应用检测逻辑 → 用 record-finding.py 记录 finding
+> - ✅ 正确做法：在当前上下文中，逐一读取 detection rules（`rules/*/rule.md`）→ 查 index.json 符号表找到关联函数 → 读取该函数代码 → 应用检测逻辑 → 用 record-finding.py 记录 finding
 
 > **自动跳过**: 如果 Step 4 (Pass A/B/C) 检出 0 个 finding，跳过 Step 5 渲染管线，直接输出 "✅ 安全审阅通过，未发现安全问题" 并结束。
 
@@ -406,7 +340,7 @@ Each finding is recorded via `record-finding.py` (multi-path search).
 > - 无 index 锚点时 MUST 标记 `confidence: low`
 
 ```bash
-# RECORDER/SCAN_DIR/SCAN_ID already loaded from .scan_state — no redundant assignment needed
+# RECORDER/SCAN_DIR/SCAN_ID already loaded from .scan_state.secreview — no redundant assignment needed
 # ⚠️ MUST use heredoc with --from-stdin. NEVER pass code as inline CLI args.
 python3 "$RECORDER" \
     --command secreview \
@@ -437,7 +371,7 @@ RECEOF
 ```
 
 Key requirements (secreview-specific):
-- `detector` must use `namespace.name` format (e.g., `web.sql-injection`), matching guard-rules naming
+- `detector` must use `namespace.name` format (e.g., `web.sql-injection`), consistent across all detection rules
 - `evidence.judgment_rationale` must cite relevant security standards (SEI CERT / OWASP / Go Security Guidelines)
 - `impact.attack_scenario` is **required** — describe a concrete way an attacker could exploit this
 - `secreview_specific.review_pass` indicates which reasoning pass identified the finding
@@ -452,7 +386,7 @@ Key requirements (secreview-specific):
 
 ```bash
 SCAN_DIR=".codeagent/secguardian/secreview/scans/<scan_id>"
-python3 "$SECGUARDIAN_HOME/scripts/validate-findings.py" --findings-dir "$SCAN_DIR/findings/" --check-spec
+python3 "$SCRIPTS_DIR/validate-findings.py" --findings-dir "$SCAN_DIR/findings/" --check-spec
 VALIDATE_EXIT=$?
 if [ $VALIDATE_EXIT -eq 0 ]; then
     echo "  ✅ All findings pass validation + spec cross-check"
@@ -475,46 +409,61 @@ python3 "$RENDERER" \
 
 > ⚠️ If renderer unavailable: `"Renderer unavailable — findings saved to findings/ directory tree only."`
 
-### Step 6: Output Review Summary
+### Step 6: Output Review Summary（遵循统一 CLI 输出协议）
 
-- After renderer completes, read `manifest.json` for review statistics.
-- Output a Markdown review summary to the user, containing: scan_id, language, mode (full vs git diff), total findings by severity/type, and top findings with exploit scenarios.
-## 📄 Output Layer
+读取 `manifest.json` 获取统计，按 `knowledge/protocols/scan-output.md §CLI 输出摘要` 的统一格式输出。
 
-> 以下输出格式遵循 `internal/output/output_contract.md`。
+**secreview 特有规则：**
+- **统计表**：用 `项目 | 数值` 格式，内容包括文件审阅数、审阅维度（passes）、检出数
+- **类别列**：填充审阅维度（如 `injection-prevention`）
+- **0 发现 → 不出现发现表**
 
-## 🔒 secreview Review Complete
+**0 发现（审阅通过）：**
 
-**Scan ID:** `<scan-id>`
-**Project:** `<project-name>`
-**Workspace:** `<user-project>`
-**Path:** `./src`
-**Mode:** full codebase | Language: python
+```
+## secreview 完成
 
-### Results
-- Files reviewed: 3
-- Review dimensions: 3 passes
-- Total findings: N (Critical: X, High: Y, Medium: Z)
+Scan ID: pr-YYYYMMDD-HHMMSS-xxxx | Project: <project> | Path: <path> | Language: <lang> | Mode: <full | git diff>
 
-### Findings
-| # | Severity | CWE | File | Summary |
-|---|----------|-----|------|---------|
+### 扫描统计
 
-### Output Files
-📋 Unified entry: `.codeagent/.../human/executive-summary.md`
-📄 Full report: `.codeagent/.../report.md`
-🌐 Dashboard: `.codeagent/.../dashboard.html`
-🤖 AI Remediation: `.codeagent/.../ai/remediation-pack.json`
-📊 SARIF: `.codeagent/.../results.sarif`
-📋 Index: `.codeagent/.../manifest.json`
+| 项目 | 数值 |
+|------|------|
+| 文件审阅 | 3 |
+| 审阅维度 | 3 passes |
+| 检出 | 0 |
 
-💡 **How to Use Results**
-- Quick summary → manifest.json
-- ★ Unified entry → human/executive-summary.md
-- Engineer remediation → findings/<detector>/
-- Management dashboard → dashboard.html
-- Full report → report.md
-- AI Agent fix → /secfix <scan-id>
-- CI/CD integration → results.sarif
+### 安全评分
+
+**100/100 🟢 Grade A — 代码审查通过，未发现安全问题。**
+```
+
+**有发现（检出 > 0）：**
+
+```
+## secreview 完成
+
+Scan ID: pr-YYYYMMDD-HHMMSS-xxxx | Project: <project> | Path: <path> | Language: <lang> | Mode: <full | git diff>
+
+### 扫描统计
+
+| 项目 | 数值 |
+|------|------|
+| 文件审阅 | 8 (4 changed + 4 context) |
+| 审阅维度 | 3 passes |
+| 检出 | 5 (Critical: 0, High: 2, Medium: 3) |
+
+### 发现详情
+
+| # | Severity | CWE | 类别 | 位置 | 摘要 |
+|---|----------|-----|------|------|------|
+| 1 | 🟠 High | CWE-089 | injection-prevention | src/UserService.java:89 | SQL injection via string concat |
+| 2 | 🟠 High | CWE-807 | auth-bypass | src/AdminController.java:23 | Trust boundary violation |
+| 3 | 🟡 Medium | CWE-532 | info-exposure | src/AuthHandler.java:156 | Sensitive data in log |
+
+### 安全评分
+
+**70/100 🟡 Grade B — 建议修复 High 后合并。**
+```
 
 """

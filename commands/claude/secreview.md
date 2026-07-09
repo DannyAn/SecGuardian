@@ -1,6 +1,7 @@
 ---
 name: secreview
-description: "AI Security Code Review — 5-language PR security review via EPIC-3 Dispatcher protocol"
+description: "[Claude Code] AI Security Code Review — 5-language PR security review via EPIC-3 Dispatcher protocol"
+platform: claude
 ---
 
 # /secreview - AI Security Code Review for Pull Requests
@@ -119,10 +120,10 @@ Output directory: <user-project>/.codeagent/secguardian/secreview/scans/pr-20260
 > 🚫 **不要使用 `todowrite` 工具。** 使用原生 task 系统（`TaskCreate` + `TaskUpdate`）追踪进度。
 > `todowrite` 每次调用重传全部已完成项，每会话浪费 ≥50KB 无效 token。
 >
-> 🚫 **不要硬编码 `RECORDER` 路径。** 必须使用 `$SECGUARDIAN_HOME/scripts/record-finding.py`。
+> 🚫 **不要硬编码 `RECORDER` 路径。** 必须使用 `$SCRIPTS_DIR/record-finding.py`。
 > 硬编码路径在安装位置变动时全断。
 >
-> 🚫 **Do NOT use `read` tool on `$SECGUARDIAN_HOME/scripts/` files.** All scripts execute via `Bash` tool — their CLI interfaces are fully documented in this template. Reading script files triggers unnecessary OpenCode permission prompts and wastes tokens.
+> 🚫 **Do NOT use `read` tool on `$SCRIPTS_DIR/` files.** All scripts execute via `Bash` tool — their CLI interfaces are fully documented in this template. Reading script files triggers unnecessary OpenCode permission prompts and wastes tokens.
 
 ## Dispatch Rules & Execution Steps
 
@@ -152,12 +153,7 @@ You (the AI Agent) must follow these steps when executing `/secreview` to perfor
 > **唯一一次预初始化 bash 调用**。通过 `scripts/init-scan.sh` 完成 SECGUARDIAN_HOME 自动发现、健康检查、路径确认、建目录、写 `.scan_state.secreview`。
 
 ```bash
-# ===== 自动发现 SECGUARDIAN_HOME（不能 source 一个还没找到的脚本）=====
-for candidate in "/root/.config/opencode/extensions/secguardian" "$HOME/.config/opencode/extensions/secguardian" "$HOME/.claude/plugins/secguardian" "$HOME/.gemini/extensions/secguardian" "."; do [ -f "$candidate/scripts/record-finding.py" ] && export SECGUARDIAN_HOME="$candidate" && break; done
-[ -z "$SECGUARDIAN_HOME" ] && { echo "FATAL: Cannot locate secguardian"; exit 1; }
-
-# ===== 共享 init-scan.sh =====
-source "$SECGUARDIAN_HOME/scripts/init-scan.sh" secreview <path>
+source "$HOME/.claude/plugins/secguardian/scripts/init-scan.sh" secreview "<path>"
 ```
 
 - Record review start timestamp for Step 4 `duration_ms` calculation.
@@ -189,28 +185,23 @@ After this, `$SCAN_DIR`, `$SCAN_ID`, `$USER_PROJECT`, `$SECGUARDIAN_HOME`, `$REC
 > Index caching is automatic. Add `--force` to force a rebuild.
 
 ```bash
-INDEXER="$SECGUARDIAN_HOME/scripts/secguardian-index"
-if [ ! -f "$INDEXER" ]; then
-    echo "FATAL: secguardian-index not found at $INDEXER"
-    exit 1
-fi
-echo "Using: $INDEXER"
+INDEXER="$SCRIPTS_DIR/secguardian-index"
 # 超时保护: timeout 30s，防止索引器挂死。macOS 需要 brew install coreutils。
 if command -v timeout &>/dev/null; then
-    timeout 30 "$INDEXER" --path <path> --output <user-project>/.codeagent/secguardian/index.json || {
+    timeout 30 "$INDEXER" --path "$SCAN_PATH" --output "$USER_PROJECT/.codeagent/secguardian/index.json" || {
         echo "FAIL: Indexer timed out after 30s or failed — cannot continue"
         echo "  macOS: brew install coreutils  (provides 'timeout' command)"
         exit 1
     }
 elif command -v gtimeout &>/dev/null; then
-    gtimeout 30 "$INDEXER" --path <path> --output <user-project>/.codeagent/secguardian/index.json || {
+    gtimeout 30 "$INDEXER" --path "$SCAN_PATH" --output "$USER_PROJECT/.codeagent/secguardian/index.json" || {
         echo "FAIL: Indexer timed out after 30s or failed — cannot continue"
         exit 1
     }
 else
     echo "WARNING: 'timeout' not found — indexer runs without timeout protection"
     echo "  Install coreutils: brew install coreutils (macOS) or apt install coreutils (Linux)"
-    "$INDEXER" --path <path> --output <user-project>/.codeagent/secguardian/index.json
+    "$INDEXER" --path "$SCAN_PATH" --output "$USER_PROJECT/.codeagent/secguardian/index.json"
 fi
 if [ ! -f "<user-project>/.codeagent/secguardian/index.json" ]; then
     echo "FATAL: Indexer failed — cannot continue"
@@ -221,7 +212,7 @@ fi
 **2b. Validate index integrity (required):**
 
 ```bash
-python3 "$SECGUARDIAN_HOME/scripts/validate-index.py" \
+python3 "$SCRIPTS_DIR/validate-index.py" \
     --index <user-project>/.codeagent/secguardian/index.json \
     --scan-id <scan_id>
 ```
@@ -391,7 +382,7 @@ Key requirements (secreview-specific):
 
 ```bash
 SCAN_DIR=".codeagent/secguardian/secreview/scans/<scan_id>"
-python3 "$SECGUARDIAN_HOME/scripts/validate-findings.py" --findings-dir "$SCAN_DIR/findings/" --check-spec
+python3 "$SCRIPTS_DIR/validate-findings.py" --findings-dir "$SCAN_DIR/findings/" --check-spec
 VALIDATE_EXIT=$?
 if [ $VALIDATE_EXIT -eq 0 ]; then
     echo "  ✅ All findings pass validation + spec cross-check"

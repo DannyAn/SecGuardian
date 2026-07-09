@@ -1,9 +1,10 @@
 ---
 name: secguard
-description: "安全加固检视 — 信号驱动的检测引擎，覆盖 API 调用检测、语义模式匹配、契约验证 (must-check/ownership) 等多个检视维度"
+description: "[Claude Code] 安全加固检视 — 信号驱动的检测引擎，Worker 通过 Agent 工具启动以实现上下文隔离，覆盖 API 调用检测、语义模式匹配、契约验证等多个检视维度"
+platform: claude
 ---
 
-# /secguard — Dispatcher Protocol v2 (EPIC-3)
+# /secguard — Dispatcher Protocol v2 (EPIC-3) [Claude Code]
 
 ## Command Layer
 
@@ -87,8 +88,8 @@ description: "安全加固检视 — 信号驱动的检测引擎，覆盖 API �
 > **隔离约束**: Dispatcher 只能加载 `$SECGUARDIAN_HOME/skills/secguard-<language>/` 下的 Skill，禁止加载 `skills/secaudit-secaudit/` 或 `skills/secreview-<language>/` 下的任何文件。知识文件从 `$SECGUARDIAN_HOME/knowledge/` 用 bash `cat` 按需读取。
 >
 > 🚫 **不要使用 `todowrite` 工具。** 使用原生 task 系统追踪进度。
-> 🚫 **不要硬编码 `RECORDER` 路径。** 必须使用 `$SECGUARDIAN_HOME/scripts/record-finding.py`。
-> 🚫 **禁止用 `read` 工具读取 `$SECGUARDIAN_HOME/scripts/` 下的脚本文件。** 所有脚本通过 `Bash` 工具执行。
+> 🚫 **不要硬编码 `RECORDER` 路径。** 必须使用 `$SCRIPTS_DIR/record-finding.py`。
+> 🚫 **禁止用 `read` 工具读取 `$SCRIPTS_DIR/` 下的脚本文件。** 所有脚本通过 `Bash` 工具执行。
 
 ### 调度架构概览
 
@@ -180,29 +181,21 @@ crypto               →  hardcoded_secrets
 > **禁止**在 Step 1 前后插入任何独立的 bash 命令。
 
 ```bash
-# ===== 自动发现 SECGUARDIAN_HOME（不能 source 一个还没找到的脚本）=====
-for candidate in "/root/.config/opencode/extensions/secguardian" "$HOME/.config/opencode/extensions/secguardian" "$HOME/.claude/plugins/secguardian" "$HOME/.gemini/extensions/secguardian" "."; do [ -f "$candidate/scripts/record-finding.py" ] && export SECGUARDIAN_HOME="$candidate" && break; done
-[ -z "$SECGUARDIAN_HOME" ] && { echo "FATAL: Cannot locate secguardian"; exit 1; }
-
-# ===== 共享 init-scan.sh：健康检查 → 路径校验 → 建目录 → 写 .scan_state.secguard =====
-source "$SECGUARDIAN_HOME/scripts/init-scan.sh" secguard <path>
-
-# SCAN_DIR/ 下的 workers/ 和 findings/ 目录已由 init-scan.sh 创建
+source "$HOME/.claude/plugins/secguardian/scripts/init-scan.sh" secguard "<path>"
 ```
 
 ### 🔒 跨 Shell 状态传递规则
 
 > **每个 bash 调用都是独立 shell，变量不共享。禁止用 `/tmp/` 或任何系统临时目录传状态。**
-
-Step 1 已在 `$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard`（绝对路径）中持久化所有状态。
+>
+> ⚠️ `$SECGUARDIAN_HOME` **只在 source `.scan_state.secguard` 后的 bash shell 中可用**。不要在 source 之前直接引用 `$SECGUARDIAN_HOME`（值为空，路径变成 `/scripts/`）。
+>
+> ⚠️ **禁止对 `$SCRIPTS_DIR/` 执行 `ls`、`find`、Glob 等探索操作。** 所有脚本路径已在模板中硬编码。探索多余目录浪费上下文。
 
 **从 Step 2 开始，每个 bash 调用必须在开头执行以下命令**（这样 `$SCAN_DIR`、`$SCAN_ID`、`$USER_PROJECT`、`$SECGUARDIAN_HOME` 才能正确展开）:
 
-> **知识库读取**: 知识库文件存储在 `$SECGUARDIAN_HOME/knowledge/`，使用 bash `cat` 按需读取，不拷贝到项目目录。
-> - 协议文件：`cat "$SECGUARDIAN_HOME/knowledge/protocols/{name}.md"`
-> - 语言画像：`cat "$SECGUARDIAN_HOME/skills/secguard-{lang}/references/language-features.md"`
-> - 规则加载：`cat "$SECGUARDIAN_HOME/skills/secguard-<language>/rules/{skill}/rule.md"`
-> - 禁止使用 `read` 工具读 `$SECGUARDIAN_HOME/` 下的文件（触发 OpenCode 外部目录权限弹窗）。使用 bash `cat` 读取不会触发权限弹窗。
+> **知识库读取**: 知识库文件（`rule.md`、`references/*.md`、`knowledge/protocols/*.md`）通过 Claude Code 原生 `read` 工具读取。
+> **排除项：`$SCRIPTS_DIR/secguardian-index`**（编译的 Go 二进制）不能通过 `read` 或 `cat` 查看内容。只能通过 bash 执行（`"$INDEXER" --lang ...`）。
 
 ### Step 2: 构建语义索引（不可跳过）
 
@@ -213,27 +206,22 @@ Step 1 已在 `$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard`（绝�
 USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
 source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
 
-INDEXER="$SECGUARDIAN_HOME/scripts/secguardian-index"
-if [ ! -f "$INDEXER" ]; then
-    echo "FATAL: secguardian-index not found at $INDEXER"
-    exit 1
-fi
-echo "Using: $INDEXER"
+INDEXER="$SCRIPTS_DIR/secguardian-index"
 # 超时保护: timeout 30s
 if command -v timeout &>/dev/null; then
-    timeout 30 "$INDEXER" --lang <language> --path <path> --output "$USER_PROJECT/.codeagent/secguardian/index.json" || {
+    timeout 30 "$INDEXER" --lang "$SCAN_LANG" --path "$SCAN_PATH" --output "$USER_PROJECT/.codeagent/secguardian/index.json" || {
         echo "FAIL: Indexer timed out after 30s or failed — cannot continue"
         echo "  macOS: brew install coreutils  (provides 'timeout' command)"
         exit 1
     }
 elif command -v gtimeout &>/dev/null; then
-    gtimeout 30 "$INDEXER" --lang <language> --path <path> --output "$USER_PROJECT/.codeagent/secguardian/index.json" || {
+    gtimeout 30 "$INDEXER" --lang "$SCAN_LANG" --path "$SCAN_PATH" --output "$USER_PROJECT/.codeagent/secguardian/index.json" || {
         echo "FAIL: Indexer timed out after 30s or failed — cannot continue"
         exit 1
     }
 else
     echo "WARNING: 'timeout' not found — indexer runs without timeout protection"
-    "$INDEXER" --lang <language> --path <path> --output "$USER_PROJECT/.codeagent/secguardian/index.json"
+    "$INDEXER" --lang "$SCAN_LANG" --path "$SCAN_PATH" --output "$USER_PROJECT/.codeagent/secguardian/index.json"
 fi
 if [ ! -f "$USER_PROJECT/.codeagent/secguardian/index.json" ]; then
     echo "FATAL: Indexer failed — cannot continue"
@@ -247,7 +235,7 @@ fi
 USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
 source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
 
-python3 "$SECGUARDIAN_HOME/scripts/validate-index.py" \
+python3 "$SCRIPTS_DIR/validate-index.py" \
     --index .codeagent/secguardian/index.json \
     --scan-id "$SCAN_ID"
 ```
@@ -364,7 +352,7 @@ source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
 USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
 source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
 
-python3 "$SECGUARDIAN_HOME/scripts/strip-answer-cards.py" \
+python3 "$SCRIPTS_DIR/strip-answer-cards.py" \
   --index .codeagent/secguardian/index.json \
   --source-root "$USER_PROJECT" \
   --output-dir "$USER_PROJECT/.codeagent/secguardian/stripped/"
@@ -376,13 +364,15 @@ python3 "$SECGUARDIAN_HOME/scripts/strip-answer-cards.py" \
 
 ## Phase 2: Worker 调度
 
-> **核心执行阶段**。Dispatcher 为每个有信号的 Skill 启动一个或多个 Worker（subagent），按 BATCH_SIZE=50 分批派发，Worker 独立执行 5 步检视协议，输出 findings。
+> **核心执行阶段**。Dispatcher 为每个有信号的 Skill 启动 Worker，独立执行 5 步检视协议，输出 findings。
 >
-> **Worker 是独立 subagent**，由 Dispatcher 通过 Agent 工具启动。每个 Worker 接收：
+> **Worker 是独立 subagent**，由 Dispatcher 通过 `Agent` 工具（`run_in_background: true`）启动。每个 Worker 接收：
 > 1. 信号清单（来自 Phase 1 的 call_sites 分批）
 > 2. `rules.md`（检测规则 + 检视协议，两合一）
 > 3. `references/` 目录路径（豁免、误报抑制、跨函数追踪）
 > 4. 源码根路径（Worker 直接读取实际代码）
+>
+> ⚠️ **关键约束：不得在 Dispatcher 主会话中执行 Worker 逻辑。** Worker 的源码读取、Glob/Grep/Read 工具调用必须通过 Agent 工具派发到独立 Agent 会话，不可在主会话内直接执行。多个 Worker 的核心逻辑在主会话内执行 → 全部工具调用日志填入主上下文 → 填满后 TUI 崩溃。
 >
 > **分批策略**：当单个 Skill 的信号数 > BATCH_SIZE(50) 时，Dispatcher 自动拆分为多个 Batch Worker。所有同 Skill Worker 完成后，Aggregator 合并产出去重。
 
@@ -422,22 +412,26 @@ FOR EACH skill IN filtered_skills:
 
   0. 检查信号数: len(signals) vs BATCH_SIZE (默认 50)
      IF len(signals) > BATCH_SIZE:
-       → 按 §5.5 拆分为 N 个 Batch (ceil(len/BATCH_SIZE))
+       → 按 §5.5 拆分为 N 个 Batch
        → n_batches = N, batches = [batch_0 .. batch_N-1]
      ELSE:
        → n_batches = 1, batches = [all_signals]
   
   FOR EACH batch IN batches:
-    1. 加载 rule.md:  cat "$SECGUARDIAN_HOME/skills/secguard-<language>/rules/{skill}/rule.md"
-    2. 加载 references/ 下的文件:
-       - cat "$SECGUARDIAN_HOME/skills/secguard-<language>/rules/{skill}/references/exceptions.md"
-       - cat "$SECGUARDIAN_HOME/skills/secguard-<language>/rules/{skill}/references/cross-function.md"
-       - cat "$SECGUARDIAN_HOME/skills/secguard-<language>/rules/{skill}/references/false-positive.md"
-    3. 构造 Worker 输入（batch 信号清单 + rule.md + references + 源码路径）
-    4. 启动 Worker (subagent)，输出到 workers/<skill_id>/batch-{N}/
+    1. 加载 rule.md（主会话中用 bash cat）
+       cat "$SECGUARDIAN_HOME/skills/secguard-<language>/rules/{skill}/rule.md"
+    2. 加载 references 文件（主会话中用 bash cat）
+       cat "$SECGUARDIAN_HOME/skills/secguard-<language>/rules/{skill}/references/exceptions.md"
+       cat "$SECGUARDIAN_HOME/skills/secguard-<language>/rules/{skill}/references/cross-function.md"
+       cat "$SECGUARDIAN_HOME/skills/secguard-<language>/rules/{skill}/references/false-positive.md"
+    3. 构造 Worker 完整 prompt（含 rule + references + 信号清单 + 源码路径）
+    4. 派发 Worker：Agent(description="secguard Worker: {skill}", prompt=worker_prompt, run_in_background: true)
+    5. Worker 输出写入 workers/<skill_id>/batch-{N}/（由 Agent 内自行执行）
 ```
 
-**跨 Batch 并发**: 同一 Skill 的 Batch Workers 通过 Workflow 并行调度。Workflow 自动管理并发上限（~10 同时执行），等待全部完成后触发 Aggregator。
+**并发控制**:
+- 每轮最多同时派发 3 个 Worker Agent（Agent 调用可并行发起，Agent 数量限制为 3）
+- 所有 Agent 派发完成后（全部 Agent 调用返回 task_id），等待所有 Agent 完成通知
 
 > **重要**: Worker 协议从 5 轮反思升级为事实锚定反思（§5.2 W5 更新点）。
 > 旧协议已被实验证伪：同 LLM 同上下文同框架 → 5 轮产出同质化结论。
@@ -454,8 +448,8 @@ FOR EACH skill IN filtered_skills:
     "source_root": "/path/to/user/project",
     "stripped_root": "/path/to/user/project/.codeagent/secguardian/stripped",
     "index_json": ".codeagent/secguardian/index.json",
-    "recorder": "$SECGUARDIAN_HOME/scripts/record-finding.py",
-    "reporter": "$SECGUARDIAN_HOME/scripts/render-report.py"
+    "recorder": "$SCRIPTS_DIR/record-finding.py",
+    "reporter": "$SCRIPTS_DIR/render-report.py"
   },
   "skill": {
     "id": "buffer_overflow",
@@ -1009,9 +1003,10 @@ workers/buffer_overflow/aggregated/
 USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
 source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
 
-python3 "$SECGUARDIAN_HOME/scripts/validate-findings.py" \
+python3 "$SCRIPTS_DIR/validate-findings.py" \
     --findings-dir "$SCAN_DIR/findings/" \
-    --check-spec
+    --check-spec \
+    --list
 VALIDATE_EXIT=$?
 if [ $VALIDATE_EXIT -eq 0 ]; then
     echo "  All findings pass validation + spec cross-check"
@@ -1029,12 +1024,14 @@ fi
 USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
 source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
 
-RENDERER="$SECGUARDIAN_HOME/scripts/render-report.py"
+RENDERER="$SCRIPTS_DIR/render-report.py"
 
 python3 "$RENDERER" \
     --command secguard \
     --scan-id "$SCAN_ID" \
     --findings-dir "$SCAN_DIR/findings/" \
+    --path "$SCAN_PATH" \
+    --language "$SCAN_LANG" \
     --index .codeagent/secguardian/index.json \
     --output "$SCAN_DIR/"
 ```
@@ -1175,12 +1172,13 @@ findings/exec/command_injection/f6e5d4c3b2a1_executor-89.json
 
 ## 附录 C: 降级方案 — Worker 不可用
 
-如果当前平台不支持 subagent (Agent工具)，Dispatcher 降级为**单 Worker 串行执行**：
+如果当前平台不支持 Agent 工具（subagent），Dispatcher 降级为**单 Worker 串行执行**：
 
 1. 保留 Phase 1（索引与信号生成）不变
 2. 跳过 Agent 启动步骤，Dispatcher 自身作为唯一 Worker
 3. 按 Skill 优先级逐个执行 5 步检视协议
-4. 保留所有其他约束（事实锚定反思、suppress-first、depth 限制、禁止非终止状态）
-5. Phase 3 汇总与渲染不变
+4. **上下文预算**: 每处理完一个 Skill 后检查上下文占用。如果接近上限，停止后续 Worker 处理，标记剩余信号为 `unprocessed`
+5. 保留所有其他约束（事实锚定反思、suppress-first、depth 限制、禁止非终止状态）
+6. Phase 3 汇总与渲染不变
 
-此降级方案的唯一损失是并发度，检测质量保持不变。
+降级方案损失：并发度 + 可能因上下文预算截断部分 Skill。

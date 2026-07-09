@@ -1,6 +1,7 @@
 ---
 name: secaudit
-description: "AI Release Security Audit — 15-skill EPIC-3 architecture via Dispatcher protocol with 13 audit domains"
+description: "[Claude Code] AI Release Security Audit — 15-skill EPIC-3 architecture via Dispatcher protocol with 13 audit domains"
+platform: claude
 ---
 
 # /secaudit - AI Release Security Audit
@@ -21,10 +22,10 @@ description: "AI Release Security Audit — 15-skill EPIC-3 architecture via Dis
 > 🚫 **不要使用 `todowrite` 工具。** 使用原生 task 系统（`TaskCreate` + `TaskUpdate`）追踪进度。
 > `todowrite` 每次调用重传全部已完成项，每会话浪费 ≥50KB 无效 token。
 >
-> 🚫 **不要硬编码 `RECORDER` 路径。** 必须使用 `$SECGUARDIAN_HOME/scripts/record-finding.py`。
+> 🚫 **不要硬编码 `RECORDER` 路径。** 必须使用 `$SCRIPTS_DIR/record-finding.py`。
 > 硬编码路径在安装位置变动时全断。
 >
-> 🚫 **禁止用 `read` 工具读取 `$SECGUARDIAN_HOME/scripts/` 下的脚本文件。** 所有脚本通过 `Bash` 工具执行，CLI 接口已在本模板中完整文档化。用 `read` 读取脚本文件触发 OpenCode 外部目录权限弹窗，且浪费 token。
+> 🚫 **禁止用 `read` 工具读取 `$SCRIPTS_DIR/` 下的脚本文件。** 所有脚本通过 `Bash` 工具执行，CLI 接口已在本模板中完整文档化。用 `read` 读取脚本文件触发 OpenCode 外部目录权限弹窗，且浪费 token。
 
 ## Audit Framework
 
@@ -171,12 +172,7 @@ Scan ID: sec-YYYYMMDD-HHMMSS-xxxx | Project: <project> | Path: <path> | Language
 > **唯一一次预初始化 bash 调用**。通过 `scripts/init-scan.sh` 完成 SECGUARDIAN_HOME 自动发现、健康检查、路径确认、建目录、写 `.scan_state.secaudit`。
 
 ```bash
-# ===== 自动发现 SECGUARDIAN_HOME（不能 source 一个还没找到的脚本）=====
-for candidate in "/root/.config/opencode/extensions/secguardian" "$HOME/.config/opencode/extensions/secguardian" "$HOME/.claude/plugins/secguardian" "$HOME/.gemini/extensions/secguardian" "."; do [ -f "$candidate/scripts/record-finding.py" ] && export SECGUARDIAN_HOME="$candidate" && break; done
-[ -z "$SECGUARDIAN_HOME" ] && { echo "FATAL: Cannot locate secguardian"; exit 1; }
-
-# ===== 共享 init-scan.sh =====
-source "$SECGUARDIAN_HOME/scripts/init-scan.sh" secaudit <path>
+source "$HOME/.claude/plugins/secguardian/scripts/init-scan.sh" secaudit "<path>"
 ```
 
 - 记录审计开始时间戳，用于 Step 4 计算 `duration_ms`。
@@ -208,29 +204,23 @@ source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secaudit"
 > 索引自动复用同路径缓存。加 `--force` 强制重建。
 
 ```bash
-# 定位 indexer wrapper — 项目级 + 用户级全覆盖
-INDEXER="$SECGUARDIAN_HOME/scripts/secguardian-index"
-if [ ! -f "$INDEXER" ]; then
-    echo "FATAL: secguardian-index not found at $INDEXER"
-    exit 1
-fi
-echo "Using: $INDEXER"
+INDEXER="$SCRIPTS_DIR/secguardian-index"
 # 超时保护: timeout 30s，防止索引器挂死。macOS 需要 brew install coreutils。
 if command -v timeout &>/dev/null; then
-    timeout 30 "$INDEXER" --path <path> --output <user-project>/.codeagent/secguardian/index.json || {
+    timeout 30 "$INDEXER" --path "$SCAN_PATH" --output "$USER_PROJECT/.codeagent/secguardian/index.json" || {
         echo "FAIL: Indexer timed out after 30s or failed — cannot continue"
         echo "  macOS: brew install coreutils  (provides 'timeout' command)"
         exit 1
     }
 elif command -v gtimeout &>/dev/null; then
-    gtimeout 30 "$INDEXER" --path <path> --output <user-project>/.codeagent/secguardian/index.json || {
+    gtimeout 30 "$INDEXER" --path "$SCAN_PATH" --output "$USER_PROJECT/.codeagent/secguardian/index.json" || {
         echo "FAIL: Indexer timed out after 30s or failed — cannot continue"
         exit 1
     }
 else
     echo "WARNING: 'timeout' not found — indexer runs without timeout protection"
     echo "  Install coreutils: brew install coreutils (macOS) or apt install coreutils (Linux)"
-    "$INDEXER" --path <path> --output <user-project>/.codeagent/secguardian/index.json
+    "$INDEXER" --path "$SCAN_PATH" --output "$USER_PROJECT/.codeagent/secguardian/index.json"
 fi
 if [ ! -f "<user-project>/.codeagent/secguardian/index.json" ]; then
     echo "FATAL: Indexer failed — cannot continue"
@@ -246,7 +236,7 @@ fi
 > ⚠️ 此脚本自动处理不同语言索引器输出差异，对 `None`/`null` 值安全。
 
 ```bash
-python3 "$SECGUARDIAN_HOME/scripts/validate-index.py" \
+python3 "$SCRIPTS_DIR/validate-index.py" \
     --index .codeagent/secguardian/index.json \
     --scan-id <scan_id>
 ```
@@ -391,7 +381,7 @@ RECEOF
 
 ```bash
 SCAN_DIR=".codeagent/secguardian/secaudit/scans/<scan_id>"
-python3 "$SECGUARDIAN_HOME/scripts/validate-findings.py" --findings-dir "$SCAN_DIR/findings/" --check-spec
+python3 "$SCRIPTS_DIR/validate-findings.py" --findings-dir "$SCAN_DIR/findings/" --check-spec
 VALIDATE_EXIT=$?
 if [ $VALIDATE_EXIT -eq 0 ]; then
     echo "  ✅ All findings pass validation + spec cross-check"
@@ -407,7 +397,7 @@ fi
 
 ```bash
 # 定位渲染器（同 secguard）
-RENDERER="$SECGUARDIAN_HOME/scripts/render-report.py"
+RENDERER="$SCRIPTS_DIR/render-report.py"
 
 python3 "$RENDERER" \
     --command secaudit \
