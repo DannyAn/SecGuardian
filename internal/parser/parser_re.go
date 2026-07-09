@@ -220,8 +220,8 @@ func ParseFile(filePath string, lang string) (*ParseResult, error) {
 		}
 	}
 
-	// Extract call sites (C/C++ only in this phase)
-	if lang == "c" || lang == "cpp" {
+	// Extract call sites (for all supported languages)
+	if lang == "c" || lang == "cpp" || lang == "java" || lang == "go" || lang == "python" {
 		lines := strings.Split(string(content), "\n")
 		for lineIdx, line := range lines {
 			if isLineComment(line) || strings.TrimSpace(line) == "" {
@@ -310,6 +310,50 @@ var callSitePatterns = []callSitePattern{
 	// Crypto
 	{"RAND_bytes", `\bRAND_bytes\s*\(`, false, "crypto"},
 	{"DES_set_key_unchecked", `\bDES_set_key_unchecked\s*\(`, false, "crypto"},
+
+	// Multi-language logging
+	{"info", `\binfo\s*\(`, false, "logging"},
+	{"warn", `\bwarn\s*\(`, false, "logging"},
+	{"error", `\berror\s*\(`, false, "logging"},
+	{"debug", `\bdebug\s*\(`, false, "logging"},
+	{"trace", `\btrace\s*\(`, false, "logging"},
+
+	// Multi-language deserialization
+	{"readObject", `\breadObject\s*\(`, false, "deserialization"},
+	{"parseObject", `\bparseObject\s*\(`, false, "deserialization"},
+
+	// Multi-language SQL
+	{"executeQuery", `\bexecuteQuery\s*\(`, false, "sql"},
+	{"executeUpdate", `\bexecuteUpdate\s*\(`, false, "sql"},
+	{"createNativeQuery", `\bcreateNativeQuery\s*\(`, false, "sql"},
+
+	// Multi-language command execution
+	{"exec", `\bexec\s*\(`, false, "exec"},
+
+	// Multi-language HTTP client
+	{"openConnection", `\bopenConnection\s*\(`, false, "http"},
+	{"getForObject", `\bgetForObject\s*\(`, false, "http"},
+	{"postForEntity", `\bpostForEntity\s*\(`, false, "http"},
+
+	// Multi-language XML
+	{"newDocumentBuilder", `\bnewDocumentBuilder\s*\(`, false, "xml"},
+	{"newSAXParser", `\bnewSAXParser\s*\(`, false, "xml"},
+
+	// Multi-language SQL
+	{"createStatement", `\bcreateStatement\s*\(`, false, "sql"},
+	{"getConnection", `\bgetConnection\s*\(`, false, "credential"},
+
+	// Java-specific XXE/XML
+	{"parse", `\bparse\s*\(`, false, "xml"},
+
+	// Multi-language file I/O
+	{"getCanonicalPath", `\bgetCanonicalPath\s*\(`, false, "file_io"},
+
+	// Multi-language HTTP/SSRF
+	{"openStream", `\bopenStream\s*\(`, false, "http"},
+
+	// Multi-language file upload
+	{"transferTo", `\btransferTo\s*\(`, false, "file_io"},
 }
 
 // findEnclosingFunction returns the function name that contains the given line number.

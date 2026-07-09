@@ -75,6 +75,7 @@ func runIndex(args []string) {
 	}
 
 	fmt.Printf("Indexing %d files in %s...\n", len(files), *pathFlag)
+	fmt.Printf("  Parser mode: %s\n", parser.ParserMode)
 
 	// Phase 1: Parse all files
 	parsed := make(map[string]*parser.ParseResult)
@@ -94,10 +95,22 @@ func runIndex(args []string) {
 	fmt.Printf("  Symbols: %d functions, %d variables, %d types\n",
 		len(symbols.Functions), len(symbols.Variables), len(symbols.Types))
 
-	// Phase 2.5: Collect call sites from all parsed results (needed by Phase 3)
+	// Phase 2.5: Collect all signal types from parsed results (Signal Matrix)
 	allCallSites := make([]parser.CallSite, 0)
+	allStrings := make([]parser.StringLiteral, 0)
+	allDecls := make([]parser.Declaration, 0)
+	allValues := make([]parser.ValueConstant, 0)
+	allImports := make([]parser.Import, 0)
+	allConfigs := make([]parser.ConfigPattern, 0)
+	allFlow := make([]parser.ControlFlowSignal, 0)
 	for _, result := range parsed {
 		allCallSites = append(allCallSites, result.CallSites...)
+		allStrings = append(allStrings, result.StringLiterals...)
+		allDecls = append(allDecls, result.Declarations...)
+		allValues = append(allValues, result.ValueConstants...)
+		allImports = append(allImports, result.Imports...)
+		allConfigs = append(allConfigs, result.ConfigPatterns...)
+		allFlow = append(allFlow, result.ControlFlow...)
 	}
 
 	// Phase 3: Build call graph (V2 if call_sites available, else V1 fallback)
@@ -149,7 +162,15 @@ func runIndex(args []string) {
 		AllocFree:       af,
 		LockGraph:       lg,
 		CallSites:       allCallSites,
+		StringLiterals:  allStrings,
+		Declarations:    allDecls,
+		ValueConstants:  allValues,
+		Imports:         allImports,
+		ConfigPatterns:  allConfigs,
+		ControlFlow:     allFlow,
 	}
+
+	fmt.Printf("  Signals: %d calls, %d strings, %d decls, %d values, %d imports, %d configs, %d flow\n", len(allCallSites), len(allStrings), len(allDecls), len(allValues), len(allImports), len(allConfigs), len(allFlow))
 
 	if err := os.MkdirAll(filepath.Dir(*outputFlag), 0755); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

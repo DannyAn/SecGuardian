@@ -31,6 +31,38 @@ var jsArrowInObj = regexp.MustCompile(`(?m)(\w+)\s*:\s*(?:async\s+)?\([^)]*\)\s*
 
 var jsMethodInObj = regexp.MustCompile(`(?m)(\w+)\s*\([^)]*\)\s*\{`)
 
+// JS string literal pattern (double and single quotes, excluding template literals)
+var jsStringPattern = regexp.MustCompile(`["']([^"']{4,})["']`)
+
+// JS known dangerous function calls
+var jsDangerousCalls = map[string]bool{
+	"exec":           true,
+	"eval":           true,
+	"spawn":          true,
+	"fork":           true,
+	"require":        true,
+	"fetch":          true,
+	"process":        true,
+	"execSync":       true,
+	"execFile":       true,
+	"execFileSync":   true,
+	"spawnSync":      true,
+	"child_process":  true,
+	"shelljs":        true,
+	"Function":       true,
+	"setTimeout":     true,
+	"setInterval":    true,
+	"unescape":       true,
+	"decodeURI":      true,
+	"JSON.parse":     true,
+	"crypto.createHash": true,
+	"crypto.createHmac": true,
+}
+
+// JS known safe calls to skip
+var jsSafeCallPattern = regexp.MustCompile(`(?i)(console|log|debug|info|warn|error|assert|count|dir|time|timeEnd|describe|it|test|expect|assert|should)\s*\(`)
+
+
 func parseJSFile(filePath string) (*ParseResult, error) {
 	// Guard: skip files >512KB (likely minified bundles)
 	fi, err := os.Stat(filePath)
@@ -123,6 +155,47 @@ func parseJSFile(filePath string) (*ParseResult, error) {
 			File:      filePath,
 			StartLine: uint(lineNum),
 		})
+	}
+
+	// Extract string literals (S2)
+	seenStr := make(map[string]bool)
+	for _, match := range jsStringPattern.FindAllStringSubmatch(text, -1) {
+		val := match[1]
+		if len(val) < 4 || seenStr[val] {
+			continue
+		}
+		seenStr[val] = true
+		lineNum := findLine(lines, match[0])
+		result.StringLiterals = append(result.StringLiterals, StringLiteral{
+			File:    filePath,
+			Line:    uint(lineNum),
+			Value:   truncate(val, 256),
+			Length:  len(val),
+			Context: "global",
+			Kinds:   inferStringKind(val),
+		})
+	}
+
+	// Extract known dangerous function calls (S1)
+	// Look for patterns like: dangerousFunc(...), obj.dangerousFunc(...)
+	for fnName := range jsDangerousCalls {
+		// Match both direct calls and method calls
+		pattern := regexp.MustCompile(`(?m)(?:` + regexp.QuoteMeta(fnName) + `|\b\w+\.` + regexp.QuoteMeta(fnName) + `)\s*\(([^)]{0,256})\)`)
+		for _, match := range pattern.FindAllStringSubmatch(text, -1) {
+			lineNum := findLine(lines, match[0])
+			args := ""
+			if len(match) > 1 {
+				args = strings.TrimSpace(match[1])
+			}
+			result.CallSites = append(result.CallSites, CallSite{
+				CallerFunction: "(global)",
+				CalleeName:     fnName,
+				File:           filePath,
+				Line:           uint(lineNum),
+				Arguments:      []string{truncate(args, 128)},
+				Category:       "generic",
+			})
+		}
 	}
 
 	return result, nil
