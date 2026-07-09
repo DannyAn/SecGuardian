@@ -1,92 +1,98 @@
 ---
 name: secguard-java
-description: 对 Java 代码进行安全加固项排查，扫描危险 API 调用和常见漏洞模式。当用户请求Java安全扫描、Java代码审计、反序列化漏洞、Spring安全、Java加密安全时使用。
+description: 对 Java 代码进行安全加固检视，编排 11 个子 skill，覆盖 API 调用检测、反序列化语义分析、契约验证 (TOCTOU) 等多个维度。当用户请求 Java 安全扫描、Java 代码审计、反序列化漏洞、Spring 安全、Java 加密安全时使用。
 category: language-specific
 language: java
 topic: [web, crypto, system]
 ---
 
-# Java 安全加固排查
+# Java 安全加固排查 — 检视算子索引
 
-对 Java 代码进行安全加固项排查，扫描代码和 PR 中需要安全加固的问题。
+本文件是 `skills/secguard/java/` 下 11 个检视算子 skill 的主索引 / 派发表。
+每个算子对应 `rules/` 下的一个规则目录，包含自己的 `rule.md`。
 
-## 🎯 Detector Selection (Skill Layer)
+> **执行流程由 `commands/claude/secguard.md` 的 Dispatcher 协议调度。**
+> 本文件只做三件事：(1) 查表选 skill；(2) 按信号分类；(3) 引用 Dispatcher。
 
-> **📊 信号预筛 (engine_contract.md Rule C):** 基于 index.json 信号触发检测器：`symbols.functions` 含 `Runtime.exec`/`ProcessBuilder`→command-injection；含 `Statement`/`executeQuery`→sql-injection；含 `MessageDigest`/`Cipher`→weak-crypto；含 `HttpURLConnection`/`RestTemplate`→ssrf。无信号匹配时 MUST 标记 `confidence: low`。
+---
 
-## ⚙️ Engine Instructions
+## 1. 检视算子一览
 
-> 以下执行指令属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行。未来 Engine 实现后将被 Engine 取代。
->
-> **🔗 锚定+证据约束 (Rule A + Rule B):** 每个 finding 的 `file`+`line` MUST 可追溯到 index.json 的符号或文件列表。每个 finding MUST 包含 `--snippet`、`--code-context`、`--rationale`、`--attack-scenario`。调用 `record-finding.py` 时必须传 `--index-json` 进行锚定校验。无 index 锚点时 MUST 标记 `confidence: low`。
->
-> **🔒 读取范围 = index.json.symbols.functions (NON-NEGOTIABLE):** `symbols.functions` 已是完整的函数→文件:行号 映射。LLM 只读取符号表中列出的位置（`start_line`±10行）。不在符号表中的文件 → 不读。不在符号表中的函数 → 不分析。符号表中无关联函数名的检测器 → 跳过。
+| # | Rule (目录名) | Severity | CWE | `signal_source` | `skill_id` |
+|---|---------------|----------|-----|-----------------|------------|
+| 1 | [`deserialization/`](./rules/deserialization/) | Critical | CWE-502 | `call_sites[cat="deserialization"]` | `java.deserialization.insecure` |
+| 2 | [`sql_injection/`](./rules/sql_injection/) | Critical | CWE-89 | `call_sites[cat="sql"]` | `java.sql-injection.dynamic` |
+| 3 | [`command_injection/`](./rules/command_injection/) | Critical | CWE-78 | `call_sites[cat="exec"]` | `java.command-injection.exec` |
+| 4 | [`ssti_code_injection/`](./rules/ssti_code_injection/) | Critical | CWE-1336 | `call_sites[cat="template"]` | `java.ssti-code-injection.dynamic` |
+| 5 | [`xxe/`](./rules/xxe/) | High | CWE-611 | `call_sites[cat="xml"]` | `java.xxe.insecure-xml` |
+| 6 | [`path_traversal/`](./rules/path_traversal/) | High | CWE-22 | `call_sites[cat="file_io"]` | `java.path-traversal.sanitize` |
+| 7 | [`ssrf/`](./rules/ssrf/) | High | CWE-918 | `call_sites[cat="http"]` | `java.ssrf.open-redirect` |
+| 8 | [`weak_crypto/`](./rules/weak_crypto/) | High | CWE-327 | `call_sites[cat="crypto"]` | `java.weak-crypto.algorithm` |
+| 9 | [`hardcoded_secrets/`](./rules/hardcoded_secrets/) | High | CWE-798 | `call_sites[cat="crypto"]` | `crypto.hardcoded-secrets` |
+| 10 | [`toctou/`](./rules/toctou/) | Medium | CWE-367 | `call_sites[cat="file_io"]` | `java.toctou.race` |
+| 11 | [`log_injection/`](./rules/log_injection/) | Medium | CWE-117 | `call_sites[cat="logging"]` | `java.log-injection.crlf` |
 
-## 执行流程
+**按严重度排序执行**: Critical (4) → High (5) → Medium (2)
 
-> **前置条件**: Command 层面已完成 `secguardian-index` 索引器调用，`index.json` 已生成在扫描输出目录下。包含 `symbols.functions`（函数→文件:行号）、`call_graph.edges`（调用关系）、`files`（文件清单）。
->
-> **禁止事项**：❌ 不要启动 clangd 或任何 LSP server（indexer 已提供所有代码结构数据）。❌ 不要用 find/ls/glob 重新遍历文件系统。❌ 不要逐文件全文读取——始终从 indexer 数据出发精准定位。
+---
 
-1. 读取 Command 生成的 `index.json`，获取文件清单、符号表和调用图。**从 symbols.functions 构建函数名→{文件:行号} 查找表，检测器按需查表定位目标函数后精准读取，不扫描无关文件。**
-2. 加载 `knowledge/languages/java.md` 获取 Java 危险 API 清单
-3. 加载 `knowledge/language-index.md`（57行）获取该语言检测器清单。仅对 index.json 符号表中匹配到的检测器，按需加载 `knowledge/guard-rules/<name>.md` 详情
-4. 基于 index.json 的符号表定位检测目标，按以下优先级匹配:
+## 2. 信号源分类 → Skill 映射
 
-### 检查优先级
+`index.json` 的 `call_sites[].category` 和 `symbols.functions` 决定触发哪些算子。
 
-| 优先级 | 问题类型 | 核心检测逻辑 |
-|--------|---------|-------------|
-| Critical | 反序列化漏洞 | ObjectInputStream / FastJson @type / Jackson enableDefaultTyping |
-| Critical | SQL 注入 | Statement.execute / MyBatis ${} / JPA nativeQuery 拼接 |
-| Critical | 命令注入 | Runtime.exec 单字符串 / ProcessBuilder + shell |
-| Critical | SSTI/代码注入 | ScriptEngine.eval / 模板引擎未过滤输入 |
-| High | XXE | XML Parser 未禁用外部实体 |
-| High | 路径穿越 | 文件路径未 canonicalize |
-| High | SSRF | HTTP 请求 URL 来自用户输入 |
-| High | 弱加密 | MD5/SHA-1/DES/ECB/Random 非安全用途 |
-| High | 硬编码密钥 | API Key / Password / Token 硬编码 |
-| Medium | TOCTOU | 文件检查与使用非原子 |
-| Medium | 日志注入 | 用户输入直接写日志 |
+Java 为 OO 语言，采用**文件级全量加载**预筛（区别于 C/C++ 的符号表精确匹配）：
 
-### 框架覆盖
+| call_sites Category | 触发的 Skill 目录 | 信号函数（示例） |
+|--------------------|------------------|-----------------|
+| `"deserialization"` | `deserialization` | `readObject`, `parseObject`, `enableDefaultTyping`, `fromXML`, `load` |
+| `"sql"` | `sql_injection` | `executeQuery`, `executeUpdate`, `createStatement`, `createNativeQuery` |
+| `"exec"` | `command_injection` | `exec`, `ProcessBuilder`, `getRuntime` |
+| `"template"` | `ssti_code_injection` | `evaluate`, `parseExpression`, `getValue`, `process`, `eval` |
+| `"xml"` | `xxe` | `newDocumentBuilder`, `newSAXParser`, `parse` |
+| `"file_io"` | `path_traversal`, `toctou` | `Paths.get`, `new File`, `exists`, `getCanonicalPath`, `ZipInputStream` |
+| `"http"` | `ssrf` | `openConnection`, `getForObject`, `uri`, `RestTemplate` |
+| `"crypto"` | `weak_crypto`, `hardcoded_secrets` | `getInstance`, `MessageDigest`, `Cipher`, `password`, `secret` |
+| `"logging"` | `log_injection` | `info`, `warn`, `error`, `debug`, `log` |
 
-## 执行指令（I/O 优化版）
+---
 
-> 以下执行方式遵循 `engine_contract.md` 和 `output_contract.md` 的性能要求。
+## 3. 信号 → Skill 派发逻辑
 
-### 源文件读取（index.json.symbols.functions 驱动）
+Java 使用**文件级全量加载**（OO 语言策略）：
 
-> **🔒 读取范围 = index.json.symbols.functions:** `symbols.functions` 已是函数→文件:行号 映射。LLM 只读取符号表中的位置（±10行）。不在符号表中的文件 → 不读。不在符号表中的函数 → 不分析。
+```
+对 index.json.call_sites 中的每条记录:
+  1. 遍历 call_sites:
+     - 按 category 匹配「信号源分类 → Skill 映射」(§2)
+     - 若 category 命中多个 skill → 全部加入候选集
+  2. 对候选集逐个 skill:
+     - 扫描 symbols.functions 中的函数名
+     - skill 声明的 trigger_functions 存在于符号表中 → 激活（读取 rule.md）
+     - 均不存在 → 跳过（记录 "Skipped: no matching symbol"）
+  3. 排序: Critical → High → Medium（按 §1 表）
+  4. 执行: 依序读取 skill rule.md → 执行检视协议 → record-finding.py
+```
 
-### 检测器加载（批量 + 按需）
+---
 
-1. 加载 `knowledge/language-index.md`（57 行，包含所有检测器清单）
-2. 先做符号匹配快速过滤，仅加载匹配到的 detector 详情
+## 4. 执行流程（引用 Dispatcher 协议）
 
-### Finding 输出（批量）
+| Step | 职责 | 归属层 |
+|------|------|--------|
+| Step 1 | 初始化 + 索引构建 | Command |
+| Step 2 | 读取 index.json（symbols / call_graph / files） | Command |
+| Step 2.5 | 脱敏 + 扫描范围确定 | Command |
+| Step 3a-3c | 语言匹配 + filter 裁剪 + 预筛 | Command |
+| **Step 3c.5** | **Java 文件级全量匹配 → 激活候选 skill** | **Skill (本文件 §3)** |
+| **Step 3d** | **加载激活 skill 的 SKILL.md → 执行检视协议** | **Skill (各算子目录)** |
+| Step 3.5 | 三轮验证管道（P1-P3） | Command |
+| Step 4 | record-finding.py 持久化 + render-report.py | Command |
+| Step 5 | 输出摘要 | Command |
 
-1. 将所有 findings 收集到临时结构
-2. 用 `python3 render-report.py --findings <dir>/findings.json --output <dir>` 批量输出
+---
 
-## 输出完整性要求
-- Spring (Spring Boot, Spring Security, Spring MVC)
-- MyBatis
-- Hibernate / JPA
-- FastJson / Jackson / Gson
-- Apache Shiro
-- Log4j / Logback
+## 5. 参考文件
 
-## 📄 Output Protocol
-
-> 以下输出格式遵循 `internal/output/output_contract.md`。
-
-## 输出完整性要求
-
-> **每个检出必须满足四段式完整性**（Command 层 Step 4b 质量门禁强制检查）：
-> 1. **📍 Location** — 文件路径 + 行号 + 函数名 + 代码行内容
-> 2. **📋 Evidence** — 代码上下文（前后 3 行）+ 判定依据（引用 detector 的检测逻辑）+ 数据流路径
-> 3. **⚠️ Impact** — 攻击场景描述 + CVSS 3.1 评分 + 利用条件
-> 4. **🔧 Fix** — Before/After 代码 + 工作量 + 验证方法 + CWE 参考链接
->
-> SARIF 结果同样要求：`message.markdown` 包含完整四段式，`relatedLocations` 标注 Source → Sink 路径，`fixes` 包含 before/after 替换。
+| 文件 | 内容 |
+|------|------|
+| [`references/language-features.md`](./references/language-features.md) | Java 危险 API 清单、框架特性、检测优先级 |

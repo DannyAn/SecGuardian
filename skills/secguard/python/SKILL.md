@@ -1,91 +1,68 @@
 ---
 name: secguard-python
-description: 对 Python 代码进行安全加固项排查，扫描危险函数调用和常见漏洞模式。当用户请求Python安全扫描、Python代码审计、Django/Flask安全、Python注入检测、pickle安全时使用。
+description: 对 Python 代码进行安全加固检视，编排 11 个子 skill，覆盖 API 调用检测、代码注入语义分析、序列化安全验证等多个维度。当用户请求 Python 安全扫描、Python 代码审计、Django/Flask 安全、Python 注入检测、pickle 安全时使用。
 category: language-specific
 language: python
 topic: [web, crypto, system]
 ---
 
-# Python 安全加固排查
+# Python 安全加固排查 — 检视算子索引
 
-对 Python 代码进行安全加固项排查，扫描代码和 PR 中需要安全加固的问题。
+本文件是 `skills/secguard/python/` 下 11 个检视算子 skill 的主索引/派发表。
+每个算子对应 `rules/` 下的一个规则目录，包含自己的 `rule.md`。
 
-## 🎯 Detector Selection (Skill Layer)
+> **执行流程由 `commands/claude/secguard.md` 的 Dispatcher 协议调度。**
+> 本文件只做三件事：(1) 查表选 skill；(2) 按信号分类；(3) 引用 Dispatcher。
 
-> **📊 信号预筛 (engine_contract.md Rule C):** 基于 index.json 信号触发检测器：`symbols.functions` 含 `os.system`/`subprocess.call`→command-injection；含 `execute`/`cursor.execute`→sql-injection；含 `hashlib.md5`/`md5`→weak-crypto；含 `requests.get`/`urllib`→ssrf。无信号匹配时 MUST 标记 `confidence: low`。
+---
 
-## ⚙️ Engine Instructions
+## 1. 检视算子一览
 
-> 以下执行指令属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行。未来 Engine 实现后将被 Engine 取代。
->
-> **🔗 锚定+证据约束 (Rule A + Rule B):** 每个 finding 的 `file`+`line` MUST 可追溯到 index.json 的符号或文件列表。每个 finding MUST 包含 `--snippet`、`--code-context`、`--rationale`、`--attack-scenario`。调用 `record-finding.py` 时必须传 `--index-json` 进行锚定校验。无 index 锚点时 MUST 标记 `confidence: low`。
->
-> **🔒 读取范围 = index.json.symbols.functions (NON-NEGOTIABLE):** `symbols.functions` 已是完整的函数→文件:行号 映射。LLM 只读取符号表中列出的位置（`start_line`±10行）。不在符号表中的文件 → 不读。不在符号表中的函数 → 不分析。符号表中无关联函数名的检测器 → 跳过。
+| # | Rule (目录名) | Severity | CWE | `signal_source` | `skill_id` |
+|---|---------------|----------|-----|-----------------|------------|
+| 1 | [`deserialization/`](./rules/deserialization/) | Critical | CWE-502 | `call_sites[cat="deserialization"]` | `python.deserialization.pickle` |
+| 2 | [`command_injection/`](./rules/command_injection/) | Critical | CWE-78 | `call_sites[cat="exec"]` | `python.command-injection.shell` |
+| 3 | [`ssti/`](./rules/ssti/) | Critical | CWE-1336 | `call_sites[cat="template"]` | `python.ssti.jinja2` |
+| 4 | [`code_injection/`](./rules/code_injection/) | Critical | CWE-94 | `call_sites[cat="code_exec"]` | `python.code-injection.eval` |
+| 5 | [`sql_injection/`](./rules/sql_injection/) | High | CWE-89 | `call_sites[cat="database"]` | `python.sql-injection.execute` |
+| 6 | [`path_traversal/`](./rules/path_traversal/) | High | CWE-22 | `call_sites[cat="io"]` | `python.path-traversal.open` |
+| 7 | [`ssrf/`](./rules/ssrf/) | High | CWE-918 | `call_sites[cat="network"]` | `python.ssrf.requests` |
+| 8 | [`weak_crypto/`](./rules/weak_crypto/) | High | CWE-327 | `call_sites[cat="crypto"]` | `python.weak-crypto.md5` |
+| 9 | [`hardcoded_secrets/`](./rules/hardcoded_secrets/) | High | CWE-798 | `call_sites[cat="crypto"]` | `python.hardcoded-secrets.key` |
+| 10 | [`debug_mode/`](./rules/debug_mode/) | Medium | CWE-489 | `call_sites[cat="config"]` | `python.debug-mode.django` |
+| 11 | [`xss/`](./rules/xss/) | Medium | CWE-79 | `call_sites[cat="template"]` | `python.xss.template` |
 
-## 执行流程
+**按严重度排序执行**: `Critical (4) → High (5) → Medium (2)`
 
-> **前置条件**: Command 层面已完成 `secguardian-index` 索引器调用，`index.json` 已生成在扫描输出目录下。包含 `symbols.functions`（函数→文件:行号）、`call_graph.edges`（调用关系）、`files`（文件清单）。
->
-> **禁止事项**：❌ 不要启动 clangd 或任何 LSP server（indexer 已提供所有代码结构数据）。❌ 不要用 find/ls/glob 重新遍历文件系统。❌ 不要逐文件全文读取——始终从 indexer 数据出发精准定位。
+---
 
-1. 读取 Command 生成的 `index.json`，获取文件清单、符号表和调用图。**从 symbols.functions 构建函数名→{文件:行号} 查找表，检测器按需查表定位目标函数后精准读取，不扫描无关文件。**
-2. 加载 `knowledge/languages/python.md` 获取 Python 危险函数清单
-3. 加载 `knowledge/language-index.md`（57行）获取该语言检测器清单。仅对 index.json 符号表中匹配到的检测器，按需加载 `knowledge/guard-rules/<name>.md` 详情
-4. 基于 index.json 的符号表定位检测目标，按以下优先级匹配:
+## 2. 信号源分类 → Skill 映射
 
-### 检查优先级
+`index.json` 的 `call_sites[].category` 字段决定触发哪些算子：
 
-| 优先级 | 问题类型 | 核心检测逻辑 |
-|--------|---------|-------------|
-| Critical | 反序列化漏洞 | pickle.load / yaml.load / dill.load 不可信数据 |
-| Critical | 命令注入 | os.system / subprocess(shell=True) + 用户输入 |
-| Critical | SSTI | Jinja2 render_template_string / Mako Template 用户输入 |
-| Critical | 代码注入 | eval / exec / compile / import_module 用户可控 |
-| High | SQL 注入 | cursor.execute + 字符串格式 / f-string / % |
-| High | 路径穿越 | open(user_path) / tarfile.extractall / shutil |
-| High | SSRF | requests.get(user_url) 未验证 |
-| High | 弱加密 | hashlib.md5 / random.random / SHA-1 |
-| High | 硬编码密钥 | API Key / SECRET_KEY / Password 硬编码 |
-| Medium | DEBUG 模式 | Django DEBUG=True / Flask debug=True 生产环境 |
-| Medium | XSS | render_template_string vs render_template / mark_safe |
+| call_sites Category | 触发的 Rule 目录 | 信号函数（示例） |
+|--------------------|------------------|-----------------|
+| `"deserialization"` | `deserialization` | `pickle.load`, `yaml.load`, `dill.load`, `marshal.loads` |
+| `"exec"` | `command_injection` | `os.system`, `subprocess.Popen`, `subprocess.run` |
+| `"template"` | `ssti`, `xss` | `render_template_string`, `jinja2.Template`, `mark_safe` |
+| `"code_exec"` | `code_injection` | `eval`, `exec`, `compile`, `import_module` |
+| `"database"` | `sql_injection` | `cursor.execute`, `sqlalchemy.text`, `raw` |
+| `"io"` | `path_traversal` | `open`, `tarfile.extractall`, `shutil`, `pathlib.Path` |
+| `"network"` | `ssrf` | `requests.get`, `urllib.request.urlopen`, `httpx.get` |
+| `"crypto"` | `weak_crypto`, `hardcoded_secrets` | `hashlib.md5`, `Crypto.Cipher.DES`, `SECRET_KEY`, `password` |
+| `"config"` | `debug_mode` | `DEBUG=True`, `debug=True`, `app.run(debug=True)` |
 
-### 框架覆盖
+### OO 语言全量加载策略
 
-## 执行指令（I/O 优化版）
+Python 作为面向对象语言，使用全量加载策略（区别于 C/C++ 精确匹配）：
+- 所有 11 个 rule 目录的 `rule.md` 均预读
+- 各算子自行从 `index.json.symbols.functions` 匹配 `trigger_functions`
+- 无匹配时不产生 finding（`confidence: low`）
 
-> 以下执行方式遵循 `engine_contract.md` 和 `output_contract.md` 的性能要求。
+---
 
-### 源文件读取（index.json.symbols.functions 驱动）
+## 3. 参考文件
 
-> **🔒 读取范围 = index.json.symbols.functions:** `symbols.functions` 已是函数→文件:行号 映射。LLM 只读取符号表中的位置（±10行）。不在符号表中的文件 → 不读。不在符号表中的函数 → 不分析。
-
-### 检测器加载（批量 + 按需）
-
-1. 加载 `knowledge/language-index.md`（57 行，包含所有检测器清单）
-2. 先做符号匹配快速过滤，仅加载匹配到的 detector 详情
-
-### Finding 输出（批量）
-
-1. 将所有 findings 收集到临时结构
-2. 用 `python3 render-report.py --findings <dir>/findings.json --output <dir>` 批量输出
-
-## 输出完整性要求
-- Django (ORM, 模板, 安全中间件)
-- Flask (Jinja2, Flask-Login, WTForms)
-- FastAPI (依赖注入, Pydantic, Response)
-- SQLAlchemy (ORM, Core, text())
-- Celery (任务序列化安全)
-
-## 📄 Output Protocol
-
-> 以下输出格式遵循 `internal/output/output_contract.md`。
-
-## 输出完整性要求
-
-> **每个检出必须满足四段式完整性**（Command 层 Step 4b 质量门禁强制检查）：
-> 1. **📍 Location** — 文件路径 + 行号 + 函数名 + 代码行内容
-> 2. **📋 Evidence** — 代码上下文（前后 3 行）+ 判定依据（引用 detector 的检测逻辑）+ 数据流路径
-> 3. **⚠️ Impact** — 攻击场景描述 + CVSS 3.1 评分 + 利用条件
-> 4. **🔧 Fix** — Before/After 代码 + 工作量 + 验证方法 + CWE 参考链接
->
-> SARIF 结果同样要求：`message.markdown` 包含完整四段式，`relatedLocations` 标注 Source → Sink 路径，`fixes` 包含 before/after 替换。
+| 文件 | 内容 |
+|------|------|
+| [`references/language-features.md`](./references/language-features.md) | Python 危险函数清单、框架特性 |
