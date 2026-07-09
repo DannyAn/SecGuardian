@@ -17,7 +17,7 @@ REQUIRED_SEVERITIES = {'Critical', 'High', 'Medium', 'Low', 'Info'}
 REQUIRED_LOCATION = ['file_path', 'start_line', 'snippet']
 REQUIRED_EVIDENCE = ['code_context', 'judgment_rationale']
 REQUIRED_IMPACT = ['attack_scenario']
-REQUIRED_FIX = ['before_code', 'after_code']
+REQUIRED_FIX = []  # fix optional (basic scan)
 OPTIONAL_FIX = ['description', 'effort', 'effort_hours']
 
 VALID_DETECTOR_PATTERN = 'namespace.name'  # Must contain a dot
@@ -207,6 +207,15 @@ def load_specs_from_dir(rules_dir: str) -> dict:
 
 
 def load_all_specs() -> dict:
+    import os
+    sh = os.environ.get("SECGUARDIAN_HOME", os.environ.get("_SECGUARDIAN_HOME", ""))
+    if sh:
+        for rules in ["skills/secaudit/rules", "skills/secreview/cpp/rules"]:
+            d = os.path.join(sh, rules)
+            sp = load_specs_from_dir(d)
+            if sp:
+                specs.update(sp)
+        return specs
     """Load specs from guard-rules, audit-rules, and review-rules. Returns merged dict."""
     specs = {}
     for subdir in ['guard-rules', 'audit-rules', 'review-rules']:

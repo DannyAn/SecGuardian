@@ -275,7 +275,7 @@ def main():
     finding = {
         "schema_version": "1.0",
         "finding": {
-            "severity": args.severity,
+            "severity": args.severity.capitalize(),
             "cwe": args.cwe,
             "detector": args.detector,
             "file": args.file,
@@ -337,7 +337,7 @@ def main():
     if os.path.exists(fpath):
         print(
             f"IDEMPOTENT_SKIP: findings/{ns_name}/{det_name}/{fname} "
-            f"({args.severity}, {args.cwe}) — already recorded"
+            f"({args.severity.capitalize()}, {args.cwe}) — already recorded"
         )
         return 0
 
@@ -346,7 +346,7 @@ def main():
 
     print(
         f"RECORDED: findings/{ns_name}/{det_name}/{fname} "
-        f"({args.severity}, {args.cwe})"
+        f"({args.severity.capitalize()}, {args.cwe})"
     )
     return 0
 
