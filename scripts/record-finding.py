@@ -40,19 +40,19 @@ def main():
   secaudit:  --command secaudit  --detector audit.cryptography --severity High --cwe CWE-327 --file src/crypto.py --line 15 --skill-name cryptography
   secreview: --command secreview --detector memory.buffer-overflow --severity High --cwe CWE-120 --file src/buf.c --line 88 --review-pass vulnerability_detection
 
-  == --from-stdin standalone mode ==
-  No CLI args needed beyond --from-stdin. The full finding is a JSON object on stdin.
-  Example:
-    python3 record-finding.py --from-stdin << 'RECEOF'
+  == --from-file mode ==
+  Write the finding JSON to a file, then pass the path with --from-file:
+    cat > /tmp/finding.json << 'FEOF'
     {"detector": "web.sql-injection", "severity": "Critical", "cwe": "CWE-89",
-     "file": "src/app.py", "line": 42, "scan_dir": ".codeagent/secguardian/scans/x/",
+     "file": "src/app.py", "line": 42,
      "snippet": "...", "code_context": "...", "rationale": "...", "attack_scenario": "..."}
-    RECEOF
+    FEOF
+    python3 record-finding.py --from-file /tmp/finding.json --scan-dir .codeagent/scans/x/
         ''')
 
-    # --from-stdin / --from-file mode: make all args optional so standalone JSON works
-    from_stdin_mode = '--from-stdin' in sys.argv or '--from-file' in sys.argv
-    required_mode = not from_stdin_mode
+    # --from-file mode: make all args optional so standalone JSON works
+    from_file_mode = '--from-file' in sys.argv
+    required_mode = not from_file_mode
 
     # Core required fields
     p.add_argument('--command', default='',
@@ -110,8 +110,7 @@ def main():
 
     p.add_argument('--index-json', default='',
                    help='[anchor validation] Path to index.json for file+line cross-reference')
-    p.add_argument('--from-stdin', action='store_true',
-                   help='Read finding JSON from stdin (eliminates shell quoting issues)')
+    
     p.add_argument('--from-file', default='',
                    help='Read finding JSON from a file path (avoids CLI long-text overhead)')
 
@@ -142,36 +141,14 @@ def main():
         print("  These argument names were not recognized. Check spelling.", file=sys.stderr)
         sys.exit(4)
 
-    # ── Read from stdin if --from-stdin (eliminates ALL shell quoting issues) ──
-    if args.from_stdin:
-        stdin_data = sys.stdin.read()
-        if not stdin_data.strip():
-            print("FATAL: --from-stdin specified but stdin is empty", file=sys.stderr)
-            sys.exit(3)
-        try:
-            stdin_json = json.loads(stdin_data)
-        except json.JSONDecodeError as e:
-            print(f"FATAL: --from-stdin JSON parse error: {e}", file=sys.stderr)
-            sys.exit(3)
-        # Map JSON fields to args (all fields can come from stdin — no CLI args needed)
-        for field in ['command', 'detector', 'severity', 'cwe', 'file', 'function',
-                       'title', 'snippet', 'code_context', 'rationale', 'attack_scenario',
-                       'fix_before', 'fix_after', 'review_pass', 'review_focus',
-                       'data_flow_path', 'skill_name', 'skill_category',
-                       'scan_dir', 'index_json']:
-            if field in stdin_json:
-                # JSON uses underscore names (code_context) which matches argparse dest
-                setattr(args, field, stdin_json[field])
-        if 'line' in stdin_json:
-            args.line = int(stdin_json['line'])
-        if 'end_line' in stdin_json:
-            args.end_line = int(stdin_json['end_line'])
-        if 'cvss' in stdin_json:
-            args.cvss = float(stdin_json['cvss'])
-        if 'fix_before_file' in stdin_json:
-            args.fix_before_file = stdin_json['fix_before_file']
-        if 'fix_after_file' in stdin_json:
-            args.fix_after_file = stdin_json['fix_after_file']
+
+    # ── Reject placeholder scan_dir values ──
+    # AI agents sometimes use SCAN_DIR_PLACEHOLDER as a literal instead of the real path.
+    # This creates a SCAN_DIR_PLACEHOLDER directory in the project root — a user-facing bug.
+    if 'PLACEHOLDER' in str(args.scan_dir).upper():
+        print("FATAL: scan_dir contains placeholder value '{}' — must use actual scan directory".format(args.scan_dir), file=sys.stderr)
+        print("  Run: source .scan_state.secguard; then use --scan-dir \"$SCAN_DIR\" along with --from-file", file=sys.stderr)
+        sys.exit(2)
 
     # ── Read from file if --from-file (avoids CLI long-text overhead) ──
     if args.from_file:

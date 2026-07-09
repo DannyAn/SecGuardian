@@ -331,11 +331,11 @@ cat "$SECGUARDIAN_HOME/skills/secaudit/rules/{domain-name}.md"
 
 ```bash
 # RECORDER/SCAN_DIR/SCAN_ID 已从 .scan_state.secaudit 加载，无需重复赋值
-# ⚠️ MUST use heredoc with --from-stdin. NEVER pass code as inline CLI args.
+# ⚠️ MUST use heredoc with --from-file. NEVER pass code as inline CLI args.
 python3 "$RECORDER" \
     --command secaudit \
     --scan-dir "$SCAN_DIR" \
-    --from-stdin << 'RECEOF'
+    --from-file << 'RECEOF'
 {
   "command": "secaudit",
   "detector": "audit.input-validation",

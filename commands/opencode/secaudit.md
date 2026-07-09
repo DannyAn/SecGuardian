@@ -154,7 +154,7 @@ Scan ID: sec-YYYYMMDD-HHMMSS-xxxx | Project: <project> | Path: <path> | Language
 > **上下文预算规则：**
 > 1. 每个审计域处理完后，检查上下文是否接近 70% 满载
 > 2. 如果接近溢出：停止未处理的审计域，标记为 `unprocessed`
-> 3. 单条 finding 必须通过文件传递（`--from-file`）。**禁止 `--from-stdin`**（finding 数据进入上下文）
+> 3. 单条 finding 必须通过文件传递（`--from-file`）。**禁止 `--from-file`**（finding 数据进入上下文）
 > 4. **工具禁止：** 禁止 `Read` 工具读 `$SECGUARDIAN_HOME/` 下的文件（触发权限弹窗）。禁止 Glob/Grep 工具（结果进入上下文）。使用 bash `cat`/`grep`
 >
 > 详见 secguard.md `§5.1 Worker 启动协议` 的上下文预算细节（同样的串行约束适用于各审计域）。
@@ -330,7 +330,7 @@ cat "$SECGUARDIAN_HOME/skills/secaudit/rules/{domain-name}.md"
 > **唯一允许的流程**: 写 JSON 文件 → `--from-file` 传给 `record-finding.py`。
 >
 > **🚫 禁止以下方式:**
-> - ❌ `--from-stdin`: finding 数据进入上下文且易多路径冗余
+> - ❌ `--from-file`: finding 数据进入上下文且易多路径冗余
 > - ❌ 直接 CLI `--detector --rationale "..."`: 长文本进上下文
 > - ❌ `python3 -c` 内联写 JSON 同时调 recorder: 与 `--from-file` 路径重复
 >
@@ -343,7 +343,7 @@ cat "$SECGUARDIAN_HOME/skills/secaudit/rules/{domain-name}.md"
 
 ```bash
 # RECORDER/SCAN_DIR/SCAN_ID 已从 .scan_state.secaudit 加载，无需重复赋值
-# ⚠️ MUST use --from-file. NEVER use --from-stdin (puts finding data in context).
+# ⚠️ MUST use --from-file. NEVER use --from-file (puts finding data in context).
 # Step A: write finding JSON via quoted heredoc << 'FEOF'
 # ⚠️ Finding JSON MUST use nested schema:
 #   location (file_path, start_line, snippet)

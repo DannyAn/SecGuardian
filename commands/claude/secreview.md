@@ -340,11 +340,11 @@ Each finding is recorded via `record-finding.py` (multi-path search).
 
 ```bash
 # RECORDER/SCAN_DIR/SCAN_ID already loaded from .scan_state.secreview — no redundant assignment needed
-# ⚠️ MUST use heredoc with --from-stdin. NEVER pass code as inline CLI args.
+# ⚠️ MUST use heredoc with --from-file. NEVER pass code as inline CLI args.
 python3 "$RECORDER" \
     --command secreview \
     --scan-dir "$SCAN_DIR" \
-    --from-stdin << 'RECEOF'
+    --from-file << 'RECEOF'
 {
   "command": "secreview",
   "detector": "web.sql-injection",

@@ -134,7 +134,7 @@ Output directory: <user-project>/.codeagent/secguardian/secreview/scans/pr-20260
 > **Context budget rules:**
 > 1. After each review pass (A/B/C), check if context is near ~70% full
 > 2. If near overflow: stop remaining passes, mark as `unprocessed`
-> 3. Findings MUST use `--from-file` (write JSON → record). **No `--from-stdin`** (puts data in context)
+> 3. Findings MUST use `--from-file` (write JSON → record). **No `--from-file`** (puts data in context)
 > 4. **Tool bans:** No `Read` on `$SECGUARDIAN_HOME/` files (triggers permission prompts). No `Glob`/`Grep`. Use bash `cat`/`grep`
 > 5. **Source read constraint:** No full-file `cat` — each source read MUST use `cat $FILE | sed -n '±15p'` line-range:
 >    ```bash
@@ -347,7 +347,7 @@ Evaluate against language-specific anti-patterns (from the skill file):
 > **唯一允许的流程**: 写 JSON 文件 → `--from-file` 传给 `record-finding.py`。
 >
 > **🚫 禁止以下方式:**
-> - ❌ `--from-stdin`: finding 数据进入上下文且易多路径冗余
+> - ❌ `--from-file`: finding 数据进入上下文且易多路径冗余
 > - ❌ 直接 CLI `--detector --rationale "..."`: 长文本进上下文
 > - ❌ `python3 -c` 内联写 JSON 同时调 recorder: 与 `--from-file` 路径重复
 >
@@ -366,7 +366,7 @@ Evaluate against language-specific anti-patterns (from the skill file):
 
 ```bash
 # RECORDER/SCAN_DIR/SCAN_ID already loaded from .scan_state.secreview — no redundant assignment needed
-# ⚠️ MUST use --from-file. NEVER use --from-stdin (puts finding data in context).
+# ⚠️ MUST use --from-file. NEVER use --from-file (puts finding data in context).
 # Step A: write finding JSON via quoted heredoc << 'FEOF'
 # ⚠️ Finding JSON MUST use nested schema:
 #   location (file_path, start_line, snippet)
