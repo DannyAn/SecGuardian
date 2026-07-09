@@ -643,9 +643,9 @@ Dispatcher 输出 Signal 分类摘要 + 全量 Signal 清单。**不产生 Worke
 3. 单个调查回合的约束：
    a. 源码读取：bash `cat` + `sed -n`，避免 `Read` 工具
    b. 禁用 Glob/Grep 工具
-   c. finding 录制：只允许写 JSON 文件 → `--from-file`
-   d. （静默写入）写 JSON 文件时用 `python3 -c "json.dump(DATA, open(PATH,\"w\"))"`，
-      不要用 `cat > file << EOF` — heredoc 会把 JSON 内容回显到会话日志浪费上下文。
+
+
+
    d. 每条 Evidence <= 3 句 + 源码行号
 ```
 

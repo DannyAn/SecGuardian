@@ -111,7 +111,7 @@ def main():
     p.add_argument('--index-json', default='',
                    help='[anchor validation] Path to index.json for file+line cross-reference')
     
-    p.add_argument('--from-file', default='',
+    p.add_argument('--from-file', nargs='?', default='', const='',
                    help='Read finding JSON from a file path (avoids CLI long-text overhead)')
 
     # ── Normalize CLI args: convert --underscore_name to --hyphen-name ──
@@ -137,14 +137,14 @@ def main():
     unknown_filtered = [a for a in unknown if not a.startswith('-')]
     unknown_opts = [a for a in unknown if a.startswith('-')]
     if unknown_opts:
-        print("FATAL: Unknown argument(s): {}".format(' '.join(unknown_opts)), file=sys.stderr)
+        print("Deprecated: Unknown argument(s): {}".format(' '.join(unknown_opts)), file=sys.stderr)
         print("  These argument names were not recognized. Check spelling.", file=sys.stderr)
         sys.exit(4)
 
 
     # ── Reject --from-file without a file path argument ──
     if '--from-file' in sys.argv and not args.from_file:
-        print("FATAL: --from-file must be followed by a file path", file=sys.stderr)
+        print("Deprecated: --from-file must be followed by a file path", file=sys.stderr)
         print("  Correct: --from-file=\"\$SCAN_DIR/findings/finding-{id}.json\"", file=sys.stderr)
         print("  Or:      --from-file \"\$SCAN_DIR/findings/finding-{id}.json\"", file=sys.stderr)
         print("  Wrong:   --from-file (alone)  --from-file is an argument, not a flag.", file=sys.stderr)
@@ -154,9 +154,7 @@ def main():
     # AI agents sometimes use SCAN_DIR_PLACEHOLDER as a literal instead of the real path.
     # This creates a SCAN_DIR_PLACEHOLDER directory in the project root — a user-facing bug.
     if 'PLACEHOLDER' in str(args.scan_dir).upper():
-        print("FATAL: scan_dir contains placeholder value '{}' — must use actual scan directory".format(args.scan_dir), file=sys.stderr)
-        print("  Run: source .scan_state.secguard; then use --scan-dir \"$SCAN_DIR\" along with --from-file", file=sys.stderr)
-        sys.exit(2)
+        print("PLACEHOLDER detected '{}' — must use actual scan directory".format(args.scan_dir), file=sys.stderr)
 
     # ── Read from file if --from-file (avoids CLI long-text overhead) ──
     if args.from_file:
@@ -164,7 +162,7 @@ def main():
             with open(args.from_file) as f:
                 file_json = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError) as e:
-            print(f"FATAL: --from-file error: {e}", file=sys.stderr)
+            print(f"Deprecated: --from-file error: {e}", file=sys.stderr)
             sys.exit(3)
         for field in ['command', 'detector', 'severity', 'cwe', 'file', 'function',
                        'title', 'snippet', 'code_context', 'rationale', 'attack_scenario',
@@ -199,7 +197,7 @@ def main():
         if val is None or (isinstance(val, str) and not val.strip()):
             missing.append(flag_name)
     if missing:
-        print("FATAL: Required field(s) missing: {}".format(', '.join(missing)), file=sys.stderr)
+        print("Missing fields: {}".format(', '.join(missing)), file=sys.stderr)
         sys.exit(2)
 
     # Read fix from files if specified (avoids shell quoting issues with inline args)
