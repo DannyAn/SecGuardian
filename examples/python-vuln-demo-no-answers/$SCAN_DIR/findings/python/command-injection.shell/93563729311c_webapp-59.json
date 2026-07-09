@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "finding": {
+    "severity": "Critical",
+    "cwe": "CWE-78",
+    "detector": "python.command-injection.shell",
+    "file": "src/webapp.py",
+    "line": 59,
+    "title": "os.system() with user-controlled host parameter — shell injection",
+    "location": {
+      "file_path": "src/webapp.py",
+      "start_line": 59,
+      "end_line": 60,
+      "snippet": "result = os.system(f\"ping -c 1 {host}\")"
+    },
+    "evidence": {
+      "code_context": "@app.route('/ping')\\ndef ping_host():\\n    host = request.args.get('host', 'localhost')\\n    result = os.system(f\"ping -c 1 {host}\")",
+      "judgment_rationale": "host comes from HTTP query parameter, no validation, passed to os.system with shell=True semantics"
+    },
+    "impact": {
+      "attack_scenario": "GET /ping?host=;id — shell executes id command after ping"
+    },
+    "fix": {
+      "description": "os.system() with user-controlled host parameter — shell injection",
+      "before_code": "result = os.system(f\"ping -c 1 {host}\")",
+      "after_code": "subprocess.run([\"ping\", \"-c\", \"1\", host], capture_output=True, shell=False)"
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "finding": {
+    "severity": "Critical",
+    "cwe": "CWE-121",
+    "detector": "memory.buffer_overflow",
+    "file": "src/p1_safecopy_wrapper.c",
+    "line": 57,
+    "function": "process_user_data_unsafe",
+    "title": "memcpy with user-controlled length",
+    "location": {
+      "file_path": "src/p1_safecopy_wrapper.c",
+      "start_line": 57,
+      "function_name": "process_user_data_unsafe",
+      "snippet": "memcpy(buf, user_input, strlen(user_input))"
+    },
+    "evidence": {
+      "code_context": "char buf[64]; memcpy(buf, user_input, strlen(user_input));",
+      "judgment_rationale": "buf is stack char[64]; input length uncontrolled"
+    },
+    "impact": {
+      "attack_scenario": "User sends >64 byte input"
+    },
+    "fix": {
+      "description": "memcpy with user-controlled length",
+      "before_code": "",
+      "after_code": ""
+    }
+  }
+}

@@ -1,13 +1,14 @@
 {
   "name": "fp-verification-demo-java",
   "language": "java",
-  "total_cases": 12,
+  "total_cases": 16,
   "p0_safe": 6,
   "p1_suppressed": 2,
   "p2_suppressed": 4,
   "p3_suspected": 2,
+  "p4_scenarios": 4,
   "tp_confirmed": 2,
-  "expected_convergence_rate": "83.3%",
+  "expected_convergence_rate": "87.5%",
   "expected_precision": "100%",
   "test_cases": [
     {"id": "P0-01", "file": "p0_safe_functions.java", "method": "safeQuery", "expected": "no_finding"},
@@ -24,8 +25,12 @@
     {"id": "P2-04", "file": "p2_counter_evidence.java", "method": "syncWrite", "expected": "counter_evidence_found"},
     {"id": "P3-01", "file": "p3_edge_case.java", "method": "execCommand", "expected": "suspected"},
     {"id": "P3-02", "file": "p3_edge_case.java", "method": "reloadConfig", "expected": "suspected"},
+    {"id": "P4-01", "file": "p4_additional_scenarios.java", "method": "updateUser", "expected": "suspected"},
+    {"id": "P4-02", "file": "p4_additional_scenarios.java", "method": "logSinks", "expected": "suspected"},
+    {"id": "P4-03", "file": "p4_additional_scenarios.java", "method": "fetchUrl", "expected": "suspected"},
+    {"id": "P4-04", "file": "p4_additional_scenarios.java", "method": "pathTraversal", "expected": "suspected"},
     {"id": "TP-01", "file": "tp_true_positives.java", "method": "vulnerableQuery", "expected": "confirmed"},
     {"id": "TP-02", "file": "tp_true_positives.java", "method": "vulnerableExec", "expected": "confirmed"}
   ],
-  "final_certified": 4
+  "final_certified": 6
 }
