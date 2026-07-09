@@ -185,26 +185,12 @@ strncpy(dst, src, sizeof(dst));   // src >= sizeof(dst) 时不写 '\0'
 
 ---
 
-## Worker 检视协议
+## 调查建议
 
-### Step 1: 信号确认
+### 安全变体参数审计
 
-对每个预筛信号：
-1. 读取调用点源码（±15 行）
-2. 确认调用点真实存在（排除注释/宏/条件编译）
-3. 按 Scenario 分类：字符串拷贝 → S1，堆越界 → S2，差一 → S3
+> 参考 [false-positive.md](references/false-positive.md) 确认抑制模式。
 
-### Step 2: 证据链构建
-
-构建 Source → Propagate → Sink 证据链：
-
-| 环节 | 说明 |
-|------|------|
-| **Source** | 源缓冲区来源（栈数组/堆分配/函数参数/用户输入） |
-| **Propagate** | 数据流转中是否有长度计算或安全检查 |
-| **Sink** | 目标缓冲区大小与源数据长度的关系 |
-
-### Step 3: 安全变体参数审计
 
 > 参考 [false-positive.md](references/false-positive.md) 确认抑制模式。
 
@@ -220,39 +206,6 @@ strncpy(dst, src, sizeof(dst));   // src >= sizeof(dst) 时不写 '\0'
 **snprintf(buf, size, fmt, ...)**:
 - 返回值 >= size → 截断（非溢出，但数据丢失）
 
-### Step 4: 跨函数补证
-
-> 参考 [cross-function.md](references/cross-function.md)。
-
-深度=1 调用者 → 确认实际传入参数的大小关系。
-深度 > 1 → 降级为 "suspicious"，标记 confidence: medium。
-
-### Step 4.5: 多信号归并分析
-
-同一 caller function 内有多个信号时，先聚合再分析：
-1. 按行号分组，检查信号间依赖
-2. 归并后形成统一分析基线
-3. 在证据链中标注 `cross_signal_analysis: true`
-
-### Step 5: 事实锚定反思（3 问判定矩阵）
-
-> 参考 [exceptions.md](references/exceptions.md) 确认边界情况。
-> 参考 [false-positive.md](references/false-positive.md) 触发抑制。
-
-必须回答 3 个域专用事实问题，答案必须基于源码证据链中的行号引用。
-
-**Q1**: 目标缓冲区大小 ≥ 拷贝大小？
-**Q2**: 拷贝大小是编译期常量？
-**Q3**: 源缓冲区至少有 n 字节可读？
-
-| Q1 | Q2 | Q3 | 结论 |
-|----|----|----|------|
-| YES(安全) | YES | YES | SUPPRESS — 三绿灯，安全可证 |
-| YES(安全) | YES | NO | informational — 基本安全但有隐患 |
-| YES(安全) | NO | — | CONFIRMED — 条件不满足即漏洞 |
-| NO(危险) | YES | YES | CONFIRMED — 危险信号已确认 |
-| NO(危险) | NO | — | CONFIRMED — 多角度证实漏洞 |
-| Mixed | Mixed | Mixed | 强制详细分析后判断 |
 
 ---
 

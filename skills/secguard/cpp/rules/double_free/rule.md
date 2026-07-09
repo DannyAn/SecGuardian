@@ -278,118 +278,25 @@ if (--refcount == 0) {
 
 ---
 
-## Worker 检视协议
+## 调查建议
 
-### Step 1: 信号确认
+### 安全变体参数审计
 
-对每个预筛信号：
-1. 读取所有 free 调用点源码（每个 ±10 行）
-2. 确认被释放的指针变量名（`free(p)` → 追踪 p）
-3. 检查 free 之间是否有赋值操作改变了 p 的值
-4. 按 Scenario 分类：同路径/条件分支 → S1，指针别名 → S2，跨函数 → S3
+> 参考 [false-positive.md](references/false-positive.md) 确认抑制模式。
 
-### Step 2: 证据链构建
-
-构建 Source → Propagate → Sink 证据链：
-
-| 环节 | 说明 |
-|------|------|
-| **Source** | 第一次 free(p) 的调用点 |
-| **Propagate** | free 之间 p 的控制流路径（是否有条件分支、循环、赋值） |
-| **Sink** | 第二次 free(p) 的调用点 |
-
-### Step 3: 安全模式审计
 
 > 参考 [false-positive.md](references/false-positive.md) 确认抑制模式。
 
 **路径不可达（不构成 double-free）**：
-```c
-if (cond) {
-    free(p);     // 第一次
-} else {
-    free(p);     // 第二次，互斥分支 → 安全
-}
-```
 
 **路径可达（double-free）**：
-```c
-free(p);         // 第一次
-// p 未重新赋值
-free(p);         // 第二次 → double-free
-```
 
 **指针重新赋值后**：
-```c
-free(p);         // 第一次
-p = malloc(512); // 重新赋值
-free(p);         // 第二次，释放新分配 → 安全（如无泄漏）
-```
 
 **NULL 重置模式**：
-```c
-free(p);
-p = NULL;
-free(p);         // free(NULL) 是 C 标准定义的安全操作 → 安全
-```
 
 **错误处理路径**：
-```c
-if (cond) {
-    free(p);
-    return -1;
-}
-// ...
-free(p);         // cond 为真时 double-free
-```
 
-### Step 4: 跨函数补证
-
-> 参考 [cross-function.md](references/cross-function.md)。
-
-当 free 和第二次 free 在不同函数中：
-- 查调用图确认是否存在调用关系
-- 若函数 A 调用函数 B，且 A 和 B 都对同一指针调用了 free → 确认
-- 若 A 先 free 再调用 B，B 内部再 free（同指针通过全局/参数传入）→ double-free
-- 深度 > 1 层 → 降级为 suspicious
-
-### Step 4.5: 多信号归并分析
-
-同一 caller function 内有多个信号时，先聚合再分析：
-1. 按行号分组，检查信号间依赖
-2. 归并后形成统一分析基线（避免重复读取同一段源码）
-3. 在证据链中标注 `cross_signal_analysis: true`
-
-### Step 5: 事实锚定反思（3 问判定矩阵）
-
-> 参考 [exceptions.md](references/exceptions.md) 确认边界情况。
-> 参考 [false-positive.md](references/false-positive.md) 触发抑制。
-
-必须回答 3 个域专用事实问题。答案必须基于源码证据链中的行号引用。
-
-**Q1**: 两次 free 之间有置 NULL 或重新赋值？
-- YES → 安全，free(NULL) 是标准安全操作或释放新分配
-- NO → 危险，同一指针被二次释放
-
-**Q2**: 两次 free 在互斥路径中？
-- YES → 安全，控制流不能同时到达两个 free
-- NO → 危险，存在可达路径触发第二次 free
-
-**Q3**: 第一次 free 后指针已超出作用域（函数返回/局部变量）？
-- YES → 安全，后续不再使用此指针
-- NO → 危险，指针有效期内被二次释放
-
-| Q1 | Q2 | Q3 | 结论 |
-|----|----|----|------|
-| YES | YES | YES | **SUPPRESS** — 三绿灯，安全可证 |
-| YES | YES | NO | informational — 基本安全但有隐患 |
-| NO | — | — | **CONFIRMED** — 存在可达的二次释放路径 |
-| YES | NO | — | **CONFIRMED** — 存在路径可同时到达两个 free |
-| Mixed | Mixed | Mixed | 强制详细分析后判断 |
-
-**矩阵使用指引**：
-- 三绿灯 → SUPPRESS：无事可报
-- 任一 NO → CONFIRMED：存在可触发的 double-free 路径
-- 在引用计数场景（引用计数降至 0 时释放）→ 查看 [exceptions.md §引用计数检查](references/exceptions.md#4-引用计数检查)
 
 ---
 

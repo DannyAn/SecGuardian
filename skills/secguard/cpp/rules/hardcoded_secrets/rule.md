@@ -333,109 +333,17 @@ jwt\.(sign|verify)|oauth|sso                        # OAuth/SSO 外部 token
 
 ---
 
-## Worker 检视协议
+## 调查建议
 
-### Step 1: 信号确认
-
-对每个预筛信号：
-1. 读取源码上下文（±15 行）
-2. 确认信号真实存在（排除注释/宏/条件编译）
-3. 按 Scenario 分类：
-   - 敏感变量名 + 字面量赋值 / 密码比较 / 连接字符串 → S1
-   - 加密密钥 / IV 字面量 → S2
-   - 弱密码存储 / 明文比较 → S3
-
-**模式 A — 敏感变量名 + 字面量赋值**
-```c
-const char *password = "abc123";           // MATCH
-char *api_key = "sk-live-abc123def456";    // MATCH
-static const uint8_t aes_key[] = {0x01, ...};  // MATCH（密钥材料数组）
-
-char *pass = getenv("DB_PASS");            // EXCLUDE: 运行时读取
-int password_min_length = 8;               // EXCLUDE: 配置常量
-```
-
-**模式 B — 密码字面量比较**
-```c
-strcmp(input, "admin123") == 0             // MATCH: 硬编码验证密码
-strlen(password) >= 8                      // EXCLUDE: 仅长度检查
-```
-
-**模式 C — 加密 Key 参数为字面量**
-```c
-AES_set_encrypt_key((const uint8_t*)"1234567890123456", 128, &key);  // MATCH
-unsigned char iv[16] = {0x01, ...};        // MATCH: 固定 IV
-```
-
-**模式 D — 连接字符串嵌入式凭据**
-```c
-#define DB_URL "mysql://admin:secret@localhost:3306/db"  // MATCH
-```
-
-### Step 2: 证据链构建（Source -> Propagate -> Sink）
-
-| 环节 | 说明 |
-|------|------|
-| **Source** | 字符串字面量赋值位置、strcmp 比较位置 |
-| **Propagate** | 变量传递、函数参数传递、全局变量存储 |
-| **Sink** | 加密 API 调用（AES_set_encrypt_key、DES_set_key 等）、网络发送（send/write with key）、日志输出（printf with key）、连接字符串使用 |
-
-### Step 3: 参数审计
+### 安全变体参数审计
 
 > 参考 [false-positive.md](references/false-positive.md) 确认抑制模式。
 
-对每个匹配，进行以下审计：
 
-1. **变量名语义分析**: 变量名是否明确表明其持有机密数据（password, secret, key, token, credential）？若只是配置项名或枚举值，可能是误报。
-2. **值特征分析**: 字符串是否具有密钥特征（高熵、特定格式前缀如 `sk-live-`/`AKIA`/`github_pat`）？简短的常见单词（`"password"`, `"admin"`, `"test"`）可能是测试数据。
-3. **使用上下文分析**: 该值最终流向何处？流向加密 API/网络认证/数据库连接 → 真实密钥；流向调试输出/长度验证 → 可能是误报。
-4. **文件路径分析**: 是否在 `test/` / `mock/` / `example/` 目录？测试代码中的假密钥通常抑制，但带有生产前缀（`sk-live-` / `AKIA`）的仍报告。
+> 参考 [false-positive.md](references/false-positive.md) 确认抑制模式。
 
-### Step 4: 跨函数补证（max depth 1）
 
-当密钥变量作为参数跨函数传递时，追踪目标函数内部的使用方式。深度 1 层。
 
-> 参考 [cross-function.md](references/cross-function.md)。
-
-```c
-void setup() {
-    use_key("my-secret-key", 128);
-}
-void use_key(const char *key, int bits) {
-    AES_set_encrypt_key((const uint8_t*)key, bits, &ctx);  // 确认加密 API 调用
-}
-```
-
-深度 > 1 的调用链 -> 降级为 "suspicious"，标记 confidence: medium。
-
-### Step 4.5: 多信号归并分析
-
-同一 caller function 内有多个信号时，先聚合再分析：
-1. 按行号分组，检查信号间依赖（如 integer_overflow 绕过 -> buffer_overflow 失效）
-2. 归并后形成统一分析基线（避免重复读取同一段源码）
-3. 在证据链中标注 `cross_signal_analysis: true`
-
-### Step 5: 事实锚定反思（3 问判定矩阵）
-
-> 参考 [exceptions.md](references/exceptions.md) 确认边界情况。
-> 参考 [false-positive.md](references/false-positive.md) 触发抑制。
-
-必须回答 3 个域专用事实问题。答案必须基于源码证据链中的行号引用。
-
-**Q1**: 字符串值具有密钥特征（高熵/特定格式/敏感变量名）？
-**Q2**: 该值最终用于安全敏感操作（加密 API/认证/鉴权）？
-**Q3**: 是生产代码中的测试/示例/占位符（位于 test/mock/example 目录）？
-
-判定矩阵规则：
-
-| Q1 | Q2 | Q3 | 结论 |
-|----|----|----|------|
-| YES(安全) | YES | YES | SUPPRESS — 三绿灯，安全可证 |
-| YES(安全) | YES | NO | informational — 基本安全但有隐患 |
-| YES(安全) | NO | — | CONFIRMED — 条件不满足即漏洞 |
-| NO(危险) | YES | YES | CONFIRMED — 危险信号已确认 |
-| NO(危险) | NO | — | CONFIRMED — 多角度证实漏洞 |
-| Mixed | Mixed | Mixed | 强制详细分析后判断 |
 
 ---
 

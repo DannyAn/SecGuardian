@@ -326,125 +326,25 @@ setuid(uid) → (无 if 检查) → 后续以 root 操作
 
 ---
 
-## Worker 检视协议
+## 调查建议
 
-### Step 1: 信号确认
-
-对每个预筛信号（callee 匹配：`getenv`, `scanf`, `sscanf`, `atoi`, `atol`, `strtol`）：
-1. 读取调用点源码（±15 行）
-2. 确认调用点真实存在（排除注释/宏/条件编译）
-3. 按 Scenario 分类：文件路径操作 → S1，临时文件/TOCTOU → S2，权限操作 → S3，否则归入基础输入验证
-
-### Step 2: 证据链构建（Source → Propagate → Sink）
-
-对每个外部输入 API 调用点，追踪输入值的使用路径：
-
-| 环节 | 说明 |
-|------|------|
-| **Source** | getenv/scanf/sscanf/atoi/atol/strtol 调用点 |
-| **Propagate** | 变量赋值、类型转换、传递给其他函数 |
-| **Sink** | 安全敏感操作 — strcpy/sprintf/malloc/snprintf/system/popen/socket/connect/文件路径操作/数组索引 |
-
-```c
-// Source: getenv → Propagate: 变量赋值 → Sink: strcpy 到固定缓冲区
-char *input = getenv("HOME");        // Source
-char buf[64];
-strcpy(buf, input);                  // Sink: 缓冲区溢出可能
-
-// Source: atoi → Propagate: 直接赋值 → Sink: malloc 大小参数
-int size = atoi(argv[1]);            // Source
-void *ptr = malloc(size);           // Sink: 整数可能为负或零
-
-// Source: scanf → Sink: 无宽度限制直接写缓冲区
-scanf("%s", buf);                    // 同时是 Source 和 Sink
-```
-
-### Step 3: 参数审计
+### 安全变体参数审计
 
 > 参考 [false-positive.md](references/false-positive.md) 确认抑制模式。
 
-对每个输入 API 调用点的结果，检查下游使用前是否存在充分验证：
+
+> 参考 [false-positive.md](references/false-positive.md) 确认抑制模式。
+
 
 **3.1 getenv 检查**
-```c
-// BAD: 无 NULL 检查
-char *home = getenv("HOME");
-strcpy(buf, home);                   // home 可能为 NULL → 段错误
 
-// GOOD: NULL 检查 + 长度验证
-char *home = getenv("HOME");
-if (home == NULL) return -1;
-if (strlen(home) >= sizeof(buf)) return -1;
-strcpy(buf, home);
-```
 
 **3.2 scanf/sscanf 检查**
-```c
-// BAD: 无宽度限制
-scanf("%s", buf);                    // 用户输入超过 buf 大小 → 溢出
 
-// GOOD: 指定宽度
-scanf("%63s", buf);                  // 限制最多读 63 字符
-```
 
 **3.3 atoi/atol/strtol 检查**
-```c
-// BAD: 无范围/错误检查
-int n = atoi(argv[1]);
-malloc(n);                           // 负数 → 漏洞；超大值 → 拒绝服务
 
-// GOOD: strtol 有错误检测
-char *endptr;
-long n = strtol(argv[1], &endptr, 10);
-if (endptr == argv[1] || *endptr != '\0') return -1;
-if (n < 0 || n > MAX_SIZE) return -1;
-malloc((size_t)n);
-```
 
-### Step 4: 跨函数补证
-
-> 参考 [cross-function.md](references/cross-function.md)。
-
-当外部输入值通过函数参数传递到目标函数时，追踪目标函数内部是否执行验证。深度 1 层。
-
-```c
-void handler(char *input) {
-    process_input(input);            // 传入被调用函数
-}
-
-void process_input(char *data) {
-    system(data);                    // 无验证 → 命令注入
-}
-```
-
-深度 > 1 → 降级为 "suspicious"，标记 confidence: medium。
-
-### Step 4.5: 多信号归并分析
-
-同一 caller function 内有多个信号时，先聚合再分析：
-1. 按行号分组，检查信号间依赖（如 integer_overflow 绕过 → buffer_overflow 失效）
-2. 归并后形成统一分析基线（避免重复读取同一段源码）
-3. 在证据链中标注 `cross_signal_analysis: true`
-
-### Step 5: 事实锚定反思（3 问判定矩阵）
-
-> 参考 [exceptions.md](references/exceptions.md) 确认边界情况。
-> 参考 [false-positive.md](references/false-positive.md) 触发抑制。
-
-必须回答 3 个域专用事实问题，答案必须基于源码证据链中的行号引用。
-
-**Q1**: 输入来自不可信源？
-**Q2**: 使用前有验证（长度/格式/范围/类型）？
-**Q3**: 验证足够严格（白名单而非黑名单）？
-
-| Q1 | Q2 | Q3 | 结论 |
-|----|----|----|------|
-| YES(安全) | YES | YES | SUPPRESS — 三绿灯，安全可证 |
-| YES(安全) | YES | NO | informational — 基本安全但有隐患 |
-| YES(安全) | NO | — | CONFIRMED — 条件不满足即漏洞 |
-| NO(危险) | YES | YES | CONFIRMED — 危险信号已确认 |
-| NO(危险) | NO | — | CONFIRMED — 多角度证实漏洞 |
-| Mixed | Mixed | Mixed | 强制详细分析后判断 |
 
 ---
 

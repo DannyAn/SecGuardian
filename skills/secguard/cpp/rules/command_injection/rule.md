@@ -194,95 +194,27 @@ is_allowed|CHECK_CMD|validate_cmd                        # 白名单验证存在
 
 ---
 
-## Worker 检视协议
+## 调查建议
 
-### Step 1: 信号确认
-
-收集 index.json 中所有 `system()`、`popen()` 及 `exec` 系列调用点。记录每个调用点的文件、行号、所在函数及参数表达式。
-
-```c
-system(cmd);            // 信号 1 — 字符串参数
-popen(cmd, mode);       // 信号 2 — 字符串参数
-execve(path, argv, e);  // 信号 3 — 参数数组
-```
-
-注意：execve/execv/execlp/execvp 虽不经过 shell，但如果可执行文件路径或参数来自用户输入，仍有安全隐患。仅当 exec 系列的参数完全硬编码时才排除。
-
-### Step 2: 证据链构建（Source -> Propagate -> Sink）
-
-对每个命令执行调用点，反向追踪参数来源：
-
-| 环节 | 说明 |
-|------|------|
-| **Source** | argv（命令行参数）、getenv（环境变量）、scanf/fgets（标准输入）、recv/read（网络 socket）、文件读取 |
-| **Propagate** | snprintf/sprintf/strcat/strcpy 拼接、字符串赋值、跨函数参数传递 |
-| **Sink** | system(cmd) / popen(cmd, mode) / exec*(path, argv) — 执行点 |
-
-```c
-// Source: argv → Propagate: snprintf → Sink: system
-char cmd[256];
-snprintf(cmd, sizeof(cmd), "ping %s", argv[1]);
-system(cmd);
-
-// Source: getenv → Propagate: strcpy → Sink: popen
-char buf[128];
-strcpy(buf, getenv("QUERY_STRING"));
-FILE *fp = popen(buf, "r");
-```
-
-### Step 3: 参数审计
+### 安全变体参数审计
 
 > 参考 [false-positive.md](references/false-positive.md) 确认抑制模式。
 
-对 system/popen/exec 的每个参数，执行以下分析：
+
+> 参考 [false-positive.md](references/false-positive.md) 确认抑制模式。
+
 
 **3.1 参数来源追踪**
 - 如果参数是硬编码字符串字面量（`system("ls -la")`）→ 不报告
 - 如果参数包含用户输入（argv、getenv、scanf、文件、socket）→ 报告
 
 **3.2 拼接分析**
-检查参数是否通过 snprintf/sprintf/strcat/strcpy 拼接。即使部分拼接来自用户输入，整体即为注入风险。
 
 **3.3 验证检查**
-检查命令执行前是否有输入验证：
 - 白名单验证（is_allowed / switch-case 枚举）→ 降低风险
 - 黑名单过滤（仅过滤 `; | & `` `）→ 仍可能绕过
 - 无任何验证 → 确定报告
 
-### Step 4: 跨函数补证（max depth 1）
-
-当命令字符串通过函数参数传递时，在调用链中追踪构造过程。深度 1 层。
-
-> 参考 [cross-function.md](references/cross-function.md)。
-
-### Step 4.5: 多信号归并分析
-
-当同一 caller function 内有多个信号时，先聚合再分析：
-1. 按行号分组，检查信号间依赖（如 integer_overflow 绕过 → command_injection 参数可控）
-2. 归并后形成统一分析基线（避免重复读取同一段源码）
-3. 在证据链中标注 `cross_signal_analysis: true`
-
-### Step 5: 事实锚定反思（3 问判定矩阵）
-
-> 参考 [exceptions.md](references/exceptions.md) 确认边界情况。
-> 参考 [false-positive.md](references/false-positive.md) 触发抑制。
-
-必须回答 3 个域专用事实问题。答案必须基于源码证据链中的行号引用。
-
-**Q1**: 参数来自外部源（argv, getenv, scanf, socket, 文件）?
-**Q2**: Sink 前有校验（白名单/黑名单/正则）?
-**Q3**: 纯字符串字面量（完全硬编码）?
-
-判定矩阵规则：
-
-| Q1 | Q2 | Q3 | 结论 |
-|----|----|----|------|
-| YES(安全) | YES | YES | SUPPRESS — 三绿灯，安全可证 |
-| YES(安全) | YES | NO | informational — 基本安全但有隐患 |
-| YES(安全) | NO | — | CONFIRMED — 条件不满足即漏洞 |
-| NO(危险) | YES | YES | CONFIRMED — 危险信号已确认 |
-| NO(危险) | NO | — | CONFIRMED — 多角度证实漏洞 |
-| Mixed | Mixed | Mixed | 强制详细分析后判断 |
 
 ---
 
