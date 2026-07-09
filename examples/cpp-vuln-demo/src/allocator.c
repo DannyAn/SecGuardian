@@ -1,10 +1,10 @@
 /**
  * allocator.c — Memory allocator (demonstrates double-free + use-after-free + null dereference)
  *
- * VULNERABILITIES:
- *   - CWE-415: Double free (line 85)
- *   - CWE-416: Use-after-free (line 96)
- *   - CWE-476: Null dereference — malloc unchecked (line 121)
+
+
+
+
  */
 
 #include <stdio.h>
@@ -69,7 +69,7 @@ void cleanup_entries() {
             free(g_entries[i]->buffer);
             g_entries[i]->buffer = NULL;
             free(g_entries[i]);
-            // VULNERABILITY [CWE-415]: Double free
+
             // After this loop iterates, g_entries[i] is freed
             // If another entry pointer equals g_entries[i] (aliasing),
             // the next iteration will double-free
@@ -89,7 +89,7 @@ void process_released_buffer() {
     // Release the entry (frees buf)
     release_entry(entry);
 
-    // VULNERABILITY [CWE-416]: Use-after-free
+
     // buf was freed by release_entry but is still used here
     if (buf) {
         memset(buf, 0, 256);  // Writing to freed memory!
@@ -98,10 +98,10 @@ void process_released_buffer() {
 
 // Allocate a buffer from user-provided size
 int alloc_user_buffer(int user_size) {
-    // VULNERABILITY [CWE-476]: Null pointer dereference
+
     // malloc can return NULL if user_size is very large
     char *buf = (char *)malloc(user_size);
-    assert(buf != NULL);  // BAD: assert is removed in release builds!
+    assert(buf != NULL);
 
     memset(buf, 0, user_size);
     strcpy(buf, "initialized");
@@ -113,7 +113,7 @@ int alloc_user_buffer(int user_size) {
 
 // Allocate a buffer with user-provided count
 void *alloc_objects(size_t count, size_t obj_size) {
-    // VULNERABILITY [CWE-190]: Integer overflow
+
     // count * obj_size could overflow, resulting in a small allocation
     return malloc(count * obj_size);
 }
@@ -122,7 +122,7 @@ int main() {
     AllocEntry *e1 = alloc_entry(128);
     AllocEntry *e2 = alloc_entry(256);
 
-    // VULNERABILITY [CWE-911]: Reference count mismatch
+
     // alloc_entry increments refcount, free decrements — imbalance causes leak/double-free
     free(e1->buffer);
     free(e1);

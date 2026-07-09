@@ -1,20 +1,20 @@
 /**
  * deserialization.js — Insecure deserialization & XXE vulnerability examples (Node.js)
  *
- * VULNERABILITIES:
- *   - CWE-502: Insecure deserialization — untrusted data deserialization
- *   - CWE-611: XXE — XML External Entity injection
- *   - CWE-470: Unsafe reflection — dynamic require/import
+
+
+
+
  */
 
 const vm = require('vm');
 
 // ═══════════════════════════════════════════
-// VULNERABILITY [CWE-502]: Insecure Deserialization
+
 // ═══════════════════════════════════════════
 
 function badJSONParseUntrusted(userInput) {
-    // VULNERABILITY [CWE-502]: JSON.parse with untrusted input + no schema validation
+
     const data = JSON.parse(userInput);
     // Attacker: sends deeply nested JSON → DoS (stack overflow)
     // Attacker: {"__proto__": {"isAdmin": true}} — prototype pollution through JSON
@@ -22,7 +22,7 @@ function badJSONParseUntrusted(userInput) {
 }
 
 function badNodeSerializeDeserialize(userData) {
-    // VULNERABILITY [CWE-502]: node-serialize allows code execution
+
     // npm: node-serialize — known RCE gadget chain
     const serialize = require('node-serialize');
     const unserialized = serialize.unserialize(userData);
@@ -31,14 +31,14 @@ function badNodeSerializeDeserialize(userData) {
 }
 
 function badJSEvalDeserialize(userInput) {
-    // VULNERABILITY [CWE-502]: Using eval to deserialize JS objects
+
     const obj = eval('(' + userInput + ')');
     // Attacker: sends '({data: (function(){require("child_process").exec("id")})()})'
     return obj;
 }
 
 function badSerializeJS(userData) {
-    // VULNERABILITY [CWE-502]: serialize-javascript is NOT safe for deserialization
+
     const Serialize = require('serialize-javascript');
     // This library is for serialization only — deserializing with eval = RCE
     const serialized = Serialize(userData);
@@ -47,11 +47,11 @@ function badSerializeJS(userData) {
 }
 
 // ═══════════════════════════════════════════
-// VULNERABILITY [CWE-611]: XXE
+
 // ═══════════════════════════════════════════
 
 function badXMLParse(userXML) {
-    // VULNERABILITY [CWE-611]: XML parsing without disabling external entities
+
     const { parseString } = require('xml2js');
     // xml2js uses libxmljs under the hood which processes external entities by default
     parseString(userXML, (err, result) => {
@@ -61,18 +61,18 @@ function badXMLParse(userXML) {
 }
 
 function badLibXMLParse(userXML) {
-    // VULNERABILITY [CWE-611]: libxmljs with default options allows XXE
+
     const libxml = require('libxmljs');
     const xmlDoc = libxml.parseXml(userXML);  // External entities enabled by default!
     return xmlDoc.root().text();
 }
 
 // ═══════════════════════════════════════════
-// VULNERABILITY [CWE-470]: Unsafe Dynamic Import/Require
+
 // ═══════════════════════════════════════════
 
 function badDynamicRequire(moduleName) {
-    // VULNERABILITY [CWE-470]: User-controlled module loading
+
     const mod = require(moduleName);
     // Attacker: moduleName = 'child_process' → access to exec()
     // Attacker: moduleName = '../../../config/secrets' → path traversal
@@ -80,7 +80,7 @@ function badDynamicRequire(moduleName) {
 }
 
 function badDynamicImport(userModule) {
-    // VULNERABILITY [CWE-470]: user-controlled dynamic import
+
     return import(userModule).then(mod => mod.default);
     // Attacker: userModule = 'fs' → file system access
 }

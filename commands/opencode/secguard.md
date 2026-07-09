@@ -465,13 +465,11 @@ source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
 USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
 source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
 
-python3 "$SCRIPTS_DIR/strip-answer-cards.py" \
-  --index .codeagent/secguardian/index.json \
-  --source-root "$USER_PROJECT" \
-  --output-dir "$USER_PROJECT/.codeagent/secguardian/stripped/"
+# strip-answer-cards.py removed (EPIC-009) — demo sources now no-answers format
+echo "  Strip-answer-cards: deprecated — prescreener handles deterministic filtering"
 ```
 
-若输出 "no answer cards found"，记录 INFO（非错误）。后续 Worker 从脱敏副本读取源码。
+若输出 "deprecated" 日志，确认这是预期行为（EPIC-009 移除脱敏步骤）。
 
 ---
 
@@ -569,14 +567,14 @@ FOR EACH skill IN filtered_skills WHILE context_safe:
 **关键约束:**
 > 🚫 **HARD RULE: 禁止 Read 工具 + 禁止全文件 cat** 
 >  
-> 任何时候读取源码文件或 STRIPPED 目录文件，必须使用以下模式：
+> 任何时候读取源码文件，必须使用以下模式（禁止全文件读取）：
 > 
 > ```bash
 > # ✅ GOOD: line-range only (±15 lines around target line)
-> cat "$STRIPPED_DIR/src/file.py" | sed -n '25,55p'
+> cat "$SOURCE_DIR/src/file.py" | sed -n '25,55p'
 > 
 > # ❌ BAD: full-file cat (wastes context — example from session ses_0ba5)
-> cat "$STRIPPED_DIR/src/file.py"
+> cat "$SOURCE_DIR/src/file.py"
 > ```
 > 
 > **示例**: 如果信号在文件 40 行，用 `cat file \| sed -n '25,55p'` 读取 ±15 行范围。不读取文件其余行。
@@ -600,7 +598,7 @@ FOR EACH skill IN filtered_skills WHILE context_safe:
     "scan_id": "sc-20260707-143000-a1b2",
     "scan_dir": ".codeagent/secguardian/secguard/scans/sc-20260707-143000-a1b2",
     "source_root": "/path/to/user/project",
-    "stripped_root": "/path/to/user/project/.codeagent/secguardian/stripped",
+    "stripped_root": "/path/to/user/project",  # DEPRECATED (EPIC-009) — same as source_root
     "index_json": ".codeagent/secguardian/index.json",
     "recorder": "$SCRIPTS_DIR/record-finding.py",
     "reporter": "$SCRIPTS_DIR/render-report.py"

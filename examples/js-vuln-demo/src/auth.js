@@ -1,24 +1,24 @@
 /**
  * auth.js — Authentication & Authorization vulnerability examples (Node.js)
  *
- * VULNERABILITIES:
- *   - CWE-287: Authentication bypass — no auth check on admin routes
- *   - CWE-347: JWT misuse — weak HMAC secret, no signature verification
- *   - CWE-798: Hardcoded credentials — API keys & secrets in source
- *   - CWE-306: Missing authentication — public access to protected resources
- *   - CWE-307: Brute force — no rate limiting on login
+
+
+
+
+
+
  */
 
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 
 // ═══════════════════════════════════════════
-// VULNERABILITY [CWE-287]: Authentication Bypass
+
 // ═══════════════════════════════════════════
 
 // BadAdminRoute — admin endpoint without any auth check
 function badAdminRoute(req, res) {
-    // VULNERABILITY [CWE-287]: No authentication check on admin endpoint
+
     res.json({
         users: getAllUsers(),
         config: getAdminConfig(),
@@ -28,19 +28,19 @@ function badAdminRoute(req, res) {
 
 // BadVerifyToken — token verification that doesn't check signature
 function badVerifyToken(token, secret) {
-    // VULNERABILITY [CWE-347]: JWT decode without verify
+
     const decoded = jwt.decode(token);  // decode() does NOT verify signature!
     return decoded;
 }
 
 // ═══════════════════════════════════════════
-// VULNERABILITY [CWE-347]: JWT Weak Secret
+
 // ═══════════════════════════════════════════
 
-const JWT_SECRET = 'mysecretkey123';  // VULNERABILITY [CWE-798]: hardcoded JWT secret
+const JWT_SECRET = 'mysecretkey123';
 
 function badSignJWT(user) {
-    // VULNERABILITY [CWE-347]: weak secret + admin claim from user input
+
     const token = jwt.sign(
         { username: user.username, role: 'admin' },  // role from client input!
         'secret',  // literally "secret" as signing key
@@ -51,29 +51,29 @@ function badSignJWT(user) {
 
 // BadJWTNoExpiry — JWT without expiration
 function badSignJWTNoExpiry(user) {
-    // VULNERABILITY [CWE-347]: No expiration — token valid forever
+
     return jwt.sign({ user: user.username, admin: true }, JWT_SECRET);
 }
 
 // ═══════════════════════════════════════════
-// VULNERABILITY [CWE-798]: Hardcoded Secrets
+
 // ═══════════════════════════════════════════
 
-const API_KEY = 'sk-1234567890abcdef-production-key';  // VULNERABILITY [CWE-798]
-const DB_PASSWORD = 'admin123!@#';  // VULNERABILITY [CWE-798]
-const AWS_SECRET = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY';  // VULNERABILITY [CWE-798]
+const API_KEY = 'sk-1234567890abcdef-production-key';
+const DB_PASSWORD = 'admin123!@#';
+const AWS_SECRET = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY';
 
 function badAuthenticate(token) {
-    // VULNERABILITY [CWE-798]: token compared against hardcoded value
+
     return token === 'supersecrettoken123';
 }
 
 // ═══════════════════════════════════════════
-// VULNERABILITY [CWE-306]: Missing Authentication
+
 // ═══════════════════════════════════════════
 
 function badUserProfile(req, res) {
-    // VULNERABILITY [CWE-306]: No auth check — anyone can access
+
     const userId = req.params.id;
     const userData = getUserById(userId);
     res.json({
@@ -85,11 +85,11 @@ function badUserProfile(req, res) {
 }
 
 // ═══════════════════════════════════════════
-// VULNERABILITY [CWE-307]: No Rate Limiting
+
 // ═══════════════════════════════════════════
 
 function badLogin(req, res) {
-    // VULNERABILITY [CWE-307]: No brute force protection
+
     const { username, password } = req.body;
     const user = db.find(u => u.username === username);
     if (user && user.password === password) {

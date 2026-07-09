@@ -136,8 +136,8 @@ Output directory: <user-project>/.codeagent/secguardian/secreview/scans/pr-20260
 > 4. **Tool bans:** No `Read` on `$SECGUARDIAN_HOME/` files (triggers permission prompts). No `Glob`/`Grep`. Use bash `cat`/`grep`
 > 5. **Source read constraint:** No full-file `cat` — each source read MUST use `cat $FILE | sed -n '±15p'` line-range:
 >    ```bash
->    # ✅ GOOD: cat "$STRIPPED_DIR/src/file.py" | sed -n '25,55p'
->    # ❌ BAD:  cat "$STRIPPED_DIR/src/file.py"
+>    # ✅ GOOD: cat "$SOURCE_DIR/src/file.py" | sed -n '25,55p'
+>    # ❌ BAD:  cat "$SOURCE_DIR/src/file.py"
 >    ```
 >    Full files waste context — zero tolerance.
 >

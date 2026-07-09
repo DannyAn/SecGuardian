@@ -411,16 +411,10 @@ for cmd in secguard secaudit secreview; do
         fail=1
     fi
 
-    # 13e: strip-answer-cards.py invocation (prevents AI shortcut via VULNERABILITY comments)
-    # Only applies to secguard (the source-scanning command); secaudit/secreview have different workflows
+    # 13e: strip-answer-cards.py removed (EPIC-009) — no longer needed
+    # Demo source files converted to no-answers format; prescreener handles deterministic filtering
     if [ "$cmd" = "secguard" ]; then
-        if grep -q 'strip-answer-cards.py' "$f" 2>/dev/null; then
-            SG_PASS=$((SG_PASS + 1))
-        else
-            echo "  ❌ ${cmd}: 13e strip-answer-cards.py integration MISSING"
-            echo "    Add: strip-answer-cards.py invocation in Step 2.5"
-            fail=1
-        fi
+        SG_PASS=$((SG_PASS + 1))
     else
         SG_PASS=$((SG_PASS + 1))  # Auto-pass for non-scanning commands
     fi

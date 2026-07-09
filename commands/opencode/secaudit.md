@@ -267,8 +267,8 @@ python3 "$SCRIPTS_DIR/validate-index.py" \
 > 
 > 🚫 **HARD RULE: 禁止全文件 cat** — 每个源码读取必须 `cat $FILE | sed -n '±15p'` 限定行范围：
 > ```bash
-> # ✅ GOOD: cat "$STRIPPED_DIR/src/file.py" | sed -n '25,55p'
-> # ❌ BAD:  cat "$STRIPPED_DIR/src/file.py"
+> # ✅ GOOD: cat "$SOURCE_DIR/src/file.py" | sed -n '25,55p'
+> # ❌ BAD:  cat "$SOURCE_DIR/src/file.py"
 > ```
 > 全文件 cat 将数千行源码塞入上下文，迅速溢出。零容忍。
 

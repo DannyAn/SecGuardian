@@ -11,10 +11,10 @@ PATTERNS_SOLO = [
     # // VULNERABILITY [CWE-xxx]  / # VULNERABILITY [CWE-xxx]
     re.compile(r'^\s*//\s*VULNERABILITY\s*\[CWE-\d+\].*$'),
     re.compile(r'^\s*#\s*VULNERABILITY\s*\[CWE-\d+\].*$'),
-    # // BAD:  / # BAD:
+    #
     re.compile(r'^\s*//\s*BAD\s*:.*$'),
     re.compile(r'^\s*#\s*BAD\s*:.*$'),
-    # // TP-xxx / // P0-xxx / // P3-xxx
+    #
     re.compile(r'^\s*//\s*(?:TP|P[0-3])-\d+.*$'),
     re.compile(r'^\s*#\s*(?:TP|P[0-3])-\d+.*$'),
     # """TP-01: title"""  / """P3-01: title"""
@@ -34,17 +34,17 @@ PATTERNS_SOLO = [
     # // CWE-xxx: title / # CWE-xxx: title
     re.compile(r'^\s*//\s*CWE-\d+\s*:.*$'),
     re.compile(r'^\s*#\s*CWE-\d+\s*:.*$'),
-    # // 真漏洞: 任意文字
-    re.compile(r'^\s*//.*真漏洞.*$'),
+    #
+    re.compile(r'^\s*
     # VULNERABILITIES: (Python docstring, no * prefix)
     re.compile(r'^\s*VULNERABILITIES:\s*$'),
     # * VULNERABILITIES:
     re.compile(r'^\s*\*\s*VULNERABILITIES:\s*$'),
-    # // ← Detector 标记: / # Detector 标记:  /  Detector 会标记
-    re.compile(r'^\s*//.*Detector.*标记.*$'),
+
+    re.compile(r'^\s*
     re.compile(r'^\s*#.*Detector.*标记.*$'),
     re.compile(r'^\s*\*.*Detector.*标记.*$'),
-    # // P2 期望: / // P3 — Edge Cases
+    #
     re.compile(r'^\s*//\s*P[0-9].*期望.*$'),
     re.compile(r'^\s*//\s*P[0-9]\s*[—\-]+\s*.*$'),
     # * P2 期望: / * P3 — Edge (block comment)
@@ -58,13 +58,13 @@ PATTERNS_INLINE = [
     re.compile(r'\s*//\s*BAD\s*:.*$'),
     re.compile(r'\s*#\s*BAD\s*:.*$'),
     re.compile(r'\s*//\s*←\s*Detector.*CWE-\d+.*$'),
-    re.compile(r'\s*//\s*←.*标记.*CWE-\d+.*$'),
-    re.compile(r'\s*//\s*←.*真漏洞.*$'),
-    re.compile(r'\s*//.*真漏洞.*$'),
-    re.compile(r'\s*//.*Detector.*标记.*$'),
+    re.compile(r'\s*
+    re.compile(r'\s*
+    re.compile(r'\s*
+    re.compile(r'\s*
     re.compile(r'\s*//.*P[0-9].*期望.*$'),
     re.compile(r'\s*//.*P[0-9]\s*[—\-]+\s*.*$'),
-    re.compile(r'\s*//.*←.*标记.*$'),
+    re.compile(r'\s*
 ]
 
 SOURCE_EXTS = {'.c', '.cpp', '.h', '.hpp', '.java', '.py', '.go', '.js', '.ts', '.rs', '.rb', '.php'}

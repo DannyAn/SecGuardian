@@ -8,11 +8,11 @@ import (
 	"os/exec"
 )
 
-// VULNERABILITY [CWE-77]: Command Injection — user input directly in shell command
+
 // execlike.go — 命令执行类漏洞
 
 // BadExecShell runs user-supplied host through shell.
-// VULNERABILITY [CWE-77]: exec.Command("sh", "-c", ...) with unsanitized user input
+
 func BadExecShell(userHost string) string {
 	cmd := fmt.Sprintf("ping -c 1 %s", userHost)
 	out, err := exec.Command("sh", "-c", cmd).Output()
@@ -23,26 +23,26 @@ func BadExecShell(userHost string) string {
 	return string(out)
 }
 
-// VULNERABILITY [CWE-89]: SQL Injection — fmt.Sprintf concatenation into query
+
 func BadSQLQuery(db *sql.DB, username string) (*sql.Rows, error) {
 	query := fmt.Sprintf("SELECT id, email FROM users WHERE username = '%s'", username)
 	return db.Query(query)
 }
 
-// VULNERABILITY [CWE-89]: SQL Injection — GORM Raw() with fmt.Sprintf
+
 // (conceptual; requires gorm import)
 // func BadGormRaw(db *gorm.DB, username string) {
 //     db.Raw(fmt.Sprintf("SELECT * FROM users WHERE name = '%s'", username))
 // }
 
-// VULNERABILITY [CWE-77]: Command Injection — user input as exec argument list
+
 func BadExecArgs(userProgram string) {
 	// userProgram could be "/bin/rm"
 	cmd := exec.Command(userProgram, "-la")
 	cmd.Run()
 }
 
-// VULNERABILITY [CWE-22]: Path Traversal — filepath.Join without Clean validation
+
 func BadFileRead(userFile string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		path := fmt.Sprintf("/var/www/%s", userFile)

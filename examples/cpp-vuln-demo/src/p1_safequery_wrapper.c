@@ -2,7 +2,7 @@
  * P1 Semantic Verification — SafeQuery Wrapper
  *
  * 场景: SQL 查询使用项目自定义的 SafeQuery 包装，保证参数化。
- * Detector 的 sql-injection 规则会标记 `sprintf(query, ...)` 然后在 `sqlite3_exec(query)`
+
  * 中执行。但 SafeQuery 提供了 build + exec 方法，内部使用 sqlite3_bind_* 参数化。
  *
  * P1 应该做的事: 构建 Security Profile 时发现 SafeQuery 保证 prepared_statement，
@@ -48,7 +48,7 @@ void lookup_user(sqlite3 *db, const char *username) {
     SafeQuery *q = SafeQuery_prepare(db, "SELECT * FROM users WHERE name = ?");
     SafeQuery_bind_text(q, 1, username);
     SafeQuery_exec(q);
-    // P1 期望: 任何关联的 SQL injection Finding 被 exempted
+
     // 理由: SafeQuery 语义保证 prepared_statement
     SafeQuery_free(q);
 }
@@ -58,6 +58,6 @@ void lookup_user_unsafe(sqlite3 *db, const char *username) {
     char query[512];
     sprintf(query, "SELECT * FROM users WHERE name = '%s'", username);
     sqlite3_exec(db, query, NULL, NULL, NULL);
-    // ← 真漏洞: CWE-89 SQL injection
-    // P1 期望: 这个 Finding 不被 exempted
+
+
 }

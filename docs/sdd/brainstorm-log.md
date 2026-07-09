@@ -46,6 +46,202 @@
 
 ---
 
+## 2026-07-09 — EPIC-009: LLM 依赖陷阱 — 信号索引器需要真实分析能力
+
+### 背景
+
+v0.18.0 扫描生产 C/C++ 项目 secfwd 的结果：0 findings。索引器正确提取了 1358 个信号（buffer_overflow 866, null_dereference 412, double_free 53, memory_leak 27），但 LLM 将所有信号标记为"(安全采样)"并全部抑制。同时 demo 项目全部正常检出漏洞。
+
+**这让整个产品的可信度归零。** 一个工具如果只能发现样例代码中故意放的漏洞，在生产环境上什么都发现不了，那就是个玩具。
+
+### 架构诊断（核心问题）
+
+当前信号-LLM 协作模型的根本缺陷：
+
+```
+索引器工作 ≈ "找函数调用"          → 完全不分析
+LLM Worker 工作 ≈ "判断是否危险"   → 不分析不行，分析多了超上下文
+
+结果: 索引器轻松找到几千个信号 → LLM 被几千个信号淹死 → 短路批量抑制 → 0 findings
+```
+
+具体问题链：
+
+| 层级 | 问题 | 影响范围 |
+|------|------|---------|
+| **架构设计** | 索引器只做 pattern matching（谁调用了什么），不做语义分析（这个调用是否真的危险） | 所有命令 |
+| **LLM 行为** | 面对大量同质信号（866 个 strcpy_s/snprintf），LLM 倾向批量推理而非逐条分析 | secguard 最严重 |
+| **BATCH_SIZE 假精确** | 50 个信号的 Batch 仍然可以被 LLM 一句话全部抑制 | secguard |
+| **`safe_variant` 催眠** | 索引器标注 `safe_variant: true`，LLM 理解为"安全的"而非"需要进一步审计" | secguard buffer_overflow |
+| **无确定性预筛** | 索引器不区分 `strcpy_s(dst,sizeof(dst),src)`（可能安全）和 `strcpy(dst,src)`（高危） | secguard/secaudit |
+| **空泛的 "exec"/"memory" 分类** | `category: "memory"` 同时覆盖 malloc（分配）和 memcpy（拷贝），Worker 无法区分 | secguard/secaudit |
+
+### 为什么 demo 项目不触发
+
+| demo 项目 | 信号特征 | 为什么能检出 |
+|-----------|---------|------------|
+| cpp-vuln-demo | 10-20 信号，全部 unsafe（`strcpy`/`gets`/`malloc-no-check`） | 信号少+全标签明确 → LLM 逐条分析 |
+| java-vuln-demo | 15-30 信号，OWASP Top 10 样板漏洞 | 同质度高但每类数量少 |
+| go-vuln-demo | 5-15 信号，明显漏洞 | 信号数量级小 |
+| **生产代码 secfwd** | **800+ 信号，90% safe_variant** | LLM 批量抑制 |
+
+差异本质：**demo 项目的信号特征决定了 LLM 没有捷径可走**（每个信号都明显高危），而生产代码的信号特征是"数量大、特征相似、表面安全"，天然引诱 LLM 走捷径。
+
+### 对三个命令的影响分析
+
+| 命令 | 当前信号数 @secfwd | 问题 | 严重度 |
+|------|-------------------|------|--------|
+| `/secguard` | 1358（4 类） | 全部(安全采样) | P0 — 完全不可用 |
+| `/secaudit` | ~2000+（S1-S6 全信号） | 数量更大，问题更严重 | P0 — 必然相同问题 |
+| `/secreview` | ~500+（控制流信号） | 信号量稍小但本质相同 | P1 — 同样会触发 |
+
+### 讨论的解决方案
+
+#### 方案 A: 协议修补（~4 小时）
+
+在 secguard.md/secaudit.md/secreview.md 加 HARD RULE：
+- "禁止批量抑制" + 强制 per_signal_analysis
+- Aggregator 检测全 suppressed 告警
+
+**缺点**: LLM 仍然要逐条看 866 个信号，上下文必然溢出 → 要么挂，要么还是走捷径。治标不治本。
+
+#### 方案 B: 索引器预筛增强（~5 天）
+
+在 Go 索引器里加确定性分析规则，把明显安全的信号过滤掉，只送可疑信号给 LLM：
+
+```
+当前: 索引器 → 866 raw signals → LLM → 0 findings
+目标: 索引器 → 866 raw → 确定性预筛 → ~50 可疑信号 → LLM → ~5 findings
+```
+
+**各 skill 的可预筛场景**：
+
+| Skill | 规则 | 安全信号特征 | 过滤效果估算 |
+|-------|------|------------|------------|
+| buffer_overflow | `strcpy_s(dst,sizeof(dst),src)` → 检查 `sizeof(dst)` 是否等于 `Declarations[dst].ArraySize` | 精确 sizeof 匹配 | 866→~100 |
+| buffer_overflow | `snprintf(buf,size,...)` → 检查 return value 是否在后续检查 | 有返回值截断检查 | 减少 30% |
+| buffer_overflow | `memcpy(dst,src,sizeof(dst))` → 类似 sizeof 检查 | sizeof 等于目标大小 | 减少 50% |
+| null_dereference | `malloc(n); if(ptr==NULL) return; ptr->field` → 同一函数内检查 NULL | 有 NULL 检查路径 | 412→~80 |
+| double_free | `free(ptr); ptr=NULL; free(ptr)` → 两次 free 间有置 NULL | 置 NULL 后 free(NULL) | 53→~15 |
+| memory_leak | `malloc→free` 在所有退出路径存在 | 完整 alloc/free 配对 | 27→~10 |
+
+**优点**：治本。LLM 接收的信号量从上千降到几十，不再有捷径可走。
+**风险**：Go 分析逻辑需要正确（假阴性会把真漏洞过滤掉）。需要保守策略：不确定的一律放行给 LLM。
+
+#### 方案 C: 全量确定性引擎（~3 周）
+
+把全部检测逻辑从 Markdown（LLM 执行）搬到 Go（索引器执行），LLM 只做证据链构建和报告生成。
+
+**优点**：完全不依赖 LLM 的判定能力。Go 代码每次扫描行为一致。
+**缺点**：开发量大。每个 Skill 的判定逻辑（事实锚定 Q1-Q2-Q3）需要在 Go 中实现，15 个 cpp skill + 10 个 java skill + ... 很大工作量。
+**风险**：有些分析（如跨函数数据流追踪）用 Go 实现极其复杂，不一定做得比 LLM 好。
+
+### 推荐方案
+
+**方案 B**：索引器预筛增强。
+
+理由：
+1. 与现有架构兼容 — 索引器已经能提取 call_sites、declarations、alloc_free 等信息，只需要加分析逻辑
+2. 渐进可交付 — 先加 buffer_overflow 预筛（收益最大，866→~100），再加其他 skill
+3. LLM 仍然保留 — 对无法确定的信号，LLM Worker 协议不改，但收到的信号量降到可管理规模
+4. 三个命令都能受益 — 预筛后的信号无论传给 secguard/secaudit/secreview 都更精准
+5. BATCH_SIZE 也不用改了 — 信号数降到 50 以下，Batch 机制可能不需要触发
+
+### 新发现：stripped 目录设计失败（修正方案）
+
+**问题**：`scripts/strip-answer-cards.py` 无条件全量复制源码到 `.codeagent/secguardian/stripped/`。
+- 生产项目没有 `// VULNERABILITY [CWE-120]` 标注 → 0 行被改但全部文件被复制
+- 几千个文件被 open()+write() 一遍 → 秒级 I/O + 几百 MB 浪费
+- Worker 被迫从 stripped 目录读源码 → 路径更复杂，容易出错
+
+**根因**：样例代码里手工写了 `// VULNERABILITY [CWE-xxx]` 注释，导致 LLM 看到后就抄答案。
+**正解**：样例代码改用 no-answers 格式（如 `examples/cpp-vuln-demo-no-answers`），从源头消除答案卡。
+stripped 管道本身就不该存在——检测引擎不应该被源码里的注释影响。
+
+**更深层问题**：引擎是"阅读理解驱动"而非"协议驱动"。
+```
+我们现在的流程:
+源码 → LLM 阅读理解 → 如果觉得"明显漏洞"就走 W1-W5 → 否则 shortcut
+                            ↑ 受注释、函数名、代码风格影响
+
+应该的流程:
+源码 → 索引器确定性预筛 → LLM 对每个剩余信号严格走 W1-W5 → 判定矩阵裁决
+       ^ 不受注释影响            ^ 协议驱动，不得跳过
+```
+
+---
+
+### 架构约束（Architecture Invariants）
+
+为保护架构不被后续开发侵蚀，以下约束为**硬性不可违反**：
+
+| # | 约束 | 说明 | 违反后果 |
+|---|------|------|---------|
+| AC-01 | **三层完整不可跳过** | 索引器确定性预筛 → LLM Worker 协议执行 → 判定矩阵裁决。三层必须全部存在，不允许 LLM 跳过预筛或跳过裁决 | 引擎行为不可预测 |
+| AC-02 | **信号量可控** | LLM 接收的信号数必须保证 LLM 能逐条处理（建议每 Batch ≤ 50）。索引器预筛负责大幅降量 | LLM 批量抑制（生产事故） |
+| AC-03 | **判定矩阵为终止条件** | Worker 必须有明确的终止条件（Q1-Q2-Q3 判定矩阵）。LLM 不得输出"不确定"、"需要更多上下文"等非终止状态 | 无终止的分析循环 |
+| AC-04 | **协议驱动 > 阅读驱动** | LLM 必须按 W1→W2→W3→W4→W5 步骤执行，不得跳过任何一步。不得"看完源码直接给结论" | 引擎被语义影响 |
+| AC-05 | **索引器产出必须含上下文** | 每个信号必须附带：函数名、文件、行号、参数、签名、**源码上下文(±N行)**。不能只传函数名 | Worker 无法验证 |
+| AC-06 | **Finding 必有完整证据链** | 每个 finding 必须包含 Source→Propagate→Sink 三段证据。不允许"感觉有漏洞"式的 finding | 不可审计 |
+| AC-07 | **三个命令共享信号层** | secguard/secaudit/secreview 共用同一索引器输出的信号矩阵（S1-S7），各命令按需选择子集。不允许各命令各自造一套索引 | 重复投入、发散 |
+| AC-08 | **纯净输出** | 扫描输出只包含 findings/ + report。不得包含源码副本、临时文件、调试产物。`stripped/` 目录违反此约束 | 污染用户项目 |
+
+### 禁止行为（强制 Prohibited Behaviors）
+
+以下行为**任何情况下不允许出现**，违反即架构违规：
+
+| # | 禁止行为 | 示例 | 替代方案 |
+|---|---------|------|---------|
+| PB-01 | **修改用户源码** | 扫描工具不能写入/修改/复制用户源码目录 | 只读访问。需要脱敏？从源头（demo 数据）解决 |
+| PB-02 | **全量复制源码** | strip-answer-cards.py 复制全部文件到 stripped/ | 使用 no-answers 格式，或按需只复制有答案卡的文件 |
+| PB-03 | **依赖注释判断漏洞** | 用 `// VULNERABILITY` 确认漏洞 / 用 `// SAFE` 抑制 | 用索引器确定性分析 + W5 事实锚定 |
+| PB-04 | **批量抑制信号** | "866 个信号全部是安全变体，全部 SUPPRESS" | 每个信号独立 W1-W5 per_signal_analysis |
+| PB-05 | **L 跳过 W5 判定矩阵** | "这个看起来安全"直接 suppress | 必须回答 Q1-Q2-Q3 后再查矩阵裁决 |
+| PB-06 | **输出非终止状态** | "需要更多上下文"、"无法确定"、"信息不足" | 必须输出 confirmed / suppressed / suspicious |
+| PB-07 | **跨命令加载 Skill** | secguard 加载 secaudit 目录下的 skill | Dispatcher 只能加载自己命令的 skill 目录 |
+| PB-08 | **注入非原生 task 追踪** | 使用 todowrite 等非标准 task 工具 | 使用平台原生 task 系统 |
+| PB-09 | **扫描结果后残留文件** | 扫描完成后 .codeagent/ 目录残留临时文件、副本、调试日志 | 扫描完成后清理，只保留 findings + report |
+
+### 修正后的架构图
+
+```
+源码
+  │
+  ▼
+┌─────────────────────────────────────────┐
+│ 1. 索引器 (Go)                          │  AC-05 / AC-07
+│    ├── AST 解析 → S1-S7 信号矩阵        │
+│    ├── 确定性预筛:                       │  AC-01 / AC-02
+│    │   ├─ 参数匹配 (sizeof 检查等)        │
+│    │   ├─ 控制流模式 (NULL检查等)         │
+│    │   └─ 结果: 安全信号→剔除 / 可疑→保留 │
+│    └── 输出缩减后的信号列表               │  AC-08: 无额外文件
+│         ↓
+│    index.json (信号数 = 原始 5-15%)      │
+│                                          │
+│ ▼                                        │
+┌─────────────────────────────────────────┐
+│ 2. Dispatcher (LLM)                     │  PB-04 / PB-05
+│    ├── 加载 rule.md + references        │
+│    ├── 对每个信号串行执行 W1→W5         │  AC-04
+│    │   W1: 确认信号真实                 │
+│    │   W2: 构建证据链                   │
+│    │   W3: 安全变体审计                 │
+│    │   W4: 跨函数补证                   │  AC-06
+│    │   W5: Q1-Q2-Q3 + 判定矩阵          │  AC-03: 终止条件
+│    └── 输出: finding + blindspot        │  PB-06: 强制终止
+│                                          │
+│ ▼                                        │
+┌─────────────────────────────────────────┐
+│ 3. 汇总渲染 (render-report.py)          │
+│    ├── 去重                             │
+│    ├── 渲染 report.md / SARIF / summary │
+│    └── 清理临时文件                     │  PB-09
+└─────────────────────────────────────────┘
+```
+
+---
+
 ## 2026-06-28 — Finding ID 重构 + 安全评分修复（Java 扫描实测发现）
 
 ### 背景

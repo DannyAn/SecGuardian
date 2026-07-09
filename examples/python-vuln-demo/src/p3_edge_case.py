@@ -4,7 +4,7 @@ import threading
 
 
 class CommandExecutor:
-    """P3-01: 黑名单过滤但不充分"""
+
     
     BLACKLIST = ["rm", "shutdown", "del", "format"]
     
@@ -18,7 +18,7 @@ class CommandExecutor:
 
 
 class ConfigManager:
-    """P3-02: TOCTOU — 检查在锁外"""
+
     
     def __init__(self):
         self._loaded = False

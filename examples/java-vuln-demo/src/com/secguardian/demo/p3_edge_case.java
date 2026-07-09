@@ -1,10 +1,10 @@
 package com.secguardian.demo;
 
-// P3 — Edge Cases: 部分保护不充分，标记为 suspected
+
 
 public class p3_edge_case {
 
-    // P3-01: 黑名单过滤但不充分 — suspected
+
     public String execCommand(String input) {
         String cmd = input.trim();
         String[] blacklist = {"rm", "shutdown", "format"};
@@ -14,7 +14,7 @@ public class p3_edge_case {
         return RuntimeWrapper.exec(cmd);  // 仍有绕过风险
     }
 
-    // P3-02: 读取时加锁但 TOCTOU 窗口 — suspected
+
     private boolean configLoaded = false;
     private Object configLock = new Object();
 

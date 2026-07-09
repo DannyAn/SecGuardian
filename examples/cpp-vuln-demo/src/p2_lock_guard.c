@@ -2,7 +2,7 @@
  * P2 Counter-Evidence Hunt — Mutex Lock Guard
  *
  * 场景: pthread_mutex_lock/unlock 被 RAII 风格的 LockGuard 包装。
- * Detector 的 race-condition 规则会标记 `g_counter++`（全局变量无锁保护），
+
  * 但 LockGuard 在作用域内持有锁，保证了互斥访问。
  *
  * P2 应该做的事: 搜索到 LockGuard 模式（构造函数 lock + 析构函数 unlock），
@@ -34,12 +34,12 @@ void LockGuard_release(LockGuard *g) {
 void increment_counter(void) {
     LockGuard guard = LockGuard_create(&g_mutex);
 
-    g_counter++;  // ← Detector 标记: CWE-362 race-condition
+    g_counter++;
                   // P2 应该找到: LockGuard 保证了 mutex 互斥访问
     // 可能还有其他操作...
 
     LockGuard_release(&guard);
-    // P2 期望: race-condition Finding 标记为 counter_evidence_found
+
     // 理由: LockGuard 保证 — counter++ 在 mutex 保护下执行
 }
 
@@ -47,7 +47,7 @@ void increment_counter(void) {
 static int g_unprotected = 0;
 
 void increment_unprotected(void) {
-    g_unprotected++;  // ← 真漏洞: 多线程竞态
-    // P2 期望: 这个 Finding 不被 counter_evidence_found
+    g_unprotected++;
+
     // 理由: 无 mutex 保护，确实存在 race condition
 }

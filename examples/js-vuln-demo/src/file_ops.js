@@ -1,12 +1,12 @@
 /**
  * file_ops.js — File operation & path traversal vulnerability examples (Node.js)
  *
- * VULNERABILITIES:
- *   - CWE-22:  Path traversal — unsanitized file paths
- *   - CWE-434: Unrestricted file upload
- *   - CWE-200: Information exposure — sensitive data in responses
- *   - CWE-209: Stack trace leak — error details in production
- *   - CWE-532: Sensitive data in logs
+
+
+
+
+
+
  */
 
 const fs = require('fs');
@@ -14,18 +14,18 @@ const path = require('path');
 const os = require('os');
 
 // ═══════════════════════════════════════════
-// VULNERABILITY [CWE-22]: Path Traversal
+
 // ═══════════════════════════════════════════
 
 function badReadFile(userFile) {
-    // VULNERABILITY [CWE-22]: Direct path concatenation without sanitization
+
     const filePath = `/var/app/files/${userFile}`;
     return fs.readFileSync(filePath, 'utf8');
     // Attacker: userFile = '../../etc/passwd' → reads /etc/passwd
 }
 
 function badServeStatic(req, res) {
-    // VULNERABILITY [CWE-22]: path.join does NOT prevent traversal!
+
     const userPath = req.query.file;
     const fullPath = path.join('/var/www/uploads', userPath);
     // path.join normalizes BUT doesn't verify the result is within base dir!
@@ -35,7 +35,7 @@ function badServeStatic(req, res) {
 }
 
 function badExtractZip(zipEntry) {
-    // VULNERABILITY [CWE-22]: Zip Slip — extracted file path not validated
+
     const AdmZip = require('adm-zip');
     const zip = new AdmZip('upload.zip');
     const entries = zip.getEntries();
@@ -48,11 +48,11 @@ function badExtractZip(zipEntry) {
 }
 
 // ═══════════════════════════════════════════
-// VULNERABILITY [CWE-434]: Unrestricted File Upload
+
 // ═══════════════════════════════════════════
 
 function badFileUpload(req, res) {
-    // VULNERABILITY [CWE-434]: No file type, size, or name validation
+
     const file = req.files.upload;
     const uploadPath = '/var/app/uploads/' + file.name;
     // No MIME check, no extension whitelist, no size limit
@@ -62,11 +62,11 @@ function badFileUpload(req, res) {
 }
 
 // ═══════════════════════════════════════════
-// VULNERABILITY [CWE-200]: Information Exposure
+
 // ═══════════════════════════════════════════
 
 function badUserInfoEndpoint(req, res) {
-    // VULNERABILITY [CWE-200]: Exposing sensitive internal data
+
     const user = db.find({ id: req.params.id });
     res.json({
         ...user,          // Exposes password hash, SSN, internal IDs
@@ -83,11 +83,11 @@ function badUserInfoEndpoint(req, res) {
 }
 
 // ═══════════════════════════════════════════
-// VULNERABILITY [CWE-209]: Stack Trace Leak
+
 // ═══════════════════════════════════════════
 
 function badErrorHandler(err, req, res, next) {
-    // VULNERABILITY [CWE-209]: Full error details sent to client
+
     res.status(500).json({
         error: err.message,
         stack: err.stack,           // Full stack trace leaked!
@@ -100,11 +100,11 @@ function badErrorHandler(err, req, res, next) {
 }
 
 // ═══════════════════════════════════════════
-// VULNERABILITY [CWE-532]: Sensitive Data in Logs
+
 // ═══════════════════════════════════════════
 
 function badLogging(user, token, creditCard) {
-    // VULNERABILITY [CWE-532]: Logging sensitive data
+
     console.log('User login:', JSON.stringify(user));  // Has password hash!
     console.log('Session token:', token);              // JWT logged!
     console.log('Processing payment:', creditCard);    // Full credit card number!

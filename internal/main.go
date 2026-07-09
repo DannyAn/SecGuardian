@@ -113,6 +113,19 @@ func runIndex(args []string) {
 		allFlow = append(allFlow, result.ControlFlow...)
 	}
 
+	// Phase 2.6: Run prescreener to filter deterministically-safe signals
+	// before passing the remainder to the LLM (EPIC-009).
+	before := len(allCallSites)
+	allCallSites, pa := indexer.PrescreenCallSites(allCallSites, allDecls)
+	if pa.SafeCount > 0 {
+		pct := 0.0
+		if before > 0 {
+			pct = float64(pa.SafeCount) / float64(before) * 100
+		}
+		fmt.Printf("  Prescreener: %d safe filtered (%.1f%%), %d remaining for LLM\n",
+			pa.SafeCount, pct, len(allCallSites))
+	}
+
 	// Phase 3: Build call graph (V2 if call_sites available, else V1 fallback)
 	var cg indexer.CallGraph
 	if len(allCallSites) > 0 {

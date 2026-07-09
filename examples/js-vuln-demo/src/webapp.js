@@ -6,7 +6,7 @@
  */
 
 // ============================================
-// 1. NoSQL Injection (CWE-943) — Critical
+
 // ============================================
 app.post('/login', async (req, res) => {
     // VULN: body directly as query → operation injection
@@ -39,7 +39,7 @@ app.get('/search', async (req, res) => {
 
 
 // ============================================
-// 2. Prototype Pollution (CWE-1321) — High
+
 // ============================================
 // VULN: recursive merge without __proto__ filtering
 function deepMerge(target, source) {
@@ -63,7 +63,7 @@ app.post('/config', (req, res) => {
 
 
 // ============================================
-// 3. Server-Side Template Injection (CWE-1336) — Critical
+
 // ============================================
 app.get('/greet', (req, res) => {
     const name = req.query.name || 'World';
@@ -75,7 +75,7 @@ app.get('/greet', (req, res) => {
 
 
 // ============================================
-// 4. Command Injection (CWE-77) — Critical
+
 // ============================================
 app.get('/ping', (req, res) => {
     const host = req.query.host || '127.0.0.1';
@@ -87,7 +87,7 @@ app.get('/ping', (req, res) => {
 
 
 // ============================================
-// 5. Cross-Site Scripting (CWE-79) — Critical
+
 // ============================================
 app.get('/profile', (req, res) => {
     const name = req.query.name || 'Guest';
@@ -111,7 +111,7 @@ function UserProfile({ bio }) {
 
 
 // ============================================
-// 6. Weak Cryptography (CWE-327) — High
+
 // ============================================
 function hashPassword(password) {
     const crypto = require('crypto');
@@ -140,7 +140,7 @@ function encrypt(data) {
 
 
 // ============================================
-// 7. SSRF (CWE-918) — High
+
 // ============================================
 const http = require('http');
 const https = require('https');
@@ -177,7 +177,7 @@ app.use(require('morgan')('dev'));
 
 
 // ============================================
-// 9. Mass Assignment (CWE-915) — Critical
+
 // ============================================
 app.post('/users/:id', async (req, res) => {
     // VULN: entire req.body used for update
@@ -188,7 +188,7 @@ app.post('/users/:id', async (req, res) => {
 
 
 // ============================================
-// 10. Path Traversal (CWE-22) — High
+
 // ============================================
 const fs = require('fs');
 

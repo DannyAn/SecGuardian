@@ -1,5 +1,5 @@
 /**
- * P0 — 安全函数用例 (Detector EXCLUDE 层)
+
  *
  * 这些用例使用 Annex K 安全函数和业界标准安全替代方案。
  * Detector 的 EXCLUDE 模式应该在匹配阶段就排除这些代码，

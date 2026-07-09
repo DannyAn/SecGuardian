@@ -2,7 +2,7 @@
  * P3 Adjudication Court — 裁决边界案例
  *
  * 场景: 存在部分保护但不足以完全消除风险的代码。
- * Detector 会标记这些为漏洞，P1 Semantic 找不到安全框架，P2 找到部分反证但不充分。
+
  * P3 Court 需要综合判断。
  *
  * 三个用例:
@@ -18,7 +18,7 @@
 #include <pthread.h>
 
 // ── 用例 1: 输入有校验，但不是白名单 ─────────────────
-// Detector 标记: system.command-injection (system() with user input)
+
 // P1: no_exemption — 项目没有 SafeExec 包装
 // P2: 找到输入过滤 (regex 去除分号) 但不充分 — 未过滤 &&, |, $(), backtick
 
@@ -36,9 +36,9 @@ void run_admin_command(const char *user_cmd) {
         return;
     }
     char cmd[256];
-    snprintf(cmd, sizeof(cmd), "admin_tool %s", user_cmd);  // ← Detector 标记: CWE-77
+    snprintf(cmd, sizeof(cmd), "admin_tool %s", user_cmd);
     system(cmd);  // ← 即使过滤了分号，user_cmd 可以包含 "&& rm -rf /"
-    // P3 期望: suspected (非 confirmed, 非 dismissed)
+
     // 理由: is_safe_input 提供了部分保护但不充分 (黑名单而非白名单)
     //       Prosecutor: system() 仍有注入路径 (&&, ||, $())
     //       Defender: is_safe_input 减少了攻击面
@@ -58,11 +58,11 @@ int check_and_transfer(int amount) {
     // ...但 TOCTOU: 在 lock 和 transfer 之间有 gap
     if (current >= amount) {
         // 另一个线程可能已经在这期间修改了余额
-        g_account_balance -= amount;  // ← Detector 标记: CWE-362 race-condition
+        g_account_balance -= amount;
         return 0;
     }
     return -1;
-    // P3 期望: suspected
+
     // 理由: 有 mutex 但未保护完整的 check-then-act 操作 (TOCTOU)
     //       Prosecutor: g_account_balance -= amount 在两个锁之间，存在竞态窗口
     //       Defender: mutex 保护了读取余额的操作
@@ -84,7 +84,7 @@ FileCache *FileCache_create(void) {
 
 void FileCache_cleanup(FileCache *fc) {
     if (fc->initialized) {
-        free(fc->buffer);  // ← Detector 标记: double-free (如果 cleanup 被多次调用且 initialized 未重置)
+        free(fc->buffer);
         fc->buffer = NULL;
     }
     free(fc);
@@ -95,7 +95,7 @@ void process_file(const char *path) {
     FileCache *fc = FileCache_create();
     // ... 使用 fc ...
     FileCache_cleanup(fc);  // ← 如果这里有 early return 路径，cleanup 不会被调用
-    // P3 期望: suspected
+
     // 理由: 有 cleanup 函数 (类似 RAII) 但不是自动调用的 (不是析构函数)
     //       Prosecutor: 如果有 early return，cleanup 被跳过 → memory-leak
     //       Defender: 在当前路径中 cleanup 被正确调用

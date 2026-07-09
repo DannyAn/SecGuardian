@@ -1,10 +1,10 @@
 /**
  * network.c — Network packet handler (demonstrates integer overflow + null dereference)
  *
- * VULNERABILITIES:
- *   - CWE-190: Integer overflow in packet size calculation (line 42)
- *   - CWE-476: Null dereference from malloc unchecked (line 44)
- *   - CWE-120: Buffer overflow via memcpy with unchecked size (line 50)
+
+
+
+
  */
 
 #include <stdio.h>
@@ -40,7 +40,7 @@ int parse_packet(const uint8_t *raw_data, uint32_t raw_size) {
     const PacketHeader *header = (const PacketHeader *)raw_data;
 
     // Verify sizes
-    // VULNERABILITY [CWE-190]: Integer overflow in size check bypass
+
     // header->data_size + HEADER_SIZE could overflow (wrap to small value)
     // e.g. data_size = 0xFFFFFFF1 → data_size + HEADER_SIZE = 0x1
     if (header->data_size + HEADER_SIZE > raw_size) {
@@ -48,11 +48,11 @@ int parse_packet(const uint8_t *raw_data, uint32_t raw_size) {
     }
 
     NetworkPacket *packet = (NetworkPacket *)malloc(sizeof(NetworkPacket));
-    // VULNERABILITY [CWE-476]: Null pointer dereference
+
     // malloc can return NULL, but no check before use
     memcpy(&packet->header, header, sizeof(PacketHeader));
 
-    // VULNERABILITY [CWE-120]: Buffer overflow
+
     // header->data_size comes from network and is not validated for sane max value
     // If data_size is very large (e.g. 0xFFFFFFFF after overflow bypass above),
     // malloc may allocate insufficient memory or fail, leading to heap overflow
@@ -101,9 +101,9 @@ void cleanup_packets() {
 int main() {
     // Simulate a malicious packet with crafted data_size to trigger overflow
     uint8_t malicious_packet[HEADER_SIZE] = {0};
-    // VULNERABILITY [CWE-772]: Socket descriptor leak
+
     int sock = socket(AF_INET, SOCK_STREAM, 0);
-    // BAD: sock never closed before function returns
+
     PacketHeader *hdr = (PacketHeader *)malicious_packet;
     hdr->packet_id = 1;
     hdr->data_size = 0xFFFFFFF1;  // Crafted to bypass the size check via integer overflow

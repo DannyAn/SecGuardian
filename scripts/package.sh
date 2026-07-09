@@ -268,9 +268,7 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
     cp "$PROJECT_ROOT/scripts/validate-index.py" "$dist_dir/scripts/validate-index.py"
     cp "$PROJECT_ROOT/scripts/validate-findings.py" "$dist_dir/scripts/validate-findings.py"
     cp "$PROJECT_ROOT/scripts/render-report.py" "$dist_dir/scripts/render-report.py"
-    cp "$PROJECT_ROOT/scripts/strip-answer-cards.py" "$dist_dir/scripts/strip-answer-cards.py"
-
-
+    # strip-answer-cards.py deleted (EPIC-009) — no longer needed
 
     # Copy cross-platform precompiled binaries
     bin_count=0

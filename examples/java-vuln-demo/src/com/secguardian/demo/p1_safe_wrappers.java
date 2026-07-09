@@ -1,6 +1,6 @@
 package com.secguardian.demo;
 
-// P1 — Semantic Verification: 项目安全框架抑制误报
+
 import java.sql.*;
 
 class SafeQuery {
@@ -17,13 +17,13 @@ class SafeQuery {
 
 public class p1_safe_wrappers {
     
-    // P1-01: SafeQuery 包装保证参数化 — 被抑制
+
     public void findUser(Connection conn, String userId) throws SQLException {
         String sql = "SELECT * FROM users WHERE id = ?";
         SafeQuery.query(conn, sql, userId);  // SafeQuery 强制 PreparedStatement
     }
 
-    // P1-02: 安全文件写入封装
+
     public void writeLog(String dir, String content) {
         FileLogger.write(dir, "app.log", content);
     }

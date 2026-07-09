@@ -1,6 +1,6 @@
 package com.secguardian.demo;
 
-// P2 — Counter-Evidence: 反证搜寻，应被抑制
+
 import java.util.concurrent.locks.*;
 import java.util.concurrent.atomic.*;
 
@@ -15,14 +15,14 @@ public class p2_counter_evidence {
     private int sharedState = 0;
     private int fileHandle = 0;
 
-    // P2-01: try-with-resources 自动释放 — 非泄漏
+
     public void safeResource() {
         try (ResourceHandle h = new ResourceHandle()) {
             // 使用资源，自动 close()
         }
     }
 
-    // P2-02: Lock 保护共享状态 — 非竞争
+
     public void safeIncrement() {
         mutex.lock();
         try {
@@ -32,12 +32,12 @@ public class p2_counter_evidence {
         }
     }
 
-    // P2-03: AtomicInteger 线程安全 — 非竞争
+
     public int safeCounter() {
         return counter.incrementAndGet();
     }
 
-    // P2-04: 同步方法 — 非竞争
+
     public synchronized void syncWrite(String data) {
         // 同步写入
     }

@@ -15,12 +15,12 @@ func (SafeQuery) Query(db *sql.DB, sqlStr string, params ...interface{}) (*sql.R
 
 var sq SafeQuery
 
-// P1-01: SafeQuery 包装保证参数化
+
 func findUser(db *sql.DB, id int) (*sql.Row, error) {
 	return sq.Query(db, "SELECT * FROM users WHERE id = ?", id)
 }
 
-// P1-02: 路径安全拼接
+
 func readConfig(base, name string) string {
 	return filepathSafe(base, name)
 }

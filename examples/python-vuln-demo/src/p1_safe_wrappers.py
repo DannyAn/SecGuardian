@@ -27,10 +27,10 @@ class SafeFileHandler:
 
 
 def find_user_safe(conn, user_id):
-    """P1-01: SafeQuery 包装保证参数化"""
+
     return SafeQuery.query(conn, "SELECT * FROM users WHERE id = %s", user_id)
 
 
 def read_config_safe(base_dir, name):
-    """P1-02: SafeFileHandler 内建路径清洗"""
+
     return SafeFileHandler.read(base_dir, name)

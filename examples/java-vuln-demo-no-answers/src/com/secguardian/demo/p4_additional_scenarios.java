@@ -6,7 +6,7 @@ import java.io.*;
 import java.util.logging.Logger;
 
 /**
- * P4 — Additional vulnerability scenarios covering more detection patterns.
+
  *
  * These expand the baseline to exercise knownLibFuncs entries not hit by P0-P3:
  *   executeUpdate (SQL write)

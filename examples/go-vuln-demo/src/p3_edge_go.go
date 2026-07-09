@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-// P3-01: 黑名单命令过滤 — 不充分
+
 var blacklist = []string{"rm", "shutdown", "del"}
 
 func execCommand(input string) (string, error) {
@@ -24,7 +24,7 @@ type Config struct {
 	mu     sync.Mutex
 }
 
-// P3-02: TOCTOU — 检查在锁外
+
 func (c *Config) Reload() {
 	if !c.loaded {
 		c.mu.Lock()
