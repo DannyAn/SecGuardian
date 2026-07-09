@@ -35,9 +35,9 @@
 
 | 平台 | 命令文件格式 | 示例 | 说明 |
 |------|------------|------|------|
-| **Claude Code** | `.md` | `commands/secguard.md` | Markdown 格式，YAML frontmatter |
-| **OpenCode** | `.md` | `commands/secguard.md` | 同 Claude 的 .md 格式 |
-| **Gemini CLI** | `.toml` | `commands/secguard.toml` | TOML 格式，由 `gen-toml.sh` 从 `.md` 生成 |
+| **Claude Code** | `.md` | `commands/claude/secguard.md` (源) → `commands/secguard.md` (部署) | Markdown 格式，YAML frontmatter |
+| **OpenCode** | `.md` | `commands/opencode/secguard.md` (源) → `commands/secguard.md` (部署) | 同 Claude 的 .md 格式 |
+| **Gemini CLI** | `.toml` | `commands/gemini/secguard.toml` | TOML 格式，由 `gen-toml.sh` 从 `commands/claude/` 生成 |
 
 Gemini CLI **不支持** `.md` 命令文件，必须使用 `.toml`。反之亦然——Claude Code 和 OpenCode 不支持 `.toml`。
 

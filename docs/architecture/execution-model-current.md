@@ -74,7 +74,7 @@ Sub-stages:
   f. Write Context         → Serialize to index.json
 ```
 
-Indexer is seeded from `commands/secguard.md` → AI Agent runs
+Indexer is seeded from `commands/claude/secguard.md` (Claude Code) or `commands/opencode/secguard.md` (OpenCode) → AI Agent runs
 `secguardian-index --path <path> --output <output>`.
 
 Index is cached at `.codeagent/secguardian/index.json`.
@@ -85,7 +85,7 @@ Reuse across commands; `--force` rebuilds.
 ```
 Source:       skills/<command>/<lang>/SKILL.md
               knowledge/detectors/*.md (67 rules)
-              knowledge/languages/<lang>.md
+              skills/secguard-<lang>/references/language-features.md
               knowledge/protocols/scan-output.md
 
 Loading:      AI Agent reads SKILL.md → loads referenced

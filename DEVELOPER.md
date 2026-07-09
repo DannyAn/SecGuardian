@@ -80,16 +80,18 @@ examples/          ← 验证层：各语言漏洞示例代码
 - `/secreview` 关注 "这段代码的设计模式是否安全"（语义 — 5 语言）
 - `/secaudit` 关注 "这个安全领域有没有全面覆盖"（纵深 — 1 workflow -> 13 审计域）
 
-### 知识库结构
+### 规则与知识库结构
 
 ```
+skills/
+├── secguard/{lang}/rules/{name}/   ← 检测规则（各语言 60+ 检测点，含 rule.md）
+├── secaudit/rules/                 ← 审计域规则（13 个安全域）
+└── secreview/{lang}/rules/{lang}.md  ← 审阅规则（5 语言）
+
 knowledge/
-├── audit-rules/         ← 13 个审计域规则（唯一安全知识源）
-├── guard-rules/         ← 67 个检测规则（7 安全分类）
-├── review-rules/        ← 5 语言审查规则
 ├── standards/           ← 标准映射（OWASP ASVS、SEI CERT、CWE Mapping）
 ├── protocols/           ← 输出协议（scan-output、SARIF 2.1.0）
-├── languages/           ← 语言画像（5 语言危险 API + 框架安全说明）
+│   └── cwe-mapping.md   ← CWE → OWASP ASVS / SEI CERT 映射
 └── threat-catalog.md    ← 威胁目录索引
 ```
 
@@ -154,8 +156,8 @@ bash scripts/release.sh 0.4.0
 | 修改位置 | 影响范围 | 需要重新部署 |
 |----------|---------|------------|
 | `knowledge/threat-catalog.md*.md` | 所有 3 个 extension | `deploy.sh all` |
-| `knowledge/languages/*.md` | 所有 3 个 extension | `deploy.sh all` |
-| `knowledge/guard-rules/*.md` | 仅 secguard | `deploy.sh all` |
+| `skills/<cmd>-*/references/language-features.md` | 所有 3 个 extension | `deploy.sh all` |
+| `skills/<cmd>-*/rules/*/rule.md` | 仅对应 extension | `deploy.sh all` |
 | `knowledge/protocols/*.md` | 所有 3 个 extension | `deploy.sh all` |
 | `skills/<cmd>-*/SKILL.md` | 仅对应 extension | `deploy.sh all` |
 | `skills/<cmd>-*/references/*.md` | 仅对应 extension | `deploy.sh all` |
@@ -214,7 +216,7 @@ secguardian/                      ← 项目根目录
 
 **修改语言危险 API 列表**：
 
-编辑 `knowledge/languages/<lang>.md`，增删 `## Danger API` 表格中的条目：
+编辑 `skills/secguard-<lang>/references/language-features.md`，增删语言安全 API 表格中的条目：
 
 ```markdown
 | Function | Risk | Safe Alternative |
@@ -604,7 +606,7 @@ examples/
 假设要添加 Rust 支持：
 
 ```
-1. 编写 knowledge/languages/rust.md（危险 API 列表 + 框架安全说明）
+1. 编写 skills/secguard-rust/references/language-features.md（危险 API 列表 + 框架安全说明）
 2. 编写 knowledge/threat-catalog.md 中 Rust 特有安全概念（如需要）
 3. 编写 skills/secguard-rust/SKILL.md（扫描提示词）
 4. 编写 skills/secreview-rust/SKILL.md（审查提示词，可选）
@@ -692,8 +694,8 @@ Manifest 的结构：
 ### 扫描未检出预期漏洞
 
 1. 检查漏洞是否在当前 active detector 的覆盖范围内
-2. 检查对应的 knowledge/languages 文件是否列出了相关危险 API
-3. 检查对应的 knowledge/guard-rules 文件的检测策略是否覆盖该模式
+2. 检查对应的 skill references/language-features.md 是否列出了相关危险 API
+3. 检查对应的 rule.md 的检测策略是否覆盖该模式
 4. 尝试降低扫描范围（仅扫描单文件而非整个目录）
 5. 调整对应 skill 的 SKILL.md，增加更明确的检测指令
 

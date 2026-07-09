@@ -38,7 +38,7 @@
 
 路径调整：
 - 检测器规则：`$SECGUARDIAN_HOME/knowledge/guard-rules/{name}.md`
-- 语言画像：`$SECGUARDIAN_HOME/knowledge/languages/{lang}.md`
+- 语言画像：`$SECGUARDIAN_HOME/skills/secguard-{lang}/references/language-features.md`
 - language-index：`$SECGUARDIAN_HOME/knowledge/language-index.md`
 - 协议文件：`$SECGUARDIAN_HOME/knowledge/protocols/{name}.md`
 

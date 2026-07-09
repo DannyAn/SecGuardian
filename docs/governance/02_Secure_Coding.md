@@ -172,12 +172,12 @@
 在 `knowledge/` 目录中为每类安全编码建立专项知识：
 
 ```
-knowledge/languages/
-├── c-cpp.md         # C/C++ 安全编码语言画像
-├── java.md          # Java 安全编码语言画像
-├── python.md        # Python 安全编码语言画像
-├── javascript.md    # JavaScript/Node.js 安全编码语言画像
-└── go.md            # Go 安全编码语言画像
+skills/secguard-<lang>/references/language-features.md
+├── skills/secguard-cpp/references/language-features.md    # C/C++ 安全编码语言画像
+├── skills/secguard-java/references/language-features.md   # Java 安全编码语言画像
+├── skills/secguard-python/references/language-features.md # Python 安全编码语言画像
+├── skills/secguard-js/references/language-features.md     # JavaScript/Node.js 安全编码语言画像
+└── skills/secguard-go/references/language-features.md     # Go 安全编码语言画像
 ```
 
 ---

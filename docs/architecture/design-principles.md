@@ -61,7 +61,7 @@ This creates a dependency perception: if the AI model changes, the product chang
 In reality, the project's core assets are:
 - `knowledge/detectors/` — 67 security detection rules
 - `knowledge/protocols/` — Output schemas (SARIF, summary, delta)
-- `knowledge/languages/` — Language profiles for 5 languages
+- `skills/secguard-*/references/language-features.md` — Language profiles per supported language
 - `indexer/` — Tree-sitter based code analysis
 
 These assets work **without** a specific AI model. They just happen to be
