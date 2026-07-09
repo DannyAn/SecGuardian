@@ -154,7 +154,7 @@ Scan ID: sec-YYYYMMDD-HHMMSS-xxxx | Project: <project> | Path: <path> | Language
 > **上下文预算规则：**
 > 1. 每个审计域处理完后，检查上下文是否接近 70% 满载
 > 2. 如果接近溢出：停止未处理的审计域，标记为 `unprocessed`
-> 3. 单条 finding 必须通过文件传递（`--from-file`）。**禁止 `--from-file`**（finding 数据进入上下文）
+> 3. finding 录制：CLI 参数直调（不写文件、无文件操作）
 > 4. **工具禁止：** 禁止 `Read` 工具读 `$SECGUARDIAN_HOME/` 下的文件（触发权限弹窗）。禁止 Glob/Grep 工具（结果进入上下文）。使用 bash `cat`/`grep`
 >
 > 详见 secguard.md `§5.1 Worker 启动协议` 的上下文预算细节（同样的串行约束适用于各审计域）。
@@ -327,12 +327,12 @@ cat "$SECGUARDIAN_HOME/skills/secaudit/rules/{domain-name}.md"
 
 > **HARD RULE: 每个 finding 只允许一种记录方式。禁止混用。**
 >
-> **唯一允许的流程**: 写 JSON 文件 → `--from-file` 传给 `record-finding.py`。
+> **唯一方式**: CLI 参数直调 `record-finding.py`。
 >
 > **🚫 禁止以下方式:**
-> - ❌ `--from-file`: finding 数据进入上下文且易多路径冗余
+> - ✅ CLI 参数直调（推荐）
 > - ❌ 直接 CLI `--detector --rationale "..."`: 长文本进上下文
-> - ❌ `python3 -c` 内联写 JSON 同时调 recorder: 与 `--from-file` 路径重复
+> - ✅ 无文件、无 heredoc
 >
 > **幂等性**: `record-finding.py` 已内置 SHA 幂等守卫。相同 finding 的第二次写入会被 `IDEMPOTENT_SKIP` 跳过。
 
@@ -343,7 +343,7 @@ cat "$SECGUARDIAN_HOME/skills/secaudit/rules/{domain-name}.md"
 
 ```bash
 # RECORDER/SCAN_DIR/SCAN_ID 已从 .scan_state.secaudit 加载，无需重复赋值
-# ⚠️ MUST use --from-file. NEVER use --from-file (puts finding data in context).
+# ⚠️ CLI 方式：--detector --severity --file --line (puts finding data in context).
 # Step A: write finding JSON via quoted heredoc << 'FEOF'
 # ⚠️ Finding JSON MUST use nested schema:
 #   location (file_path, start_line, snippet)
@@ -354,8 +354,12 @@ cat "$SECGUARDIAN_HOME/skills/secaudit/rules/{domain-name}.md"
 # Step A: Write finding JSON silently (用 python3 -c 替代 cat > heredoc — 不回显 JSON 内容)
 python3 -c "import json; json.dump(FINDING_DICT, open('$SCAN_DIR/findings/finding-{id}.json', 'w'))"
 
-# Step B: record via --from-file
-python3 "$RECORDER" --command secaudit --scan-dir "$SCAN_DIR" --from-file "$SCAN_DIR/findings/finding-{id}.json"
+# Step: record finding (CLI 参数直调)
+python3 "$RECORDER" --command secaudit --scan-dir "$SCAN_DIR" \
+    --detector "audit.input-validation" --severity Critical --cwe CWE-89 \
+    --file "src/webapp.py" --line 47 \
+    --snippet "cursor.execute(query)" --code-context "SQL拼接" \
+    --rationale "未参数化，OWASP A03:2021" --attack-scenario "SQL注入"
 ```
 
 关键要求（secaudit 独有）：

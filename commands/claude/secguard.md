@@ -490,7 +490,7 @@ Dispatcher 输出 Signal 分类摘要 + 全量 Signal 清单。**不产生 Worke
 1. 每完成一个 Hypothesis 调查，检查上下文是否接近满（~70%+）
 2. 如果即将溢出：立即停止，标记未处理假设为 "unprocessed"
 3. 源码读取：bash `cat` + `sed -n`，避免 `Read` 工具
-4. finding 录制：只允许 `--from-file`
+4. finding 录制：CLI 参数直调
 ```
 
 ### 输出格式
