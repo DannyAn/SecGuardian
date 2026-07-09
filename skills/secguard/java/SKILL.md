@@ -20,17 +20,17 @@ topic: [web, crypto, system]
 
 | # | Rule (目录名) | Severity | CWE | `signal_source` | `skill_id` |
 |---|---------------|----------|-----|-----------------|------------|
-| 1 | [`deserialization/`](./rules/deserialization/) | Critical | CWE-502 | `call_sites[cat="deserialization"]` | `java.deserialization.insecure` |
-| 2 | [`sql_injection/`](./rules/sql_injection/) | Critical | CWE-89 | `call_sites[cat="sql"]` | `java.sql-injection.dynamic` |
-| 3 | [`command_injection/`](./rules/command_injection/) | Critical | CWE-78 | `call_sites[cat="exec"]` | `java.command-injection.exec` |
-| 4 | [`ssti_code_injection/`](./rules/ssti_code_injection/) | Critical | CWE-1336 | `call_sites[cat="template"]` | `java.ssti-code-injection.dynamic` |
-| 5 | [`xxe/`](./rules/xxe/) | High | CWE-611 | `call_sites[cat="xml"]` | `java.xxe.insecure-xml` |
-| 6 | [`path_traversal/`](./rules/path_traversal/) | High | CWE-22 | `call_sites[cat="file_io"]` | `java.path-traversal.sanitize` |
-| 7 | [`ssrf/`](./rules/ssrf/) | High | CWE-918 | `call_sites[cat="http"]` | `java.ssrf.open-redirect` |
-| 8 | [`weak_crypto/`](./rules/weak_crypto/) | High | CWE-327 | `call_sites[cat="crypto"]` | `java.weak-crypto.algorithm` |
-| 9 | [`hardcoded_secrets/`](./rules/hardcoded_secrets/) | High | CWE-798 | `call_sites[cat="crypto"]` | `crypto.hardcoded-secrets` |
-| 10 | [`toctou/`](./rules/toctou/) | Medium | CWE-367 | `call_sites[cat="file_io"]` | `java.toctou.race` |
-| 11 | [`log_injection/`](./rules/log_injection/) | Medium | CWE-117 | `call_sites[cat="logging"]` | `java.log-injection.crlf` |
+| 1 | [`deserialization/`](./rules/deserialization/) | Critical | CWE-502 | Signal Type: deserialization | `java.deserialization.insecure` |
+| 2 | [`sql_injection/`](./rules/sql_injection/) | Critical | CWE-89 | Signal Type: sql_operation | `java.sql-injection.dynamic` |
+| 3 | [`command_injection/`](./rules/command_injection/) | Critical | CWE-78 | Signal Type: exec_operation | `java.command-injection.exec` |
+| 4 | [`ssti_code_injection/`](./rules/ssti_code_injection/) | Critical | CWE-1336 | Signal Type: ssti (template injection) | `java.ssti-code-injection.dynamic` |
+| 5 | [`xxe/`](./rules/xxe/) | High | CWE-611 | Signal Type: xml_operation | `java.xxe.insecure-xml` |
+| 6 | [`path_traversal/`](./rules/path_traversal/) | High | CWE-22 | Signal Type: resource_acquire (file I/O) | `java.path-traversal.sanitize` |
+| 7 | [`ssrf/`](./rules/ssrf/) | High | CWE-918 | Signal Type: http_request | `java.ssrf.open-redirect` |
+| 8 | [`weak_crypto/`](./rules/weak_crypto/) | High | CWE-327 | Signal Type: crypto_operation | `java.weak-crypto.algorithm` |
+| 9 | [`hardcoded_secrets/`](./rules/hardcoded_secrets/) | High | CWE-798 | Signal Type: crypto_operation | `crypto.hardcoded-secrets` |
+| 10 | [`toctou/`](./rules/toctou/) | Medium | CWE-367 | Signal Type: resource_acquire (file I/O) | `java.toctou.race` |
+| 11 | [`log_injection/`](./rules/log_injection/) | Medium | CWE-117 | Signal Type: log_operation | `java.log-injection.crlf` |
 
 **按严重度排序执行**: Critical (4) → High (5) → Medium (2)
 

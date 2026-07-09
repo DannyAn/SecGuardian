@@ -302,35 +302,49 @@ python3 "$SCRIPTS_DIR/validate-index.py" \
 }
 ```
 
-#### 4b. 按 Signal Type 分类（操作类型，非漏洞类型）
+#### 4b. 按 Signal Type 分类（操作类型，非漏洞类型 — 语言通用）
 
 ```
-┌─ Signal Type 分类 ──────────────────────────────────────┐
+┌─ Signal Type 分类（通用） ──────────────────────────────────┐
 memory_allocation  → [call_site_0, call_site_1, ...]      │
 memory_copy        → [call_site_5, call_site_6, ...]      │
 string_copy        → [call_site_2, call_site_3, ...]      │
 user_input         → [call_site_7, call_site_8, ...]      │
-lock_operation     → [call_site_9, ...]                   │
 exec_operation     → [call_site_10, ...]                  │
+lock_operation     → [call_site_9, ...]                   │
 memory_deallocation→ [call_site_11, ...]                  │
 resource_acquire   → [call_site_12, ...]                  │
+sql_operation      → [call_site_13, ...]                  │
+deserialization    → [call_site_14, ...]                  │
+xml_operation      → [call_site_15, ...]                  │
+log_operation      → [call_site_16, ...]                  │
+http_request       → [call_site_17, ...]                  │
 credential         → [string_literal_0, ...]              │
 ───────────────────────────────────────────────────────────
 ```
 
-分类依据（knownLibFuncs 映射）:
+> **语言无关原则**: Signal Type 按操作类别分类，不依赖具体语言 API 名。
+> AI Agent 应根据 index.json 中 call_sites 的 callee 签名和语义判断操作类别，
+> 不局限于上表中的 C/C++/Java 示例——Python 的 os.popen()、Go 的 exec.Command() 等都映射到 exec_operation。
 
-| Indexer Callee 匹配 | Signal Type |
-|-------------------|-------------|
-| malloc / calloc / realloc | memory_allocation |
-| memcpy / memmove / memcpy_s | memory_copy |
-| strcpy / strcat / sprintf / gets / snprintf | string_copy |
-| getenv / scanf / read / recv | user_input |
-| pthread_mutex_lock / spin_lock | lock_operation |
-| system / popen / exec / execvp | exec_operation |
-| free / delete | memory_deallocation |
-| fopen / open / socket / connect | resource_acquire |
-| string_literals 含 secret/password/token/api_key | credential |
+分类依据（按语言分组的 knownLibFuncs 映射）:
+
+| 操作类别 | Signal Type | 语言示例 (C/C++) | 语言示例 (Java) |
+|---------|-------------|------------------|----------------|
+| 堆内存分配 | memory_allocation | malloc / calloc / realloc | N/A (Java GC) |
+| 内存/缓冲区拷贝 | memory_copy | memcpy / memmove / memcpy_s | ByteBuffer.put / arraycopy |
+| 字符串拷贝/格式化 | string_copy | strcpy / strcat / sprintf / snprintf | StringBuilder.append / String.format |
+| 外部用户输入 | user_input | getenv / scanf / read / recv | request.getParameter / @RequestParam |
+| 命令/进程执行 | exec_operation | system / popen / exec / execvp | Runtime.exec / ProcessBuilder.start |
+| 锁操作 | lock_operation | pthread_mutex_lock / spin_lock | synchronized / ReentrantLock.lock |
+| 内存释放 | memory_deallocation | free / delete | N/A (Java GC) |
+| 资源获取 (文件/网络/DB) | resource_acquire | fopen / open / socket / connect | FileInputStream / URL.openConnection / DriverManager.getConnection |
+| SQL 操作 | sql_operation | — (无原生 SQL) | Statement.executeQuery / executeUpdate |
+| 反序列化 | deserialization | — (无原生反序列化) | ObjectInputStream.readObject |
+| XML 处理 | xml_operation | libxml2 / expat | DocumentBuilder.parse / SAXParser |
+| 日志输出 | log_operation | syslog / printf | Logger.warn / Logger.error / log.info |
+| HTTP 请求 | http_request | libcurl | URL.openStream / HttpURLConnection / RestTemplate |
+| 字符串字面量 (secret/password/token) | credential | string_literals | string_literals |
 
 #### 4c. 信号上下文人（Enrich Signals — 添加上下文，不判定漏洞）
 
@@ -435,6 +449,11 @@ Dispatcher 输出 Signal 分类摘要 + 全量 Signal 清单。**不产生 Worke
 | exec_operation | 命令注入 | 参数可控 | Shell 转义缺失 | 路径遍历 | 实际安全 |
 | memory_deallocation | 重复释放 | Use-After-Free | 释放未分配内存 | 释放后置 NULL? | 实际安全 |
 | resource_acquire | 资源泄漏 | 权限错误 | 竞争条件 | 路径遍历 | 实际安全 |
+| sql_operation | SQL 注入 | 参数注入 | 存储过程滥用 | PreparedStatement 不当 | 实际安全 |
+| deserialization | 不安全的反序列化 | ObjectInputFilter 缺失 | 类型混淆 | RCE 可能 | 实际安全 |
+| xml_operation | XXE 注入 | DTD 外部实体 | SSRF 可能 | 拒绝服务 | 实际安全 |
+| log_operation | 日志注入 (CRLF) | 敏感信息泄漏 | 日志伪造 | 格式串误用 | 实际安全 |
+| http_request | SSRF | URL 重定向 | 认证泄漏 | 完整性检查缺失 | 实际安全 |
 
 ### Phase 2c: Investigator — 对每个 Hypothesis 收集 Evidence
 
