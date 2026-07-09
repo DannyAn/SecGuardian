@@ -1314,3 +1314,83 @@ EPIC-005 四个 Feature 全部标记完成，但深入审视发现架构文档�
 - 6 份架构文档需要修正（security-engine.md 重写, engine_contract.md 重写, architecture-vNext.md 局部修改, runtime-model.md 局部修改, design-principles.md ADR-007 更新, engineering-principles.md EP-1 更新）
 - 后续 Feature：锚定约束注入 commands/skills → 索引器增强（跨文件调用图+类型继承）→ CI 快速门禁
 - 不修改任何 production 代码（本轮只改架构文档）
+
+
+---
+
+## 2026-07-09 — EPIC-010: Investigation Engine — 从 Rule Engine 到 Evidence-Driven Investigation Engine
+
+### 背景
+
+v0.18.0 的生产扫描 0 findings 事故已经通过 EPIC-009（预筛器 + stripped 废弃）做了第一轮修补。但 EPIC-009 的本质是在**不改变架构的前提下打补丁**——加一层 Go 预筛器来降低信号量，LLM 仍然走老路（Worker→W1→W5）。
+
+这本新发现的《LLM-Investigation-Architecture-Guide》提出了完全不同的思考：不是给旧架构打补丁，而是替换整个架构范式。
+
+### 讨论要点
+
+#### EPIC-009 vs Investigation Engine：方向的根本分歧
+
+| 维度 | EPIC-009（预筛器方案） | Investigation Engine（本指南） |
+|------|----------------------|-------------------------------|
+| 对架构的态度 | 修补 | 替换 |
+| 信号处理 | 预筛器剔除安全信号 | 所有信号生成多假设 |
+| Worker 角色 | 保留 W1-W5 协议 | 替换为 Investigator |
+| 推理方式 | 逐信号验证规则 | 多假设 + 自主调查 |
+| 判定方式 | 判定矩阵（W5） | Judge 独立裁决 |
+| Counter Evidence | 无 | 强制 |
+| Evidence 构建 | 隐式的（在 W1-W5 中） | 显式的（Evidence Graph） |
+| Rule 文件 | 执行模板（Step1-Step5） | 参考知识（危险/安全/误报模式） |
+| Skill 文件 | 执行指令 | 领域知识 |
+| Recall 目标 | 次要（关注 Precision） | **首要**（Recall > Precision） |
+
+#### 为什么 EPIC-009 不够
+
+预筛器解决了"866 个信号淹死 LLM"的问题，但没有解决以下问题：
+
+1. **Worker 只有一条推理路径**：对 strcpy 信号只假设 buffer overflow，不会同时考虑整数溢出或生命周期问题
+2. **没有 Counter Evidence**：LLM 找到"看起来安全"的证据就直接 Suppress，没有尝试推翻自己
+3. **Evidence 不显式**：判定矩阵产出的是 binary verdict，没有证据链跟踪
+4. **跨 Skill 推理为零**：整数溢出 + buffer overflow 必须在同一个 Finding 中联合调查，但当前架构拆成两个 Skill
+5. **Rule 文件锁死推理**：Rule 文件写了 Step1-Step5，LLM 不会超出这个范围思考
+
+这些问题是架构层面的，不是一层预筛器能解决的。
+
+#### Investigation Engine 的核心主张
+
+1. **Dispatcher 不推理**：只做信号提取 + 上下文提供，不做漏洞类型预判
+2. **Signal 不等于漏洞**：一个 malloc 信号可以导致 null dereference、double free、use-after-free、或者安全
+3. **每个 Signal 至少 3-5 个 Hypothesis**：强迫系统多角度思考
+4. **Investigator 自主调查**：不按规则执行，而是按 evidence 缺口调查
+5. **Evidence 必须有源码锚点**：line xx, function xx, variable xx
+6. **Counter Evidence 强制**：必须尝试推翻自己的假设
+7. **Judge 独立裁决**：不重新扫描，只读 Evidence + Counter Evidence
+
+### 最终方案
+
+**EPIC-009 的产出（预筛器 + stripped 废弃）作为阶段性的基础设施保留**——预筛器的确定性分析结果可以作为 Signal 的附加元数据（`prescreen_verdict: safe/unknown`）。
+
+但架构演进方向从 EPIC-009 的"修补"转向 Investigation Engine 的"替换"。
+
+**阶段划分（按 Guide §17 迁移顺序）**：
+
+| Phase | 内容 | 对应 Guide |
+|-------|------|-----------|
+| Phase 1 | Dispatcher 重构为 Signal Extraction | §4 |
+| Phase 2 | Rule 瘦身（删除 Step1-Step5，保留危险/安全/误报模式） | §11 |
+| Phase 3 | Skill 重构（流程→领域知识） | §12 |
+| Phase 4 | Hypothesis Generator 引入 | §6 |
+| Phase 5 | Investigator + Judge（替换 Worker） | §7, §9, §10 |
+| Phase 6 | Evidence Graph 显式化 | §8 |
+| Phase 7 | 全部 Skill 迁移 | §17 |
+
+第一阶段（本次启动）：Phase 1（Signal Extraction Dispatcher）+ Phase 2（Rule 瘦身原型）+ 开始重构范例文件。
+
+### 影响范围
+
+- `commands/*/secguard.md` — Dispatcher 重构（从"分派 Skill"→"输出 Signal"）
+- `commands/*/secaudit.md` — 同上
+- `commands/*/secreview.md` — 同上
+- `knowledge/detectors/*.md` — 所有 Rule 文件，从执行模板改参考知识
+- `skills/secguard/*/SKILL.md` — 所有 Skill 文件，从流程改领域知识
+- 新增 EPIC-010 Feature Package
+- 不涉及 Go 代码（预筛器保持现状）
