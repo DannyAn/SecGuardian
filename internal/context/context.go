@@ -18,5 +18,12 @@ type AnalysisContext struct {
 	CallGraph indexer.CallGraph  `json:"call_graph"`
 	AllocFree indexer.AllocFreeMap `json:"alloc_free"`
 	LockGraph indexer.LockGraph  `json:"lock_graph"`
-	CallSites     []parser.CallSite   `json:"call_sites"`
+	// Signal Matrix (EPIC-007)
+	CallSites       []parser.CallSite          `json:"call_sites"`
+	StringLiterals  []parser.StringLiteral     `json:"string_literals,omitempty"`
+	Declarations    []parser.Declaration       `json:"declarations,omitempty"`
+	ValueConstants  []parser.ValueConstant     `json:"value_constants,omitempty"`
+	Imports         []parser.Import            `json:"imports,omitempty"`
+	ConfigPatterns  []parser.ConfigPattern     `json:"config_patterns,omitempty"`
+	ControlFlow     []parser.ControlFlowSignal `json:"control_flow,omitempty"`
 }
