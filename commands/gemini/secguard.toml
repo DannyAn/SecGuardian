@@ -12,7 +12,7 @@ prompt = """
 
 ## Command Layer
 
-对源码执行安全加固扫描。采用 Dispatcher-Worker 架构：Dispatcher 读取索引信号 → 按 Skill 分派 Worker → Worker 只看相关代码执行 5 步检视协议。
+对源码执行安全加固扫描。采用 Investigation Engine 架构：Dispatcher 信号提取 → Hypothesis Generator 多假设 → Investigator 自主取证 → Judge 独立裁决。
 
 支持全量扫描和 Git diff 增量扫描。
 
@@ -402,401 +402,104 @@ Dispatcher 输出 Signal 分类摘要 + 全量 Signal 清单。**不产生 Worke
 > - Counter Evidence: 尝试推翻自己的假设
 > - Judge: 基于 Evidence + Counter Evidence 独立裁决
 >
-> 这些步骤在 SKILL.md 中定义（正在迁移中，当前为 Worker 协议过渡版）。
+> 以下为 Investigation Pipeline 执行流程。
 
-## Phase 2: Worker 协议（过渡期 — 将由 Investigation Pipeline 替代）
+## Phase 2: Investigation Pipeline — Hypothesis → Investigator → Judge
+
+> **核心原则：Dispatcher 不判定漏洞类型。** Signal 是调查入口，不是结论。
+> 错误: `memory_allocation → 查 null_dereference`
+> 正确: `memory_allocation → H1: NULL未检查 / H2: Double Free / H3: Memory Leak / H4: Ownership错误 / H5: 实际安全`
+>
+> 🚫 **禁止将检测执行委托给子代理 (NON-NEGOTIABLE):** YOU are the execution engine. 禁止启动 background task / sub-agent 执行检测器。
+>
+> ⚠️ **每个 Signal 必须生成至少 3~5 个 Hypothesis，逐个调查。**
+
+<!-- @secguardian:non-skippable step=pre-filter -->
+### Phase 2a: 检测器预筛（不可跳过）
+
+> 加载 signal 清单 → 对每个 Signal Type，检查其关联的 rule.md 是否需要加载。
+> 无 signal 匹配的 detector 规则跳过加载。
 
 <!-- @secguardian:non-skippable step=rule-loading -->
-> **规则强制加载不可跳过。** 执行逻辑必须以 rules 内容为准，而非 AI 自身知识。
+### Phase 2b: Hypothesis Generator — 每个 Signal Type 生成 3~5 个假设
 
-> **核心执行阶段**。Dispatcher 为每个有信号的 Skill 启动 Worker，独立执行 5 步检视协议，输出 findings。
->
-> **Worker 是独立 subagent**，由 Dispatcher 通过 `Agent` 工具（`run_in_background: true`）启动。每个 Worker 接收：
-> 1. 信号清单（来自 Phase 1 的 call_sites 分批）
-> 2. `rules.md`（检测规则 + 检视协议，两合一）
-> 3. `references/` 目录路径（豁免、误报抑制、跨函数追踪）
-> 4. 源码根路径（Worker 直接读取实际代码）
->
-> ⚠️ **关键约束：不得在 Dispatcher 主会话中执行 Worker 逻辑。** Worker 的源码读取、Glob/Grep/Read 工具调用必须通过 Agent 工具派发到独立 Agent 会话，不可在主会话内直接执行。多个 Worker 的核心逻辑在主会话内执行 → 全部工具调用日志填入主上下文 → 填满后 TUI 崩溃。
->
-> **分批策略**：当单个 Skill 的信号数 > BATCH_SIZE(50) 时，Dispatcher 自动拆分为多个 Batch Worker。所有同 Skill Worker 完成后，Aggregator 合并产出去重。
+**禁止只生成 1 个假设。** 每个 Signal Type 必须覆盖以下模板：
 
-### 5.1 Worker 启动协议
+| Signal Type | H1 | H2 | H3 | H4 | H5 |
+|-------------|----|----|----|----|-----|
+| memory_allocation | NULL 未检查 | Double Free | Memory Leak | Ownership 错误 | 实际安全 |
+| memory_copy | 长度错误 | 来源污染 | 整数溢出导致长度错误 | 生命周期错误 | 实际安全 |
+| string_copy | 缓冲区溢出 | 来源污染 | 截断导致逻辑错误 | Underflow | 实际安全 |
+| user_input | 未校验直接使用 | 格式化字符串 | 注入可能 | 类型混淆 | 实际安全 |
+| lock_operation | 未配对 unlock | 死锁可能 | 信号不安全 | 锁序错误 | 实际安全 |
+| exec_operation | 命令注入 | 参数可控 | Shell 转义缺失 | 路径遍历 | 实际安全 |
+| memory_deallocation | 重复释放 | Use-After-Free | 释放未分配内存 | 释放后置 NULL? | 实际安全 |
+| resource_acquire | 资源泄漏 | 权限错误 | 竞争条件 | 路径遍历 | 实际安全 |
 
-#### Step 0: 应用用户过滤器（如果指定）
+### Phase 2c: Investigator — 对每个 Hypothesis 收集 Evidence
+
+每个引用必须锚定到源码行号：
+
+| Evidence 类型 | 需要回答的问题 | 引用什么 |
+|--------------|--------------|---------|
+| Source | 数据从哪里来？ | 变量声明 / 参数传递 / 外部输入 |
+| Propagation | 数据经过哪些变换？ | 中间变量 / 长度计算 |
+| Sink | 最终在哪里使用？ | 函数调用 / 写入操作 |
+| Control Flow | 有守卫条件吗？ | NULL 检查 / 边界判断 |
+| Lifetime | 生命周期正确吗？ | 分配→释放路径 |
+
+**禁止输出没有行号引用的 Evidence。** 模糊用语必须锚定到具体代码行。
+
+### Phase 2d: Counter Evidence — 必须尝试推翻自己
+
+至少检查 3 项：NULL 检查 / Contract 保证 / RAII / Ownership 转移 / 参数限制 / 边界检查
+
+不找到 Counter Evidence 不 Suppress。找不到的留空（"未发现反证"）。
+
+### Phase 2e: Judge — 独立裁决
+
+| Evidence | Counter Evidence | 裁决 |
+|----------|----------------|------|
+| 有直接证据（锚定到行号） | 无反证 | Confirmed |
+| 有间接证据（推理链完整） | 无反证 | Suspicious |
+| 有部分证据 | 有部分反证 | Suspicious |
+| 有直接证据 | 有强反证 | Safe |
+| 无法判断 | — | **Unknown**（不允许降级 Safe） |
+
+> Judge 不重新扫描。**Unknown 必须保留在报告中。** 不允许自动降级 Safe。
+
+### ⚠️ 上下文预算
 
 ```
-PARSE user_filter FROM command arguments (e.g., "memory.*" or "memory.double_free")
-
-IF user_filter IS NOT EMPTY:
-  CONVERT filter TO regex patterns:
-    "memory.*"            → pattern = ^memory\.
-    "memory.double_free"  → pattern = ^memory\.double_free$
-    "memory.*,exec.*"     → pattern = ^memory\.|^exec\.
-    "" (default)          → pattern = .* (match all)
-
-  filtered_skills = []
-  FOR EACH skill IN skills WITH signals:
-    IF skill.signal_filter MATCHES pattern:
-      append skill TO filtered_skills
-    ELSE:
-      SKIP skill (no Worker dispatched)
-ELSE:
-  filtered_skills = ALL skills WITH signals
+上下文预算规则（硬性约束）：
+1. 每完成一个 Hypothesis 调查，检查上下文是否接近满（~70%+）
+2. 如果即将溢出：立即停止，标记未处理假设为 "unprocessed"
+3. 源码读取：bash `cat` + `sed -n`，避免 `Read` 工具
+4. finding 录制：只允许 `--from-file`
 ```
 
-> **signal_filter 字段来源**：各 skill 的 `rules.md` frontmatter 中声明 `signal_filter`（如 `memory.buffer*`）。
-> 过滤匹配基于 skill_id（如 `memory.buffer_overflow`），而非目录名。
-
-#### Step 1: 按信号分批派发 Worker
-
-Dispatcher 为每个过滤后的 Skill 执行以下操作：
-
-```
-FOR EACH skill IN filtered_skills:
-
-  0. 检查信号数: len(signals) vs BATCH_SIZE (默认 50)
-     IF len(signals) > BATCH_SIZE:
-       → 按 §5.5 拆分为 N 个 Batch
-       → n_batches = N, batches = [batch_0 .. batch_N-1]
-     ELSE:
-       → n_batches = 1, batches = [all_signals]
-  
-  FOR EACH batch IN batches:
-    1. 加载 rule.md（主会话中用 bash cat）
-       cat "$SECGUARDIAN_HOME/skills/secguard-<language>/rules/{skill}/rule.md"
-    2. 加载 references 文件（主会话中用 bash cat）
-       cat "$SECGUARDIAN_HOME/skills/secguard-<language>/rules/{skill}/references/exceptions.md"
-       cat "$SECGUARDIAN_HOME/skills/secguard-<language>/rules/{skill}/references/cross-function.md"
-       cat "$SECGUARDIAN_HOME/skills/secguard-<language>/rules/{skill}/references/false-positive.md"
-    3. 构造 Worker 完整 prompt（含 rule + references + 信号清单 + 源码路径）
-    4. 派发 Worker：Agent(description="secguard Worker: {skill}", prompt=worker_prompt, run_in_background: true)
-    5. Worker 输出写入 workers/<skill_id>/batch-{N}/（由 Agent 内自行执行）
-```
-
-**并发控制**:
-- 每轮最多同时派发 3 个 Worker Agent（Agent 调用可并行发起，Agent 数量限制为 3）
-- 所有 Agent 派发完成后（全部 Agent 调用返回 task_id），等待所有 Agent 完成通知
-
-> **重要**: Worker 协议从 5 轮反思升级为事实锚定反思（§5.2 W5 更新点）。
-> 旧协议已被实验证伪：同 LLM 同上下文同框架 → 5 轮产出同质化结论。
-> 新协议用 3 个域专用 Yes/No 事实问题替代 5 轮空转。
-> 详见 `skills/secguard-cpp/` 各 skill 的 `rules.md §事实锚定反思`。
-
-**Worker 输入结构：**
+### 输出格式
 
 ```json
 {
-  "dispatcher_context": {
-    "scan_id": "sc-20260707-143000-a1b2",
-    "scan_dir": ".codeagent/secguardian/secguard/scans/sc-20260707-143000-a1b2",
-    "source_root": "/path/to/user/project",
-    "stripped_root": "/path/to/user/project",  # DEPRECATED (EPIC-009) — same as source_root
-    "index_json": ".codeagent/secguardian/index.json",
-    "recorder": "$SCRIPTS_DIR/record-finding.py",
-    "reporter": "$SCRIPTS_DIR/render-report.py"
-  },
-  "skill": {
-    "id": "buffer_overflow",
-    "severity": "critical",
-    "cwe": "CWE-120",
-    "category": "string",
-    "rule": "... rule.md 内容（检测规则 + Scenario + Worker 检视协议）...",
-    "references": {
-      "exceptions": "... exceptions.md 内容 ...",
-      "cross_function": "... cross-function.md 内容 ...",
-      "false_positive": "... false-positive.md 内容 ..."
-    }
-  },
-  "signals": [
-    {
-      "caller": "idm_portal_auth",
-      "callee": "strcpy_s",
-      "file": "src/ctrlplane/portal/idm_portal_auth.c",
-      "line": 142,
-      "arguments": ["dst", "sizeof(dst)", "src"],
-      "safe_variant": true,
-      "category": "string"
-    }
-  ]
-}
-```
-
-### 5.2 Worker 执行协议（5 步）
-
-每个 Worker 按以下 5 步协议独立执行。**必须在事实锚定反思通过后才能输出 finding。**
-
-#### Step W1: 信号确认
-
-对每个预筛信号:
-
-1. 读取调用点源码（±15 行，从脱敏副本读取）
-2. 确认调用点真实存在（排除注释、宏、条件编译中的误匹配）
-3. 记录: `confirmed` / `false_signal`（如为 false_signal 则跳过，记入抑制统计）
-
-```bash
-# Worker 内的 bash 调用示例
-cat "$SOURCE_ROOT/$FILE" | head -n $((LINE + 15)) | tail -n 31
-```
-
-#### Step W2: 证据链构建
-
-构建 Source → Propagate → Sink 三段式证据链:
-
-- **Source**: 危险操作的源（如缓冲区目标 `dst` 的声明和大小，命令注入中的外部输入）
-- **Propagate**: 数据从源到汇的传递路径（如外部输入经函数参数传递到危险调用）
-- **Sink**: 实际危险操作点（如 `strcpy_s(dst, dsize, src)` 的写入操作）
-
-**证据链示例 (buffer_overflow):**
-```
-Source:  dst 声明为 char dst[64]  at file.c:130
-         src 来自函数参数 const char* input, 无长度校验 at file.c:135
-Propagate:  input 作为参数传入 idm_portal_auth() at file.c:140
-Sink:  strcpy_s(dst, sizeof(dst), input) at file.c:142
-       → sizeof(dst) = 64, input 长度未知
-```
-
-**证据链示例 (command_injection):**
-```
-Source:  HTTP query param "cmd" 来自用户输入 at handler.c:50
-Propagate:  未经验证传入 execute_command()  at handler.c:55
-Sink:  system(user_input)  at executor.c:80
-```
-
-**跨函数追踪约束:**
-- 如果 Sink 函数的缓冲区来自调用者，沿 index.json 调用图向上追踪 **最多 1 层**
-- 超过 1 层 → 降级为 **suspicious**（不在最终报告中报告为确认漏洞，计入抑制统计）
-- 注: 个别 Skill 的 `cross-function.md` 可定义更严格的 depth 限制（如 0），但不允许放松
-
-#### Step W3: 安全变体参数审计
-
-对 `_s` 安全变体调用（`safe_variant: true`），检查参数正确性——**安全变体不意味着自动安全**:
-
-| 函数 | 审计项 |
-|------|--------|
-| `strcpy_s(dst, dsize, src)` | `dsize` 是否 `== sizeof(dst)`? `dst` 是否为数组（而非指针参数）? |
-| `strcat_s(dst, dsize, src)` | `dsize` 是否考虑已有内容? `sizeof(dst) - strlen(dst) >= strlen(src)`? |
-| `memcpy_s(dst, dsize, src, n)` | `dsize >= n`? `dsize == sizeof(dst)`? |
-| `sprintf_s(buf, size, fmt, ...)` | `size == sizeof(buf)`? `fmt` 含 `%s` 时对应参数是否受控? |
-| `snprintf(buf, size, fmt, ...)` | 返回值是否被检查（截断检测）? |
-
-非 `_s` 变体直接进入 Step W4。
-
-#### Step W4: 跨函数补证
-
-沿调用图向上追踪 1 层，确认调用者传入的缓冲区大小或数据源:
-
-1. 在 index.json 中查找调用者函数定义
-2. 读取调用者源码（±10 行上下文）
-3. 检查调用者是否:
-   - 传入已知大小的缓冲区（`char buf[64]` → `process_data(buf, sizeof(buf))`）
-   - 传入已检查长度的数据（`if (strlen(src) < MAX)` → `strcpy(dst, src)`）
-   - 传入未检查的用户输入（`strcpy(dst, argv[1])` → 直接报告）
-4. **depth > 1**（即调用者的调用者）→ 降级为 `suspicious`，不计入确认发现
-
-#### Step W4.5: 多信号归并分析（★ 新增）
-
-当同一函数内有多个信号时，先聚合再逐条分析：
-
-1. 对同一 caller function 的信号按行号分组
-2. 检查是否存在**信号间依赖**：
-   - buffer_overflow 信号依赖 integer_overflow 信号（整数溢出绕过 size check → buffer overflow 的 Q1 假设失效）
-   - lock_misuse 信号需同一函数内 lock/unlock 配对分析
-3. 归并后形成统一分析基线：
-   - 引用已分析的相邻信号结论（如 Q3 已查明的源数据长度）
-   - 避免重复读取同一段源码
-4. 在证据链中标注 "cross_signal_analysis: true"
-
-示例: parse_packet 函数有 2 个 memcpy 调用（line 53, line 60）。
-- 信号 1 (line 53): memcpy(&packet->header, header, sizeof(PacketHeader)) → 固定大小拷贝，安全
-- 信号 2 (line 60): memcpy(packet->data, raw_data+HEADER_SIZE, header->data_size) → 运行时大小，需跨信号分析
-- 归并: 确认信号1安全; 信号2需同时检查 integer_overflow 状态
-
-#### Step W5: 事实锚定反思（替代旧 5 轮反思）
-
-**基于 3 个域专用事实锚定问题, 一轮判定, 不再 5 轮空转。**
-
-旧 5 轮反思已被实验证伪:
-- 同 LLM 同上下文同框架 → 5 轮产出同质化结论
-- Test C (DES key未初始化) 中 5 轮反思全部遗漏该问题
-- 事实锚定 Q2 "密钥已正确初始化?" 直接发现
-
-**通用 Q 框架:**
-```
-Q1: [域专用，迫使检查最关键的"是否有漏洞"条件]
-Q2: [域专用，迫使检查条件是否真实（如参数来源、初始化状态）]
-Q3: [域专用，迫使检查豁免/补偿条件是否存在]
-```
-
-**判定矩阵规则（每个 skill 在各自 SKILL.md 中定义域专用 Q schema）:**
-
-| Q1 | Q2 | Q3 | 结论 |
-|----|----|----|------|
-| YES(安全) | YES | YES | **SUPPRESS** — 三绿灯，安全可证 |
-| YES(安全) | YES | NO | **informational** — 基本安全但有隐患 |
-| YES(安全) | NO | — | **CONFIRMED** — 条件不满足即漏洞 |
-| NO(危险) | YES | — | **CONFIRMED** — 危险信号已确认 |
-| NO(危险) | NO | — | **CONFIRMED** — 多角度证实漏洞 |
-| Mixed | Mixed | Mixed | 强制详细分析后判断 |
-
-**执行步骤:**
-
-1. 根据 skill_id 从 SKILL.md 读取域专用 Q1-Q2-Q3
-2. 回答 3 个事实锚定问题（仅 Yes/No，答案必须基于源码证据链中的行号引用）
-3. 查判定矩阵 → 决定 verdict
-4. 三绿灯: 直接抑制，记入抑制统计（含三条证据引用）
-5. 确认: 输出 finding（证据链必须引用 Q1-Q2-Q3 的结论）
-
-**与旧 5 轮反思的关键差异:**
-- 旧 5 轮是"让 LLM 反思自己"（自我循环，同质结论）
-- 事实锚定是"问 LLM 3 个无法回避的事实问题"（域专用，发现盲区）
-- 旧 5 轮 = 5 次 LLM 调用 ↓ 新协议 = 1 次 LLM 调用（Step W1-W5 合并在 1 次 Agent 调用中）
-- 旧 5 轮在 Test C 遗漏密钥初始化 → 新协议 Q2 直接发现
-
-### 5.3 Worker 输出格式
-
-每个信号处理后，Worker 输出到 `$SCAN_DIR/workers/<skill_id>/` 目录:
-
-**finding 文件（通过 `record-finding.py` 录制）:**
-
-```bash
-# Worker 内的 finding 录制
-python3 "$RECORDER" \
-    --command secguard \
-    --scan-dir "$SCAN_DIR" \
-    --from-stdin << 'RECEOF'
-{
-  "dispatcher_mode": true,
-  "skill_id": "buffer_overflow",
-  "detector": "memory.buffer_overflow",
-  "severity": "Critical",
-  "cwe": "CWE-120",
-  "file": "src/ctrlplane/portal/idm_portal_auth.c",
-  "line": 142,
-  "function": "idm_portal_auth",
-  "title": "strcpy_s 参数误用：dsize 不等于 sizeof(dst)",
-  "snippet": "strcpy_s(dst, sizeof(dst), input)",
-  "code_context": "char dst[64];\nconst char* input = getenv(\"USER_INPUT\");\n...\nstrcpy_s(dst, sizeof(dst), input);",
-  "rationale": "strcpy_s dsize=sizeof(dst)=64, input 长度未知，可导致缓冲区溢出",
-  "evidence_chain": {
-    "source": {
-      "description": "dst 声明为 char dst[64]",
-      "file": "src/ctrlplane/portal/idm_portal_auth.c",
-      "line": 130
+  "finding": {
+    "signal_id": "sig-001",
+    "hypothesis_tested": 5,
+    "hypothesis": "H1: NULL 未检查",
+    "verdict": "Confirmed",
+    "evidence": {
+      "source": {"line": 42, "content": "ptr = malloc(n)"},
+      "propagation": {"line": 43, "content": "memcpy(ptr, src, n)"},
+      "sink": {"line": 44, "content": "printf("%s", ptr)"},
+      "counter_evidence": [
+        {"line": 43, "content": "if (!ptr) return"},
+        {"line": 45, "content": "未发现其他反证"}
+      ]
     },
-    "propagate": {
-      "description": "input 来自 getenv() 返回值，无长度校验",
-      "file": "src/ctrlplane/portal/idm_portal_auth.c",
-      "line": 135
-    },
-    "sink": {
-      "description": "strcpy_s(dst, sizeof(dst), input) — sizeof(dst)=64 但 input 长度未知",
-      "file": "src/ctrlplane/portal/idm_portal_auth.c",
-      "line": 142
-    }
-  },
-  "attack_scenario": "攻击者设置 USER_INPUT 环境变量为超长字符串 → 覆盖栈上 dst 之后的数据",
-  "cvss": 8.5,
-  "fact_anchored_reflection": {
-    "q1": {"question": "Q1 from domain-specific Q schema", "answer": "YES/NO"},
-    "q2": {"question": "Q2 from domain-specific Q schema", "answer": "YES/NO"},
-    "q3": {"question": "Q3 from domain-specific Q schema", "answer": "YES/NO"},
-    "matrix_verdict": "confirmed/suppressed/informational",
-    "rationale": "判定依据: Q1=X, Q2=Y → 查判定矩阵得结论 Z"
-  },
-  "final_verdict": "confirmed",
-
-  "final_verdict": "confirmed",
-  "fix_before": "strcpy_s(dst, sizeof(dst), input)",
-  "fix_after": "if (strnlen(input, sizeof(dst)) >= sizeof(dst)) return ERROR;\nstrcpy_s(dst, sizeof(dst), input);",
-  "index_json": ".codeagent/secguardian/index.json"
-}
-RECEOF
-```
-
-**盲区报告（当信号全部被抑制时输出）:**
-
-每个 Worker **必须**输出盲区报告到 `$SCAN_DIR/workers/<skill_id>/blindspot.json`:
-
-```json
-{
-  "skill_id": "buffer_overflow",
-  "signals_received": 15,
-  "findings_reported": 3,
-  "findings_suppressed": 5,
-  "false_signals": 7,
-  "suppression_reasons": [
-    {"reason": "sizeof(dst) matches dsize correctly", "count": 3},
-    {"reason": "compile-time constant string source", "count": 2}
-  ],
-  "depth_exceeded": {
-    "count": 2,
-    "max_traced": 1,
-    "downgraded_to_suspicious": 2
+    "judge_rationale": "Evidence: malloc 后无 NULL 检查 / Counter Evidence: 无。裁决: Confirmed"
   }
 }
 ```
-
-**零发现报告（当 Skill 没有任何信号时）:**
-
-```json
-{
-  "skill_id": "error_propagation",
-  "signals_received": 0,
-  "findings_reported": 0,
-  "status": "no_signal",
-  "assessment": "没有需检查返回值传播的 must_check 函数调用点",
-  "is_blindspot": false
-}
-```
-
-**关键约束:**
-- **禁止非终止状态**: Worker 不得输出"需要更多上下文"、"无法确定"、"信息不足"等。必须做出确定判断：`confirmed` / `suppressed` / `downgraded_to_suspicious`
-- **0 findings ≠ no_signal**: 区分 `no_signal`（无信号，真安全）和 `all_suppressed`（有信号但全部被抑制，检测盲区）
-- **跨函数 depth 限制**: max depth 1，超过一律降级为 `suspicious`，不报告为确认漏洞
-- **事实锚定反思强制**: 任何 finding 必须经过事实锚定反思，`fact_anchored_reflection` 字段必须包含 Q1-Q2-Q3 答案及矩阵裁决
-- **suppress-first**: 不确定 → 抑制。仅报告有完整证据链的 finding
-
-### 5.4 特殊 Skill 处理
-
-#### hardcoded_secrets（非 call_site 驱动）
-
-此 Skill 不依赖 call_sites 信号。Worker 改为扫描源码中的字符串/密钥模式:
-
-1. 从 index.json 获取文件清单（`files` 数组去重）
-2. 对每个源码文件扫描以下模式:
-   - 硬编码密码: `password = "..."`, `passwd = "..."`, `pwd = "..."`
-   - 硬编码密钥: `secret_key = "..."`, `api_key = "..."`, `token = "..."`
-   - 硬编码加密 IV/盐: `iv = "..."`, `salt = "..."`
-   - 注释中的凭据: `// password: ...`, `// user: ... / pass: ...`
-3. 根据 `min_string_length`（灵敏度配置）过滤短字符串
-4. 执行事实锚定反思确认
-
-#### error_propagation（独立扫描）
-
-此 Skill 不依赖 call_sites 信号。Worker 改为扫描返回值检查:
-
-1. 从 index.json 的 `call_sites` 中筛选 `must_check` 标记的函数调用
-2. 对每个调用点检查返回值是否被使用、检查、或传播
-3. 识别模式:
-   - `if (func() == ERROR)` → 已检查
-   - `int ret = func()` → 部分检查（需确认 ret 后续使用）
-   - `func()` → 返回值被丢弃（报告）
-   - `(void)func()` → 显式丢弃（是否报告取决于灵敏度配置）
-4. 执行事实锚定反思确认
-
-### 5.5 Worker 执行（过渡期 — 后续由 Investigation Pipeline 替代）
-
-> ⚠️ **过渡期状态：** Worker 协议（W1-W5）将在 EPIC-010 FEATURE-003 完成后被 Investigation Pipeline 取代。
->
-> 🚫 **禁止将检测执行委托给子代理 (NON-NEGOTIABLE):**
-> YOU are the execution engine. 禁止启动 background task / sub-agent 执行检测器。
-> - Hypothesis Generator: 替代 W1（信号确认）— 生成多假设而非确认单一方向
-> - Investigator: 替代 W2+W3+W4 — 自主调查而非按步执行 Rule
-> - Counter Evidence: 新增 — 尝试推翻自己的假设
-> - Judge: 替代 W5（判定矩阵）— 基于 Evidence 独立裁决
->
-> 当前 Worker 协议（§5.1-§5.4）内容保持不变，以保证扫描功能可用。
 ## Phase 3: 汇总与渲染
 
 > 所有 Worker 和 Aggregator 执行完毕后，Dispatcher 汇总结果并生成报告。
@@ -1028,7 +731,12 @@ findings/exec/command_injection/f6e5d4c3b2a1_executor-89.json
 
 ---
 
-## 附录 B: Worker 协议摘要
+## 附录 B: Investigation Pipeline 流程摘要
+
+> **Phase 2a: Hypothesis Generator** — 每个 Signal Type 生成 3~5 假设
+> **Phase 2b: Investigator** — 为每个假设收集 Source/Propagation/Sink Evidence
+> **Phase 2c: Counter Evidence** — 尝试推翻自己的假设
+> **Phase 2d: Judge** — 基于 Evidence + Counter Evidence 独立裁决
 
 | 条目 | 规则 |
 |------|------|

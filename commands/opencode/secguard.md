@@ -8,7 +8,7 @@ platform: opencode
 
 ## Command Layer
 
-对源码执行安全加固扫描。采用 Dispatcher-Worker 架构：Dispatcher 读取索引信号 → 按 Skill 分派 Worker → Worker 只看相关代码执行 5 步检视协议。
+对源码执行安全加固扫描。采用 Investigation Engine 架构：Dispatcher 信号提取 → Hypothesis Generator 多假设 → Investigator 自主取证 → Judge 独立裁决。
 
 支持全量扫描和 Git diff 增量扫描。
 
@@ -524,405 +524,139 @@ Dispatcher 输出 Signal 分类摘要 + 全量 Signal 清单。**不产生 Worke
 > - Counter Evidence: 尝试推翻自己的假设
 > - Judge: 基于 Evidence + Counter Evidence 独立裁决
 >
-> 这些步骤在 SKILL.md 中定义（正在迁移中，当前为 Worker 协议过渡版）。
+> 以下为 Investigation Pipeline 执行流程。
 
-## Phase 2: Worker 协议（过渡期 — 将由 Investigation Pipeline 替代）
+## Phase 2: Investigation Pipeline — Hypothesis → Investigator → Judge
+
+> **核心原则：Dispatcher 不判定漏洞类型。** Signal 是调查入口，不是结论。
+> 错误: `memory_allocation → 查 null_dereference`
+> 正确: `memory_allocation → H1: NULL未检查 / H2: Double Free / H3: Memory Leak / H4: Ownership错误 / H5: 实际安全`
+>
+> 🚫 **禁止将检测执行委托给子代理 (NON-NEGOTIABLE):** YOU are the execution engine. 禁止启动 background task / sub-agent 执行检测器。
+>
+> ⚠️ **每个 Signal 必须生成至少 3~5 个 Hypothesis，逐个调查。**
+>
+> ⚠️ **OpenCode 没有后台任务工具** — 所有调查在主会话中串行执行。
+> 严格控制上下文消耗：每完成一个 Hypothesis 检查 ~70% 预算。
+
+<!-- @secguardian:non-skippable step=pre-filter -->
+### Phase 2a: 检测器预筛（不可跳过）
+
+> 加载 signal 清单 → 对每个 Signal Type，检查其关联的 rule.md 是否需要加载。
+> 无 signal 匹配的 detector 规则跳过加载（节省上下文预算）。
 
 <!-- @secguardian:non-skippable step=rule-loading -->
-> **规则强制加载不可跳过。** 执行逻辑必须以 rules 内容为准，而非 AI 自身知识。
+### Phase 2b: Hypothesis Generator — 每个 Signal Type 生成 3~5 个假设
 
-> **核心执行阶段**。Dispatcher 为每个有信号的 Skill 串行执行 Worker，独立执行 5 步检视协议，输出 findings。
->
-> ⚠️ **关键现实：OpenCode 没有后台任务工具（`task()`/`background-task`/`Agent` 均不可用）。**
-> **所有 Worker 必须在主会话中串行执行。** 因此必须严格控制每个 Worker 的上下文消耗，否则多 Skill 积累后必然溢出。
->
-> **分批策略**：当单个 Skill 的信号数 > BATCH_SIZE(50) 时，Dispatcher 自动拆分为多个 Batch Worker。
+> **禁止只生成 1 个假设。** 每个 Signal Type 必须覆盖以下模板：
+
+| Signal Type | H1 | H2 | H3 | H4 | H5 |
+|-------------|----|----|----|----|-----|
+| memory_allocation | NULL 未检查 | Double Free | Memory Leak | Ownership 错误 | 实际安全 |
+| memory_copy | 长度错误 | 来源污染 | 整数溢出导致长度错误 | 生命周期错误 | 实际安全 |
+| string_copy | 缓冲区溢出 | 来源污染 | 截断导致逻辑错误 | Underflow | 实际安全 |
+| user_input | 未校验直接使用 | 格式化字符串 | 注入可能 | 类型混淆 | 实际安全 |
+| lock_operation | 未配对 unlock | 死锁可能 | 信号不安全 | 锁序错误 | 实际安全 |
+| exec_operation | 命令注入 | 参数可控 | Shell 转义缺失 | 路径遍历 | 实际安全 |
+| memory_deallocation | 重复释放 | Use-After-Free | 释放未分配内存 | 释放后置 NULL? | 实际安全 |
+| resource_acquire | 资源泄漏 | 权限错误 | 竞争条件 | 路径遍历 | 实际安全 |
+
+> **注意：** Hypothesis 是调查方向，不是漏洞判断。即使 H5（实际安全）也需要证据。
+
+### Phase 2c: Investigator — 对每个 Hypothesis 收集 Evidence
+
+对 Phase 2b 生成的每个假设，收集以下证据（每条必须引用源码行号）:
+
+| Evidence 类型 | 需要回答的问题 | 引用什么 |
+|--------------|--------------|---------|
+| **Source** | 数据从哪里来？ | 变量声明 / 参数传递 / 外部输入 |
+| **Propagation** | 数据经过哪些变换？ | 中间变量 / 长度计算 / 类型转换 |
+| **Sink** | 最终在哪里使用？ | 函数调用 / 写入操作 / 控制流 |
+| **Control Flow** | 有守卫条件吗？ | NULL 检查 / 边界判断 / 异常处理 |
+| **Lifetime** | 生命周期正确吗？ | 分配→释放路径 / 引用计数 |
+
+**Evidence 格式（每条必须包含行号）:**
+```
+证据: {类型} | 行号: {行号} | 内容: {引用源码片段}
+```
+
+**禁止输出没有行号引用的 Evidence。** "可能"、"看起来"等模糊用语必须锚定到具体代码行。
+
+### Phase 2d: Counter Evidence — 必须尝试推翻自己
+
+> **核心原则：不能只会"确认"，必须会"推翻"。**
+
+**Counter Evidence 检查清单（每个 Signal 至少检查 3 项）:**
+
+| 检查 | 问题 |
+|------|------|
+| NULL 检查 | 分配后是否有 `if(!ptr)return`? |
+| Contract 保证 | 调用方是否保证了参数合法性? |
+| RAII/Guard | 是否有智能指针/锁守卫? |
+| Ownership 转移 | 是否所有权已移交? |
+| 参数限制 | 参数是否编译期常量? |
+| 边界检查 | 写入前是否有 `if(n<size)`? |
+
+> 不找到 Counter Evidence 不 Suppress。找不到的留空（"未发现反证"）。
+
+### Phase 2e: Judge — 独立裁决
+
+> Judge 不重新扫描。只阅读 Evidence + Counter Evidence。
+> 🚫 禁止输出"需要更多上下文"等非终止状态。
+
+| Evidence | Counter Evidence | 裁决 |
+|----------|----------------|------|
+| 有直接证据（锚定到行号） | 无反证 | Confirmed |
+| 有间接证据（推理链完整） | 无反证 | Suspicious |
+| 有部分证据 | 有部分反证 | Suspicious |
+| 有直接证据 | 有强反证 | **Safe**（记录反证引用） |
+| 无证据 | 无需求 | Safe |
+| 无法判断 | — | **Unknown**（不允许降级 Safe） |
+
+**Unknown 必须保留在报告中。** 不允许自动降级 Safe。
 
 ### ⚠️ 上下文预算（OpenCode 核心约束）
 
-> 这是 OpenCode 版最重要的规则。每步必须始终跟踪上下文消耗。
-
 ```
 上下文预算规则（硬性约束）：
-1. 每处理完一个 Worker，检查当前上下文是否接近满（~70%+）
-2. 如果上下文即将溢出：立即停止，标记未处理 Skill 为 "unprocessed"，开始 Phase 3
-3. 单个 Worker 内部的上下文约束：
-   a. 源码读取：优先用 bash `cat` + `grep`（单行工具调用），避免 `Read` 工具（大块文本进入上下文）
-   b. 禁用 Glob/Grep 工具探索源码（`✱Glob`/`✱Grep` 结果进入上下文）
-   c. 禁用 `find` 探索（输出进入上下文）
-   d. finding 录制：🚫 只允许唯一的 canonical 流程（写 JSON 文件 → `--from-file` 传路径）。禁止 `--from-stdin`、禁止直接 CLI `--detector --rationale`、禁止 `python3 << 'PYEOF'` 内联写 JSON。详见 §5.3 HARD RULE。
-   e. LLM 分析：每个信号输出 <= 3 句结论，不需要完整 evidence chain 展示
+1. 每完成一个 Hypothesis 调查，检查上下文是否接近满（~70%+）
+2. 如果即将溢出：立即停止，标记未处理假设为 "unprocessed"，开始 Phase 3
+3. 单个调查回合的约束：
+   a. 源码读取：bash `cat` + `sed -n`，避免 `Read` 工具
+   b. 禁用 Glob/Grep 工具
+   c. finding 录制：只允许写 JSON 文件 → `--from-file`
+   d. 每条 Evidence <= 3 句 + 源码行号
 ```
 
-**上下文消耗清单（每个 Worker）：**
+### 输出格式
 
-| 操作 | 上下文消耗 | 优化方案 |
-|------|-----------|---------|
-| `cat` 读取 rule.md | 低 (~1-2K tokens) | 必须做，不接受优化 |
-| `Read` 工具读源码 | **高** (~5-30K tokens/次) | 改用 `cat src/file.c \| sed -n '20,40p'` |
-| `✱Glob`/`✱Grep` | **高** (全部匹配行进入上下文) | 改用 bash `grep`。必须在外层 bash 中完成，匹配结果不返回主会话。若确实需要，在 bash 中 grep 后用 `echo "found:N"` 仅返回计数 |
-| `python3 record-finding.py --rationale "..."` | **极高** (~2-10K tokens/条) | **禁止**。改写入文件后用 `--from-file` |
-| `Read` index.json | **高** (整个 JSON 进上下文) | Phase 1 已读取。Worker 用 bash `cat` + `python3 -c "import json; ..."` 按需提取 |
-| Dispatcher 的 LLM 推理 | 中 (仅分析结论) | 每个信号只输出分析和 verdict |
-
-### 5.1 Worker 启动协议
-
-#### Step 0: 应用用户过滤器（如果指定）
-
-```
-PARSE user_filter FROM command arguments (e.g., "memory.*" or "memory.double_free")
-
-IF user_filter IS NOT EMPTY:
-  CONVERT filter TO regex patterns:
-    "memory.*"            → pattern = ^memory\.
-    "memory.double_free"  → pattern = ^memory\.double_free$
-    "memory.*,exec.*"     → pattern = ^memory\.|^exec\.
-    "" (default)          → pattern = .* (match all)
-
-  filtered_skills = []
-  FOR EACH skill IN skills WITH signals:
-    IF skill.signal_filter MATCHES pattern:
-      append skill TO filtered_skills
-    ELSE:
-      SKIP skill (no Worker dispatched)
-ELSE:
-  filtered_skills = ALL skills WITH signals
-```
-
-> **signal_filter 字段来源**：各 skill 的 `rules.md` frontmatter 中声明 `signal_filter`（如 `memory.buffer*`）。
-> 过滤匹配基于 skill_id（如 `memory.buffer_overflow`），而非目录名。
-
-#### Step 1: 串行执行 Worker（★ OpenCode 关键实现）
-
-```
-0. context_safe = true, skills_processed = 0
-
-FOR EACH skill IN filtered_skills WHILE context_safe:
-
-  1. 加载 rule.md:  cat "$SECGUARDIAN_HOME/skills/secguard-<language>/rules/{skill}/rule.md"
-  2. 加载 references:  cat "$SECGUARDIAN_HOME/skills/secguard-<language>/rules/{skill}/references/*.md"
-  3. 对 skill 的每个信号执行 W1-W5（详见 §5.2）:
-     a. 读取源码: bash `cat $FILE | sed -n 'START,ENDp'` 获取信号所在行上下文（不要用 Read 工具）
-     b. W1 信号确认: 判断信号是否真实（输出 1 行结论）
-     c. W2 证据链: 分析 Source→Propagate→Sink（输出 3 行，每行 <= 60 字）
-     d. W3 安全变体审计: 有则检查（输出 1 行结论）
-     e. W4 跨函数补证: 从 index.json 查 caller（输出 1-2 行结论）
-     f. W5 事实锚定: 回答 3 个域专用 Q（Yes/No + 1 行依据）
-  4. 写入 finding:
-     a. 构造 JSON 对象（不含过长的 rational/attack_scenario）
-     b. bash: echo '{compact json}' > $SCAN_DIR/workers/{skill}/finding-N.json
-     c. bash: python3 $RECORDER --command secguard --from-file $SCAN_DIR/workers/{skill}/finding-N.json
-  5. 写 blindspot.json: echo '{...}' > $SCAN_DIR/workers/{skill}/blindspot.json
-  6. skills_processed += 1
-  7. 上下文预算检查:
-     IF 上下文已使用 > 70%（估算方法：bash 工具已调用了 N 次，每次约 0.5-2K tokens）:
-       context_safe = false
-       echo "CONTEXT_BUDGET: stopping after {skills_processed} skills. {remaining} skills marked unprocessed."
-```
-
-**关键约束:**
-> 🚫 **HARD RULE: 禁止 Read 工具 + 禁止全文件 cat** 
->  
-> 任何时候读取源码文件，必须使用以下模式（禁止全文件读取）：
-> 
-> ```bash
-> # ✅ GOOD: line-range only (±15 lines around target line)
-> cat "$SOURCE_DIR/src/file.py" | sed -n '25,55p'
-> 
-> # ❌ BAD: full-file cat (wastes context — example from session ses_0ba5)
-> cat "$SOURCE_DIR/src/file.py"
-> ```
-> 
-> **示例**: 如果信号在文件 40 行，用 `cat file \| sed -n '25,55p'` 读取 ±15 行范围。不读取文件其余行。
-> 
-> **违反后果**: 全文件 `cat` 将数千行源码塞入 LLM 上下文，迅速溢出上下文窗口，导致扫描失败。
-- ⚠️ **禁止使用 `✱Glob`/`✱Grep` 工具**。改用 bash `grep`
-- ⚠️ **finding 必须通过文件传递**（禁止 `--from-stdin` 或长 `--rationale` CLI 参数）
-- ⚠️ **每个信号的分析输出 <= 6 行**。evidence chain 写入 finding JSON 文件，不在会话中展示
-- ⚠️ L 每个 skill 处理完后主动检查上下文，不要等溢出
-
-> **重要**: Worker 协议从 5 轮反思升级为事实锚定反思（§5.2 W5 更新点）。
-> 旧协议已被实验证伪：同 LLM 同上下文同框架 → 5 轮产出同质化结论。
-> 新协议用 3 个域专用 Yes/No 事实问题替代 5 轮空转。
-> 详见 `skills/secguard-cpp/` 各 skill 的 `rules.md §事实锚定反思`。
-
-**Worker 输入结构：**
+> 每个 Investigation 输出一条 finding（confirmed/suspicious）或"安全信号（含反证引用）"。
 
 ```json
 {
-  "dispatcher_context": {
-    "scan_id": "sc-20260707-143000-a1b2",
-    "scan_dir": ".codeagent/secguardian/secguard/scans/sc-20260707-143000-a1b2",
-    "source_root": "/path/to/user/project",
-    "stripped_root": "/path/to/user/project",  # DEPRECATED (EPIC-009) — same as source_root
-    "index_json": ".codeagent/secguardian/index.json",
-    "recorder": "$SCRIPTS_DIR/record-finding.py",
-    "reporter": "$SCRIPTS_DIR/render-report.py"
-  },
-  "skill": {
-    "id": "buffer_overflow",
-    "severity": "critical",
-    "cwe": "CWE-120",
-    "category": "string",
-    "rule": "... rule.md 内容（检测规则 + Scenario + Worker 检视协议）...",
-    "references": {
-      "exceptions": "... exceptions.md 内容 ...",
-      "cross_function": "... cross-function.md 内容 ...",
-      "false_positive": "... false-positive.md 内容 ..."
-    }
-  },
-  "signals": [
-    {
-      "caller": "idm_portal_auth",
-      "callee": "strcpy_s",
-      "file": "src/ctrlplane/portal/idm_portal_auth.c",
-      "line": 142,
-      "arguments": ["dst", "sizeof(dst)", "src"],
-      "safe_variant": true,
-      "category": "string"
-    }
-  ]
-}
-```
-
-### 5.2 Worker 执行协议（5 步）— OpenCode 内联版
-
-> ⚠️ **OpenCode 上下文约束版**：所有 W1-W5 步骤必须在 Dispatcher 主会话中串行执行，每个信号的分析输出 <= 6 行。证据链详情写入 finding JSON 文件，不在会话中展示。
-
-#### Step W1: 信号确认
-
-对每个预筛信号:
-
-1. 读取调用点源码（±15 行）: `cat src/file.c | sed -n 'START,ENDp'`（**禁止 Read 工具**）
-2. 确认调用点真实存在（排除注释、宏、条件编译中的误匹配）
-3. 记录: `confirmed` / `false_signal`（如为 false_signal 则跳过）+ **仅输出 1 行结论**
-
-#### Step W2: 证据链构建（输出 <= 3 行）
-
-构建 Source → Propagate → Sink 三段式证据链，每行 <= 60 字:
-
-```
-Source: dst char[64] at file.c:130
-Propagate: input as param to idm_portal_auth at file.c:140
-Sink: strcpy_s(dst, 64, input) — input 长度未知
-```
-
-**跨函数追踪约束:**
-- 沿 index.json 调用图向上追踪 **最多 1 层**
-- 超过 1 层 → 降级为 **suspicious**，计入抑制统计
-
-#### Step W3: 安全变体参数审计
-
-对 `_s` 安全变体调用（`safe_variant: true`），检查参数正确性——**安全变体不意味着自动安全**:
-
-| 函数 | 审计项 |
-|------|--------|
-| `strcpy_s(dst, dsize, src)` | `dsize` 是否 `== sizeof(dst)`? `dst` 是否为数组（而非指针参数）? |
-| `strcat_s(dst, dsize, src)` | `dsize` 是否考虑已有内容? `sizeof(dst) - strlen(dst) >= strlen(src)`? |
-| `memcpy_s(dst, dsize, src, n)` | `dsize >= n`? `dsize == sizeof(dst)`? |
-| `sprintf_s(buf, size, fmt, ...)` | `size == sizeof(buf)`? `fmt` 含 `%s` 时对应参数是否受控? |
-| `snprintf(buf, size, fmt, ...)` | 返回值是否被检查（截断检测）? |
-
-非 `_s` 变体直接进入 Step W4。
-
-#### Step W4: 跨函数补证
-
-1. 从 index.json 查找调用者函数：`python3 -c "import json; d=json.load(open('.../index.json')); ..."`（**禁止 Read index.json**）
-2. 读取调用者源码：cat + sed（**禁止 Read 工具**）
-3. 检查调用者是否传入已知大小的缓冲区或未检查的用户输入
-4. depth > 1 → 降级为 `suspicious`，不计入确认发现
-
-#### Step W4.5: 多信号归并分析
-
-当同一函数内有多个信号时，先聚合再逐条分析。避免重复读取同一段源码。
-
-#### Step W5: 事实锚定反思
-
-**基于 3 个域专用事实锚定问题, 一轮判定。**
-
-**通用 Q 框架:**
-```
-Q1: [域专用，迫使检查最关键的"是否有漏洞"条件]
-Q2: [域专用，迫使检查条件是否真实（如参数来源、初始化状态）]
-Q3: [域专用，迫使检查豁免/补偿条件是否存在]
-```
-
-**判定矩阵：**
-
-| Q1 | Q2 | Q3 | 结论 |
-|----|----|----|------|
-| YES(安全) | YES | YES | **SUPPRESS** |
-| YES(安全) | YES | NO | **informational** |
-| YES(安全) | NO | — | **CONFIRMED** |
-| NO(危险) | YES | — | **CONFIRMED** |
-| NO(危险) | NO | — | **CONFIRMED** |
-| Mixed | Mixed | Mixed | 强制详细分析后判断 |
-
-**执行：**
-1. 回答 3 个事实锚定问题（仅 Yes/No + 行号引用，**每问 1 行**）
-2. 查判定矩阵 → 决定 verdict
-3. 三绿灯: 直接抑制，记入抑制统计（输出 1 行 "SUPPRESSED: ..."）
-4. 确认: 输出 1 行 "CONFIRMED: ..." + 写入 finding JSON
-
-### 5.3 Worker 输出格式 — 文件优先（★ 上下文安全版）
-
-> ⚠️ **HARD RULE: 每个 finding 只允许一种记录方式。禁止混用。**
->
-> **唯一允许的流程**: 写 JSON 文件 → `--from-file` 传给 `record-finding.py`。
->
-> **🚫 禁止以下方式:**
-> - ❌ `--from-stdin`: 消除 shell 引用问题但 LLM 会多路径冗余写入
-> - ❌ 直接 CLI `--detector --rationale "..."`: 长文本进上下文
-> - ❌ `python3 << 'PYEOF'` 内联写 JSON: 与 `--from-file` 路径重复
-> - ❌ `python3 -c "..."` 混杂 `$SCAN_DIR`: 引号层级混乱易出错
->
-> **幂等性**: `record-finding.py` 已内置 SHA 幂等守卫。相同 `(detector, file, line, cwe)` 的第二次写入会被 `IDEMPOTENT_SKIP` 跳过，不会重复。
-
-**唯一 canonical 流程:**
-
-```bash
-# Step 1: 写 finding JSON 到 workers 目录（使用引用 heredoc << 'FEOF'）
-# ⚠️ Finding JSON 必须使用嵌套 schema:
-#   location: {file_path, start_line, end_line, snippet}
-#   evidence: {code_context, judgment_rationale}
-#   impact: {attack_scenario}
-#   fix: {before_code, after_code, description}
-#   id: "secguard-{detector-dashed}-{sha12}"
-#   title: (必填，validate --list 输出中显示)
-cat > "$SCAN_DIR/workers/{skill}/finding-{id}.json" << 'FEOF'
-{
-  "id": "secguard-{detector-dashed}-{sha12}",
-  "command": "secguard",
-  "detector": "memory.buffer_overflow",
-  "severity": "Critical",
-  "cwe": "CWE-120",
-  "title": "strcpy_s called with untrusted input — buffer overflow",
-  "location": {
-    "file_path": "src/file.c",
-    "start_line": 142,
-    "end_line": 145,
-    "snippet": "strcpy_s(dst, sizeof(dst), input)"
-  },
-  "evidence": {
-    "code_context": "char dst[64];\\nstrcpy_s(dst, sizeof(dst), input)",
-    "judgment_rationale": "strcpy_s dsize=64, input length unknown — no size check before copy"
-  },
-  "impact": {
-    "attack_scenario": "Long input overflows dst[64] — buffer overflow exploitable"
-  },
-  "fix": {
-    "before_code": "strcpy_s(dst, sizeof(dst), input)",
-    "after_code": "if (strnlen(input, 64) >= 64) return error;\\nstrcpy_s(dst, sizeof(dst), input);",
-    "description": "Check input length before copy"
-  },
-  "scan_dir": "$SCAN_DIR",
-  "index_json": ".codeagent/secguardian/index.json"
-}
-FEOF
-
-# Step 2: ⚠️ 必须加 --scan-dir "$SCAN_DIR"（引用 heredoc 阻止了 $SCAN_DIR 展开）
-python3 "$RECORDER" --command secguard --scan-dir "$SCAN_DIR" --from-file "$SCAN_DIR/workers/{skill}/finding-{id}.json"
-
-# Step 3: 写 blindspot 报告
-echo '{"skill_id":"{skill}","signals_received":N,"findings_reported":N,...}' > "$SCAN_DIR/workers/{skill}/batch-00/blindspot.json"
-```
-
-> **关于 zsh heredoc 兼容性**: macOS 默认 zsh 在 `<< 'FEOF'` 引用 heredoc 中传递 JSON 的 `\\n` 不会展开，这是正确的 JSON 行为。如果遭遇 zsh 解析错误，改用 `python3 -c "import json; json.dump(obj, open(...))"` 通过 subprocess 写入同一路径，再走 Step 2 的 `--from-file` 流程。**切勿**在 `python3 -c` 里同时写 finding-{id}.json 再调 recorder — 先写文件，再 --from-file，两个步骤分两次工具调用。
-
-**盲区报告（当所有信号被抑制时输出）:**
-
-```json
-{
-  "skill_id": "buffer_overflow",
-  "signals_received": 15,
-  "findings_reported": 3,
-  "findings_suppressed": 5,
-  "false_signals": 7,
-  "suppression_reasons": [
-    {"reason": "sizeof(dst) matches dsize correctly", "count": 3}
-  ],
-  "depth_exceeded": {"count": 2, "max_traced": 1}
-}
-```
-写入: `echo '{...}' > "$SCAN_DIR/workers/{skill}/batch-00/blindspot.json"`
-{
-  "skill_id": "buffer_overflow",
-  "signals_received": 15,
-  "findings_reported": 3,
-  "findings_suppressed": 5,
-  "false_signals": 7,
-  "suppression_reasons": [
-    {"reason": "sizeof(dst) matches dsize correctly", "count": 3},
-    {"reason": "compile-time constant string source", "count": 2}
-  ],
-  "depth_exceeded": {
-    "count": 2,
-    "max_traced": 1,
-    "downgraded_to_suspicious": 2
+  "finding": {
+    "signal_id": "sig-001",
+    "hypothesis_tested": 5,
+    "hypothesis": "H1: NULL 未检查",
+    "verdict": "Confirmed",
+    "evidence": {
+      "source": {"line": 42, "content": "ptr = malloc(n)"},
+      "propagation": {"line": 43, "content": "memcpy(ptr, src, n)"},
+      "sink": {"line": 44, "content": "printf("%s", ptr)"},
+      "counter_evidence": [
+        {"line": 43, "content": "if (!ptr) return", "relevance": "H1 反证: NULL check present"},
+        {"line": 45, "content": "未发现其他反证"}
+      ]
+    },
+    "judge_rationale": "Evidence: malloc 后无 NULL 检查直接使用 / Counter Evidence: 无。（判定: Confirmed - 无反证）"
   }
 }
 ```
 
-**零发现报告（当 Skill 没有任何信号时）:**
+### 5.3 Worker 输出格式 — 文件优先（★ 上下文安全版）
 
-```json
-{
-  "skill_id": "error_propagation",
-  "signals_received": 0,
-  "findings_reported": 0,
-  "status": "no_signal",
-  "assessment": "没有需检查返回值传播的 must_check 函数调用点",
-  "is_blindspot": false
-}
-```
+（以下内容来自旧 Worker 协议。输出格式/录制规则不变。只在输出 finding 时使用 detector 命名——不用于信号分派。）
 
-**关键约束:**
-- **禁止非终止状态**: Worker 不得输出"需要更多上下文"、"无法确定"、"信息不足"等。必须做出确定判断：`confirmed` / `suppressed` / `downgraded_to_suspicious`
-- **0 findings ≠ no_signal**: 区分 `no_signal`（无信号，真安全）和 `all_suppressed`（有信号但全部被抑制，检测盲区）
-- **跨函数 depth 限制**: max depth 1，超过一律降级为 `suspicious`，不报告为确认漏洞
-- **事实锚定反思强制**: 任何 finding 必须经过事实锚定反思，`fact_anchored_reflection` 字段必须包含 Q1-Q2-Q3 答案及矩阵裁决
-- **suppress-first**: 不确定 → 抑制。仅报告有完整证据链的 finding
-
-### 5.4 特殊 Skill 处理
-
-#### hardcoded_secrets（非 call_site 驱动）
-
-此 Skill 不依赖 call_sites 信号。Worker 改为扫描源码中的字符串/密钥模式:
-
-1. 从 index.json 获取文件清单（`files` 数组去重）
-2. 对每个源码文件扫描以下模式:
-   - 硬编码密码: `password = "..."`, `passwd = "..."`, `pwd = "..."`
-   - 硬编码密钥: `secret_key = "..."`, `api_key = "..."`, `token = "..."`
-   - 硬编码加密 IV/盐: `iv = "..."`, `salt = "..."`
-   - 注释中的凭据: `// password: ...`, `// user: ... / pass: ...`
-3. 根据 `min_string_length`（灵敏度配置）过滤短字符串
-4. 执行事实锚定反思确认
-
-#### error_propagation（独立扫描）
-
-此 Skill 不依赖 call_sites 信号。Worker 改为扫描返回值检查:
-
-1. 从 index.json 的 `call_sites` 中筛选 `must_check` 标记的函数调用
-2. 对每个调用点检查返回值是否被使用、检查、或传播
-3. 识别模式:
-   - `if (func() == ERROR)` → 已检查
-   - `int ret = func()` → 部分检查（需确认 ret 后续使用）
-   - `func()` → 返回值被丢弃（报告）
-   - `(void)func()` → 显式丢弃（是否报告取决于灵敏度配置）
-4. 执行事实锚定反思确认
-
-### 5.5 Worker 执行（过渡期 — 后续由 Investigation Pipeline 替代）
-
-> ⚠️ **过渡期状态：** Worker 协议（W1-W5）将在 EPIC-010 FEATURE-003 完成后被 Investigation Pipeline 取代。
->
-> 🚫 **禁止将检测执行委托给子代理 (NON-NEGOTIABLE):**
-> YOU are the execution engine. 禁止启动 background task / sub-agent 执行检测器。
-> - Hypothesis Generator: 替代 W1（信号确认） — 生成多假设而非确认单一方向
-> - Investigator: 替代 W2+W3+W4 — 自主调查而非按步执行 Rule
-> - Counter Evidence: 新增 — 尝试推翻自己的假设
-> - Judge: 替代 W5（判定矩阵） — 基于 Evidence 独立裁决
->
-> 当前 Worker 协议（§5.1-§5.4）内容保持不变，以保证扫描功能可用。
 ## Phase 3: 汇总与渲染
 
 > 所有 Worker 和 Aggregator 执行完毕后，Dispatcher 汇总结果并生成报告。
@@ -1149,10 +883,12 @@ findings/exec/command_injection/f6e5d4c3b2a1_executor-89.json
 
 ---
 
-## 附录 B: Worker 协议摘要（过渡期 — 将被 Investigation Pipeline 替代）
+## 附录 B: Investigation Pipeline 流程摘要
 
-> ⚠️ **过渡期：** 当前保留 Worker 协议以保证扫描功能可用。
-> FEATURE-003 完成后将替换为 Hypothesis + Investigator + Judge 协议。
+> **Phase 2a: Hypothesis Generator** — 每个 Signal Type 生成 3~5 假设
+> **Phase 2b: Investigator** — 为每个假设收集 Source/Propagation/Sink Evidence
+> **Phase 2c: Counter Evidence** — 尝试推翻自己的假设
+> **Phase 2d: Judge** — 基于 Evidence + Counter Evidence 独立裁决
 
 | 条目 | 规则 |
 |------|------|
