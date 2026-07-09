@@ -50,8 +50,8 @@ def main():
     RECEOF
         ''')
 
-    # --from-stdin mode: make all args optional so standalone JSON works
-    from_stdin_mode = '--from-stdin' in sys.argv
+    # --from-stdin / --from-file mode: make all args optional so standalone JSON works
+    from_stdin_mode = '--from-stdin' in sys.argv or '--from-file' in sys.argv
     required_mode = not from_stdin_mode
 
     # Core required fields
@@ -112,6 +112,8 @@ def main():
                    help='[anchor validation] Path to index.json for file+line cross-reference')
     p.add_argument('--from-stdin', action='store_true',
                    help='Read finding JSON from stdin (eliminates shell quoting issues)')
+    p.add_argument('--from-file', default='',
+                   help='Read finding JSON from a file path (avoids CLI long-text overhead)')
 
     # ── Normalize CLI args: convert --underscore_name to --hyphen-name ──
     # AI agents naturally use Python-style underscore naming in shell commands.
@@ -170,6 +172,28 @@ def main():
             args.fix_before_file = stdin_json['fix_before_file']
         if 'fix_after_file' in stdin_json:
             args.fix_after_file = stdin_json['fix_after_file']
+
+    # ── Read from file if --from-file (avoids CLI long-text overhead) ──
+    if args.from_file:
+        try:
+            with open(args.from_file) as f:
+                file_json = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            print(f"FATAL: --from-file error: {e}", file=sys.stderr)
+            sys.exit(3)
+        for field in ['command', 'detector', 'severity', 'cwe', 'file', 'function',
+                       'title', 'snippet', 'code_context', 'rationale', 'attack_scenario',
+                       'fix_before', 'fix_after', 'review_pass', 'review_focus',
+                       'data_flow_path', 'skill_name', 'skill_category',
+                       'scan_dir', 'index_json']:
+            if field in file_json:
+                setattr(args, field, file_json[field])
+        if 'line' in file_json:
+            args.line = int(file_json['line'])
+        if 'end_line' in file_json:
+            args.end_line = int(file_json['end_line'])
+        if 'cvss' in file_json:
+            args.cvss = float(file_json['cvss'])
 
     # ── Validate required fields (whether from CLI or stdin) ──
     required_fields = {
@@ -324,9 +348,16 @@ def main():
             "review_focus": focus_list
         }
 
-    # ── Write file ──────────────────────────────────
+    # ── Idempotency guard: skip if same (detector:file:line:cwe) already recorded ──
     finding = clean_none(finding)
     fpath = os.path.join(dpath, fname)
+    if os.path.exists(fpath):
+        print(
+            f"IDEMPOTENT_SKIP: findings/{ns_name}/{det_name}/{fname} "
+            f"({args.severity}, {args.cwe}) — already recorded"
+        )
+        return 0
+
     with open(fpath, 'w', encoding='utf-8') as f:
         json.dump(finding, f, indent=2, ensure_ascii=False)
 
