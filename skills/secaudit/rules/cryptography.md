@@ -5,6 +5,7 @@ category: domain
 topic: [crypto]
 severity: Critical
 cwe: CWE-310
+mapped_to: OWASP ASVS V8 (Data Protection)
 cvss: 9.1
 ---
 

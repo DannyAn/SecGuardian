@@ -5,6 +5,7 @@ category: domain
 topic: [web, general]
 severity: High
 cwe: CWE-200
+mapped_to: OWASP ASVS V8 (Data Protection)
 cvss: 7.5
 ---
 

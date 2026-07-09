@@ -5,6 +5,7 @@ category: domain
 topic: [web]
 severity: High
 cwe: CWE-200
+mapped_to: OWASP ASVS V2 (Authentication), V3 (Session Management)
 cvss: 7.5
 ---
 

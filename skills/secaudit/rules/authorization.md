@@ -5,6 +5,7 @@ category: domain
 topic: [web]
 severity: High
 cwe: CWE-200
+mapped_to: OWASP ASVS V4 (Access Control)
 cvss: 7.5
 ---
 

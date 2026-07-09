@@ -5,6 +5,7 @@ category: domain
 topic: [system]
 severity: Medium
 cwe: CWE-000
+mapped_to: OWASP ASVS V7 (Error Handling & Logging)
 cvss: 5.5
 ---
 

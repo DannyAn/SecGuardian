@@ -5,6 +5,7 @@ category: domain
 topic: [system]
 severity: Medium
 cwe: CWE-000
+mapped_to: OWASP ASVS V8 (Data Protection)
 cvss: 5.5
 ---
 

@@ -5,6 +5,7 @@ category: domain
 topic: [system]
 severity: Medium
 cwe: CWE-000
+mapped_to: OWASP ASVS V2 (Authentication), V8 (Data Protection)
 cvss: 5.5
 ---
 
@@ -18,7 +19,7 @@ cvss: 5.5
 
 密钥管理是安全体系中最核心也最容易出问题的环节。审计覆盖：
 
-> **检测规则**: 详细检测逻辑见 [`../../knowledge/guard-rules/secrets-detection.md`](../../knowledge/guard-rules/secrets-detection.md)。
+> **检测规则**: 详细检测逻辑见各语言的 `skills/secguard/{lang}/rules/hardcoded_secrets/rule.md`。
 - **硬编码检测**：代码和配置中是否包含明文凭证
 - **存储安全**：密钥的存储方式和访问控制
 - **生命周期管理**：密钥的生成、分发、轮换、撤销
