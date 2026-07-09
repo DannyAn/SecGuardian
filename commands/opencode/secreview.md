@@ -374,43 +374,12 @@ Evaluate against language-specific anti-patterns (from the skill file):
 #   impact (attack_scenario)
 #   fix (before_code, after_code)
 #   id (string) — required by render-report.py
-cat > "$SCAN_DIR/findings/finding-{id}.json" << 'FEOF'
-{
-  "id": "secreview-{detector-dashed}-{sha12}",
-  "command": "secreview",
-  "detector": "web.sql-injection",
-  "severity": "High",
-  "cwe": "CWE-089",
-  "location": {
-    "file_path": "src/service/UserService.java",
-    "start_line": 89,
-    "end_line": 92,
-    "snippet": "String qry = \"SELECT * FROM users WHERE id=\" + userId;"
-  },
-  "evidence": {
-    "code_context": "public User findUser(String userId) { String qry = \"SELECT * FROM users WHERE id=\" + userId; return jdbcTemplate.query(qry, ...); }",
-    "judgment_rationale": "String concatenation in SQL query — violates OWASP A03:2021"
-  },
-  "impact": {
-    "attack_scenario": "Attacker provides userId=1 OR 1=1 to bypass auth"
-  },
-  "fix": {
-    "before_code": "String qry = \"SELECT * FROM users WHERE id=\" + userId;",
-    "after_code": "PreparedStatement ps = conn.prepareStatement(\"SELECT * FROM users WHERE id=?\"); ps.setInt(1, userId);",
-    "description": "Use PreparedStatement for parameterized query"
-  },
-  "scan_dir": "$SCAN_DIR",
-  "index_json": ".codeagent/secguardian/index.json",
-  "review_pass": "vulnerability_detection",
-  "review_focus": "input-validation,injection-prevention"
-}
-FEOF
+# Step A: Write finding JSON silently (用 python3 -c 替代 cat > heredoc — 不回显 JSON 内容)
+python3 -c "import json; json.dump(FINDING_DICT, open('$SCAN_DIR/findings/finding-{id}.json', 'w'))"
 
-# Step B: record via --from-file（MUST also pass --scan-dir）
+# Step B: record via --from-file
 python3 "$RECORDER" --command secreview --scan-dir "$SCAN_DIR" --from-file "$SCAN_DIR/findings/finding-{id}.json"
 ```
-
-> **zsh 兼容**: macOS zsh 在 `<< 'FEOF'` 引用 heredoc 中 `\\n` 不会被展开，这是 JSON 的正确行为。如果遭遇 zsh 解析错误，写 JSON 文件和 --from-file 分两次工具调用，**禁止**在 python3 -c 内同时 subprocess.run 调 recorder（会导致重复录制）。
 
 Key requirements (secreview-specific):
 - `detector` must use `namespace.name` format (e.g., `web.sql-injection`), consistent across all detection rules

@@ -351,45 +351,12 @@ cat "$SECGUARDIAN_HOME/skills/secaudit/rules/{domain-name}.md"
 #   impact (attack_scenario)
 #   fix (before_code, after_code)
 #   id (string) — required by render-report.py
-cat > "$SCAN_DIR/findings/finding-{id}.json" << 'FEOF'
-{
-  "id": "secaudit-{detector-dashed}-{sha12}",
-  "command": "secaudit",
-  "detector": "audit.input-validation",
-  "severity": "Critical",
-  "cwe": "CWE-89",
-  "location": {
-    "file_path": "src/webapp.py",
-    "start_line": 47,
-    "end_line": 48,
-    "snippet": "cursor.execute(f\"SELECT * FROM users WHERE id = {user_id}\")"
-  },
-  "evidence": {
-    "code_context": "def get_user(user_id): cursor.execute(f\"SELECT * FROM users WHERE id = {user_id}\")",
-    "judgment_rationale": "用户输入直接拼接 SQL — no parameterization, OWASP A03:2021"
-  },
-  "impact": {
-    "attack_scenario": "SQL injection via user_id='1 OR 1=1' —窃取所有用户数据"
-  },
-  "fix": {
-    "before_code": "cursor.execute(f\"SELECT * FROM users WHERE id = {user_id}\")",
-    "after_code": "cursor.execute(\"SELECT * FROM users WHERE id = ?\", (user_id,))",
-    "description": "Switch to parameterized query with ? placeholder"
-  },
-  "scan_dir": "$SCAN_DIR",
-  "index_json": ".codeagent/secguardian/index.json",
-  "skill_name": "input-validation",
-  "skill_category": "domain"
-}
-FEOF
+# Step A: Write finding JSON silently (用 python3 -c 替代 cat > heredoc — 不回显 JSON 内容)
+python3 -c "import json; json.dump(FINDING_DICT, open('$SCAN_DIR/findings/finding-{id}.json', 'w'))"
 
-# Step B: record via --from-file（必须加 --scan-dir）
+# Step B: record via --from-file
 python3 "$RECORDER" --command secaudit --scan-dir "$SCAN_DIR" --from-file "$SCAN_DIR/findings/finding-{id}.json"
 ```
-
-> **zsh 兼容**: macOS zsh 在 `<< 'FEOF'` 引用 heredoc 中 `\\n` 不会被展开，这是 JSON 的正确行为。如果遭遇 zsh 解析错误，写 JSON 文件和 --from-file 分两次工具调用，**禁止**在 python3 -c 内同时 subprocess.run 调 recorder（会导致重复录制）。
-
-> ⚠️ **引用 heredoc 补偿**: 使用 `<< 'FEOF'`（引用 heredoc）阻止 bash 展开，因此 `scan_dir` 字段保留字面值 `$SCAN_DIR`。通过 CLI `--scan-dir "$SCAN_DIR"` 传入实际值覆盖。这是安全的：CLI 参数不会被工具调用日志完全捕获到上下文中。
 
 关键要求（secaudit 独有）：
 - **必须包含** `file`、`line`、`location`、`evidence`、`impact`、`fix` 字段（与 secguard 格式一致）。
