@@ -19,19 +19,19 @@ topic: [web, crypto, system]
 
 | # | Rule (目录名) | Severity | CWE | `signal_source` | `id` | Guard-rule 参考 |
 |---|---------------|----------|-----|-----------------|------|----------------|
-| 1 | [`nosql_injection/`](./rules/nosql_injection/) | Critical | CWE-943 | `call_sites[cat="nosql"]` | `js.nosql_injection` | `web-nosql-injection` |
-| 2 | [`command_injection/`](./rules/command_injection/) | Critical | CWE-78 | `call_sites[cat="exec"]` | `js.command_injection` | `system-command-injection` |
-| 3 | [`code_injection/`](./rules/code_injection/) | Critical | CWE-94 | `call_sites[cat="code_exec"]` | `js.code_injection` | `web-code-injection` |
-| 4 | [`ssti/`](./rules/ssti/) | Critical | CWE-1336 | `call_sites[cat="template"]` | `js.ssti` | `web-ssti` |
-| 5 | [`prototype_pollution/`](./rules/prototype_pollution/) | High | CWE-1321 | `call_sites[cat="object"]` | `js.prototype_pollution` | `web-prototype-pollution` |
-| 6 | [`path_traversal/`](./rules/path_traversal/) | High | CWE-22 | `call_sites[cat="fs"]` | `js.path_traversal` | `web-path-traversal` |
-| 7 | [`ssrf/`](./rules/ssrf/) | High | CWE-918 | `call_sites[cat="http"]` | `js.ssrf` | `web-ssrf` |
-| 8 | [`weak_crypto/`](./rules/weak_crypto/) | High | CWE-327 | `call_sites[cat="crypto"]` | `js.weak_crypto` | `crypto-weak-crypto-algorithm` |
-| 9 | [`hardcoded_secrets/`](./rules/hardcoded_secrets/) | High | CWE-798 | `call_sites[cat="crypto"]` | `js.hardcoded_secrets` | `crypto-hardcoded-secrets` |
-| 10 | [`info_leak/`](./rules/info_leak/) | Medium | CWE-200 | `call_sites[cat="output"]` | `js.info_leak` | `web-information-leakage` |
-| 11 | [`log_injection/`](./rules/log_injection/) | Medium | CWE-117 | `call_sites[cat="log"]` | `js.log_injection` | `log-injection` |
-| 12 | [`excessive_data_exposure/`](./rules/excessive_data_exposure/) | Medium | CWE-200 | `call_sites[cat="output"]` | `js.excessive_data_exposure` | `web-excessive-data-exposure` |
-| 13 | [`mass_assignment/`](./rules/mass_assignment/) | Medium | CWE-915 | `call_sites[cat="orm"]` | `js.mass_assignment` | `mass-assignment` |
+| 1 | [`nosql_injection/`](./rules/nosql_injection/) | Critical | CWE-943 | `Signal Type: nosql_operation` | `js.nosql_injection` | `web-nosql-injection` |
+| 2 | [`command_injection/`](./rules/command_injection/) | Critical | CWE-78 | `Signal Type: exec_operation` | `js.command_injection` | `system-command-injection` |
+| 3 | [`code_injection/`](./rules/code_injection/) | Critical | CWE-94 | `Signal Type: code_execution` | `js.code_injection` | `web-code-injection` |
+| 4 | [`ssti/`](./rules/ssti/) | Critical | CWE-1336 | `Signal Type: ssti (template injection)` | `js.ssti` | `web-ssti` |
+| 5 | [`prototype_pollution/`](./rules/prototype_pollution/) | High | CWE-1321 | `Signal Type: object_operation` | `js.prototype_pollution` | `web-prototype-pollution` |
+| 6 | [`path_traversal/`](./rules/path_traversal/) | High | CWE-22 | `Signal Type: resource_acquire (file I/O)` | `js.path_traversal` | `web-path-traversal` |
+| 7 | [`ssrf/`](./rules/ssrf/) | High | CWE-918 | `Signal Type: http_request` | `js.ssrf` | `web-ssrf` |
+| 8 | [`weak_crypto/`](./rules/weak_crypto/) | High | CWE-327 | `Signal Type: crypto_operation` | `js.weak_crypto` | `crypto-weak-crypto-algorithm` |
+| 9 | [`hardcoded_secrets/`](./rules/hardcoded_secrets/) | High | CWE-798 | `Signal Type: crypto_operation` | `js.hardcoded_secrets` | `crypto-hardcoded-secrets` |
+| 10 | [`info_leak/`](./rules/info_leak/) | Medium | CWE-200 | `Signal Type: output_operation` | `js.info_leak` | `web-information-leakage` |
+| 11 | [`log_injection/`](./rules/log_injection/) | Medium | CWE-117 | `Signal Type: log_operation` | `js.log_injection` | `log-injection` |
+| 12 | [`excessive_data_exposure/`](./rules/excessive_data_exposure/) | Medium | CWE-200 | `Signal Type: output_operation` | `js.excessive_data_exposure` | `web-excessive-data-exposure` |
+| 13 | [`mass_assignment/`](./rules/mass_assignment/) | Medium | CWE-915 | `Signal Type: orm_operation` | `js.mass_assignment` | `mass-assignment` |
 
 **排序执行**: Critical (4) → High (5) → Medium (4)
 

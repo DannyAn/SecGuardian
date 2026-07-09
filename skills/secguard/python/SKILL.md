@@ -20,17 +20,17 @@ topic: [web, crypto, system]
 
 | # | Rule (目录名) | Severity | CWE | `signal_source` | `skill_id` |
 |---|---------------|----------|-----|-----------------|------------|
-| 1 | [`deserialization/`](./rules/deserialization/) | Critical | CWE-502 | `call_sites[cat="deserialization"]` | `python.deserialization.pickle` |
-| 2 | [`command_injection/`](./rules/command_injection/) | Critical | CWE-78 | `call_sites[cat="exec"]` | `python.command-injection.shell` |
-| 3 | [`ssti/`](./rules/ssti/) | Critical | CWE-1336 | `call_sites[cat="template"]` | `python.ssti.jinja2` |
-| 4 | [`code_injection/`](./rules/code_injection/) | Critical | CWE-94 | `call_sites[cat="code_exec"]` | `python.code-injection.eval` |
-| 5 | [`sql_injection/`](./rules/sql_injection/) | High | CWE-89 | `call_sites[cat="database"]` | `python.sql-injection.execute` |
-| 6 | [`path_traversal/`](./rules/path_traversal/) | High | CWE-22 | `call_sites[cat="io"]` | `python.path-traversal.open` |
-| 7 | [`ssrf/`](./rules/ssrf/) | High | CWE-918 | `call_sites[cat="network"]` | `python.ssrf.requests` |
-| 8 | [`weak_crypto/`](./rules/weak_crypto/) | High | CWE-327 | `call_sites[cat="crypto"]` | `python.weak-crypto.md5` |
-| 9 | [`hardcoded_secrets/`](./rules/hardcoded_secrets/) | High | CWE-798 | `call_sites[cat="crypto"]` | `python.hardcoded-secrets.key` |
-| 10 | [`debug_mode/`](./rules/debug_mode/) | Medium | CWE-489 | `call_sites[cat="config"]` | `python.debug-mode.django` |
-| 11 | [`xss/`](./rules/xss/) | Medium | CWE-79 | `call_sites[cat="template"]` | `python.xss.template` |
+| 1 | [`deserialization/`](./rules/deserialization/) | Critical | CWE-502 | `Signal Type: deserialization` | `python.deserialization.pickle` |
+| 2 | [`command_injection/`](./rules/command_injection/) | Critical | CWE-78 | `Signal Type: exec_operation` | `python.command-injection.shell` |
+| 3 | [`ssti/`](./rules/ssti/) | Critical | CWE-1336 | `Signal Type: ssti (template injection)` | `python.ssti.jinja2` |
+| 4 | [`code_injection/`](./rules/code_injection/) | Critical | CWE-94 | `Signal Type: code_execution` | `python.code-injection.eval` |
+| 5 | [`sql_injection/`](./rules/sql_injection/) | High | CWE-89 | `Signal Type: sql_operation` | `python.sql-injection.execute` |
+| 6 | [`path_traversal/`](./rules/path_traversal/) | High | CWE-22 | `Signal Type: resource_acquire` | `python.path-traversal.open` |
+| 7 | [`ssrf/`](./rules/ssrf/) | High | CWE-918 | `Signal Type: http_request (network)` | `python.ssrf.requests` |
+| 8 | [`weak_crypto/`](./rules/weak_crypto/) | High | CWE-327 | `Signal Type: crypto_operation` | `python.weak-crypto.md5` |
+| 9 | [`hardcoded_secrets/`](./rules/hardcoded_secrets/) | High | CWE-798 | `Signal Type: crypto_operation` | `python.hardcoded-secrets.key` |
+| 10 | [`debug_mode/`](./rules/debug_mode/) | Medium | CWE-489 | `Signal Type: configuration` | `python.debug-mode.django` |
+| 11 | [`xss/`](./rules/xss/) | Medium | CWE-79 | `Signal Type: ssti (template injection)` | `python.xss.template` |
 
 **按严重度排序执行**: `Critical (4) → High (5) → Medium (2)`
 
