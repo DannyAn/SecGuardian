@@ -1,6 +1,6 @@
 ---
 name: secguard-cpp
-description: 对 C/C++ 代码进行安全加固项排查，编排 15 个子 skill（检视算子），按 index.json 信号驱动派发。当用户请求 C/C++ 安全扫描、内存安全检测、缓冲区溢出、C++ 代码审计、指针安全时使用。
+description: 对 C/C++ 代码进行安全加固检视，编排 15 个子 skill，覆盖 API 调用检测、语义模式匹配、契约验证 (must-check/ownership) 等多个维度。当用户请求 C/C++ 安全扫描、内存安全检测、缓冲区溢出、C++ 代码审计、指针安全时使用。
 category: language-specific
 language: cpp
 topic: [memory, concurrency, system, io, security, semantics]
@@ -8,33 +8,33 @@ topic: [memory, concurrency, system, io, security, semantics]
 
 # C/C++ 安全加固排查 — 检视算子索引
 
-本文件是 `skills/secguard/cpp/` 下 15 个检视算子 skill 的主索引 / 派发表。
-每个算子是一个独立 skill 目录，包含自己的 `SKILL.md` + `references/`。
+本文件是 `skills/secguard-cpp/` 下 15 个检视算子 skill 的主索引 / 派发表。
+每个算子对应 `rules/` 下的一个规则目录，包含自己的 `rule.md` + `references/`。
 
-> **执行流程由 `commands/secguard.md` 的 Dispatcher 协议调度。**
+> **执行流程由 `commands/claude/secguard.md` 的 Dispatcher 协议调度。**
 > 本文件只做三件事：(1) 查表选 skill；(2) 按信号分类；(3) 引用 Dispatcher。
 
 ---
 
 ## 1. 检视算子一览
 
-| # | Skill (目录名) | Severity | CWE | `signal_source` | `id` | Status |
+| # | Rule (目录名) | Severity | CWE | `signal_source` | `id` | Status |
 |---|---------------|----------|-----|-----------------|------|--------|
-| 1 | [`buffer_overflow/`](./buffer_overflow/) | 🔴 Critical | CWE-120 | `call_sites[cat="string", cat="memory"]` | `memory.buffer-overflow` | ✅ |
-| 2 | [`null_dereference/`](./null_dereference/) | 🔴 Critical | CWE-476 | `call_sites[cat="memory"]` | `memory.null-dereference` | ✅ |
-| 3 | [`memory_leak/`](./memory_leak/) | 🟠 High | CWE-401 | `call_sites[cat="memory"]` | `memory.memory-leak` | ✅ |
-| 4 | [`double_free/`](./double_free/) | 🔴 Critical | CWE-415 | `call_sites[cat="memory"]` | `memory.double-free` | ✅ |
-| 5 | [`use_after_free/`](./use_after_free/) | 🔴 Critical | CWE-416 | `call_sites[cat="memory"]` | `memory.use-after-free` | ✅ |
-| 6 | [`integer_overflow/`](./integer_overflow/) | 🔴 Critical | CWE-190 | `call_sites[cat="memory"]` | `memory.integer-overflow` | ✅ |
-| 7 | [`resource_leak/`](./resource_leak/) | 🟠 High | CWE-404 | `call_sites[cat="io"]` | `resource.resource-leak` | ✅ |
-| 8 | [`command_injection/`](./command_injection/) | 🔴 Critical | CWE-78 | `call_sites[cat="exec"]` | `injection.command-injection` | ✅ |
-| 9 | [`input_validation/`](./input_validation/) | 🟠 High | CWE-20 | `call_sites[cat="exec"]` | `validation.input-validation` | ✅ |
-| 10 | [`hardcoded_secrets/`](./hardcoded_secrets/) | 🟠 High | CWE-798 | `call_sites[cat="exec"]` | `crypto.hardcoded-secrets` | ✅ |
-| 11 | [`must_check/`](./must_check/) | 🟠 High | CWE-252 | `call_sites[cat="memory\|io"]` | `memory.must-check` | ✅ |
-| 12 | [`ownership_transfer/`](./ownership_transfer/) | 🟠 High | CWE-416 (related) | `call_sites[cat="memory"]` | `memory.ownership-transfer` | ✅ |
-| 13 | [`api_semantic_misuse/`](./api_semantic_misuse/) | 🟠 High | CWE-628 | `call_sites[cat="*"]` | `semantics.api-semantic-misuse` | ✅ |
-| 14 | [`lock_misuse/`](./lock_misuse/) | 🟠 High | CWE-667 | `call_sites[cat="concurrency"]` | `concurrency.lock-misuse` | ✅ |
-| 15 | [`error_propagation/`](./error_propagation/) | 🟡 Medium | CWE-390 | `call_sites[cat="error"]` | `error.error-propagation` | ✅ |
+| 1 | [`buffer_overflow/`](./rules/buffer_overflow/) | 🔴 Critical | CWE-120 | `call_sites[cat="string", cat="memory"]` | `memory.buffer-overflow` | ✅ |
+| 2 | [`null_dereference/`](./rules/null_dereference/) | 🔴 Critical | CWE-476 | `call_sites[cat="memory"]` | `memory.null-dereference` | ✅ |
+| 3 | [`memory_leak/`](./rules/memory_leak/) | 🟠 High | CWE-401 | `call_sites[cat="memory"]` | `memory.memory-leak` | ✅ |
+| 4 | [`double_free/`](./rules/double_free/) | 🔴 Critical | CWE-415 | `call_sites[cat="memory"]` | `memory.double-free` | ✅ |
+| 5 | [`use_after_free/`](./rules/use_after_free/) | 🔴 Critical | CWE-416 | `call_sites[cat="memory"]` | `memory.use-after-free` | ✅ |
+| 6 | [`integer_overflow/`](./rules/integer_overflow/) | 🔴 Critical | CWE-190 | `call_sites[cat="memory"]` | `memory.integer-overflow` | ✅ |
+| 7 | [`resource_leak/`](./rules/resource_leak/) | 🟠 High | CWE-404 | `call_sites[cat="io"]` | `resource.resource-leak` | ✅ |
+| 8 | [`command_injection/`](./rules/command_injection/) | 🔴 Critical | CWE-78 | `call_sites[cat="exec"]` | `injection.command-injection` | ✅ |
+| 9 | [`input_validation/`](./rules/input_validation/) | 🟠 High | CWE-20 | `call_sites[cat="exec"]` | `validation.input-validation` | ✅ |
+| 10 | [`hardcoded_secrets/`](./rules/hardcoded_secrets/) | 🟠 High | CWE-798 | `call_sites[cat="crypto"]` | `crypto.hardcoded-secrets` | ✅ |
+| 11 | [`must_check/`](./rules/must_check/) | 🟠 High | CWE-252 | `call_sites[cat="memory\|io"]` | `memory.must-check` | ✅ |
+| 12 | [`ownership_transfer/`](./rules/ownership_transfer/) | 🟠 High | CWE-416 (related) | `call_sites[cat="memory"]` | `memory.ownership-transfer` | ✅ |
+| 13 | [`api_semantic_misuse/`](./rules/api_semantic_misuse/) | 🟠 High | CWE-628 | `call_sites[cat="*"]` | `semantics.api-semantic-misuse` | ✅ |
+| 14 | [`lock_misuse/`](./rules/lock_misuse/) | 🟠 High | CWE-667 | `call_sites[cat="concurrency"]` | `concurrency.lock-misuse` | ✅ |
+| 15 | [`error_propagation/`](./rules/error_propagation/) | 🟡 Medium | CWE-390 | `call_sites[cat="error"]` | `error.error-propagation` | ✅ |
 
 **Status**: 全部 15 个 skill 已完成实现，含事实锚定反思 + 多信号归并协议。
 
@@ -55,7 +55,8 @@ Critical (6)  → High (8)  → Medium (1)
 | `"memory"` | `buffer_overflow`, `null_dereference`, `memory_leak`, `double_free`, `use_after_free`, `integer_overflow`, `must_check`, `ownership_transfer` | `malloc`, `free`, `strcpy`, `strcat`, `sprintf`, `memcpy`, `gets` |
 | `"string"` | `buffer_overflow` | `strcpy`, `strcat`, `sprintf`, `snprintf`, `gets`, `memcpy` |
 | `"io"` | `resource_leak`, `must_check` | `fopen`, `open`, `socket`, `accept`, `fclose`, `close`, `fread`, `fwrite` |
-| `"exec"` | `command_injection`, `input_validation`, `hardcoded_secrets` | `system`, `popen`, `exec*`, `fork` |
+| `"exec"` | `command_injection`, `input_validation` | `system`, `popen`, `exec*`, `fork` |
+| `"crypto"` | `hardcoded_secrets` | `DES_set_key_unchecked`, `RAND_bytes`, `EVP_*`, `openssl/*` |
 | `"concurrency"` | `lock_misuse` | `pthread_mutex_lock`, `pthread_mutex_unlock`, `lock_guard` |
 | `"error"` | `error_propagation` | 函数返回错误码后被忽略的路径 |
 | `"*"` | `api_semantic_misuse` | `realloc(p,0)`, `memmove` overlap, `snprintf` ignored return, `sizeof(ptr)` vs `sizeof(*ptr)` |
@@ -74,13 +75,13 @@ C/C++ 使用**符号表精确匹配**预筛（区别于 OO 语言的全量加载
      - 若 category 命中多个 skill → 全部加入候选集
   2. 对候选集逐个 skill:
      - 从 index.json.symbols.functions 查询该 skill 声明的 callee 列表
-     - callee 存在于符号表中 → 激活（加载 SKILL.md 检视协议）
+     - callee 存在于符号表中 → 激活（读取 `rules.md` 检测规则）
      - callee 不存在 → 跳过（记录 "Skipped: no matching symbol"）
   3. 补充信号源（不依赖 call_sites）:
      - alloc_free.pairs → 内存类 skill（memory_leak, double_free, use_after_free）
      - lock_graph.mutexes → lock_misuse
   4. 排序: Critical → High → Medium（按 §1 表）
-  5. 执行: 依序加载 skill SKILL.md → 执行检视协议 → record-finding.py
+  5. 执行: 依序读取 skill `rules.md` → 执行检视协议 → `record-finding.py`
 ```
 
 **alloc_free.pairs 补充触发**:
@@ -94,7 +95,7 @@ C/C++ 使用**符号表精确匹配**预筛（区别于 OO 语言的全量加载
 
 ## 4. 执行流程（引用 Dispatcher 协议）
 
-> **完整执行流水线见 [`commands/secguard.md`](../../../commands/secguard.md)。**
+> **完整执行流水线见 [`commands/claude/secguard.md`](../../../commands/claude/secguard.md)。**
 > 此处仅摘要与 skill 派发相关的步骤：
 
 | Step | 职责 | 归属层 |
@@ -144,4 +145,4 @@ C/C++ 使用**符号表精确匹配**预筛（区别于 OO 语言的全量加载
 |------|------|
 | [`references/cpp-security-cheatsheet.md`](./references/cpp-security-cheatsheet.md) | 快速参考：Top 10 信号 + 安全替代函数 |
 | [`references/examples/`](./references/examples/) | CWE 示例代码片段 |
-| [`../../../../knowledge/guard-rules-to-skills.md`](../../../../knowledge/guard-rules-to-skills.md) | **Guard-Rules ↔ Skills 映射（解决知识库与检测算子的双份维护问题）** |
+| [`references/language-features.md`](./references/language-features.md) | 自定义分配器识别、编译器标志、C++ 特定问题 |
