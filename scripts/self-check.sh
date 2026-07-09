@@ -31,8 +31,9 @@ fi
 
 # 1f Verify review-rules structure
 REV_COUNT=$(find skills/secreview -path '*/rules/*.md' -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
-for lang in cpp python java go javascript; do
+for lang in cpp python java go js; do
     rf="skills/secreview/$lang/rules/$lang.md"
+    [ "$lang" = "js" ] && rf="skills/secreview/js/rules/javascript.md"
     if [ -f "$rf" ]; then
         green "review-rules/$lang.md"
     else
@@ -50,12 +51,11 @@ for cmd in secguard secaudit secreview; do
         TOML_MISSING=$((TOML_MISSING + 1))
     fi
 done
-    red "namespace sum=$MANIFEST_SUM != total=$MANIFEST_COUNT"
 echo ""
 
 # ── 3. Commands reference correct paths ──
 echo "3. Command path consistency"
-for cmd in commands/secguard.md commands/gemini/secguard.toml; do
+for cmd in commands/opencode/secguard.md commands/gemini/secguard.toml; do
     if grep -q "skills/secguard" "$cmd" 2>/dev/null; then
         green "$cmd references correct detection rule path"
     else
@@ -194,9 +194,9 @@ echo "11. Cross-command consistency"
 XC_FAIL=0
 XC_PASS=0
 for cmd in secguard secaudit secreview; do
-    f="commands/${cmd}.md"
+    f="commands/opencode/${cmd}.md"
     if [ ! -f "$f" ]; then
-        red "  ${cmd}: commands/${cmd}.md MISSING"
+        red "  ${cmd}: commands/opencode/${cmd}.md MISSING"
         XC_FAIL=$((XC_FAIL + 1))
         continue
     fi
@@ -250,9 +250,9 @@ echo "12. Command template static analysis"
 # bare script references, /tmp/ usage — all regressions from EPIC-005 bugs.
 TS_FAIL=0; TS_PASS=0
 for cmd in secguard secaudit secreview; do
-    f="commands/${cmd}.md"
+    f="commands/opencode/${cmd}.md"
     if [ ! -f "$f" ]; then
-        red "  ${cmd}: commands/${cmd}.md MISSING"
+        red "  ${cmd}: commands/opencode/${cmd}.md MISSING"
         TS_FAIL=$((TS_FAIL + 1))
         continue
     fi
@@ -365,7 +365,7 @@ echo ""
 echo "13. Template security gate (FEATURE-002)"
 SG_FAIL=0; SG_PASS=0
 for cmd in secguard secaudit secreview; do
-    f="commands/${cmd}.md"
+    f="commands/opencode/${cmd}.md"
     if [ ! -f "$f" ]; then
         echo "  ❌ ${cmd}: commands/${cmd}.md MISSING"
         SG_FAIL=$((SG_FAIL + 1))
@@ -439,27 +439,39 @@ echo ""
 echo "14. Frontmatter field integrity"
 DS_FAIL=0; DS_PASS=0
 for dir in audit-rules review-rules; do
-    dir_path="knowledge/${dir}"
-    if [ ! -d "$dir_path" ]; then
-        echo "  ⚠  $dir_path: directory not found"
-        continue
+    if [ "$dir" = "audit-rules" ]; then
+        dir_path="skills/secaudit/rules"
+        field="cvss:"
+    elif [ "$dir" = "review-rules" ]; then
+        dir_path="skills/secreview"
+        field="max_severity:"
     fi
     count=0; ok=0; missing=0
-    for f in "$dir_path"/*.md; do
-        [ -f "$f" ] || continue
-        count=$((count + 1))
-        [ "$(head -1 "$f")" = "---" ] || { echo "  ❌ ${dir}/$(basename "$f"): no frontmatter"; missing=$((missing + 1)); continue; }
-        # Check rule-type-specific required frontmatter fields
-        case "$dir" in
-            guard-rules) field="target_functions:" ;;
-            audit-rules) field="cvss:" ;;
-            review-rules) field="max_severity:" ;;
-        esac
-        head -40 "$f" | grep -q "$field" 2>/dev/null && ok=$((ok + 1)) || {
-            echo "  ❌ ${dir}/$(basename "$f"): missing '$field' in frontmatter"
-            missing=$((missing + 1))
-        }
-    done
+    if [ "$dir" = "review-rules" ]; then
+        for f in "$dir_path"/*/rules/*.md; do
+            [ -f "$f" ] || continue
+            count=$((count + 1))
+            [ "$(head -1 "$f")" = "---" ] || { echo "  ❌ review-rules/$(basename $(dirname $(dirname $f)))/$(basename $f): no frontmatter"; missing=$((missing + 1)); continue; }
+            head -40 "$f" | grep -q "$field" 2>/dev/null && ok=$((ok + 1)) || {
+                echo "  ❌ review-rules/$(basename $(dirname $(dirname $f)))/$(basename $f): missing '$field' in frontmatter"
+                missing=$((missing + 1))
+            }
+        done
+    else
+        if [ ! -d "$dir_path" ]; then
+            echo "  ⚠  $dir_path: directory not found"
+            continue
+        fi
+        for f in "$dir_path"/*.md; do
+            [ -f "$f" ] || continue
+            count=$((count + 1))
+            [ "$(head -1 "$f")" = "---" ] || { echo "  ❌ ${dir}/$(basename "$f"): no frontmatter"; missing=$((missing + 1)); continue; }
+            head -40 "$f" | grep -q "$field" 2>/dev/null && ok=$((ok + 1)) || {
+                echo "  ❌ ${dir}/$(basename "$f"): missing '$field' in frontmatter"
+                missing=$((missing + 1))
+            }
+        done
+    fi
     if [ "$missing" -eq 0 ]; then
         green "  ${dir}: $ok/$ok files have required frontmatter fields"
         DS_PASS=$((DS_PASS + 1))

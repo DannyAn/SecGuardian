@@ -288,6 +288,7 @@ platform: opencode
 
 > Dispatcher 直接执行的阶段。**每个 bash 调用互相独立，shell 变量不跨调用共享。**
 
+<!-- @secguardian:ordering rule=scan_id FIRST -->
 ### Step 1: 初始化（仅一次 bash 调用，使用共享 init-scan.sh）
 
 > **唯一一次预初始化 bash 调用**。通过 `scripts/init-scan.sh` 完成自动发现、健康检查、路径确认、建目录、状态持久化，替代旧版 ~40 行复制粘贴代码。
@@ -526,6 +527,9 @@ Dispatcher 输出 Signal 分类摘要 + 全量 Signal 清单。**不产生 Worke
 > 这些步骤在 SKILL.md 中定义（正在迁移中，当前为 Worker 协议过渡版）。
 
 ## Phase 2: Worker 协议（过渡期 — 将由 Investigation Pipeline 替代）
+
+<!-- @secguardian:non-skippable step=rule-loading -->
+> **规则强制加载不可跳过。** 执行逻辑必须以 rules 内容为准，而非 AI 自身知识。
 
 > **核心执行阶段**。Dispatcher 为每个有信号的 Skill 串行执行 Worker，独立执行 5 步检视协议，输出 findings。
 >
@@ -910,6 +914,9 @@ echo '{"skill_id":"{skill}","signals_received":N,"findings_reported":N,...}' > "
 ### 5.5 Worker 执行（过渡期 — 后续由 Investigation Pipeline 替代）
 
 > ⚠️ **过渡期状态：** Worker 协议（W1-W5）将在 EPIC-010 FEATURE-003 完成后被 Investigation Pipeline 取代。
+>
+> 🚫 **禁止将检测执行委托给子代理 (NON-NEGOTIABLE):**
+> YOU are the execution engine. 禁止启动 background task / sub-agent 执行检测器。
 > - Hypothesis Generator: 替代 W1（信号确认） — 生成多假设而非确认单一方向
 > - Investigator: 替代 W2+W3+W4 — 自主调查而非按步执行 Rule
 > - Counter Evidence: 新增 — 尝试推翻自己的假设
@@ -979,6 +986,9 @@ echo '{"skill_id":"{skill}","signals_received":N,"findings_reported":N,...}' > "
 | 证据链冗余 | 两个 finding 的 Source/Propagate 完全相同 → 合并 |
 
 去重规则由 Dispatcher 在上下文中执行（不通过 bash 脚本）。
+
+<!-- @secguardian:non-skippable step=validate -->
+> **🚫 此验证步骤不可跳过。** 跳过验证不会加速扫描——验证减低了误报，是报告前的强制性安全检查。
 
 ### Step 8: 验证 findings
 

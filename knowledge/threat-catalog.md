@@ -1,6 +1,6 @@
 ---
 category: index
-description: 安全威胁目录 — 覆盖所有 15<!-- @secguardian:detector_count --> 个检测 Skill 对应威胁类型的快速索引
+description: 安全威胁目录 — 覆盖所有 67<!-- @secguardian:detector_count --> 个检测 Skill 对应威胁类型的快速索引
 cwe_coverage: CWE Top 25 100%
 owasp_coverage: OWASP Top 10 100%
 ---

@@ -167,6 +167,7 @@ Scan ID: sec-YYYYMMDD-HHMMSS-xxxx | Project: <project> | Path: <path> | Language
 
 ---
 
+<!-- @secguardian:ordering rule=scan_id FIRST -->
 ### Step 1: 初始化（唯一 bash 调用，使用共享 init-scan.sh）
 
 > **唯一一次预初始化 bash 调用**。通过 `scripts/init-scan.sh` 完成 SECGUARDIAN_HOME 自动发现、健康检查、路径确认、建目录、写 `.scan_state.secaudit`。
