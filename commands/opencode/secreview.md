@@ -115,7 +115,9 @@ Output directory: <user-project>/.codeagent/secguardian/secreview/scans/pr-20260
 
 ## 🛠️ Engine Layer
 
-> 以下内容属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行执行。未来 Engine 实现后，此处内容将被 Engine 取代。
+> secreview 的三轮推理（Pass A: 漏洞检测 / B: 业务逻辑 / C: 反模式）符合 Investigation Engine 的多假设模式。
+> 每个 Pass 等价于一个 Hypothesis → Investigator → Judge 循环。
+> 详见 `secguard.md §Phase 2` 的 Investigation Pipeline 执行协议。
 >
 > 🚫 **不要使用 `todowrite` 工具。** 使用原生 task 系统（`TaskCreate` + `TaskUpdate`）追踪进度。
 > `todowrite` 每次调用重传全部已完成项，每会话浪费 ≥50KB 无效 token。

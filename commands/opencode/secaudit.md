@@ -17,7 +17,9 @@ platform: opencode
 
 ## 🛠️ Engine Layer
 
-> 以下内容属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行执行。未来 Engine 实现后，此处内容将被 Engine 取代。
+> 本命令的审计执行遵循 Investigation Engine 模式：索引 → 信号提取 → 审计域调查 → Evidence 收集 → 裁决。
+> secaudit 的 13 个审计域等价于 Investigator 中的"调查方向"，各域有独立的 Evidence 收集指引。
+> 详见 `secguard.md §Phase 2` 的 Hypothesis → Investigator → Judge 执行协议。
 >
 > 🚫 **不要使用 `todowrite` 工具。** 使用原生 task 系统（`TaskCreate` + `TaskUpdate`）追踪进度。
 > `todowrite` 每次调用重传全部已完成项，每会话浪费 ≥50KB 无效 token。
@@ -136,7 +138,9 @@ Scan ID: sec-YYYYMMDD-HHMMSS-xxxx | Project: <project> | Path: <path> | Language
 ```
 
 
-> 以下内容属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行执行。未来 Engine 实现后，此处内容将被 Engine 取代。
+> 本命令的审计执行遵循 Investigation Engine 模式：索引 → 信号提取 → 审计域调查 → Evidence 收集 → 裁决。
+> secaudit 的 13 个审计域等价于 Investigator 中的"调查方向"，各域有独立的 Evidence 收集指引。
+> 详见 `secguard.md §Phase 2` 的 Hypothesis → Investigator → Judge 执行协议。
 
 ## 可用审计域
 

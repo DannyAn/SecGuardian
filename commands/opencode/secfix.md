@@ -41,7 +41,8 @@ Designed for developers who know a fix needs to be applied but would rather revi
 
 ## 🛠️ Engine Layer
 
-> 以下内容属于 Engine 职责（参见 `internal/engine/engine_contract.md`）。当前由 LLM prompt 代行执行。未来 Engine 实现后，此处内容将被 Engine 取代。
+> secfix 的修复建议生成遵循 Investigation Engine 模式：读取 finding 证据链 → 分析修复模式 → 生成 patch 文件。
+> 详见 `secguard.md §Phase 2` 的 Investigation Pipeline 执行协议。
 
 ### 🔒 跨 Shell 状态传递
 
