@@ -2,6 +2,35 @@
 
 All notable changes to SecGuardian.
 
+## [0.18.0] — 2026-07-09
+
+### 🔁 OOP 语义索引引擎 (EPIC-008)
+
+- **tree-sitter OOP 修复**: C++ `class_specifier` → `class_body` → `method_declaration` 行走；Python `function_definition` + `findBody`/`extractCallSites` 修复；Go `function_declaration`/`method_declaration` 修复
+- **OOP 元数据**: `CallSite` 新增 `ReceiverExpr`/`ReceiverType` — `obj.method()` 的接收者表达式追踪
+- **单文件局部类型推断**: Java 符号表追踪 import/field/variable 类型 → `conn.executeQuery()` 可推断 `conn` 为 `java.sql.Connection`
+- **Signal Matrix (S1-S4)**: `StringLiteral`/`Declaration`/`ValueConstant` 信号类型 + 自动分类启发式
+
+### 🧱 Skill 架构重构
+
+- **统一 rules/ 格式**: C++ 15 检测器 + Go 10 + Java 10 + JS 12 + Python 11 = 58 个规则文件全部从旧 `SKILL.md+references/` 迁移到 `rules/{skill}/rule.md` 单一数据源
+- **Detection Spec 前端**: 每个 rule.md 的 YAML frontmatter 含 `detection_spec` (severity/CWE/call_sites/evidence/impact/fix)，`validate-findings.py --check-spec` 交叉校验
+- **知识目录重整**: `knowledge/guard-rules/` 40 个平铺文件 → `knowledge/standards/` + `protocols/` + `language-index.md`
+- **平台命令目录**: `commands/` 根级 4 文件 → `commands/{claude,gemini,opencode}/` 平台子目录
+
+### 🛡️ OpenCode 模板修复
+
+- **HARD RULE 唯一 canonical 记录流**: 砍掉 5 种混用记录方式，只保留 `写 JSON 文件 → --from-file` 一条路径
+- **record-finding.py 幂等守卫**: 相同 `(detector:file:line:cwe)` SHA 二次写入自动 `IDEMPOTENT_SKIP`，消除 LLM 恐慌重试循环
+- **移除 zsh 替代方案**: 删除 `python3 -c` + `subprocess.run` 内联记录器调用（根因：导致重复录制）
+
+### ⚙️ 工具链提升
+
+- **init-scan.sh**: 3 个命令 ~120 行重复 bash → 15 行共享脚本
+- **dev-verify.sh**: 对接新 11-skill 结构（从 27 减至 11）
+- **render-report.py**: SARIF 2.1.0 输出 + findings_index 聚合 + score 计算修正
+- **validate-findings.py**: `--check-spec` (Detection Spec cross-validation) + `--list` (表格输出)
+
 ## [0.17.0] — 2026-07-07
 
 ### ♻️ Detection Spec Schema Unification
