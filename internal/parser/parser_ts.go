@@ -5,7 +5,7 @@ package parser
 import (
 	"fmt"
 	"os"
-
+	"strings"
 	treesitter "github.com/tree-sitter/go-tree-sitter"
 	c "github.com/tree-sitter/tree-sitter-c/bindings/go"
 	cpp "github.com/tree-sitter/tree-sitter-cpp/bindings/go"
@@ -13,6 +13,8 @@ import (
 	java "github.com/tree-sitter/tree-sitter-java/bindings/go"
 	py "github.com/tree-sitter/tree-sitter-python/bindings/go"
 )
+
+func init() { ParserMode = "tree-sitter (CGO)" }
 
 func ParseFile(filePath string, lang string) (*ParseResult, error) {
 	content, err := os.ReadFile(filePath)
@@ -47,6 +49,15 @@ func ParseFile(filePath string, lang string) (*ParseResult, error) {
 	result := &ParseResult{File: filePath, Language: lang}
 	root := tree.RootNode()
 	walkTopLevel(root, content, filePath, lang, result)
+
+	// ── Signal Matrix post-processing (S2-S7) ──
+	// Post-processing for signals that apply to all tree-sitter languages.
+	result.StringLiterals = collectStringLiterals(root, content, filePath, lang)
+	result.ValueConstants = extractValueConstants(content, filePath)
+	result.ConfigPatterns = extractConfigPatterns(content, filePath)
+	if lang == "java" || lang == "c" || lang == "cpp" || lang == "python" || lang == "go" {
+		result.ControlFlow = collectControlFlow(root, content, filePath, lang)
+	}
 	return result, nil
 }
 
@@ -67,7 +78,7 @@ func walkTopLevel(node *treesitter.Node, content []byte, file, lang string, resu
 					fn.EndLine = child.EndPosition().Row + 1
 					result.Functions = append(result.Functions, fn)
 					if body := findBody(child); body != nil {
-						result.CallSites = append(result.CallSites, extractCallSites(body, content, fn.Name, file)...)
+						result.CallSites = append(result.CallSites, extractCallSites(body, content, fn.Name, file, nil)...)
 					}
 				}
 			case "declaration":
@@ -75,6 +86,66 @@ func walkTopLevel(node *treesitter.Node, content []byte, file, lang string, resu
 			case "struct_specifier", "class_specifier", "union_specifier":
 				if t := extractTypeName(child, content, file, kind); t.Name != "" {
 					result.Types = append(result.Types, t)
+				}
+				// Walk class_body for methods (C++ class_specifier only)
+				if kind == "class_specifier" {
+					className := ""
+					if len(result.Types) > 0 {
+						className = result.Types[len(result.Types)-1].Name
+					}
+					currentVisibility := "private"
+					for j := uint(0); j < child.ChildCount(); j++ {
+						body := child.Child(j)
+						if body == nil || body.Kind() != "field_declaration_list" {
+							continue
+						}
+						for k := uint(0); k < body.ChildCount(); k++ {
+							member := body.Child(k)
+							if member == nil {
+								continue
+							}
+							switch member.Kind() {
+							case "access_specifier":
+								if as := member.Child(0); as != nil {
+									currentVisibility = as.Kind()
+								}
+							case "function_definition":
+								fn := FunctionInfo{File: file, ClassName: className, Visibility: currentVisibility}
+								fn.StartLine = member.StartPosition().Row + 1
+								fn.EndLine = member.EndPosition().Row + 1
+								for l := uint(0); l < member.ChildCount(); l++ {
+									if md := member.Child(l); md != nil && md.Kind() == "static" {
+										fn.IsStatic = true
+									}
+								}
+								// Extract method name: function_definition -> function_declarator -> identifier
+								for l := uint(0); l < member.ChildCount(); l++ {
+									md := member.Child(l)
+									if md == nil {
+										continue
+									}
+									if md.Kind() == "function_declarator" {
+											for m := uint(0); m < md.ChildCount(); m++ {
+											fd := md.Child(m)
+											if fd == nil { continue }
+											}
+										for m := uint(0); m < md.ChildCount(); m++ {
+											fd := md.Child(m)
+											if fd != nil && (fd.Kind() == "identifier" || fd.Kind() == "field_identifier") {
+												fn.Name = safeText(content, fd.StartByte(), fd.EndByte())
+											}
+										}
+									}
+								}
+								if fn.Name != "" {
+									result.Functions = append(result.Functions, fn)
+									if mbody := findBody(member); mbody != nil {
+										result.CallSites = append(result.CallSites, extractCallSites(mbody, content, fn.Name, file, nil)...)
+									}
+								}
+							}
+						}
+					}
 				}
 			case "type_definition":
 				if t := extractTypeName(child, content, file, "typedef"); t.Name != "" {
@@ -93,14 +164,70 @@ func walkTopLevel(node *treesitter.Node, content []byte, file, lang string, resu
 					fn.StartLine = child.StartPosition().Row + 1
 					fn.EndLine = child.EndPosition().Row + 1
 					result.Functions = append(result.Functions, fn)
+					if body := findBody(child); body != nil {
+						result.CallSites = append(result.CallSites, extractCallSites(body, content, fn.Name, file, nil)...)
+					}
 				}
 			case "class_definition":
+				className := ""
 				if t := extractNamedChild(child, content, file, "identifier"); t.Name != "" {
+					className = t.Name
 					tis := TypeInfo{Name: t.Name, Kind: "class", File: file, StartLine: child.StartPosition().Row + 1}
 					result.Types = append(result.Types, tis)
 				}
-				// also walk methods inside class
-				walkTopLevel(child, content, file, lang, result)
+				// Walk class body for methods explicitly (with ClassName)
+				if body := findBody(child); body != nil {
+					for j := uint(0); j < body.ChildCount(); j++ {
+						bchild := body.Child(j)
+						if bchild == nil || bchild.Kind() != "function_definition" {
+							continue
+						}
+						if fn := extractNamedChild(bchild, content, file, "identifier"); fn.Name != "" {
+							fn.ClassName = className
+							fn.StartLine = bchild.StartPosition().Row + 1
+							fn.EndLine = bchild.EndPosition().Row + 1
+							result.Functions = append(result.Functions, fn)
+							if mbody := findBody(bchild); mbody != nil {
+								result.CallSites = append(result.CallSites, extractCallSites(mbody, content, fn.Name, file, nil)...)
+							}
+						}
+					}
+				}
+			case "import_statement", "import_from_statement":
+				// Python import extraction (S5 signal)
+				for j := uint(0); j < child.ChildCount(); j++ {
+					gc := child.Child(j)
+					if gc == nil || gc.Kind() != "dotted_name" {
+						continue
+					}
+					importPath := safeText(content, gc.StartByte(), gc.EndByte())
+					if importPath == "" {
+						continue
+					}
+					// For import_from_statement ("from X import Y"), only record the source module (first dotted_name)
+					imp := Import{File: file, Line: child.StartPosition().Row + 1, Path: importPath, Kind: "module"}
+					lower := strings.ToLower(importPath)
+					switch {
+					case strings.Contains(lower, "sql"):
+						imp.Category = "db"
+					case strings.Contains(lower, "subprocess"):
+						imp.Category = "exec"
+					case strings.Contains(lower, "os") || strings.Contains(lower, "sys"):
+						imp.Category = "exec"
+					case strings.Contains(lower, "http") || strings.Contains(lower, "io") || strings.Contains(lower, "urllib") || strings.Contains(lower, "requests"):
+						imp.Category = "net"
+					case strings.Contains(lower, "crypto") || strings.Contains(lower, "secrets"):
+						imp.Category = "crypto"
+					case strings.Contains(lower, "xml") || strings.Contains(lower, "json") || strings.Contains(lower, "pickle") || strings.Contains(lower, "shelve"):
+						imp.Category = "web"
+					default:
+						imp.Category = "generic"
+					}
+					result.Imports = append(result.Imports, imp)
+					if child.Kind() == "import_from_statement" {
+						break
+					}
+				}
 			}
 
 		case "go":
@@ -110,18 +237,57 @@ func walkTopLevel(node *treesitter.Node, content []byte, file, lang string, resu
 					fn.StartLine = child.StartPosition().Row + 1
 					fn.EndLine = child.EndPosition().Row + 1
 					result.Functions = append(result.Functions, fn)
+					if body := findBody(child); body != nil {
+						result.CallSites = append(result.CallSites, extractCallSites(body, content, fn.Name, file, nil)...)
+					}
 				}
 			case "method_declaration":
 				fn := FunctionInfo{File: file, StartLine: child.StartPosition().Row + 1, EndLine: child.EndPosition().Row + 1}
-			for j := uint(0); j < child.ChildCount(); j++ {
-				gc := child.Child(j)
-				if gc == nil || gc.Kind() != "identifier" {
-					continue
+				receiverSeen := false
+				// Extract method name (field_identifier) + receiver type as ClassName
+				for j := uint(0); j < child.ChildCount(); j++ {
+					gc := child.Child(j)
+					if gc == nil {
+						continue
+					}
+					if gc.Kind() == "field_identifier" || gc.Kind() == "identifier" {
+						if fn.Name == "" {
+							fn.Name = safeText(content, gc.StartByte(), gc.EndByte())
+						}
+					}
+					if !receiverSeen && gc.Kind() == "parameter_list" {
+						receiverSeen = true
+						// First parameter_list = receiver; extract its type
+						for pi := uint(0); pi < gc.ChildCount(); pi++ {
+							pd := gc.Child(pi)
+							if pd != nil && pd.Kind() == "parameter_declaration" {
+								for p := uint(0); p < pd.ChildCount(); p++ {
+									pc := pd.Child(p)
+									if pc == nil {
+										continue
+									}
+									if pc.Kind() == "type_identifier" && fn.ClassName == "" {
+										fn.ClassName = safeText(content, pc.StartByte(), pc.EndByte())
+									}
+									if pc.Kind() == "pointer_type" && fn.ClassName == "" {
+										for pt := uint(0); pt < pc.ChildCount(); pt++ {
+											ptc := pc.Child(pt)
+											if ptc != nil && ptc.Kind() == "type_identifier" {
+												fn.ClassName = safeText(content, ptc.StartByte(), ptc.EndByte())
+											}
+										}
+									}
+								}
+								break
+							}
+						}
+					}
 				}
-				fn.Name = safeText(content, gc.StartByte(), gc.EndByte())
-			}
 				if fn.Name != "" {
 					result.Functions = append(result.Functions, fn)
+					if body := findBody(child); body != nil {
+						result.CallSites = append(result.CallSites, extractCallSites(body, content, fn.Name, file, nil)...)
+					}
 				}
 			case "type_declaration":
 				if t := extractGoType(child, content, file); t.Name != "" {
@@ -129,6 +295,25 @@ func walkTopLevel(node *treesitter.Node, content []byte, file, lang string, resu
 				}
 			case "var_declaration":
 				result.Variables = append(result.Variables, extractInitDecls(child, content, file)...)
+			case "import_declaration":
+				// Go import extraction
+				for j := uint(0); j < child.NamedChildCount(); j++ {
+					gc := child.NamedChild(j)
+					if gc == nil {
+						continue
+					}
+					if gc.Kind() == "import_spec_list" {
+						for k := uint(0); k < gc.NamedChildCount(); k++ {
+							spec := gc.NamedChild(k)
+							if spec == nil || spec.Kind() != "import_spec" {
+								continue
+							}
+						extractGoImport(spec, content, file, result)
+						}
+					} else if gc.Kind() == "import_spec" {
+						extractGoImport(gc, content, file, result)
+					}
+				}
 			}
 
 		case "java":
@@ -138,34 +323,166 @@ func walkTopLevel(node *treesitter.Node, content []byte, file, lang string, resu
 				if kind == "interface_declaration" {
 					kindName = "interface"
 				}
-				if t := extractNamedChild(child, content, file, "identifier"); t.Name != "" {
-					result.Types = append(result.Types, TypeInfo{
-						Name: t.Name, Kind: kindName, File: file, StartLine: child.StartPosition().Row + 1,
-					})
-				}
-				// walk into class_body for methods
-				for j := uint(0); j < child.ChildCount(); j++ {
-					body := child.Child(j)
-					if body == nil || body.Kind() != "class_body" {
-						continue
+					className := ""
+					if t := extractNamedChild(child, content, file, "identifier"); t.Name != "" {
+						className = t.Name
+						result.Types = append(result.Types, TypeInfo{
+							Name: t.Name, Kind: kindName, File: file, StartLine: child.StartPosition().Row + 1,
+						})
 					}
-					for k := uint(0); k < body.ChildCount(); k++ {
-						method := body.Child(k)
-						if method == nil || method.Kind() != "method_declaration" {
-							continue
-						}
-						fn := FunctionInfo{File: file, StartLine: method.StartPosition().Row + 1, EndLine: method.EndPosition().Row + 1}
-						for l := uint(0); l < method.ChildCount(); l++ {
-							mchild := method.Child(l)
-							if mchild != nil && mchild.Kind() == "identifier" {
-								fn.Name = safeText(content, mchild.StartByte(), mchild.EndByte())
+					// FEATURE-003: Build FileScope for Java type inference
+					scope := NewFileScope(file)
+					if parent := child.Parent(); parent != nil {
+						for pi := uint(0); pi < parent.ChildCount(); pi++ {
+							pc := parent.Child(pi)
+							if pc == nil || pc.Kind() != "import_declaration" {
+								continue
+							}
+							for si := uint(0); si < pc.ChildCount(); si++ {
+								sc := pc.Child(si)
+								if sc == nil || sc.Kind() != "scoped_identifier" {
+									continue
+								}
+								importPath := safeText(content, sc.StartByte(), sc.EndByte())
+								// Scope: skip wildcard imports (java.sql.* → can't short-resolve)
+								if !strings.HasSuffix(importPath, ".*") {
+									if idx := strings.LastIndex(importPath, "."); idx >= 0 {
+										shortName := importPath[idx+1:]
+										scope.Imports[shortName] = importPath
+									}
+								}
+								// Result: populate S5 Import signals
+								imp := Import{File: file, Line: pc.StartPosition().Row + 1, Path: importPath, Kind: "module"}
+								lower := strings.ToLower(importPath)
+								switch {
+								case strings.Contains(lower, "sql"):
+									imp.Category = "db"
+								case strings.Contains(lower, "io") || strings.Contains(lower, "nio"):
+									imp.Category = "io"
+								case strings.Contains(lower, "net") || strings.Contains(lower, "http"):
+									imp.Category = "net"
+								case strings.Contains(lower, "crypto") || strings.Contains(lower, "security"):
+									imp.Category = "crypto"
+								case strings.Contains(lower, "xml") || strings.Contains(lower, "parse"):
+									imp.Category = "web"
+								case strings.Contains(lower, "servlet") || strings.Contains(lower, "json") || strings.Contains(lower, "jwt"):
+									imp.Category = "web"
+								default:
+									imp.Category = "generic"
+								}
+								result.Imports = append(result.Imports, imp)
 							}
 						}
-						if fn.Name != "" {
-							result.Functions = append(result.Functions, fn)
+					}
+					// FEATURE-003: Inject Lombok-generated log fields
+					injectLombokLogFields(child, content, scope)
+					// walk into class_body for methods
+					for j := uint(0); j < child.ChildCount(); j++ {
+						body := child.Child(j)
+						if body == nil || body.Kind() != "class_body" {
+							continue
+						}
+						// FEATURE-003: Extract field declarations
+						for k := uint(0); k < body.ChildCount(); k++ {
+							member := body.Child(k)
+							if member == nil || member.Kind() != "field_declaration" {
+								continue
+							}
+							fieldType := ""
+							for fi := uint(0); fi < member.ChildCount(); fi++ {
+								fc := member.Child(fi)
+								if fc == nil {
+									continue
+								}
+								if fc.Kind() == "type_identifier" && fieldType == "" {
+									fieldType = safeText(content, fc.StartByte(), fc.EndByte())
+								}
+								if fc.Kind() == "scoped_identifier" && fieldType == "" {
+									scopedText := safeText(content, fc.StartByte(), fc.EndByte())
+									if dotIdx := strings.LastIndex(scopedText, "."); dotIdx >= 0 {
+									fieldType = scopedText[dotIdx+1:]
+									}
+								}
+								if fc.Kind() == "variable_declarator" && fieldType != "" {
+									for di := uint(0); di < fc.ChildCount(); di++ {
+									dc := fc.Child(di)
+									if dc != nil && dc.Kind() == "identifier" {
+									scope.Fields[safeText(content, dc.StartByte(), dc.EndByte())] = fieldType
+									}
+									}
+								}
+							}
+						}
+						for k := uint(0); k < body.ChildCount(); k++ {
+							method := body.Child(k)
+							if method == nil || method.Kind() != "method_declaration" {
+								continue
+							}
+							fn := FunctionInfo{File: file, ClassName: className, StartLine: method.StartPosition().Row + 1, EndLine: method.EndPosition().Row + 1}
+							for l := uint(0); l < method.ChildCount(); l++ {
+								mchild := method.Child(l)
+								if mchild == nil {
+									continue
+								}
+								if mchild.Kind() == "identifier" && fn.Name == "" {
+									fn.Name = safeText(content, mchild.StartByte(), mchild.EndByte())
+								}
+								if mchild.Kind() == "public" {
+									fn.Visibility = "public"
+								} else if mchild.Kind() == "protected" {
+									fn.Visibility = "protected"
+								} else if mchild.Kind() == "private" {
+									fn.Visibility = "private"
+								}
+								if mchild.Kind() == "static" {
+									fn.IsStatic = true
+								}
+							}
+							if fn.Name != "" {
+								result.Functions = append(result.Functions, fn)
+								if mbody := findBody(method); mbody != nil {
+									// FEATURE-003: Build local variable + parameter map
+									localVars := buildJavaLocalVars(mbody, content)
+									methodScope := NewFileScope(file)
+									methodScope.Imports = scope.Imports
+									methodScope.Fields = scope.Fields
+									// Extract method parameter types
+									for l := uint(0); l < method.ChildCount(); l++ {
+										mchild := method.Child(l)
+										if mchild == nil || mchild.Kind() != "formal_parameters" {
+											continue
+										}
+										for pi := uint(0); pi < mchild.ChildCount(); pi++ {
+											fp := mchild.Child(pi)
+											if fp == nil || fp.Kind() != "formal_parameter" {
+												continue
+											}
+											paramType, paramName := "", ""
+											for fi := uint(0); fi < fp.ChildCount(); fi++ {
+												fc := fp.Child(fi)
+												if fc == nil {
+													continue
+												}
+												if fc.Kind() == "type_identifier" && paramType == "" {
+													paramType = safeText(content, fc.StartByte(), fc.EndByte())
+												}
+												if fc.Kind() == "identifier" && paramName == "" {
+													paramName = safeText(content, fc.StartByte(), fc.EndByte())
+												}
+											}
+											if paramType != "" && paramName != "" {
+												methodScope.Variables[paramName] = paramType
+											}
+										}
+									}
+									for vn, vt := range localVars {
+									methodScope.Variables[vn] = vt
+									}
+									result.CallSites = append(result.CallSites, extractCallSites(mbody, content, fn.Name, file, methodScope)...)
+								}
+							}
 						}
 					}
-				}
 			case "variable_declaration":
 				result.Variables = append(result.Variables, extractInitDecls(child, content, file)...)
 			}
@@ -369,42 +686,226 @@ var knownLibFuncs = map[string]libFuncEntry{
 	// Crypto
 	"RAND_bytes":            {"RAND_bytes", false, "crypto"},
 	"DES_set_key_unchecked": {"DES_set_key_unchecked", false, "crypto"},
-}
 
-// extractCallSites walks a function body node and extracts all call_expression
+	// Multi-language: logging
+	"info":  {"info", false, "logging"},
+	"warn":  {"warn", false, "logging"},
+	"error": {"error", false, "logging"},
+	"debug": {"debug", false, "logging"},
+	"trace": {"trace", false, "logging"},
+
+	// Multi-language: deserialization
+	"readObject":  {"readObject", false, "deserialization"},
+	"parseObject": {"parseObject", false, "deserialization"},
+
+	// Multi-language: SQL
+	"executeQuery":      {"executeQuery", false, "sql"},
+	"executeUpdate":     {"executeUpdate", false, "sql"},
+	"createNativeQuery": {"createNativeQuery", false, "sql"},
+
+	// Multi-language: command execution
+	"exec": {"exec", false, "exec"},
+
+	// Multi-language: HTTP client
+	"openConnection": {"openConnection", false, "http"},
+	"getForObject":   {"getForObject", false, "http"},
+	"postForEntity":  {"postForEntity", false, "http"},
+
+	// Multi-language: XML
+	"newDocumentBuilder": {"newDocumentBuilder", false, "xml"},
+	"newSAXParser":       {"newSAXParser", false, "xml"},
+
+	// Multi-language: SQL
+	"createStatement": {"createStatement", false, "sql"},
+	"getConnection":   {"getConnection", false, "credential"},
+
+	// Java-specific: XXE/XML
+	"parse":  {"parse", false, "xml"},
+
+	// Go-specific: SQL injection sink
+	"Sprintf": {"Sprintf", false, "string"},
+
+	// Go-specific: command execution
+	"Command": {"Command", false, "exec"},
+
+		// Go-specific: format string (can construct SQL queries, XSS)
+		"Fprintf": {"Fprintf", false, "string"},
+
+		// Go-specific: SQL injection
+		"Query": {"Query", false, "sql"},
+		"Exec":  {"Exec", false, "sql"},
+
+		// Go-specific: SSRF (http.Get)
+		"Get": {"Get", false, "http"},
+
+		// Go-specific: file/network I/O
+		"ReadAll": {"ReadAll", false, "io"},
+
+		// Go-specific: XML unmarshal (XXE)
+		"Unmarshal": {"Unmarshal", false, "xml"},
+
+		// Go-specific: command execution
+		"Output":   {"Output", false, "exec"},
+		"CombinedOutput": {"CombinedOutput", false, "exec"},
+
+		// Go-specific: weak crypto
+		"Sum": {"Sum", false, "crypto"},
+
+	// Multi-language: file I/O
+	"getCanonicalPath": {"getCanonicalPath", false, "file_io"},
+
+	// Multi-language: HTTP/SSRF
+	"openStream": {"openStream", false, "http"},
+
+	// Multi-language: file upload
+"transferTo": {"transferTo", false, "file_io"},
+
+		// Multi-language: process
+		"Runtime": {"Runtime", false, "exec"},
+
+		// Python-specific: SQL injection sink (DB-API cursor.execute)
+		"execute": {"execute", false, "sql"},
+
+		// Python-specific: command execution
+		"check_output": {"check_output", false, "exec"},
+		"Popen":        {"Popen", false, "exec"},
+		"eval":         {"eval", false, "exec"},
+
+		// Python-specific: deserialization (pickle.loads)
+		"loads": {"loads", false, "deserialization"},
+
+		// Python-specific: weak crypto
+		"md5":       {"md5", false, "crypto"},
+		"randint":   {"randint", false, "weak_random"},
+		"token_hex": {"token_hex", true, "crypto"},
+
+		// Python-specific: AST analysis
+		"literal_eval": {"literal_eval", true, "safe_eval"},
+	}
+
+//  walks a function body node and extracts all call_expression
 // nodes that reference known library functions.
-func extractCallSites(body *treesitter.Node, content []byte, callerName, file string) []CallSite {
+func extractCallSites(body *treesitter.Node, content []byte, callerName, file string, scope *FileScope) []CallSite {
 	var sites []CallSite
-	collectCallExprs(body, content, callerName, file, &sites)
+	collectCallExprs(body, content, callerName, file, &sites, scope)
 	return sites
 }
 
 // collectCallExprs recursively walks the AST and collects call_expressions.
-func collectCallExprs(node *treesitter.Node, content []byte, callerName, file string, sites *[]CallSite) {
+func collectCallExprs(node *treesitter.Node, content []byte, callerName, file string, sites *[]CallSite, scope *FileScope) {
 	for i := uint(0); i < node.ChildCount(); i++ {
 		child := node.Child(i)
 		if child == nil {
 			continue
 		}
-		if child.Kind() == "call_expression" {
-			if cs := parseCallExpr(child, content, callerName, file); cs != nil {
+		if child.Kind() == "call_expression" || child.Kind() == "method_invocation" || child.Kind() == "call" {
+			if cs := parseCallExpr(child, content, callerName, file, scope); cs != nil {
 				*sites = append(*sites, *cs)
 			}
 			// Don't recurse into call_expression children — argument_list
 			// may contain nested call_expressions but we only want the top-level call.
 			continue
 		}
-		collectCallExprs(child, content, callerName, file, sites)
+		collectCallExprs(child, content, callerName, file, sites, scope)
 	}
 }
 
 // parseCallExpr extracts a single call_expression tree-sitter node into a CallSite.
-func parseCallExpr(node *treesitter.Node, content []byte, callerName, file string) *CallSite {
-	fnNode := node.Child(0)
-	if fnNode == nil {
-		return nil
+func parseCallExpr(node *treesitter.Node, content []byte, callerName, file string, scope *FileScope) *CallSite {
+	ck := node.Kind()
+
+	var callee string
+	var argNode *treesitter.Node
+	var receiverExpr string
+
+	if ck == "method_invocation" {
+		// Java method invocation: flat structure
+		// obj.method() -> child(0)=identifier(receiver), child(1)=".", child(2)=identifier(method)
+		// method()     -> child(0)=identifier(method)
+		for i := uint(0); i < node.ChildCount(); i++ {
+			gc := node.Child(i)
+			if gc == nil {
+				continue
+			}
+			if gc.Kind() == "argument_list" {
+				argNode = gc
+			}
+		}
+		if node.ChildCount() >= 4 && node.Child(1) != nil && node.Child(1).Kind() == "." {
+			// obj.method() -- child(0)=receiver, child(2)=method
+			if c0 := node.Child(0); c0 != nil && c0.Kind() == "identifier" {
+				receiverExpr = safeText(content, c0.StartByte(), c0.EndByte())
+			}
+			if c2 := node.Child(2); c2 != nil && (c2.Kind() == "identifier" || c2.Kind() == "field_identifier") {
+				callee = safeText(content, c2.StartByte(), c2.EndByte())
+			}
+		} else {
+			// Simple method() call -- child(0)=method name
+			for i := uint(0); i < node.ChildCount(); i++ {
+				gc := node.Child(i)
+				if gc == nil {
+					continue
+				}
+				if (gc.Kind() == "identifier" || gc.Kind() == "field_identifier") && callee == "" {
+					callee = safeText(content, gc.StartByte(), gc.EndByte())
+				}
+			}
+		}
+	} else {
+		fnNode := node.Child(0)
+		if fnNode == nil {
+			return nil
+		}
+		callee = safeText(content, fnNode.StartByte(), fnNode.EndByte())
+		if callee == "" {
+			return nil
+		}
+		// Handle field_expression for C++/Go: obj->method() -> callee="method", receiverExpr="obj"
+		if fnNode.Kind() == "field_expression" {
+			for j := uint(0); j < fnNode.ChildCount(); j++ {
+				fc := fnNode.Child(j)
+				if fc == nil {
+					continue
+				}
+				if fc.Kind() == "field_identifier" {
+					callee = safeText(content, fc.StartByte(), fc.EndByte())
+				} else if receiverExpr == "" {
+					receiverExpr = safeText(content, fc.StartByte(), fc.EndByte())
+				}
+			}
+		} else if fnNode.Kind() == "attribute" {
+			// Python: logger.info() -> callee="info", receiver="logger"
+			// Reset callee since full text (e.g. "logging.info") is not a func name
+			callee = ""
+			for j := uint(0); j < fnNode.ChildCount(); j++ {
+				fc := fnNode.Child(j)
+				if fc == nil || fc.Kind() != "identifier" {
+					continue
+				}
+				if receiverExpr == "" {
+					receiverExpr = safeText(content, fc.StartByte(), fc.EndByte())
+				} else {
+					callee = safeText(content, fc.StartByte(), fc.EndByte())
+				}
+			}
+		} else if fnNode.Kind() == "selector_expression" {
+			// Go: exec.Command() -> callee="Command", receiver="exec"
+			callee = ""
+			for j := uint(0); j < fnNode.ChildCount(); j++ {
+				fc := fnNode.Child(j)
+				if fc == nil || (fc.Kind() != "identifier" && fc.Kind() != "field_identifier") {
+					continue
+				}
+				if receiverExpr == "" {
+					receiverExpr = safeText(content, fc.StartByte(), fc.EndByte())
+				} else {
+					callee = safeText(content, fc.StartByte(), fc.EndByte())
+				}
+			}
+		}
+		argNode = node.Child(1)
 	}
-	callee := safeText(content, fnNode.StartByte(), fnNode.EndByte())
+
 	entry, ok := knownLibFuncs[callee]
 	if !ok {
 		return nil
@@ -413,7 +914,6 @@ func parseCallExpr(node *treesitter.Node, content []byte, callerName, file strin
 	// Extract arguments from the argument_list child.
 	// Use NamedChild to skip anonymous tokens (commas, parentheses).
 	var args []string
-	argNode := node.Child(1)
 	if argNode != nil && argNode.Kind() == "argument_list" {
 		for j := uint(0); j < argNode.NamedChildCount(); j++ {
 			sub := argNode.NamedChild(j)
@@ -428,6 +928,23 @@ func parseCallExpr(node *treesitter.Node, content []byte, callerName, file strin
 		}
 	}
 
+	// Resolve ReceiverType via scope if available (FEATURE-003)
+	if receiverExpr != "" && scope != nil {
+		receiverType := resolveReceiverType(receiverExpr, scope)
+		if receiverType != "" {
+			return &CallSite{
+				CallerFunction: callerName,
+				CalleeName:     callee,
+				File:           file,
+				Line:           node.StartPosition().Row + 1,
+				Arguments:      args,
+				IsSafeVariant:  entry.isSafe,
+				Category:       entry.category,
+				ReceiverExpr:   receiverExpr,
+				ReceiverType:   receiverType,
+			}
+		}
+	}
 	return &CallSite{
 		CallerFunction: callerName,
 		CalleeName:     callee,
@@ -436,6 +953,7 @@ func parseCallExpr(node *treesitter.Node, content []byte, callerName, file strin
 		Arguments:      args,
 		IsSafeVariant:  entry.isSafe,
 		Category:       entry.category,
+		ReceiverExpr:   receiverExpr,
 	}
 }
 
@@ -446,11 +964,192 @@ func findBody(node *treesitter.Node) *treesitter.Node {
 		if child == nil {
 			continue
 		}
-		if child.Kind() == "compound_statement" || child.Kind() == "body" {
+		if child.Kind() == "compound_statement" || child.Kind() == "body" || child.Kind() == "block" {
 			return child
 		}
 	}
 	return nil
+}
+
+
+// ── FEATURE-003: Lombok log field injection ──────────────────
+
+var lombokLogAnnotations = map[string]string{
+	"Slf4j":      "org.slf4j.Logger",
+	"Log4j2":     "org.apache.logging.log4j.Logger",
+	"Log":        "java.util.logging.Logger",
+	"javaLog":    "java.util.logging.Logger",
+	"CommonsLog": "org.apache.commons.logging.Log",
+	"Flogger":    "com.google.common.flogger.FluentLogger",
+}
+
+
+// extractGoImport extracts an import path from a Go import_spec node.
+func extractGoImport(spec *treesitter.Node, content []byte, file string, result *ParseResult) {
+	for k := uint(0); k < spec.NamedChildCount(); k++ {
+		pathNode := spec.NamedChild(k)
+		if pathNode == nil || pathNode.Kind() != "interpreted_string_literal" {
+			continue
+		}
+		rawPath := safeText(content, pathNode.StartByte(), pathNode.EndByte())
+		// Strip surrounding quotes
+		if len(rawPath) >= 2 {
+			rawPath = rawPath[1 : len(rawPath)-1]
+		}
+		if rawPath == "" {
+			continue
+		}
+		imp := Import{File: file, Line: spec.StartPosition().Row + 1, Path: rawPath, Kind: "module"}
+		lower := strings.ToLower(rawPath)
+		switch {
+		case strings.Contains(lower, "sql"):
+			imp.Category = "db"
+		case strings.Contains(lower, "exec"):
+			imp.Category = "exec"
+		case strings.Contains(lower, "http") || strings.Contains(lower, "io"):
+			imp.Category = "net"
+		case strings.Contains(lower, "crypto") || strings.Contains(lower, "md5") || strings.Contains(lower, "sha"):
+			imp.Category = "crypto"
+		case strings.Contains(lower, "xml") || strings.Contains(lower, "json"):
+			imp.Category = "web"
+		case strings.Contains(lower, "os"):
+			imp.Category = "exec"
+		default:
+			if strings.Contains(lower, "encoding") || strings.Contains(lower, "path") {
+				imp.Category = "net"
+			} else {
+				imp.Category = "generic"
+			}
+		}
+		result.Imports = append(result.Imports, imp)
+	}
+}
+func injectLombokLogFields(classDecl *treesitter.Node, content []byte, scope *FileScope) {
+	for i := uint(0); i < classDecl.ChildCount(); i++ {
+		c := classDecl.Child(i)
+		if c == nil || c.Kind() != "modifiers" {
+			continue
+		}
+		for j := uint(0); j < c.ChildCount(); j++ {
+			ann := c.Child(j)
+			if ann == nil || ann.Kind() != "marker_annotation" {
+				continue
+			}
+			for k := uint(0); k < ann.ChildCount(); k++ {
+				id := ann.Child(k)
+				if id == nil || id.Kind() != "identifier" {
+					continue
+				}
+				annName := safeText(content, id.StartByte(), id.EndByte())
+				if loggerType, ok := lombokLogAnnotations[annName]; ok {
+					scope.Fields["log"] = loggerType
+					return
+				}
+			}
+		}
+	}
+}
+
+// ── Signal extraction helpers ──────────────────────────────────
+
+// collectStringLiterals walks the AST and collects string literal nodes.
+// Handles different node kinds per language:
+//   C/C++/Java: "string_literal"
+//   Python:     "string" (contains "string_content" children)
+//   Go:         "interpreted_string_literal" or "raw_string_literal"
+func collectStringLiterals(root *treesitter.Node, content []byte, file, lang string) []StringLiteral {
+	var literals []StringLiteral
+	var walk func(*treesitter.Node)
+	walk = func(n *treesitter.Node) {
+		for i := uint(0); i < n.ChildCount(); i++ {
+			c := n.Child(i)
+			if c == nil {
+				continue
+			}
+			kind := c.Kind()
+			isString := kind == "string_literal" || kind == "interpreted_string_literal" ||
+				kind == "raw_string_literal" || kind == "string"
+			if isString {
+				val := safeText(content, c.StartByte(), c.EndByte())
+				// Skip empty strings, single chars, and whitespace-only
+				cleaned := strings.Trim(val, "\"'`")
+				if len(cleaned) < 4 {
+					continue
+				}
+				literals = append(literals, StringLiteral{
+					File:    file,
+					Line:    c.StartPosition().Row + 1,
+					Value:   truncate(cleaned, 256),
+					Length:  len(cleaned),
+					Context: "global",
+					Kinds:   inferStringKind(cleaned),
+				})
+				continue
+			}
+			if c.ChildCount() > 0 {
+				walk(c)
+			}
+		}
+	}
+	walk(root)
+	return literals
+}
+
+// collectControlFlow walks the AST for if_statement nodes (Java/C/C++).
+func collectControlFlow(root *treesitter.Node, content []byte, file, lang string) []ControlFlowSignal {
+	var signals []ControlFlowSignal
+	var walk func(*treesitter.Node)
+	walk = func(n *treesitter.Node) {
+		for i := uint(0); i < n.ChildCount(); i++ {
+			c := n.Child(i)
+			if c == nil {
+				continue
+			}
+			if c.Kind() == "if_statement" {
+				// Extract condition from first child
+				cond := ""
+				for j := uint(0); j < c.ChildCount(); j++ {
+					gc := c.Child(j)
+					if gc == nil {
+						continue
+					}
+					if gc.Kind() == "parenthesized_expression" || gc.Kind() == "condition" {
+						cond = strings.TrimSpace(safeText(content, gc.StartByte(), gc.EndByte()))
+						if len(cond) > 128 {
+							cond = cond[:128] + "..."
+						}
+						break
+					}
+				}
+				// Check if it looks like an error check or guard
+				kind := "if_guard"
+				cat := "generic"
+				condLower := strings.ToLower(cond)
+				if strings.Contains(condLower, "null") || strings.Contains(condLower, "nil") {
+					kind = "error_check"
+					cat = "error"
+				} else if strings.Contains(condLower, "error") || strings.Contains(condLower, "err") {
+					kind = "error_check"
+					cat = "error"
+				} else if strings.Contains(condLower, "auth") || strings.Contains(condLower, "login") || strings.Contains(condLower, "role") {
+					cat = "auth"
+				}
+				signals = append(signals, ControlFlowSignal{
+					File:      file,
+					Line:      c.StartPosition().Row + 1,
+					Kind:      kind,
+					Condition: cond,
+					Category:  cat,
+				})
+				continue
+			}
+			if c.ChildCount() > 0 {
+				walk(c)
+			}
+		}
+	}
+	walk(root)
+	return signals
 }
 
 func safeText(content []byte, start, end uint) string {
@@ -458,4 +1157,126 @@ func safeText(content []byte, start, end uint) string {
 		return ""
 	}
 	return string(content[start:end])
+}
+
+// ── FEATURE-003: Java local type inference ────────────────────
+
+// buildJavaLocalVars extracts local variable declarations from a method body.
+func buildJavaLocalVars(body *treesitter.Node, content []byte) map[string]string {
+	vars := make(map[string]string)
+	var walk func(*treesitter.Node)
+	walk = func(n *treesitter.Node) {
+		for i := uint(0); i < n.ChildCount(); i++ {
+			c := n.Child(i)
+			if c == nil {
+				continue
+			}
+			if c.Kind() == "local_variable_declaration" {
+				varType := ""
+				for j := uint(0); j < c.ChildCount(); j++ {
+					cc := c.Child(j)
+					if cc == nil {
+						continue
+					}
+					if (cc.Kind() == "type_identifier" || cc.Kind() == "scoped_type_identifier") && varType == "" {
+						t := safeText(content, cc.StartByte(), cc.EndByte())
+						if dotIdx := strings.LastIndex(t, "."); dotIdx >= 0 {
+							varType = t[dotIdx+1:]
+						} else {
+							varType = t
+						}
+					}
+					if cc.Kind() == "variable_declarator" && varType != "" {
+						for k := uint(0); k < cc.ChildCount(); k++ {
+							dc := cc.Child(k)
+							if dc != nil && dc.Kind() == "identifier" {
+								vars[safeText(content, dc.StartByte(), dc.EndByte())] = varType
+							}
+						}
+					}
+				}
+			}
+			// Handle try-with-resources variables
+			if c.Kind() == "resource_specification" {
+				for ri := uint(0); ri < c.ChildCount(); ri++ {
+					res := c.Child(ri)
+					if res == nil || res.Kind() != "resource" {
+						continue
+					}
+					varType := ""
+					varName := ""
+					for rii := uint(0); rii < res.ChildCount(); rii++ {
+						rc := res.Child(rii)
+						if rc == nil {
+							continue
+						}
+						if (rc.Kind() == "type_identifier" || rc.Kind() == "scoped_type_identifier") && varType == "" {
+							t := safeText(content, rc.StartByte(), rc.EndByte())
+							if dotIdx := strings.LastIndex(t, "."); dotIdx >= 0 {
+								varType = t[dotIdx+1:]
+							} else {
+								varType = t
+							}
+						}
+						if rc.Kind() == "variable_declarator" && varType != "" {
+							for k := uint(0); k < rc.ChildCount(); k++ {
+								dc := rc.Child(k)
+								if dc != nil && dc.Kind() == "identifier" {
+									varName = safeText(content, dc.StartByte(), dc.EndByte())
+								}
+							}
+						}
+					}
+					if varType != "" && varName != "" {
+						vars[varName] = varType
+					}
+				}
+			}
+			if c.ChildCount() > 0 {
+				walk(c)
+			}
+		}
+	}
+	walk(body)
+	return vars
+}
+
+// extractFirstIdentifier returns the first identifier in a dotted expression.
+func extractFirstIdentifier(expr string) string {
+	if idx := strings.IndexAny(expr, "."); idx >= 0 {
+		return expr[:idx]
+	}
+	return expr
+}
+
+// resolveToFQN resolves a short type name to a fully qualified name using imports.
+func resolveToFQN(typeName string, imports map[string]string) string {
+	if fqn, ok := imports[typeName]; ok {
+		return fqn
+	}
+	return typeName
+}
+
+// resolveReceiverType resolves a receiver expression to a fully qualified type name.
+func resolveReceiverType(expr string, scope *FileScope) string {
+	ident := extractFirstIdentifier(expr)
+
+	// 1) Local variables first (shadow fields)
+	if t, ok := scope.Variables[ident]; ok {
+		return resolveToFQN(t, scope.Imports)
+	}
+	// 2) Fields second
+	if t, ok := scope.Fields[ident]; ok {
+		return resolveToFQN(t, scope.Imports)
+	}
+	// 3) this.xxx -> field
+	if ident == "this" {
+		parts := strings.SplitN(expr, ".", 2)
+		if len(parts) == 2 {
+			if t, ok := scope.Fields[parts[1]]; ok {
+				return resolveToFQN(t, scope.Imports)
+			}
+		}
+	}
+	return ""
 }
