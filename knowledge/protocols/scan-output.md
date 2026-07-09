@@ -506,6 +506,77 @@ SHA-256 输入 = `detector:file:line:cwe`，前 12 hex 作为文件名前缀。
 }
 ```
 
+## CLI 输出摘要（用户终端输出）
+
+扫描完成后在终端输出的 Markdown 摘要。**所有命令（secguard/secaudit/secreview）必须遵循此统一格式。**
+
+### 核心规则
+
+1. **安全评分 100/100 → 不出发现表**。满分意味着无可报告事项。
+2. **发现 > 0 → 按统一列输出发现表**。内容按命令不同填充，列结构共用。
+3. **未映射信号**（如 Java close 调用）不在发现表中列出，在统计表下方用注释。
+
+### 0 发现（评分 100）
+
+```markdown
+## <command> 完成
+
+Scan ID: <id> | Project: <project> | Path: <path> | Language: <lang> | Mode: <mode>
+
+### 扫描统计
+
+| 项目 | 数值 |
+|------|------|
+| 扫描文件 | <N> |
+| 信号数 / 分析路径 / 文件审阅 | <N> |
+| 检出 | 0 |
+
+*附加注释（命令特有明细，如 Worker 调度）*
+
+### 安全评分
+
+**100/100 🟢 Grade A — 无可报告发现。**
+```
+
+### 有发现（检出 > 0）
+
+```markdown
+## <command> 完成
+
+Scan ID: <id> | Project: <project> | Path: <path> | Language: <lang> | Mode: <mode>
+
+### 扫描统计
+
+| 项目 | 数值 |
+|------|------|
+| 扫描文件 | <N> |
+| 信号数 / 分析路径 / 文件审阅 | <N> |
+| 检出 | <N> (Critical: <N>, High: <N>, Medium: <N>) |
+
+*附加注释（命令特有明细）*
+
+### 发现详情
+
+| # | Severity | CWE | 类别 | 位置 | 摘要 |
+|---|----------|-----|------|------|------|
+| 1 | 🔴 Critical | CWE-120 | buffer_overflow | src/parser.c:36 | sizeof(dst)=64, input未知 |
+| 2 | 🟠 High | CWE-089 | sql-injection | src/handler.java:42 | SQL via string concat |
+
+### 安全评分
+
+**<N>/100 🟢🟡🔴 <Grade>**
+```
+
+### 类别列填充规则
+
+| 命令 | 类别列内容 | 示例 |
+|------|-----------|------|
+| secguard | detector ID | `memory.buffer_overflow` |
+| secaudit | 数据流路径简写 | `HTTP param → SQL` |
+| secreview | 审阅维度 | `injection-prevention` |
+
+---
+
 ## 协议演进
 
 - **7.0** (当前): 消费者导向设计。新增 `human/executive-summary.md` 统一入口。新增 `ai/remediation-pack.json` AI 修复包。新增 `dashboard.html`。report.md 精简到 5 节。移除 developer/by-file/ 和 ai/attack-graph.json。

@@ -1,15 +1,15 @@
 ---
 category: index
-description: 安全威胁目录 — 覆盖所有 67<!-- @secguardian:detector_count --> 个检测器对应威胁类型的快速索引
+description: 安全威胁目录 — 覆盖所有 15<!-- @secguardian:detector_count --> 个检测 Skill 对应威胁类型的快速索引
 cwe_coverage: CWE Top 25 100%
 owasp_coverage: OWASP Top 10 100%
 ---
 
 # 安全威胁目录 (Threat Catalog)
 
-每个威胁对应一个自包含的 detector 文件（`knowledge/guard-rules/<namespace>-<name>.md`），内含完整威胁定义、检测逻辑、修复指引、误报排除和检测模式。
+每个威胁对应一个自包含的检测规则（`skills/secguard/{lang}/rules/{name}/rule.md`），内含完整威胁定义、检测逻辑、修复指引、误报排除和检测模式。
 
-> 完整 detector 清单见 `knowledge/language-index.md`。本文档提供按命名空间分组的人类可读威胁索引。
+> 各语言完整检测规则清单见 `skills/secguard/{lang}/SKILL.md`。本文档提供按命名空间分组的人类可读威胁索引。
 
 ## 内存安全 (memory) — 13<!-- @secguardian:namespace:memory --> 个 detectors
 

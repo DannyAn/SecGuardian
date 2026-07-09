@@ -1,9 +1,0 @@
-PROPRIETARY — NOT OPEN SOURCE
-
-All files in this directory and its subdirectories are proprietary to
-SecGuardian. No license is granted to copy, distribute, or use these
-files for any commercial purpose.
-
-See /LICENSE-KNOWLEDGE.txt in the repository root for full terms.
-
-For licensing: licensing@secguardian.dev (placeholder)
