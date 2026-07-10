@@ -85,7 +85,7 @@ platform: opencode
 >
 > 所有共享架构信息以 [`AGENTS.md`](../AGENTS.md) 为准。
 >
-> **隔离约束**: Dispatcher 只能加载 `$SECGUARDIAN_HOME/skills/secguard-<language>/` 下的 Skill，禁止加载 `skills/secaudit-secaudit/` 或 `skills/secreview-<language>/` 下的任何文件。知识文件从 `$SECGUARDIAN_HOME/knowledge/` 用 bash `cat` 按需读取。
+> **隔离约束**: Dispatcher 只能加载 `$SECGUARDIAN_HOME/skills/secguard-<language>/` 下的 Skill，禁止加载 `skills/secaudit-secaudit/` 或 `skills/secreview-<language>/` 下的任何文件。知识文件使用 `Read` 工具按需读取（不通过 bash cat 回显，避免 token 浪费）。
 >
 > 🚫 **不要使用 `todowrite` 工具。** 使用原生 task 系统追踪进度。
 > 🚫 **不要硬编码 `RECORDER` 路径。** 必须使用 `$SCRIPTS_DIR/record-finding.py`。
@@ -310,12 +310,15 @@ Step 1 已在 `$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard`（绝�
 
 **从 Step 2 开始，每个 bash 调用必须在开头执行以下命令**（这样 `$SCAN_DIR`、`$SCAN_ID`、`$USER_PROJECT`、`$SECGUARDIAN_HOME` 才能正确展开）:
 
-> **知识库读取**: 知识库文件存储在 `$SECGUARDIAN_HOME/knowledge/`，使用 bash `cat` 按需读取，不拷贝到项目目录。
-> - 规则文件（`rule.md`、`references/*.md`）：使用 bash `cat` 读取（不触发权限弹窗）
-> - 协议文件（`knowledge/protocols/*.md`）：使用 bash `cat` 读取
-> - 语言画像（`skills/secguard-{lang}/references/language-features.md`）：使用 bash `cat` 读取
-> - ⚠️ **排除项：`$SCRIPTS_DIR/` 下的二进制文件**（`secguardian-index`）是编译产物，**禁止 `cat`**。只能通过 bash 执行（`"$INDEXER" --lang ...`）
-> - 禁止使用 `read` 工具读 `$SECGUARDIAN_HOME/` 下的文本文件（触发 OpenCode 外部目录权限弹窗）。对于二进制文件（如 `secguardian-index`），既不 `read` 也不 `cat`，只能执行。
+> **知识库读取规则**:
+> - 规则文件（`rule.md`、`references/*.md`）：使用 `Read` 工具读取（内容直接进入 LLM 上下文，无 shell 回显 token 开销）
+> - 协议文件：使用 `Read` 工具读取技能目录下的 `protocols/` symlink（如 `$SECGUARDIAN_HOME/skills/secguard-cpp/protocols/verification-protocol.md`），不直接读 `knowledge/`
+> - 标准文件：使用 `Read` 工具读取技能目录下的 `standards/` symlink
+> - 语言画像（`skills/secguard-{lang}/references/language-features.md`）：使用 `Read` 工具读取
+> - 用户项目下的扫描输入文件（`index.json`、`expected-results.json` 等）：使用 `Read` 工具读取
+> - ⚠️ **排除项：`$SCRIPTS_DIR/` 下的二进制文件**（`secguardian-index`）是编译产物，**禁止 Read/cat**。只能通过 bash 执行（`"$INDEXER" --lang ...`）
+> - 🚫 **禁止通过 bash 读取文本文件**（bash cat/head/tail 回显内容到对话浪费 token）。所有文本文件使用 `Read` 工具。
+> - 🚫 **禁止用 `read` 工具读取 `$SCRIPTS_DIR/` 下的脚本文件**（不读取脚本源码，只执行）
 
 ### Step 2: 构建语义索引（不可跳过）
 
@@ -356,6 +359,243 @@ USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
 source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
 
  校验是强约束：finding 的 severity、CWE、evidence 必须匹配对应 SKILL.md 的 Detection Spec。跳过规则文件加载的 finding 将被拒绝。
+
+---
+
+## Phase 2: Investigation Pipeline（Steps 4-8）
+
+> ⚠️ **本 Phase 是 Investigation Engine 核心，每一步不可跳过。**
+> 每个 Step 产出指定工件到 `$SCAN_DIR/workers/<rule_name>/`。
+> 下一步骤必须检查上一步骤的工件存在后才能继续。
+> 🚫 **禁止**：跳过任何 Step、不产出工件直接记录 finding、不使用 index.json 结构化数据。
+
+### Step 4: Phase 2a — Hypothesis Generator [不可跳过]
+
+> **[MANDATORY ARTIFACT]** 产出: `workers/<rule_name>/hypotheses.json`
+> **[GATE CHECK]** Step 3 索引完整性已验证 → 继续
+> **[INPUT]** 该 rule 触发的信号清单 + index.json call_sites + 源码上下文
+>
+> **禁止直接判定漏洞类型。** Dispatcher 的唯一输出是 Signal+上下文。Hypothesis Generator 从 Signal 生成 3~5 个调查假设。
+
+**执行流程：**
+
+1. 使用 `Read` 工具读取规则文件（rule.md）获取领域知识
+2. 从 index.json 提取该规则的信号清单（call_sites + string_literals + alloc_free/lock_graph 补充）
+3. 对每个信号类型，生成 3~5 个假设（H1=最可能漏洞 / H2=特定上下文漏洞 / H3=缓解存在 / H4=替代漏洞类型 / H5=实际安全）
+4. 使用 bash 写 `workers/<rule_name>/hypotheses.json`
+
+**hypotheses.json 格式：**
+```json
+{
+  "rule": "buffer_overflow",
+  "signal_type": "string_copy",
+  "signal_count": 25,
+  "hypotheses": [
+    {"id": "H1", "direction": "缓冲区溢出 — strcpy 无长度限制", "initial_confidence": "high"},
+    {"id": "H2", "direction": "截断导致逻辑错误 — snprintf 返回值未检查", "initial_confidence": "medium"},
+    {"id": "H3", "direction": "已有 sizeof 边界保护", "initial_confidence": "low"},
+    {"id": "H4", "direction": "整数溢出导致长度计算错误", "initial_confidence": "low"},
+    {"id": "H5", "direction": "实际安全 — 使用安全变体或编译期已知大小", "initial_confidence": "low"}
+  ]
+}
+```
+
+### Step 5: Phase 2b — Investigator [不可跳过]
+
+> **[MANDATORY ARTIFACT]** 产出: `workers/<rule_name>/evidence.json`
+> **[GATE CHECK]** hypotheses.json 存在且包含 >=3 个假设 → 继续
+> **[GATE CHECK]** 通过 `Read` 工具加载 rule.md + index.json 信号上下文
+>
+> **Investigator 针对每个假设自主收集证据，不按固定规则执行。**
+
+**执行流程：**
+
+1. 验证 hypotheses.json 存在且假设数量 >=3（bash: `python3 -c "import json; d=json.load(open('...')); assert len(d['hypotheses'])>=3"`）
+2. 对每个假设，从 index.json 提取对应信号、阅读源码上下文，构建三段式证据链：
+   - **Source**: 数据/操作起源于哪里？（锚定 file:line + function + variable）
+   - **Propagation**: 数据如何流经系统？（锚定数据流路径上的每个节点）
+   - **Sink**: 危害发生在哪里？（锚定最终危险操作点）
+3. 每个证据项必须包含：`file`、`line`、`function`、`variable`、`description`
+4. 使用 bash 写 `workers/<rule_name>/evidence.json`
+
+**evidence.json 格式：**
+```json
+{
+  "rule": "buffer_overflow",
+  "hypotheses_evidence": [
+    {
+      "hypothesis_id": "H1",
+      "evidence_chain": {
+        "source": {"description": "argv[1] 从 main 传入 parse_task_name", "file": "src/parser.c", "line": 60, "function": "main", "variable": "argv[1]"},
+        "propagate": {"description": "input 参数直接传给 strcpy，无长度检查", "file": "src/parser.c", "line": 20, "function": "parse_task_name", "variable": "input"},
+        "sink": {"description": "strcpy 写入 task->name (char[64])，无边界保护", "file": "src/parser.c", "line": 20, "function": "parse_task_name", "variable": "task->name"}
+      },
+      "evidence_strength": "strong"
+    }
+  ]
+}
+```
+
+### Step 6: Phase 2c — Counter Evidence (P2) [强制性阻塞门]
+
+> **[MANDATORY ARTIFACT]** 产出: `workers/<rule_name>/counter_evidence.json`
+> **[GATE CHECK]** evidence.json 存在 → 继续
+> **[PROTOCOL]** 使用 `Read` 工具加载 `$SECGUARDIAN_HOME/skills/secguard-${SCAN_LANG}/protocols/verification-protocol.md`（通过 symlink → knowledge/protocols/），严格应用 P2 反证搜寻清单
+> **[PROTOCOL]** 使用 `Read` 工具加载 rule 的 `references/false-positive.md`，应用抑制决策树
+>
+> ⚠️ **这是阻塞门。** counter_evidence.json 不存在或 P2 未通过 → **禁止**进入 Step 7。
+> P2 的角色是"辩护律师"——主动搜索代码中证明漏洞**不成立**的证据。
+
+**执行流程：**
+
+1. bash 验证 evidence.json 存在
+2. 使用 `Read` 工具加载 verification-protocol.md 的 P2 部分 + false-positive.md
+3. 对 evidence.json 中的每个假设，按 CWE 类型搜索反证：
+   - **内存安全 (CWE-120/476/415/416/787/190)**: RAII 包装器、智能指针、sizeof 边界检查、安全变体 (strcpy_s/snprintf/strlcpy)、FORTIFY_SOURCE/-fstack-protector
+   - **注入 (CWE-78/89)**: 参数化 API、白名单验证、输入清理
+   - **并发 (CWE-667)**: RAII lock_guard、原子操作
+   - **加密 (CWE-327/798)**: 高层加密库 (libsodium)、KMS、环境变量密钥
+4. 每个反证必须包含具体的代码位置+机制说明
+5. P2 通行裁决: `counter_evidence_found` | `counter_evidence_not_found`
+6. 使用 bash 写 `workers/<rule_name>/counter_evidence.json`
+
+**counter_evidence.json 格式：**
+```json
+{
+  "rule": "buffer_overflow",
+  "p2_checks": [
+    {
+      "hypothesis_id": "H1",
+      "p2_verdict": "counter_evidence_not_found",
+      "search_results": {
+        "raii_wrapper": false,
+        "smart_pointer": false,
+        "bounds_check_before_sink": false,
+        "safe_alternative_used": false,
+        "compiler_protection": false
+      },
+      "counter_mechanism": null
+    },
+    {
+      "hypothesis_id": "H3",
+      "p2_verdict": "counter_evidence_found",
+      "search_results": {
+        "raii_wrapper": false,
+        "smart_pointer": false,
+        "bounds_check_before_sink": true,
+        "safe_alternative_used": true,
+        "compiler_protection": false
+      },
+      "counter_mechanism": {
+        "type": "safe_alternative",
+        "description": "strcpy_s(dst, sizeof(dst), src) — Annex K 安全变体",
+        "location": {"file": "src/p0_safe_functions.c", "line": 18}
+      }
+    }
+  ]
+}
+```
+
+> ⛔ **[BLOCKING GATE]** counter_evidence.json 必须存在且每个假设都有 p2_verdict 才能进入 Step 7。
+
+### Step 7: Phase 2d — Judge + Fact-Anchor Reflection [不可跳过]
+
+> **[MANDATORY ARTIFACT]** 产出: `workers/<rule_name>/judge_verdict.json`
+> **[GATE CHECK]** evidence.json + counter_evidence.json 都存在 → 继续
+> **[PROTOCOL]** 应用 rule.md 中的 Q1-Q2-Q3 判定矩阵
+>
+> **Judge 独立裁决。** 基于 Evidence + Counter Evidence，不重新扫描源码。
+
+**执行流程：**
+
+1. bash 验证 evidence.json + counter_evidence.json 都存在
+2. 从 rule.md 读取该规则的 Q1-Q2-Q3 问题（事实锚定反射）
+3. 对每个假设，回答 Q1-Q2-Q3 三个事实问题：
+   - **三绿灯**（Q1=Yes, Q2=Yes, Q3=Yes 且全安全）→ `SUPPRESS`
+   - **两绿灯+单黄灯**（大概率安全）→ `downgrade to informational`
+   - **两红灯+单绿灯**（大概率确认）→ `CONFIRMED`
+   - **三红灯**（全否定）→ `CONFIRMED`
+   - **混合模式**（Yes/No 不一致）→ 强制详细分析
+4. 裁决: `CONFIRMED` / `SUSPICIOUS` / `SAFE` / `UNKNOWN`
+5. Unknown 永远不降级为 Safe。不确定 → 抑制。
+6. 使用 bash 写 `workers/<rule_name>/judge_verdict.json`
+
+**judge_verdict.json 格式：**
+```json
+{
+  "rule": "buffer_overflow",
+  "verdicts": [
+    {
+      "hypothesis_id": "H1",
+      "verdict": "CONFIRMED",
+      "judgment_matrix": {
+        "Q1_buffer_too_small": true,
+        "Q2_external_input": true,
+        "Q3_bounds_check_exists": false,
+        "conclusion": "CONFIRMED"
+      },
+      "severity": "Critical",
+      "cwe": "CWE-120",
+      "confidence": "high"
+    },
+    {
+      "hypothesis_id": "H3",
+      "verdict": "SAFE",
+      "judgment_matrix": {
+        "Q1_buffer_too_small": false,
+        "Q2_external_input": false,
+        "Q3_bounds_check_exists": true,
+        "conclusion": "SUPPRESS"
+      },
+      "severity": null,
+      "cwe": null,
+      "confidence": "high"
+    }
+  ],
+  "summary": {
+    "confirmed": 1,
+    "suspicious": 0,
+    "safe": 1,
+    "unknown": 0
+  }
+}
+```
+
+### Step 8: 记录 Findings [条件执行]
+
+> **[CONDITIONAL]** 仅当 judge_verdict.json 包含 CONFIRMED 或 SUSPICIOUS 时运行
+> **[GATE CHECK]** judge_verdict.json 存在 → 继续
+> **[TOOL]** 使用 `$SCRIPTS_DIR/record-finding.py` 持久化
+>
+> **SAFE/UNKNOWN 裁决不产生 finding。** 仅 CONFIRMED 和 SUSPICIOUS 推进到 record-finding.py。
+
+**执行流程：**
+
+1. bash 验证 judge_verdict.json 存在
+2. 提取所有 CONFIRMED 和 SUSPICIOUS 裁决
+3. 对每个确认/可疑发现，构造 finding JSON → 通过 `record-finding.py --from-file` 记录
+4. 为该 rule 生成 blindspot.json：
+   - 记录哪些信号被抑制及原因
+   - 记录哪些检测模式未覆盖（跨函数 depth>1 等）
+   - 记录统计：信号数 / 调查数 / 确认 / 抑制
+5. 使用 bash 写 `workers/<rule_name>/blindspot.json`
+
+**blindspot.json 格式：**
+```json
+{
+  "rule": "buffer_overflow",
+  "status": "triggered",
+  "signals_count": 25,
+  "hypotheses_generated": 5,
+  "findings_confirmed": 3,
+  "findings_suppressed": 22,
+  "blind_spot_reason": "22 个信号使用安全变体 (strcpy_s/snprintf+sizeof) 或目标缓冲区远大于源数据",
+  "missed_patterns": ["跨函数溢出 (depth > 1)", "C++ 智能指针管理的内存操作"],
+  "recommendations": ["手动审查跨函数边界的 memcpy 调用"]
+}
+```
+
+---
 
 ### Step 9: 渲染最终输出
 
@@ -447,6 +687,95 @@ Scan ID: sc-YYYYMMDD-HHMMSS-xxxx | Project: <project> | Path: <path> | Language:
 
 ---
 
+### Phase 3: 管道工件验证与聚合 [不可跳过，在最终输出之前]
+
+> ⚠️ **必须验证所有 Worker 的 blindspot.json 存在后才能输出最终摘要。**
+> 这是管道完整性的最后检查点。
+
+**Step 1: 验证 blindspot.json 完整性**
+
+```bash
+USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
+source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
+
+# 验证所有触发的规则都有 blindspot.json
+MISSING=0
+for rule_dir in $(ls -d "$SCAN_DIR/workers/"*/ 2>/dev/null); do
+  rule_name=$(basename "$rule_dir")
+  if [ ! -f "$rule_dir/blindspot.json" ]; then
+    echo "ERROR: Missing blindspot.json in workers/$rule_name/"
+    MISSING=$((MISSING + 1))
+  fi
+done
+if [ "$MISSING" -gt 0 ]; then
+  echo "FATAL: $MISSING rule(s) missing blindspot.json — Investigation Pipeline incomplete"
+  exit 1
+fi
+echo "✓ All worker rules have blindspot.json"
+```
+
+**Step 2: 生成 worker_manifest.json**
+
+```bash
+USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
+source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
+
+python3 -c "
+import json, glob, os
+rules = glob.glob('$SCAN_DIR/workers/*/')
+manifest = {'scan_id': '$SCAN_ID', 'rules': []}
+for r in sorted(rules):
+    name = os.path.basename(r.rstrip('/'))
+    evidence = os.path.join(r, 'evidence.json')
+    blindspot = os.path.join(r, 'blindspot.json')
+    judge = os.path.join(r, 'judge_verdict.json')
+    counter = os.path.join(r, 'counter_evidence.json')
+    manifest['rules'].append({
+        'rule': name,
+        'has_evidence': os.path.exists(evidence),
+        'has_counter_evidence': os.path.exists(counter),
+        'has_judge_verdict': os.path.exists(judge),
+        'has_blindspot': os.path.exists(blindspot)
+    })
+with open('$SCAN_DIR/worker_manifest.json', 'w') as f:
+    json.dump(manifest, f, indent=2)
+print(f'worker_manifest.json written ({len(manifest[\"rules\"])} rules)')
+"
+```
+
+**Step 3: 管道完整性自检摘要**
+
+```bash
+USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
+source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
+
+python3 -c "
+import json, glob, os
+rules = glob.glob('$SCAN_DIR/workers/*/')
+total_confirmed = 0
+total_suppressed = 0
+pipeline_complete = 0
+for r in sorted(rules):
+    name = os.path.basename(r.rstrip('/'))
+    verdict_file = os.path.join(r, 'judge_verdict.json')
+    blindspot_file = os.path.join(r, 'blindspot.json')
+    has_verdict = os.path.exists(verdict_file)
+    has_blindspot = os.path.exists(blindspot_file)
+    if has_verdict and has_blindspot:
+        pipeline_complete += 1
+        with open(verdict_file) as f:
+            v = json.load(f)
+        s = v.get('summary', {})
+        total_confirmed += s.get('confirmed', 0) + s.get('suspicious', 0)
+        total_suppressed += s.get('safe', 0) + s.get('unknown', 0)
+print(f'Pipeline Status: {pipeline_complete}/{len(rules)} rules complete')
+print(f'Total Confirmed/Suspicious: {total_confirmed}')
+print(f'Total Suppressed (Safe/Unknown): {total_suppressed}')
+"
+```
+
+---
+
 ## 输出文件命名规范
 
 所有 finding 文件命名格式：`<SHA12>_<FILE_SLUG>-<LINE>.json`
@@ -511,16 +840,15 @@ findings/exec/command_injection/f6e5d4c3b2a1_executor-89.json
 | 禁止 | 非终止状态（"需要更多上下文"、"无法确定"） |
 | suppress | 不确定 → 抑制。仅完全证据链才报告 |
 | 跨函数 depth | max 1，超过 → downgrade to suspicious |
-| 分批策略 | BATCH_SIZE=50，信号超标时自动分批（§5.5） |
-| Batch Worker 独立性 | 完全无状态，不依赖其他 Batch |
-| 跨 Batch 归并 | Aggregator (§5.6) 在 Worker 完成后合并去重 |
-| 信号上限 | BATCH_SIZE × MAX_BATCH_WORKERS(=100)，超额标记 unprocessed |
+| 优先级策略 | 按严重度排序执行：Critical → High → Medium。信号 > 200 时优先高风险 Skill |
+| 同一调用点去重 | 多个 Skill 对同一调用点产出 finding → 保留最高严重度（Phase 3 SHA-256 键控去重） |
+| 信号超量处理 | 信号超量时标记 `unprocessed`，记录到 blindspot.json。这是安全机制，不是故障 |
 
 ---
 
 ## 附录 C: OpenCode 内联执行须知
 
-> OpenCode 没有后台任务工具。Phase 2 §5.1 定义的串行内联执行是本平台的唯一 Worker 模式，不是"降级方案"。
+> OpenCode 没有后台任务工具。Phase 2 Steps 4-8（上述）定义的串行内联执行是本平台的唯一 Worker 模式，不是"降级方案"。
 
 串行内联执行的已知限制：
 
@@ -529,6 +857,6 @@ findings/exec/command_injection/f6e5d4c3b2a1_executor-89.json
 3. **抑制倾向**：如果上下文已满，后续 Worker 的判定质量下降。Ambiguous 信号应该优先抑制而非确认
 
 **避免截断的策略：**
-- 信号 > 50 的 Skill 自动分批（§5.5），但不要在 Phase 2 一次加载所有规则文件
+- 信号 > 50 的 Skill 按优先级分批处理，但不要在 Phase 2 一次加载所有规则文件
 - 如果扫描包含大量字符串/IO 信号，**默认只运行 buffer_overflow、command_injection、memory 类高风险 Skill**，将 error_propagation、hardcoded_secrets 等低风险 Skill 延后或有选择地执行
 - 如果上下文接近预算，优先运行信号量最少的 Skill（快速产出），跳过信号量大的 Skill（长时间占用上下文）
