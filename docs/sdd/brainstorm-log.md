@@ -1394,3 +1394,46 @@ v0.18.0 的生产扫描 0 findings 事故已经通过 EPIC-009（预筛器 + str
 - `skills/secguard/*/SKILL.md` — 所有 Skill 文件，从流程改领域知识
 - 新增 EPIC-010 Feature Package
 - 不涉及 Go 代码（预筛器保持现状）
+
+---
+
+## 2026-07-10 — EPIC-011: 强制力完整性（Enforcement Integrity）+ 架构大手术
+
+### 背景
+
+5 个对抗性审查 agent 深度检视五个子系统（调查管线/Go索引器/检测规则/验证管线/输出协议），发现 14 条致命/严重问题。5 个 agent 彼此不知对方结论，却独立收敛到同一根因。用户随后升级指令：对架构做大手术，目标"AI 辅助下的超越 SAST，不是纯 SAST"，强调"Tree-sitter 打败 AST"与"CFG 不可忽视"。
+
+### 根因（5-Why）
+
+强制力倒置：硬保证在 Markdown（LLM 可忽略），编译层只管结构不管语义，无 ground-truth 反馈回路。历史教训复发因为从未结构性修复，只是加更多 Markdown 文字。
+
+### 考虑过的方案
+
+| 方案 | 否决原因 |
+|------|---------|
+| A. 给协议加更多"不可跳过"措辞 + Q&A | 反模式本身——扩大 LLM 可忽略表面积，复发根因 |
+| B. 把 Worker/Judge 换成纯 Go 引擎（传统 SAST）| 背离"超越 SAST"——丢失 LLM 语义差异化，退回纯 SAST |
+| C. 独立 Agent 进程做 Judge（进程隔离）| 仍是 LLM 自评，无 ground truth 回路，token 暴涨 |
+| D. 编译层强制 chokepoint + ground-truth 验证回路（FEATURE-001 选定）| 把语义不变量下沉到 record-finding.py 唯一写入口 + expected-results oracle 闭合反馈 |
+| E. 纯 Go tree-sitter 移植消灭双解析器（初步假设）| **实证推翻**：go-tree-sitter v0.25.0 含 .c 文件，确需 CGO |
+| F. zig cc 交叉编译使 tree-sitter 全平台唯一解析器（FEATURE-002 选定）| 确定性、官方绑定成熟，从根因消灭 F5，"打败 AST"全平台成立 |
+
+### 最终方案
+
+三支柱：
+- **Pillar 0（引擎 recall 基线）**：tree-sitter 全平台唯一解析器（zig cc，F-方案）+ CFG 构建（可达性/必经性事实）+ S3 填充接通 prescreener。FEATURE-002。
+- **Pillar A（强制层）**：verification-gate.py 作为 record-finding.py 前置门，校验 anchor/Q-matrix/工件/枚举/信号覆盖下限；CI gate 真退出码。FEATURE-001。
+- **Pillar B（验证回路）**：verify-recall.py 读 expected-results.json 与实际 finding diff，输出 recall/precision；杀 verify-lang-pipeline 伪造。FEATURE-001。
+
+CFG 是"AI 辅助超越 SAST"的关键地基：引擎提供控制流事实，LLM 在事实之上做语义判断（支柱2），而非空想；同时引擎保证 recall 下限（支柱1）。
+
+### 影响范围
+
+- 新增 scripts/verification-gate.py、scripts/verify-recall.py
+- 新增 internal/indexer/cfg.go（CFG 构建 + 查询）
+- 改 scripts/record-finding.py（接 gate）、scripts/render-report.py（CI exit + 渲染 bug）、scripts/e2e-verify.sh（接 oracle，删伪造）、scripts/package.sh（zig cc）
+- 删 internal/parser/parser_re.go（正则回退）
+- 改 internal/parser/parser_ts.go（移除 cgo tag + 填充 S3）、internal/context/context.go（加 cfg 字段）
+- 改 commands/claude/secguard.md（恢复 Steps 4-8）、commands/* 单源（FEATURE-005）
+- 改 skills/secguard/*/rules（Q-matrix 极性 + 60 规则覆盖，FEATURE-003）
+- 新增 EPIC-011 + FEATURE-001/002 完整四环
