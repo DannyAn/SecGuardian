@@ -178,6 +178,23 @@ def main():
         if 'cvss' in file_json:
             args.cvss = float(file_json['cvss'])
 
+    # F2 fix: --from-file bypassed argparse `choices`, so a non-canonical
+    # severity (e.g. "blocker", "critical ") could be written verbatim and later
+    # drop out of the renderer's Critical/High bucket, bypassing the CI gate.
+    # Validate + canonicalize here for both the --from-file and CLI paths.
+    _valid_sev = {"critical", "high", "medium", "low", "info",
+                  "blocker", "fatal", "crit", "urgent",
+                  "warning", "warn", "moderate",
+                  "informational", "trace", "debug",
+                  "minor", "trivial"}
+    if args.severity:
+        _sev_norm = str(args.severity).strip()
+        if _sev_norm.lower() not in _valid_sev:
+            print(f"FATAL: invalid severity '{args.severity}' "
+                  f"(must be Critical/High/Medium/Low/Info)", file=sys.stderr)
+            sys.exit(2)
+        args.severity = _sev_norm
+
     # ── Validate required fields (whether from CLI or stdin) ──
     required_fields = {
         'scan_dir': '--scan-dir / scan_dir',
@@ -253,6 +270,14 @@ def main():
                 print("ANCHOR_INFO: line {} in '{}' is module/class-level (not in function symbol table)".format(
                     args.line, args.file), file=sys.stderr)
                 print("  File verified in index. Finding recorded normally — anchor at file level.", file=sys.stderr)
+
+            # Auto-resolve the enclosing function from the index when the agent
+            # did not supply --function (oracle recall/precision matching depends
+            # on function-level anchors; this is engine-driven, not LLM-discretion,
+            # and fixes the findings_index function="N/A" data gap).
+            if not args.function and symbol_match and symbol_match[0] == 'function' and symbol_match[1]:
+                args.function = symbol_match[1]
+                print("ANCHOR_OK: auto-resolved function '{}' from index".format(args.function), file=sys.stderr)
     elif args.index_json:
         print("ANCHOR_WARN: --index-json '{}' not found — skipping anchor validation".format(args.index_json), file=sys.stderr)
 
@@ -272,10 +297,22 @@ def main():
     # ── Build finding dict ──────────────────────
     code_ctx = args.code_context or args.snippet
 
+    # F2 fix: map validated severity (which may be an alias like "blocker") to
+    # the canonical string the renderer's severity buckets expect.
+    _sev_canonical = {
+        "critical": "Critical", "blocker": "Critical", "fatal": "Critical",
+        "crit": "Critical", "urgent": "Critical",
+        "high": "High",
+        "medium": "Medium", "warning": "Medium", "warn": "Medium", "moderate": "Medium",
+        "low": "Low", "minor": "Low", "trivial": "Low",
+        "info": "Info", "informational": "Info", "trace": "Info", "debug": "Info",
+    }
+    _sev_out = _sev_canonical.get(str(args.severity).strip().lower(), "Medium")
+
     finding = {
         "schema_version": "1.0",
         "finding": {
-            "severity": args.severity.capitalize(),
+            "severity": _sev_out,
             "cwe": args.cwe,
             "detector": args.detector,
             "file": args.file,

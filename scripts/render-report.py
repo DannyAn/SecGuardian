@@ -205,6 +205,37 @@ def calc_grade(score):
     if score >= 15: return "D"
     return "F"
 
+VALID_SEVERITIES = ("Critical", "High", "Medium", "Low", "Info")
+_SEVERITY_ALIASES = {
+    "blocker": "Critical", "fatal": "Critical", "crit": "Critical", "urgent": "Critical",
+    "warning": "Medium", "warn": "Medium", "moderate": "Medium",
+    "informational": "Info", "trace": "Info", "debug": "Info",
+    "minor": "Low", "trivial": "Low", "info": "Info",
+}
+
+
+def _normalize_severity(sev):
+    """Canonicalize severity to one of VALID_SEVERITIES.
+
+    Prevents the CI gate from being bypassed by case/spacing/alias variants
+    (F2): `by_sev.get("Critical")` only matches the canonical string, so an
+    unknown value would silently drop out of every severity bucket and let a
+    real Critical ship under PASSED.
+    """
+    if not isinstance(sev, str):
+        return "Medium"
+    s = sev.strip()
+    low = s.lower()
+    for canon in VALID_SEVERITIES:
+        if low == canon.lower():
+            return canon
+    if low in _SEVERITY_ALIASES:
+        return _SEVERITY_ALIASES[low]
+    # Unknown severity → Medium (conservative default; it still counts toward
+    # the Medium bucket so it cannot hide a Critical silently).
+    return "Medium"
+
+
 def _ensure_fields(f):
     """Normalize finding fields: fill in defaults for all renderer-required fields.
 
@@ -219,7 +250,9 @@ def _ensure_fields(f):
     if not f.get('line') and f.get('line') != 0:
         loc = f.get('location', {})
         f['line'] = loc.get('start_line', 0) if isinstance(loc, dict) else 0
-    f.setdefault('severity', 'Medium')
+    # F2 fix: normalize severity so non-standard values (e.g. "critical ", "CRIT",
+    # "blocker") cannot bypass the CI gate's Critical/High bucket counting.
+    f['severity'] = _normalize_severity(f.get('severity', 'Medium'))
     f.setdefault('cwe', 'CWE-000')
     f.setdefault('detector', 'unknown')
     f.setdefault('title', f.get('fix_summary', 'Security Finding'))
@@ -429,73 +462,77 @@ def generate_report_md(findings_data):
             fix = f.get("fix", {})
 
             lines.append(f"#### {sev_emoji} #{f.get('_seq', 0)} — {f['title']}\n")
-        lines.append(f"| Field | Detail |")
-        lines.append(f"|-------|--------|")
-        lines.append(f"| **Severity** | {sev_emoji} {f['severity']} |")
-        lines.append(f"| **CWE** | [{f['cwe']}](https://cwe.mitre.org/data/definitions/{f['cwe'].replace('CWE-','')}.html) |")
-        lines.append(f"| **Detector** | `{f['detector']}` |")
-        lines.append(f"| **File** | `{loc.get('file_path', f['file'])}:{loc.get('start_line', f['line'])}` |")
-        lines.append(f"| **Function** | `{loc.get('function_name', f.get('function', 'N/A'))}` |")
-        lines.append("")
-
-        # 📍 Location
-        lines.append("##### 📍 Location\n")
-        snippet = loc.get("snippet", "")
-        if snippet:
-            lines.append("```" + lang)
-            lines.append(snippet)
-            lines.append("```\n")
-
-        # 📋 Evidence
-        lines.append("##### 📋 Evidence\n")
-        lines.append(f"**Code Context:**\n```{lang}\n{ev.get('code_context', 'N/A')}\n```\n")
-        lines.append(f"**Judgment:** {ev.get('judgment_rationale', 'N/A')}\n")
-
-        data_flow = ev.get("data_flow_path", [])
-        if data_flow:
-            lines.append("**Data Flow Path:**")
-            # data_flow_path 可以是：
-            #   1) [{"step":"source","file":"a.c","line":1,"description":"d"}, ...]  (v4 协议 dict 列表)
-            #   2) "malloc → buf → return → leak"  (v5 协议简化字符串)
-            if isinstance(data_flow, str):
-                lines.append(f"  {data_flow}")
-                lines.append("")
-                continue
-            for step in data_flow:
-                if isinstance(step, str):
-                    lines.append(f"  {step}")
-                    continue
-                step_label = {"source": "SOURCE", "propagation": "→ PROPAGATION", "sink": "→ SINK"}
-                prefix = step_label.get(step.get("step", ""), "  ")
-                lines.append(f"  {prefix}: {step.get('file','')}:{step.get('line','')} — {step.get('description','')}")
+            # F12 fix: the entire detail block below was previously outside this
+            # `for f` loop (8-space indent), so every detector rendered only the
+            # *last* finding's evidence/fix while earlier findings kept just an
+            # empty title. Indented the block into the loop so each finding gets
+            # its full Location/Evidence/Impact/Fix sections.
+            lines.append(f"| Field | Detail |")
+            lines.append(f"|-------|--------|")
+            lines.append(f"| **Severity** | {sev_emoji} {f['severity']} |")
+            lines.append(f"| **CWE** | [{f['cwe']}](https://cwe.mitre.org/data/definitions/{f['cwe'].replace('CWE-','')}.html) |")
+            lines.append(f"| **Detector** | `{f['detector']}` |")
+            lines.append(f"| **File** | `{loc.get('file_path', f['file'])}:{loc.get('start_line', f['line'])}` |")
+            lines.append(f"| **Function** | `{loc.get('function_name', f.get('function', 'N/A'))}` |")
             lines.append("")
 
-        # ⚠️ Impact
-        lines.append("##### ⚠️ Impact\n")
-        lines.append(f"**Attack Scenario:** {imp.get('attack_scenario', 'N/A')}\n")
-        cvss = imp.get("cvss_score")
-        if cvss is not None:
-            lines.append(f"**CVSS 3.1 Score:** {cvss}/10")
-            vec = imp.get("cvss_vector", "")
-            if vec:
-                lines.append(f"**CVSS Vector:** `{vec}`")
-        lines.append(f"**Exploit Conditions:** {imp.get('exploit_conditions', 'N/A')}\n")
+            # 📍 Location
+            lines.append("##### 📍 Location\n")
+            snippet = loc.get("snippet", "")
+            if snippet:
+                lines.append("```" + lang)
+                lines.append(snippet)
+                lines.append("```\n")
 
-        # 🔧 Fix
-        lines.append("##### 🔧 Fix\n")
-        lines.append(f"{fix.get('description', 'N/A')}\n")
-        lines.append("**Before:**\n```" + lang)
-        lines.append(fix.get("before_code", "N/A"))
-        lines.append("```\n")
-        lines.append("**After:**\n```" + lang)
-        lines.append(fix.get("after_code", "N/A"))
-        lines.append("```\n")
+            # 📋 Evidence
+            lines.append("##### 📋 Evidence\n")
+            lines.append(f"**Code Context:**\n```{lang}\n{ev.get('code_context', 'N/A')}\n```\n")
+            lines.append(f"**Judgment:** {ev.get('judgment_rationale', 'N/A')}\n")
 
-        effort = fix.get("effort_hours")
-        if effort is not None:
-            lines.append(f"**Estimated Effort:** {effort} hours | **Verification:** {fix.get('verification_method', 'N/A')}\n")
+            data_flow = ev.get("data_flow_path", [])
+            if data_flow:
+                lines.append("**Data Flow Path:**")
+                # data_flow_path 可以是：
+                #   1) [{"step":"source","file":"a.c","line":1,"description":"d"}, ...]  (v4 协议 dict 列表)
+                #   2) "malloc → buf → return → leak"  (v5 协议简化字符串)
+                if isinstance(data_flow, str):
+                    lines.append(f"  {data_flow}")
+                else:
+                    for step in data_flow:
+                        if isinstance(step, str):
+                            lines.append(f"  {step}")
+                            continue
+                        step_label = {"source": "SOURCE", "propagation": "→ PROPAGATION", "sink": "→ SINK"}
+                        prefix = step_label.get(step.get("step", ""), "  ")
+                        lines.append(f"  {prefix}: {step.get('file','')}:{step.get('line','')} — {step.get('description','')}")
+                lines.append("")
 
-        lines.append("---\n")
+            # ⚠️ Impact
+            lines.append("##### ⚠️ Impact\n")
+            lines.append(f"**Attack Scenario:** {imp.get('attack_scenario', 'N/A')}\n")
+            cvss = imp.get("cvss_score")
+            if cvss is not None:
+                lines.append(f"**CVSS 3.1 Score:** {cvss}/10")
+                vec = imp.get("cvss_vector", "")
+                if vec:
+                    lines.append(f"**CVSS Vector:** `{vec}`")
+            lines.append(f"**Exploit Conditions:** {imp.get('exploit_conditions', 'N/A')}\n")
+
+            # 🔧 Fix
+            lines.append("##### 🔧 Fix\n")
+            lines.append(f"{fix.get('description', 'N/A')}\n")
+            lines.append("**Before:**\n```" + lang)
+            lines.append(fix.get("before_code", "N/A"))
+            lines.append("```\n")
+            lines.append("**After:**\n```" + lang)
+            lines.append(fix.get("after_code", "N/A"))
+            lines.append("```\n")
+
+            effort = fix.get("effort_hours")
+            if effort is not None:
+                lines.append(f"**Estimated Effort:** {effort} hours | **Verification:** {fix.get('verification_method', 'N/A')}\n")
+
+            lines.append("---\n")
 
     # §4 Remediation Roadmap
     lines.append("## §4 Remediation Roadmap\n")
@@ -1409,11 +1446,13 @@ Examples:
         manifest = generate_manifest(findings_data)
         write_json("manifest.json", manifest)
 
+    ci_exit_code = 0
     if fmt in ("all", "status"):
         status = generate_status(findings_data, ci_mode=args.ci)
         write_json("status.json", status)
-        if args.ci and status["exit_code"] != 0:
-            print(f"\n  ⚠️  CI Gate FAILED — exit code {status['exit_code']}")
+        ci_exit_code = status.get("exit_code", 0)
+        if args.ci and ci_exit_code != 0:
+            print(f"\n  ⚠️  CI Gate FAILED — exit code {ci_exit_code}")
 
     if fmt in ("all", "delta"):
         delta = generate_delta(findings_data, args.output)
@@ -1477,6 +1516,12 @@ Examples:
         with open(findings_json_path, 'w', encoding='utf-8') as fout:
             json.dump(index_meta, fout, indent=2, ensure_ascii=False)
         print(f"  \u2713 findings.json ({len(findings)} findings in index)")
+
+    # F2 fix: --ci must propagate the gate verdict as the process exit code.
+    # Previously the FAILED branch only printed a warning, so any CI runner
+    # checking $? / `set -e` would let a Critical-bearing scan ship green.
+    if args.ci and ci_exit_code != 0:
+        sys.exit(ci_exit_code)
 
 if __name__ == "__main__":
     main()

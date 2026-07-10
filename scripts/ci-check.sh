@@ -152,22 +152,7 @@ print(f'Index: {len(d[\"files\"])} files, {len(d[\"symbols\"][\"functions\"])} f
     fi
 fi
 
-# ── 结果 ─────────────────────────────────────
-echo ""
-echo -e "${BOLD}════════════════════════════════════════════════${NC}"
-if [ $ERRORS -eq 0 ]; then
-    echo -e "${GREEN}${BOLD}  全部检查通过 ✓${NC}"
-    echo ""
-    echo "  Push 到 Gitee 后 CI 应能顺利通过。"
-else
-    echo -e "${RED}${BOLD}  $ERRORS 项检查失败 ✗${NC}"
-    echo ""
-    echo "  请修复上述问题后重新运行。"
-fi
-echo ""
-exit $ERRORS
-
-# ── 6. Cross-command consistency ──
+# ── 6. Cross-command consistency (F13: moved before final summary so it runs) ──
 echo ""
 echo "──────────────────────────────────────"
 echo -e "${BOLD}[6/6] 跨命令一致性验证${NC}"
@@ -219,3 +204,18 @@ ERRORS=$((ERRORS + XC_ERR))
 if [ "$XC_ERR" -eq 0 ]; then
     echo -e "  ${GREEN}✓${NC} 3 个命令文件一致"
 fi
+
+# ── 结果 ─────────────────────────────────────
+echo ""
+echo -e "${BOLD}════════════════════════════════════════════════${NC}"
+if [ $ERRORS -eq 0 ]; then
+    echo -e "${GREEN}${BOLD}  全部检查通过 ✓${NC}"
+    echo ""
+    echo "  Push 到 Gitee 后 CI 应能顺利通过。"
+else
+    echo -e "${RED}${BOLD}  $ERRORS 项检查失败 ✗${NC}"
+    echo ""
+    echo "  请修复上述问题后重新运行。"
+fi
+echo ""
+exit $ERRORS
