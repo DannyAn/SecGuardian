@@ -76,6 +76,10 @@ func ParseFile(filePath string, lang string) (*ParseResult, error) {
 	if lang == "c" || lang == "cpp" {
 		result.SuspiciousExpressions = collectSuspiciousExpressions(root, content, filePath, lang, result.Declarations)
 	}
+	// ── S12 TaintFlow (EPIC-011 M2): intra-procedural Source→Sink taint. C/C++ v1.
+	if lang == "c" || lang == "cpp" {
+		result.TaintFlows = collectTaintFlows(root, content, filePath, lang)
+	}
 	// ── CFG (EPIC-011 FEATURE-002): per-function control-flow graphs ──
 	result.CFGs = extractCFGs(root, content, filePath, lang)
 	return result, nil

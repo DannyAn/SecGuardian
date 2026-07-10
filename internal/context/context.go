@@ -35,4 +35,6 @@ type AnalysisContext struct {
 	CFGs []parser.FunctionCFG `json:"cfgs,omitempty"`
 	// S11 SuspiciousExpression (EPIC-011): engine-detected semantic AST patterns.
 	SuspiciousExpressions []parser.SuspiciousExpression `json:"suspicious_expressions,omitempty"`
+	// S12 TaintFlow (EPIC-011 M2): engine-detected Source→Sink taint.
+	TaintFlows []parser.TaintFlow `json:"taint_flows,omitempty"`
 }

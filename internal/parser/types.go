@@ -167,6 +167,30 @@ type SuspiciousExpression struct {
 	Snippet  string `json:"snippet"`  // the offending expression text
 }
 
+// ── S12: TaintFlow — Source→Sink 污点传播 ──
+//
+// Engine-detected intra-procedural taint: tainted data (from a Source API like
+// getenv) flowing through assignments to a dangerous Sink (strcpy/system/...)
+// without sanitization. This is the core capability traditional SAST has and
+// SecGuardian previously lacked (EPIC-011 M2). Engine emits the flow (recall
+// floor); LLM judges exploitability.
+//
+// v1 scope (honest limitations): return-tainted sources + assignment propagation
+// + sink detection, intra-procedural, source-order (not path-sensitive).
+// Arg-tainted sources (fgets/scanf/read write-to-arg), inter-procedural,
+// path-sensitivity, aliasing are follow-ups.
+type TaintFlow struct {
+	File        string   `json:"file"`
+	Function    string   `json:"function"`
+	Source      string   `json:"source"`       // source API name (e.g. "getenv")
+	SourceLine  uint     `json:"source_line"`
+	Sink        string   `json:"sink"`         // sink API name (e.g. "strcpy")
+	SinkLine    uint     `json:"sink_line"`
+	TaintedVar  string   `json:"tainted_var"`
+	Path        []string `json:"path"`         // ordered flow steps (human-readable)
+	Category    string   `json:"category"`     // "overflow" | "injection" | "format_string" | "info"
+}
+
 // ParseResult holds all extracted information from a single file.
 type ParseResult struct {
 	File              string              `json:"file"`
@@ -189,6 +213,8 @@ type ParseResult struct {
 	CFGs []FunctionCFG `json:"cfgs,omitempty"`
 	// S11 SuspiciousExpression (EPIC-011): semantic AST patterns. C/C++ for now.
 	SuspiciousExpressions []SuspiciousExpression `json:"suspicious_expressions,omitempty"`
+	// S12 TaintFlow (EPIC-011 M2): engine-detected Source→Sink taint. C/C++ v1.
+	TaintFlows []TaintFlow `json:"taint_flows,omitempty"`
 }
 
 type FunctionInfo struct {

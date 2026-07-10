@@ -40,7 +40,7 @@ SecGuardian **不是纯 SAST，也不是纯 LLM**。它是两层协作：
 | **调用图** | `BuildCallGraphV2`（库 sink 调用点）+ V1（文本近似回退）| ✅ 部分 | V2 基于已知库函数 sink；V1 文本近似有短名假边。**规划**：CFG 落地后做精确过程间可达性 |
 | **Alloc/Free 配对** | `MatchAllocFree` | ✅ 文本近似 | 同函数 scope 内 malloc/free 配对；不追踪具体变量（无 DFG）|
 | **锁使用记录** | `BuildLockGraph` | ⚠️ 弱 | 仅记录 lock/unlock 行号，不配对、不过滤注释。**已知缺口**待修 |
-| **信号矩阵 S1-S11** | `parser/types.go` + 提取器 | ✅ 已实现 | S1 CallSites / S2 StringLiterals / **S3 Declarations**（F6 修复后活）/ S4 ValueConstants / S5 Imports（F6 修复）/ S6 ConfigPatterns / S7 ControlFlowSignals / S8 PointerValidations / S9 StructInits / S10 VariableWrites / **S11 SuspiciousExpression**（assignment_in_condition / operator_precedence / signed_unsigned_compare / suspicious_boolean — 引擎 AST 确定性检出，LLM 判 intent）|
+| **信号矩阵 S1-S12** | `parser/types.go` + 提取器 | ✅ 已实现 | S1 CallSites / S2 StringLiterals / **S3 Declarations**（F6 修复后活）/ S4 ValueConstants / S5 Imports（F6 修复）/ S6 ConfigPatterns / S7 ControlFlowSignals / S8 PointerValidations / S9 StructInits / S10 VariableWrites / **S11 SuspiciousExpression**（assignment_in_condition/operator_precedence/signed_unsigned_compare/suspicious_boolean）/ **S12 TaintFlow**（Source→Sink 污点传播，M2）|
 | **CFG 控制流图**（EPIC-011）| `parser/cfg.go` | ✅ 已实现（v1）| per-function 基本块 + 控制边（if/for/while/return/break/continue/throw）+ `IsReachable` + `Dominates`（迭代支配树）。switch/try 保守处理标 `Incomplete` |
 | **Prescreener** | `indexer.Prescreener` | ✅ 已修复（F6）| 确定性 safe-variant 过滤（strcpy_s/memcpy_s/snprintf 等）；F6 修复前是死代码（SafeCount 恒 0），现已生效（cpp-vuln-demo 实测过滤 8.6%）|
 
@@ -128,7 +128,7 @@ findings → LLM 生成 unified diff patch
 |-----------|--------------------------------------|-------------|----------------|
 | 解析 | AST（编译器前端或正则）| 多为正则/AST | **Tree-sitter CST**（鲁棒、容错、统一多语言）✅ 领先 |
 | 控制流 | CFG ✅ | 多无 | CFG v1 ✅（刚落地，DFG 待补）|
-| 数据流/污点 | DFG + 污点传播 ✅ | 多无 | 🔲 规划（依赖 CFG，下一步）|
+| 数据流/污点 | DFG + 污点传播 ✅ | 多无 | **✅ intra-procedural v1**（S12 TaintFlow：return/arg-tainted 源 + 赋值传播 + sink 检测；cpp-vuln-demo 实测 10 真实流。inter-procedural/路径敏感/别名 = 后续）|
 | 规则模型 | 刚性规则 + 查询语言（CodeQL）| AI 提示 | **引擎事实 + LLM 语义**（混合）✅ 差异化 |
 | 误报控制 | 数据流约束（但仍高 FP）| LLM 判断（不可控）| **CFG 支配性 + Q-matrix + Counter Evidence**（规划强制）|
 | 召回保证 | 引擎保证（但受规则覆盖限制）| LLM 自由（不可保证）| **引擎 recall 下限 + prescreener + [规划] 覆盖门禁**|
@@ -144,7 +144,7 @@ findings → LLM 生成 unified diff patch
 4. **CFG 事实喂 LLM**：LLM 不再空想控制流，误报结构性下降
 
 ### 我们目前落后/待补（诚实）
-1. **无 DFG/污点传播**——传统 SAST 的核心能力，我们尚未实现（CFG 已落地，DFG 是下一步）
+1. **DFG/污点传播**——intra-procedural v1 已落地（S12 TaintFlow，cpp-vuln-demo 实测 10 真实流）；**inter-procedural（跨函数）/路径敏感/别名分析**仍待补（后续 M2 增量）
 2. **CFG/强制层/分区尚在进行中**——架构已定，实现未全
 3. **双解析器非等价**（F5）——跨平台构建用正则回退，待 zig cc 迁移
 4. **JS 用正则**（非 tree-sitter）
@@ -185,7 +185,7 @@ findings → LLM 生成 unified diff patch
 |--------|------|------|
 | M0 | 设计四环 + CFG 主干 + prescreener 修复 + CI/oracle | ✅ 本版 |
 | M1 | verification-gate.py（语义门 + 覆盖下限）| 🔲 进行中 |
-| M2 | DFG/污点传播（基于 CFG）| 🔲 规划 |
+| M2 | DFG/污点传播（基于 CFG）| 🔄 intra-procedural v1 完成；inter-procedural/路径敏感后续 |
 | M3 | 上下文预算分区（FEATURE-006，根治 batch-suppression）| 🔲 规划 |
 | M4 | zig cc 全平台 tree-sitter（F5 根治）| 🔲 待环境 |
 | M5 | Q-matrix 60 规则统一 + 极性修复（F7）| 🔲 规划 |
