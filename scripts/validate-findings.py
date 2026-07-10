@@ -181,10 +181,10 @@ def load_specs_from_dir(rules_dir: str) -> dict:
             # Frontmatter has short detector name, construct full: <namespace>.<detector>
             namespace = fname.split('-')[0]
             full_det = f"{namespace}.{detector}" if detector else ''
-        elif dirname == 'audit-rules':
+        elif 'secaudit' in rules_dir:
             name = fm.get('name', '')
             full_det = f"domain.{name}" if name else ''
-        elif dirname == 'review-rules':
+        elif 'secreview' in rules_dir:
             full_det = detector
         else:
             continue
@@ -206,21 +206,77 @@ def load_specs_from_dir(rules_dir: str) -> dict:
     return specs
 
 
+
+def secguard_specs_from_dir(rules_dir: str) -> dict:
+    '''Load secguard specs: each detector is in a subdir with rule.md.'''
+    specs = {}
+    if not os.path.isdir(rules_dir):
+        return specs
+    for det_dir in sorted(os.listdir(rules_dir)):
+        rule_path = os.path.join(rules_dir, det_dir, 'rule.md')
+        if not os.path.isfile(rule_path):
+            continue
+        try:
+            with open(rule_path, encoding='utf-8') as f:
+                content = f.read()
+        except (OSError, UnicodeDecodeError):
+            continue
+        fm = parse_frontmatter_yaml(content)
+        if not fm:
+            continue
+        detector = fm.get('skill_id', '') or fm.get('detector', '')
+        if not detector:
+            continue
+        sev = fm.get('severity', '')
+        if isinstance(sev, str):
+            sev = sev.capitalize()
+        cwe_val = fm.get('cwe', '')
+        if isinstance(cwe_val, list):
+            cwe_val = cwe_val[0] if cwe_val else ''
+        specs[detector] = {
+            'detector': detector,
+            'severity': sev,
+            'cwe': str(cwe_val),
+            'required_evidence': fm.get('required_evidence', []),
+        }
+        short = detector.split('.')[-1] if '.' in detector else detector
+        if short != detector:
+            specs[short] = specs[detector]
+    return specs
+
+
 def load_all_specs() -> dict:
-    import os
-    sh = os.environ.get("SECGUARDIAN_HOME", os.environ.get("_SECGUARDIAN_HOME", ""))
-    if sh:
-        for rules in ["skills/secaudit/rules", "skills/secreview/cpp/rules"]:
-            d = os.path.join(sh, rules)
+    """Load specs from secguard, secaudit, secreview rules. Returns merged dict."""
+    specs = {}
+    sh = os.environ.get("SECGUARDIAN_HOME", "")
+    if not sh:
+        return specs
+    # 1) Secguard rules
+    for lang in ['cpp', 'go', 'java', 'js', 'python']:
+        for base in [f'secguard-{lang}', f'secguard/{lang}']:
+            d = os.path.join(sh, 'skills', base, 'rules')
+            if os.path.isdir(d):
+                sp = secguard_specs_from_dir(d)
+                if sp:
+                    specs.update(sp)
+                break
+    # 2) Secaudit rules
+    for base in ['secaudit-secaudit/rules', 'secaudit/rules', 'secaudit-secaudit']:
+        d = os.path.join(sh, 'skills', base)
+        if os.path.isdir(d):
             sp = load_specs_from_dir(d)
             if sp:
                 specs.update(sp)
-        return specs
-    """Load specs from guard-rules, audit-rules, and review-rules. Returns merged dict."""
-    specs = {}
-    for subdir in ['guard-rules', 'audit-rules', 'review-rules']:
-        d = os.path.join(PROJECT_ROOT, 'knowledge', subdir)
-        specs.update(load_specs_from_dir(d))
+            break
+    # 3) Secreview rules
+    for lang in ['cpp', 'go', 'java', 'js', 'python']:
+        for base in [f'secreview-{lang}', f'secreview/{lang}']:
+            d = os.path.join(sh, 'skills', base, 'rules')
+            if os.path.isdir(d):
+                sp = load_specs_from_dir(d)
+                if sp:
+                    specs.update(sp)
+                break
     return specs
 
 
