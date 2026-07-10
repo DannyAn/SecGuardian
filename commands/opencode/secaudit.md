@@ -155,9 +155,10 @@ Scan ID: sec-YYYYMMDD-HHMMSS-xxxx | Project: <project> | Path: <path> | Language
 > 1. 每个审计域处理完后，检查上下文是否接近 70% 满载
 > 2. 如果接近溢出：停止未处理的审计域，标记为 `unprocessed`
 > 3. finding 录制：CLI 参数直调（不写文件、无文件操作）
-> 4. **工具禁止：** 禁止 `Read` 工具读 `$SECGUARDIAN_HOME/` 下的文件（触发权限弹窗）。禁止 Glob/Grep 工具（结果进入上下文）。使用 bash `cat`/`grep`
+> 4. **知识读取：** 使用 `Read` 工具通过技能本地 symlink 读取（如 `skills/secaudit/protocols/scan-output.md`），不直读 `$SECGUARDIAN_HOME/knowledge/`。禁止 Glob/Grep 工具。
+> 5. 🚫 **禁止通过 bash 读取文本文件**（bash cat/head/tail 回显浪费 token）。所有文本文件使用 `Read` 工具。
 >
-> 详见 secguard.md `§5.1 Worker 启动协议` 的上下文预算细节（同样的串行约束适用于各审计域）。
+> 详见 secguard.md Phase 2 的 Investigation Pipeline 上下文预算细节（同样的串行约束适用于各审计域）。
 
 ## 派发规则与执行步骤
 
@@ -171,7 +172,7 @@ Scan ID: sec-YYYYMMDD-HHMMSS-xxxx | Project: <project> | Path: <path> | Language
 
 ### 前置检查（Pre-flight Checklist）
 
-> ⛔ **禁止使用 Glob 或 Read 工具探索文件路径。** 已知路径的文件用 `cat` 读取（扩展目录下避免权限弹窗）。索引器已提供符号表+调用图，所有代码结构数据从 index.json 获取，无需 LSP/compile_commands.json。
+> ⛔ **禁止使用 Glob 工具探索文件路径。** 已知路径的文件用 `Read` 工具读取。索引器已提供符号表+调用图，所有代码结构数据从 index.json 获取，无需 LSP/compile_commands.json。
 
 执行审计前确认：
 
@@ -207,11 +208,12 @@ source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secaudit"
 此后 `$SCAN_DIR`、`$SCAN_ID`、`$USER_PROJECT`、`$SECGUARDIAN_HOME`、`$RECORDER` 在 bash 命令中才能正确展开。**禁止用 `cat /tmp/*.txt`**。
 `/tmp/` 在 Windows 不可用、触发 macOS 确权弹窗、且多用户不安全。
 
-> **📂 知识库读取**: 知识库文件存储在 `$SECGUARDIAN_HOME/knowledge/`，使用 bash `cat` 按需读取，不拷贝到项目目录。
-> - 审计规则：`cat "$SECGUARDIAN_HOME/skills/secaudit/rules/{domain}.md"`
-> - 检测规则（按需）：`cat "$SECGUARDIAN_HOME/skills/secguard/{lang}/rules/{rule}/rule.md"`
-> - 协议文件：`cat "$SECGUARDIAN_HOME/knowledge/protocols/{name}.md"`
-> - 禁止使用 `read` 工具读 `$SECGUARDIAN_HOME/knowledge/` 下的文件（触发 OpenCode 外部目录权限弹窗）。使用 bash `cat` 读取不会触发权限弹窗。
+> **📂 知识库读取规则**:
+> - 审计规则：使用 `Read` 工具读取 `$SECGUARDIAN_HOME/skills/secaudit/rules/{domain}.md`
+> - 检测规则（按需）：使用 `Read` 工具读取 `$SECGUARDIAN_HOME/skills/secguard/{lang}/rules/{rule}/rule.md`
+> - 协议文件：使用 `Read` 工具通过技能本地 `protocols/` symlink 读取（如 `skills/secaudit/protocols/scan-output.md`），不直读 `knowledge/`
+> - 标准文件：使用 `Read` 工具通过技能本地 `standards/` symlink 读取
+> - 🚫 **禁止通过 bash 读取文本文件**（bash cat/head/tail 回显内容到对话浪费 token）。所有文本文件使用 `Read` 工具。
 
 ### Step 2: 构建语义索引（必须执行，不可跳过）
 
@@ -320,7 +322,7 @@ cat "$SECGUARDIAN_HOME/skills/secaudit/rules/{domain-name}.md"
 > 🚫 **禁止行为**：
 > - 不加载规则文件直接凭知识审计
 > - 仅列目录后臆测审计规则内容
-> - 用 `read` 工具读 `$SECGUARDIAN_HOME/knowledge/` 目录
+> - 用 `bash cat` 读取文本文件（浪费 token，应使用 `Read` 工具通过技能本地 symlink）
 > - 用 `grep`/`find` 取代 index.json 符号表定位
 
 ### Step 4: 输出结构化 findings（Findings Protocol v5.0 — 文件优先版）

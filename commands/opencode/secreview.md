@@ -135,15 +135,16 @@ Output directory: <user-project>/.codeagent/secguardian/secreview/scans/pr-20260
 > 1. After each review pass (A/B/C), check if context is near ~70% full
 > 2. If near overflow: stop remaining passes, mark as `unprocessed`
 > 3. Finding recording: CLI args direct call (puts data in context)
-> 4. **Tool bans:** No `Read` on `$SECGUARDIAN_HOME/` files (triggers permission prompts). No `Glob`/`Grep`. Use bash `cat`/`grep`
-> 5. **Source read constraint:** No full-file `cat` — each source read MUST use `cat $FILE | sed -n '±15p'` line-range:
->    ```bash
->    # ✅ GOOD: cat "$SOURCE_DIR/src/file.py" | sed -n '25,55p'
->    # ❌ BAD:  cat "$SOURCE_DIR/src/file.py"
+> 4. **知识读取：** 使用 `Read` 工具通过技能本地 symlink 读取（如 `skills/secreview-cpp/protocols/scan-output.md`），不直读 `$SECGUARDIAN_HOME/knowledge/`。禁止 Glob/Grep 工具。
+> 5. 🚫 **禁止通过 bash 读取文本文件**（bash cat/head/tail 回显浪费 token）。所有文本文件使用 `Read` 工具。
+> 6. **Source read constraint:** No full-file `Read` — each source read MUST use line-range:
+>    ```
+>    # ✅ GOOD: Read file offset=25 limit=30
+>    # ❌ BAD:  Read entire file
 >    ```
 >    Full files waste context — zero tolerance.
 >
-> See secguard.md `§5.1 Worker Protocol` for detail (same serial execution constraint applies to all 3 review passes).
+> See secguard.md Phase 2 Investigation Pipeline for detail (same serial execution constraint applies to all 3 review passes).
 
 ## Dispatch Rules & Execution Steps
 
@@ -155,7 +156,7 @@ You (the AI Agent) must follow these steps when executing `/secreview` to perfor
 
 ### 前置检查（Pre-flight Checklist）
 
-> ⛔ **禁止使用 Glob 或 Read 工具探索文件路径（搜索文件）。已知路径的文件用 `cat` 读取。**
+> ⛔ **禁止使用 Glob 工具探索文件路径（搜索文件）。已知路径的文件用 `Read` 工具读取。**
 
 执行审阅前确认：
 
@@ -192,11 +193,12 @@ source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secreview"
 ```
 After this, `$SCAN_DIR`, `$SCAN_ID`, `$USER_PROJECT`, `$SECGUARDIAN_HOME`, `$RECORDER` expand correctly inside bash commands. NEVER use `$(cat /tmp/*.txt)`.
 
-> **📂 Knowledge reading**: Knowledge files are at `$SECGUARDIAN_HOME/knowledge/`. Read on demand via bash `cat` — no directory copy.
-> - Review rules: `cat "$SECGUARDIAN_HOME/skills/secreview/{lang}/rules/{lang}.md"`
-> - Language profile: `cat "$SECGUARDIAN_HOME/skills/secguard-{lang}/references/language-features.md"`
-> - Protocols: `cat "$SECGUARDIAN_HOME/knowledge/protocols/{name}.md"`
-> - DO NOT use `read` tool on `$SECGUARDIAN_HOME/knowledge/` (triggers permission prompts). Use bash `cat` instead — no permission prompt.
+> **📂 Knowledge reading**:
+> - Review rules: 使用 `Read` 工具读取 `$SECGUARDIAN_HOME/skills/secreview/{lang}/rules/{lang}.md`
+> - Language profile: 使用 `Read` 工具读取 `$SECGUARDIAN_HOME/skills/secreview-{lang}/references/language-features.md`
+> - Protocols: 使用 `Read` 工具通过技能本地 `protocols/` symlink 读取，不直读 `knowledge/`
+> - Standards: 使用 `Read` 工具通过技能本地 `standards/` symlink 读取
+> - 🚫 **禁止通过 bash 读取文本文件**（bash cat/head/tail 回显内容到对话浪费 token）。所有文本文件使用 `Read` 工具。
 
 ### Step 2: Build Semantic Index (Required)
 
@@ -244,7 +246,7 @@ python3 "$SCRIPTS_DIR/validate-index.py" \
 
 - Extract `primary_language` from the summary.
 - Load the corresponding skill: `../skills/secreview/{language}/SKILL.md`.
-- Load the per-language profile (dangerous API lists) using bash `cat` — avoid `read` tool which triggers OpenCode external dir permission prompts:
+- Load the per-language profile (dangerous API lists) using `Read` tool:
   ```bash
   LANG_PROFILE="$SECGUARDIAN_HOME/skills/secguard-<language>/references/language-features.md"
   [ -f "$LANG_PROFILE" ] && echo "=== Language Profile ===" && cat "$LANG_PROFILE"
@@ -293,7 +295,7 @@ cat "$SECGUARDIAN_HOME/skills/secreview/{lang}/rules/{lang}.md"
 > 🚫 **禁止行为**：
 > - 不加载规则文件直接凭知识审阅
 > - 仅列目录后臆测审阅规则内容
-> - 用 `read` 工具读 `$SECGUARDIAN_HOME/knowledge/` 目录
+> - 用 `bash cat` 读取文本文件（浪费 token，应使用 `Read` 工具通过技能本地 symlink）
 > - 用 `grep`/`find` 取代 index.json 符号表定位
 
 ### Step 4: AI Security Code Review — Three Reasoning Dimensions
