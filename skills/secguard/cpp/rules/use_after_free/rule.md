@@ -281,6 +281,33 @@ ptr = realloc(ptr, M)
 2. **临时变量接收 realloc 返回值**：避免直接 `ptr = realloc(ptr, n)` 导致泄漏
 3. **检查 realloc 返回值**：失败时处理旧指针，成功时更新指针
 
+## Scenario 4: 引用计数/所有权不匹配导致 Use-After-Free（合并自原 ownership_transfer）
+
+### 威胁定义
+
+引用计数增减不匹配——`AddRef`/`Release`、`ref`/`unref`、`get`/`put`、`acquire`/`release`、`retain`/`release`——在函数或调用链上不均衡。**减大于增（under-ref）**：`Release` 多于 `AddRef`，引用计数提前归零，资源被释放但仍有悬空指针访问 → **Use-After-Free**（CWE-416）。别名/容器/跨函数转移所有权后释放方释放、使用方仍持悬空引用亦同。
+
+> 注：增大于减（over-ref）导致资源永不释放，属**内存泄漏**（CWE-401，见 memory_leak 规则），非本场景。
+
+### 检测逻辑
+
+1. 识别引用计数函数对（`*_ref`/`*_unref`、`*_AddRef`/`*_Release`、`*_retain`/`*_release` 等），建 inc/dec 映射
+2. 同函数/作用域内对每个 inc 搜对应 dec，分析所有退出路径（return/break/continue/goto/异常）
+3. **under-ref**（dec 多于 inc，或 inc 后某退出路径无 dec 致提前归零）→ 标记 UAF：释放后悬空访问
+
+```c
+// BAD: dec 多于 inc — 提前释放 → UAF
+obj_get(o);      // +1
+obj_put(o);      // -1
+obj_put(o);      // -1（无对应 get！）→ refcount=0 释放 → 后续访问 UAF
+```
+
+### 误报排除
+
+- over-ref（inc 多于 dec，泄漏）→ 归 memory_leak，非本规则
+- 配对的 inc/dec（每条路径均衡）→ SAFE
+- 引用计数由 RAII/智能指针管理（C++）→ SAFE
+
 ## 安全模式汇总（所有场景通用）
 
 以下模式在任何场景中均不报告 UAF：

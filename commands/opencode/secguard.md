@@ -182,7 +182,7 @@ platform: opencode
 | `memory.double_free` | double_free | memory |
 | `memory.use_after_free` | use_after_free | memory |
 | `memory.integer_overflow` | integer_overflow | memory |
-| `memory.ownership_transfer` | ownership_transfer | memory |
+| `memory.mismatched_free` | mismatched_free | memory |
 | `memory.must_check` | must_check | memory |
 | `string.api_semantic_misuse` | api_semantic_misuse | string |
 | `exec.command_injection` | command_injection | exec |
@@ -840,7 +840,7 @@ findings/exec/command_injection/f6e5d4c3b2a1_executor-89.json
 | 9 | input_validation | exec | 灵码 | 外部输入未校验即使用 |
 | 10 | hardcoded_secrets | crypto* | SecGuardian | 密钥/密码硬编码（非 call_site 驱动） |
 | 11 | must_check | memory + io | 灵码 | 函数返回值必须检查但未检查 |
-| 12 | ownership_transfer | memory | 灵码 | 所有权转移后原指针继续使用 |
+| 12 | mismatched_free | memory | 灵码 | 分配/释放不配对（malloc↔delete、new↔free 等）|
 | 13 | api_semantic_misuse | * | 灵码 | API 副作用与隐式语义误用 |
 | 14 | lock_misuse | sync | 灵码 | 互斥锁 lock/unlock 不配对 |
 | 15 | error_propagation | * | 灵码 | 错误码未传播或被吞没（非 call_site 驱动） |

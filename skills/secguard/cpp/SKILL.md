@@ -31,7 +31,7 @@ topic: [memory, concurrency, system, io, security, semantics]
 | 9 | [`input_validation/`](./rules/input_validation/) | 🟠 High | CWE-20 | `call_sites[cat="exec"]` | `validation.input-validation` | ✅ |
 | 10 | [`hardcoded_secrets/`](./rules/hardcoded_secrets/) | 🟠 High | CWE-798 | `call_sites[cat="crypto"]` | `crypto.hardcoded-secrets` | ✅ |
 | 11 | [`must_check/`](./rules/must_check/) | 🟠 High | CWE-252 | `call_sites[cat="memory\|io"]` | `memory.must-check` | ✅ |
-| 12 | [`ownership_transfer/`](./rules/ownership_transfer/) | 🟠 High | CWE-416 (related) | `call_sites[cat="memory"]` | `memory.ownership-transfer` | ✅ |
+| 12 | [`mismatched_free/`](./rules/mismatched_free/) | 🟠 High | CWE-762 | `call_sites[cat="memory"]` | `memory.mismatched-free` | ✅ |
 | 13 | [`api_semantic_misuse/`](./rules/api_semantic_misuse/) | 🟠 High | CWE-628 | `call_sites[cat="*"]` | `semantics.api-semantic-misuse` | ✅ |
 | 14 | [`lock_misuse/`](./rules/lock_misuse/) | 🟠 High | CWE-667 | `call_sites[cat="concurrency"]` | `concurrency.lock-misuse` | ✅ |
 | 15 | [`error_propagation/`](./rules/error_propagation/) | 🟡 Medium | CWE-390 | `call_sites[cat="error"]` | `error.error-propagation` | ✅ |
@@ -52,7 +52,7 @@ Critical (6)  → High (8)  → Medium (1)
 
 | call_sites Category | 触发的 Skill 目录 | 信号函数（示例） |
 |--------------------|------------------|-----------------|
-| `"memory"` | `buffer_overflow`, `null_dereference`, `memory_leak`, `double_free`, `use_after_free`, `integer_overflow`, `must_check`, `ownership_transfer` | `malloc`, `free`, `strcpy`, `strcat`, `sprintf`, `memcpy`, `gets` |
+| `"memory"` | `buffer_overflow`, `null_dereference`, `memory_leak`, `double_free`, `use_after_free`, `integer_overflow`, `must_check`, `mismatched_free` | `malloc`, `free`, `strcpy`, `strcat`, `sprintf`, `memcpy`, `gets` |
 | `"string"` | `buffer_overflow` | `strcpy`, `strcat`, `sprintf`, `snprintf`, `gets`, `memcpy` |
 | `"io"` | `resource_leak`, `must_check` | `fopen`, `open`, `socket`, `accept`, `fclose`, `close`, `fread`, `fwrite` |
 | `"exec"` | `command_injection`, `input_validation` | `system`, `popen`, `exec*`, `fork` |

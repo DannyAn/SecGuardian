@@ -494,7 +494,7 @@ echo "14. Investigation Pipeline artifacts"
 # 14a: Verify all 16 C/C++ rules have Q1-Q2-Q3 fact-anchor questions
 for rule in buffer_overflow null_dereference memory_leak double_free \
     use_after_free integer_overflow resource_leak command_injection \
-    input_validation must_check ownership_transfer api_semantic_misuse \
+    input_validation must_check mismatched_free api_semantic_misuse \
     lock_misuse error_propagation hardcoded_secrets uninitialized; do
   rf="skills/secguard/cpp/rules/$rule/rule.md"
   if grep -qE 'Q1_|Q2_|Q3_|事实锚定' "$rf" 2>/dev/null; then

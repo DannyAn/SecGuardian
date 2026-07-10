@@ -105,7 +105,7 @@ case "$COMMAND" in
     if [ "$SCAN_LANG" = "cpp" ]; then
       for det in buffer_overflow null_dereference memory_leak double_free \
           use_after_free integer_overflow resource_leak command_injection \
-          input_validation hardcoded_secrets must_check ownership_transfer \
+          input_validation hardcoded_secrets must_check mismatched_free \
           api_semantic_misuse lock_misuse error_propagation uninitialized; do
         mkdir -p "$SCAN_DIR/workers/$det"
       done
