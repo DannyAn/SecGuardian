@@ -1,5 +1,7 @@
 # DEVELOPER.md -- SecGuardian 开发指南
 
+> 📋 **各命令"超越 SAST"能力栈**（secguard 已成型 / secaudit·secreview·secfix 待建）见 [`docs/Capability-Stacks.md`](docs/Capability-Stacks.md)；根技术总览与他司对比见 [`docs/Root-Technology-Report.md`](docs/Root-Technology-Report.md)。
+
 ## 目录
 
 - [快速开始](#快速开始)
