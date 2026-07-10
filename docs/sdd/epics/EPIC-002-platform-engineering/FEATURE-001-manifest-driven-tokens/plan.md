@@ -127,7 +127,7 @@ fi
 ```bash
 # 单元测试：创建一个测试 manifest，验证 token 替换
 mkdir -p /tmp/test-sync && cp manifest.json /tmp/test-sync/
-echo '67<!-- @secguardian:detector_count -->' > /tmp/test-sync/test.md
+echo '71<!-- @secguardian:detector_count -->' > /tmp/test-sync/test.md
 
 # 修改 manifest count 为 99
 python3 -c "import json; d=json.load(open('/tmp/test-sync/manifest.json')); d['knowledge']['detectors']['count']=99; json.dump(d, open('/tmp/test-sync/manifest.json','w'))"
@@ -137,7 +137,7 @@ MANIFEST=/tmp/test-sync/manifest.json bash scripts/sync-manifest.sh
 # Expected: test.md 中的 67 更新为 99
 
 # 验证
-grep "99<!-- @secguardian:detector_count -->" /tmp/test-sync/test.md && echo "✅ Token updated" || echo "❌ FAIL"
+grep "71<!-- @secguardian:detector_count -->" /tmp/test-sync/test.md && echo "✅ Token updated" || echo "❌ FAIL"
 ```
 
 - [ ] **Step 3: Commit**
@@ -177,7 +177,7 @@ description: 安全威胁目录 — 覆盖所有 67 个检测器对应威胁类�
 ## 内存安全 (memory) — 13 个 detectors
 
 # After:
-description: 安全威胁目录 — 覆盖所有 67<!-- @secguardian:detector_count --> 个检测器对应威胁类型的快速索引
+description: 安全威胁目录 — 覆盖所有 71<!-- @secguardian:detector_count --> 个检测器对应威胁类型的快速索引
 ## 内存安全 (memory) — 13<!-- @secguardian:namespace:memory --> 个 detectors
 ## 并发安全 (concurrency) — 4<!-- @secguardian:namespace:concurrency --> 个 detectors
 ## 系统安全 (system) — 8<!-- @secguardian:namespace:system --> 个 detectors
@@ -194,7 +194,7 @@ description: 安全威胁目录 — 覆盖所有 67<!-- @secguardian:detector_co
 "description": "安全加固项排查 — 67 个检测器覆盖 7 大安全分类"
 
 // After:
-"description": "安全加固项排查 — 67<!-- @secguardian:detector_count --> 个检测器覆盖 7<!-- @secguardian:namespace_count --> 大安全分类"
+"description": "安全加固项排查 — 71<!-- @secguardian:detector_count --> 个检测器覆盖 8<!-- @secguardian:namespace_count --> 大安全分类"
 ```
 
 - [ ] **Step 3: commands/secguard.md frontmatter**
@@ -204,7 +204,7 @@ description: 安全威胁目录 — 覆盖所有 67<!-- @secguardian:detector_co
 description: "安全加固项排查 — 67 个检测器覆盖 memory/concurrency/system/resource/crypto/web/error 7 大安全分类"
 
 # After:
-description: "安全加固项排查 — 67<!-- @secguardian:detector_count --> 个检测器覆盖 memory/concurrency/system/resource/crypto/web/error 7<!-- @secguardian:namespace_count --> 大安全分类"
+description: "安全加固项排查 — 71<!-- @secguardian:detector_count --> 个检测器覆盖 memory/concurrency/system/resource/crypto/web/error 8<!-- @secguardian:namespace_count --> 大安全分类"
 ```
 
 - [ ] **Step 4: skills/secguard/cpp/references/language-index.md**
@@ -214,7 +214,7 @@ description: "安全加固项排查 — 67<!-- @secguardian:detector_count --> �
 /secguard ./src *                     # 全部 67 个检测器
 
 # After:
-/secguard ./src *                     # 全部 67<!-- @secguardian:detector_count --> 个检测器
+/secguard ./src *                     # 全部 71<!-- @secguardian:detector_count --> 个检测器
 ```
 
 - [ ] **Step 5: CLAUDE.md / AGENTS.md / GEMINI.md**

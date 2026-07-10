@@ -46,7 +46,7 @@
 
 **源文件（git 中）**：数字后跟隐藏标记
 ```
-67<!-- @secguardian:detector_count -->
+71<!-- @secguardian:detector_count -->
 ```
 
 **构建时**：`scripts/sync-manifest.sh` 读取 `manifest.json`，查找所有 `<!-- @secguardian:xxx -->` 标记，更新前面的数字为权威值。

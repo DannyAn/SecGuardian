@@ -6363,7 +6363,7 @@ Now let me check a few more files quickly to make the review comprehensive. Let 
 1: {
 2:   "name": "secguard-secguardian",
 3:   "version": "0.12.0",
-4:   "description": "\u5b89\u5168\u52a0\u56fa\u9879\u6392\u67e5 \u2014 67<!-- @secguardian:detector_count --> \u4e2a\u68c0\u6d4b\u5668\u8986\u76d6 7<!-- @secguardian:namespace_count --> \u5927\u5b89\u5168\u5206\u7c7b",
+4:   "description": "\u5b89\u5168\u52a0\u56fa\u9879\u6392\u67e5 \u2014 71<!-- @secguardian:detector_count --> \u4e2a\u68c0\u6d4b\u5668\u8986\u76d6 8<!-- @secguardian:namespace_count --> \u5927\u5b89\u5168\u5206\u7c7b",
 5:   "author": "SecGuardian",
 6:   "command": "secguard",
 7:   "protocol": "2.0",
@@ -8063,7 +8063,7 @@ Let me now check the remaining files I need to read for the review and then read
 <content>
 1: ---
 2: category: index
-3: description: 安全威胁目录 — 覆盖所有 67<!-- @secguardian:detector_count --> 个检测器对应威胁类型的快速索引
+3: description: 安全威胁目录 — 覆盖所有 71<!-- @secguardian:detector_count --> 个检测器对应威胁类型的快速索引
 4: cwe_coverage: CWE Top 25 100%
 5: owasp_coverage: OWASP Top 10 100%
 6: ---

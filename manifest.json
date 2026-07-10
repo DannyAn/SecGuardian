@@ -126,8 +126,8 @@
     ],
     "detectors": {
       "note": "Full detector registry in skills/secguard/cpp/references/detector-index.md",
-      "count": 67,
-      "active_count": 67,
+      "count": 71,
+      "active_count": 71,
       "namespaces": {
         "memory": 13,
         "concurrency": 4,
@@ -135,7 +135,8 @@
         "crypto": 9,
         "web": 21,
         "error": 6,
-        "resource": 6
+        "resource": 6,
+        "semantic": 4
       }
     },
     "coverage": {

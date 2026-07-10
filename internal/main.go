@@ -107,6 +107,7 @@ func runIndex(args []string) {
 	allStructInits := make([]parser.StructInit, 0)
 	allVarWrites := make([]parser.VariableWrite, 0)
 	allCFGs := make([]parser.FunctionCFG, 0)
+	allSusp := make([]parser.SuspiciousExpression, 0)
 	for _, result := range parsed {
 		allCallSites = append(allCallSites, result.CallSites...)
 		allStrings = append(allStrings, result.StringLiterals...)
@@ -119,6 +120,7 @@ func runIndex(args []string) {
 		allStructInits = append(allStructInits, result.StructInits...)
 		allVarWrites = append(allVarWrites, result.VariableWrites...)
 		allCFGs = append(allCFGs, result.CFGs...)
+		allSusp = append(allSusp, result.SuspiciousExpressions...)
 	}
 
 	// Phase 2.6: Run prescreener to filter deterministically-safe signals
@@ -193,6 +195,7 @@ func runIndex(args []string) {
 		StructInits:       allStructInits,
 		VariableWrites:    allVarWrites,
 		CFGs:              allCFGs,
+		SuspiciousExpressions: allSusp,
 	}
 
 	ptrSig := ""

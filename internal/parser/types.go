@@ -146,6 +146,27 @@ type VariableWrite struct {
 	Category       string `json:"category"`        // "read_before_write" | "written" | "declared_only"
 }
 
+// ── S11: SuspiciousExpression — 语义级可疑表达式模式 ──
+//
+// Engine-detected deterministic AST patterns that are classic semantic bug
+// sources. The engine emits these so the LLM cannot miss them (engine recall
+// floor); the LLM then judges intent (e.g. `if ((x = f()) != 0)` is intentional).
+//
+// Kind ∈:
+//   assignment_in_condition — `if (x = 5)` (bare assignment as condition top-level)
+//   operator_precedence     — `a & b == c` (lower-precedence op outer, no parens)
+//   signed_unsigned_compare — `if (s < u)` signed vs unsigned operand (common case;
+//                             complex-expression type inference is a future root-tech gap)
+//   suspicious_boolean      — `!x = s` (negation of assignment), `a && b = c` (assignment in boolean)
+type SuspiciousExpression struct {
+	File     string `json:"file"`
+	Line     uint   `json:"line"`
+	Function string `json:"function"`
+	Kind     string `json:"kind"`
+	Detail   string `json:"detail"`   // human-readable explanation of why it's suspicious
+	Snippet  string `json:"snippet"`  // the offending expression text
+}
+
 // ParseResult holds all extracted information from a single file.
 type ParseResult struct {
 	File              string              `json:"file"`
@@ -166,6 +187,8 @@ type ParseResult struct {
 	// CFG (EPIC-011 FEATURE-002): per-function control-flow graphs. Built only
 	// on the tree-sitter (cgo) path; empty on the regex fallback path.
 	CFGs []FunctionCFG `json:"cfgs,omitempty"`
+	// S11 SuspiciousExpression (EPIC-011): semantic AST patterns. C/C++ for now.
+	SuspiciousExpressions []SuspiciousExpression `json:"suspicious_expressions,omitempty"`
 }
 
 type FunctionInfo struct {

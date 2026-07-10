@@ -33,4 +33,6 @@ type AnalysisContext struct {
 	// engine-grounded reachability/dominance facts to detectors and the AI
 	// Investigator. Empty on the regex (non-cgo) fallback path.
 	CFGs []parser.FunctionCFG `json:"cfgs,omitempty"`
+	// S11 SuspiciousExpression (EPIC-011): engine-detected semantic AST patterns.
+	SuspiciousExpressions []parser.SuspiciousExpression `json:"suspicious_expressions,omitempty"`
 }

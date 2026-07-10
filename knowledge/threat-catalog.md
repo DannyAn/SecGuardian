@@ -1,6 +1,6 @@
 ---
 category: index
-description: 安全威胁目录 — 覆盖所有 67<!-- @secguardian:detector_count --> 个检测 Skill 对应威胁类型的快速索引
+description: 安全威胁目录 — 覆盖所有 71<!-- @secguardian:detector_count --> 个检测 Skill 对应威胁类型的快速索引
 cwe_coverage: CWE Top 25 100%
 owasp_coverage: OWASP Top 10 100%
 ---
@@ -112,6 +112,17 @@ owasp_coverage: OWASP Top 10 100%
 | 错误格式不统一 | CWE-544 | Medium | `error.unified-error-format` | Java, Python, Go, JS |
 | 生产调试模式 | CWE-489 | High | `error.debug-mode-production` | 全语言 |
 | Panic 返回客户端 | CWE-248 | Medium | `error.panic-to-client` | Go |
+
+## 语义正确性 (semantic) — 4<!-- @secguardian:namespace:semantic --> 个 detectors
+
+> 引擎 S11 SuspiciousExpression 信号驱动的确定性语义模式（EPIC-011）。Tree-sitter AST 检出，LLM 判 intent。
+
+| 威胁 | CWE | 严重度 | Detector | 影响语言 |
+|------|-----|--------|----------|---------|
+| 条件中赋值（= 误写 ==） | CWE-480/481 | High | `semantic.assignment-in-condition` | C/C++ |
+| 运算符优先级误用 | CWE-783 | Medium | `semantic.operator-precedence` | C/C++ |
+| 有符号/无符号比较 | CWE-194/196 | High | `semantic.signed-unsigned` | C/C++ |
+| 可疑布尔构造 | CWE-480/358 | High | `semantic.suspicious-boolean` | C/C++ |
 
 ## 使用方式
 

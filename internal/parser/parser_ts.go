@@ -70,6 +70,12 @@ func ParseFile(filePath string, lang string) (*ParseResult, error) {
 	if lang == "c" || lang == "cpp" {
 		result.Declarations = collectDeclarations(root, content, filePath, lang)
 	}
+	// ── S11 SuspiciousExpression (EPIC-011): semantic AST patterns
+	// (assignment_in_condition / operator_precedence / signed_unsigned_compare /
+	// suspicious_boolean). C/C++; needs Declarations for signedness lookup.
+	if lang == "c" || lang == "cpp" {
+		result.SuspiciousExpressions = collectSuspiciousExpressions(root, content, filePath, lang, result.Declarations)
+	}
 	// ── CFG (EPIC-011 FEATURE-002): per-function control-flow graphs ──
 	result.CFGs = extractCFGs(root, content, filePath, lang)
 	return result, nil

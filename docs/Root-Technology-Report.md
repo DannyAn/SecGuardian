@@ -40,7 +40,7 @@ SecGuardian **不是纯 SAST，也不是纯 LLM**。它是两层协作：
 | **调用图** | `BuildCallGraphV2`（库 sink 调用点）+ V1（文本近似回退）| ✅ 部分 | V2 基于已知库函数 sink；V1 文本近似有短名假边。**规划**：CFG 落地后做精确过程间可达性 |
 | **Alloc/Free 配对** | `MatchAllocFree` | ✅ 文本近似 | 同函数 scope 内 malloc/free 配对；不追踪具体变量（无 DFG）|
 | **锁使用记录** | `BuildLockGraph` | ⚠️ 弱 | 仅记录 lock/unlock 行号，不配对、不过滤注释。**已知缺口**待修 |
-| **信号矩阵 S1-S10** | `parser/types.go` + 提取器 | ✅ 已实现 | S1 CallSites / S2 StringLiterals / **S3 Declarations**（F6 修复后活）/ S4 ValueConstants / S5 Imports（F6 修复）/ S6 ConfigPatterns / S7 ControlFlowSignals / S8 PointerValidations / S9 StructInits / S10 VariableWrites |
+| **信号矩阵 S1-S11** | `parser/types.go` + 提取器 | ✅ 已实现 | S1 CallSites / S2 StringLiterals / **S3 Declarations**（F6 修复后活）/ S4 ValueConstants / S5 Imports（F6 修复）/ S6 ConfigPatterns / S7 ControlFlowSignals / S8 PointerValidations / S9 StructInits / S10 VariableWrites / **S11 SuspiciousExpression**（assignment_in_condition / operator_precedence / signed_unsigned_compare / suspicious_boolean — 引擎 AST 确定性检出，LLM 判 intent）|
 | **CFG 控制流图**（EPIC-011）| `parser/cfg.go` | ✅ 已实现（v1）| per-function 基本块 + 控制边（if/for/while/return/break/continue/throw）+ `IsReachable` + `Dominates`（迭代支配树）。switch/try 保守处理标 `Incomplete` |
 | **Prescreener** | `indexer.Prescreener` | ✅ 已修复（F6）| 确定性 safe-variant 过滤（strcpy_s/memcpy_s/snprintf 等）；F6 修复前是死代码（SafeCount 恒 0），现已生效（cpp-vuln-demo 实测过滤 8.6%）|
 
