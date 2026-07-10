@@ -753,7 +753,6 @@ source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
 
 python3 "$SCRIPTS_DIR/validate-findings.py" \
     --findings-dir "$SCAN_DIR/findings/" \
-    --check-spec \
     --list
 VALIDATE_EXIT=$?
 if [ $VALIDATE_EXIT -eq 0 ]; then

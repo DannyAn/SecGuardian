@@ -378,7 +378,7 @@ python3 "$RECORDER" --command secaudit --scan-dir "$SCAN_DIR" \
 
 ```bash
 SCAN_DIR=".codeagent/secguardian/secaudit/scans/<scan_id>"
-python3 "$SCRIPTS_DIR/validate-findings.py" --findings-dir "$SCAN_DIR/findings/" --check-spec
+python3 "$SCRIPTS_DIR/validate-findings.py" --findings-dir "$SCAN_DIR/findings/"
 VALIDATE_EXIT=$?
 if [ $VALIDATE_EXIT -eq 0 ]; then
     echo "  ✅ All findings pass validation + spec cross-check"

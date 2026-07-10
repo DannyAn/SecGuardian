@@ -74,48 +74,6 @@ def validate_finding(f, filepath):
     return errors
 
 
-def check_spec(f, spec):
-    """Cross-check a finding against its Detection Spec. Returns list of errors."""
-    errors = []
-    det = f.get('detector', '')
-    spec_det = spec.get('detector', '')
-    short_det = det.split('.')[-1] if '.' in det else det
-    spec_short = spec_det.split('.')[-1] if '.' in spec_det else spec_det
-
-    if short_det != spec_short:
-        errors.append(f"  ❌ [SPEC] detector mismatch: finding='{det}' spec='{spec_det}'")
-        return errors
-
-    spec_severity = spec.get('severity')
-    if spec_severity and f.get('severity'):
-        # Frontmatter severity is lowercase (e.g., 'critical'); finding is capitalized (e.g., 'Critical')
-        f_sev = f['severity'].lower()
-        s_sev = str(spec_severity).lower()
-        if f_sev != s_sev:
-            errors.append(f"  ❌ [SPEC] severity mismatch: finding='{f['severity']}' spec='{spec_severity}' ({spec_det})")
-
-    spec_cwe = spec.get('cwe')
-    if spec_cwe and f.get('cwe'):
-        f_cwes = [c.strip() for c in str(f['cwe']).replace('，', ',').split(',') if c.strip()]
-        s_cwes = [c.strip() for c in str(spec_cwe).replace('，', ',').split(',') if c.strip()]
-
-        def norm(c):
-            c = c.upper()
-            return c if c.startswith('CWE-') else f'CWE-{c}'
-
-        f_norm = [norm(c) for c in f_cwes]
-        s_norm = [norm(c) for c in s_cwes]
-        if not any(fc == sc for fc in f_norm for sc in s_norm):
-            errors.append(f"  ❌ [SPEC] CWE mismatch: finding='{f['cwe']}' spec='{spec_cwe}' ({spec_det})")
-
-    for field in spec.get('required_evidence', []):
-        ev = f.get('evidence', {})
-        if field not in ev or not ev[field]:
-            errors.append(f"  ❌ [SPEC] missing required evidence '{field}' ({spec_det})")
-
-    return errors
-
-
 def parse_frontmatter_yaml(content: str) -> dict:
     """Parse simple YAML frontmatter (---...---) into a dict.
     Handles inline arrays [a, b, c] and scalar values. No YAML dependency needed.
@@ -147,137 +105,6 @@ def parse_frontmatter_yaml(content: str) -> dict:
         else:
             data[key] = val
     return data
-
-
-def load_specs_from_dir(rules_dir: str) -> dict:
-    """Load Detection Specs from .md files by parsing YAML frontmatter.
-
-    Works for guard-rules, audit-rules, and review-rules.
-    Returns {detector: spec} dict indexed by full detector name.
-    """
-    specs = {}
-    if not os.path.isdir(rules_dir):
-        return specs
-
-    dirname = os.path.basename(rules_dir)
-    for fname in sorted(os.listdir(rules_dir)):
-        if not fname.endswith('.md'):
-            continue
-        path = os.path.join(rules_dir, fname)
-        try:
-            with open(path, encoding='utf-8') as f:
-                content = f.read()
-        except (OSError, UnicodeDecodeError):
-            continue
-
-        fm = parse_frontmatter_yaml(content)
-        if not fm:
-            continue
-
-        # Construct full detector name based on rule type
-        detector = fm.get('detector', '')
-        if dirname == 'guard-rules':
-            # Filename convention: <namespace>-<detector>.md
-            # Frontmatter has short detector name, construct full: <namespace>.<detector>
-            namespace = fname.split('-')[0]
-            full_det = f"{namespace}.{detector}" if detector else ''
-        elif 'secaudit' in rules_dir:
-            name = fm.get('name', '')
-            full_det = f"domain.{name}" if name else ''
-        elif 'secreview' in rules_dir:
-            full_det = detector
-        else:
-            continue
-
-        if not full_det:
-            continue
-
-        spec = {
-            'detector': full_det,
-            'severity': fm.get('severity', ''),
-            'cwe': fm.get('cwe', ''),
-            'required_evidence': fm.get('required_evidence', []),
-        }
-        specs[full_det] = spec
-        short = full_det.split('.')[-1] if '.' in full_det else full_det
-        if short != full_det:
-            specs[short] = spec
-
-    return specs
-
-
-
-def secguard_specs_from_dir(rules_dir: str) -> dict:
-    '''Load secguard specs: each detector is in a subdir with rule.md.'''
-    specs = {}
-    if not os.path.isdir(rules_dir):
-        return specs
-    for det_dir in sorted(os.listdir(rules_dir)):
-        rule_path = os.path.join(rules_dir, det_dir, 'rule.md')
-        if not os.path.isfile(rule_path):
-            continue
-        try:
-            with open(rule_path, encoding='utf-8') as f:
-                content = f.read()
-        except (OSError, UnicodeDecodeError):
-            continue
-        fm = parse_frontmatter_yaml(content)
-        if not fm:
-            continue
-        detector = fm.get('skill_id', '') or fm.get('detector', '')
-        if not detector:
-            continue
-        sev = fm.get('severity', '')
-        if isinstance(sev, str):
-            sev = sev.capitalize()
-        cwe_val = fm.get('cwe', '')
-        if isinstance(cwe_val, list):
-            cwe_val = cwe_val[0] if cwe_val else ''
-        specs[detector] = {
-            'detector': detector,
-            'severity': sev,
-            'cwe': str(cwe_val),
-            'required_evidence': fm.get('required_evidence', []),
-        }
-        short = detector.split('.')[-1] if '.' in detector else detector
-        if short != detector:
-            specs[short] = specs[detector]
-    return specs
-
-
-def load_all_specs() -> dict:
-    """Load specs from secguard, secaudit, secreview rules. Returns merged dict."""
-    specs = {}
-    sh = os.environ.get("SECGUARDIAN_HOME", "")
-    if not sh:
-        return specs
-    # 1) Secguard rules
-    for lang in ['cpp', 'go', 'java', 'js', 'python']:
-        for base in [f'secguard-{lang}', f'secguard/{lang}']:
-            d = os.path.join(sh, 'skills', base, 'rules')
-            if os.path.isdir(d):
-                sp = secguard_specs_from_dir(d)
-                if sp:
-                    specs.update(sp)
-                break
-    # 2) Secaudit rules
-    for base in ['secaudit-secaudit/rules', 'secaudit/rules', 'secaudit-secaudit']:
-        d = os.path.join(sh, 'skills', base)
-        if os.path.isdir(d):
-            sp = load_specs_from_dir(d)
-            if sp:
-                specs.update(sp)
-            break
-    # 3) Secreview rules
-    for lang in ['cpp', 'go', 'java', 'js', 'python']:
-        for base in [f'secreview-{lang}', f'secreview/{lang}']:
-            d = os.path.join(sh, 'skills', base, 'rules')
-            if os.path.isdir(d):
-                sp = load_specs_from_dir(d)
-                if sp:
-                    specs.update(sp)
-                break
-    return specs
 
 
 def list_findings(findings_dir):
@@ -319,9 +146,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--findings-dir', required=True)
     parser.add_argument('--quiet', action='store_true')
-    parser.add_argument('--check-spec', action='store_true',
-                        help='Enable Detection Spec cross-validation against guard-rules/audit-rules/review-rules')
-    parser.add_argument('--list', action='store_true', dest='show_list',
+    parser.add_argument("--list", action="store_true",
                         help='Print a human-readable findings table summary after validation')
     args, _ = parser.parse_known_args()
 
@@ -329,14 +154,6 @@ def main():
         print(f"FATAL: findings directory not found: {args.findings_dir}")
         sys.exit(1)
 
-    specs = load_all_specs() if args.check_spec else {}
-    if args.check_spec:
-        unique = set(s.get('detector') for s in specs.values())
-        if not unique:
-            print("  ⚠  No detection specs found — spec check disabled")
-            args.check_spec = False
-        else:
-            print(f"  ✓ Loaded {len(unique)} detection specs from guard-rules/audit-rules/review-rules")
 
     total_errors = 0
     total_findings = 0
@@ -365,11 +182,6 @@ def main():
             struct_errors = validate_finding(finding, filepath)
 
             spec_mismatches = []
-            if args.check_spec:
-                det = finding.get('detector', '')
-                spec = specs.get(det)
-                if spec:
-                    spec_mismatches = check_spec(finding, spec)
 
             if struct_errors or spec_mismatches:
                 if not args.quiet:

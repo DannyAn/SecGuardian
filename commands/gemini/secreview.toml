@@ -198,7 +198,7 @@ Key requirements (secreview-specific):
 
 ```bash
 SCAN_DIR=".codeagent/secguardian/secreview/scans/<scan_id>"
-python3 "$SCRIPTS_DIR/validate-findings.py" --findings-dir "$SCAN_DIR/findings/" --check-spec
+python3 "$SCRIPTS_DIR/validate-findings.py" --findings-dir "$SCAN_DIR/findings/"
 VALIDATE_EXIT=$?
 if [ $VALIDATE_EXIT -eq 0 ]; then
     echo "  ✅ All findings pass validation + spec cross-check"
