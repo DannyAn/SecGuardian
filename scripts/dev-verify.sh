@@ -224,8 +224,6 @@ verify_platform() {
 
     check "${plat_name} scripts/validate-index.py" \
         "[ -f '$plat_dir/scripts/validate-index.py' ]"
-    check "${plat_name} scripts/validate-findings.py" \
-        "[ -f '$plat_dir/scripts/validate-findings.py' ]"
 }
 
 verify_platform "$PROJECT_ROOT/.claude/plugins/secguardian" "Claude Code"

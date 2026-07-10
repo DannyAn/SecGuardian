@@ -62,7 +62,6 @@ secguardian/                # v0.19.0, Go 1.25.3, parser + indexer 有 go test �
 │   ├── record-finding.py   #   finding 录制器
 │   ├── render-report.py    #   报告渲染器
 │   ├── validate-index.py   #   索引验证器
-│   ├── validate-findings.py #   finding 校验器
 │   └── bin/                #   5 平台预编译二进制
 │
 ├── docs/                   # 架构文档 + SDD 决策记录

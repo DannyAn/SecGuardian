@@ -266,7 +266,6 @@ for ext_dir in "$EXTENSIONS_DIR"/*/; do
     chmod +x "$dist_dir/scripts/init-scan.sh"
     cp "$PROJECT_ROOT/scripts/record-finding.py" "$dist_dir/scripts/record-finding.py"
     cp "$PROJECT_ROOT/scripts/validate-index.py" "$dist_dir/scripts/validate-index.py"
-    cp "$PROJECT_ROOT/scripts/validate-findings.py" "$dist_dir/scripts/validate-findings.py"
     cp "$PROJECT_ROOT/scripts/render-report.py" "$dist_dir/scripts/render-report.py"
     # strip-answer-cards.py deleted (EPIC-009) — no longer needed
 
