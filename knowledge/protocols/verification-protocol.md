@@ -14,6 +14,33 @@ Detector 产出 Finding 后，三轮独立验证管道对每个 Finding 进行�
 3. **证据门禁** — 每轮 Agent 的推理范围严格限制为指定数据
 4. **Judge 禁止访问源码** — P3 裁决只基于 Court Record
 
+## P2 强制执行（secguard 特定）
+
+> ⚠️ **对于 secguard 命令，P2（Counter Evidence Hunt）是强制阻塞门。**
+> counter_evidence.json 不存在或 P2 未通过 → **禁止**记录任何 finding。
+
+1. P2 必须在记录任何 finding 之前完成。不得在以下情况下记录/提交 finding：
+   - `workers/<rule>/counter_evidence.json` 不存在
+   - P2 对某个假设的裁决不是 `counter_evidence_not_found`
+2. 每个通过 P1 的假设必须经过 P2 检查
+3. P2 必须检查以下 C/C++ 反证：
+   - **RAII 构造/析构函数对**：构造函数分配，配对的 destroy/release 函数管理释放
+   - **智能指针**：`unique_ptr`、`shared_ptr`、`make_unique`、`make_shared` 管理所有权
+   - **sizeof 边界检查**：复制前验证 `sizeof(dst)` 或 `len < sizeof(buf)`
+   - **安全函数变体**：`strcpy_s`、`snprintf` (+返回值检查)、`strlcpy` 替代不安全函数
+   - **编译器保护**：FORTIFY_SOURCE、`-fstack-protector`、ASan/UBSan
+   - **free 后置 NULL**：`free(ptr); ptr = NULL;` 防止悬空指针
+4. P2 裁决（`counter_evidence_found` 或 `counter_evidence_not_found`）必须与 finding 一起记录
+
+**门控执行流程：**
+```
+Step 5 (Evidence) → Step 6 (P2 Counter Evidence) → 阻塞门检查:
+  ├── counter_evidence.json 存在 + 每个假设有 P2 裁决 → 进入 Step 7 (Judge)
+  └── counter_evidence.json 缺失或裁决不完整 → 终止，禁止记录 finding
+```
+
+---
+
 ## 管道概览
 
 ```
