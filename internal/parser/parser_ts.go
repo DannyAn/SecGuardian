@@ -58,6 +58,12 @@ func ParseFile(filePath string, lang string) (*ParseResult, error) {
 	if lang == "java" || lang == "c" || lang == "cpp" || lang == "python" || lang == "go" {
 		result.ControlFlow = collectControlFlow(root, content, filePath, lang)
 	}
+	// ── S8-S10: Pointer validation, struct init, variable write (C/C++) ──
+	if lang == "c" || lang == "cpp" {
+		result.PointerValidations = collectPointerValidations(root, content, filePath, result.Functions)
+		result.StructInits = collectStructInits(root, content, filePath, result.Types)
+		result.VariableWrites = collectVariableWrites(root, content, filePath, result.Functions)
+	}
 	return result, nil
 }
 
@@ -1279,4 +1285,323 @@ func resolveReceiverType(expr string, scope *FileScope) string {
 		}
 	}
 	return ""
+}
+
+// ── S8: PointerValidation collector (TreeSitter C/C++) ──
+
+func collectPointerValidations(root *treesitter.Node, content []byte, file string, functions []FunctionInfo) []PointerValidation {
+	var results []PointerValidation
+	if len(functions) == 0 {
+		return results
+	}
+	lines := strings.Split(string(content), "\n")
+
+	walkForPointerDerefs(root, content, func(fnStart, fnEnd uint, fnName string) {
+		nullChecks := make(map[string]uint)
+		derefs := make(map[string]uint)
+
+		for i := fnStart; i < fnEnd && int(i) < len(lines); i++ {
+			line := lines[i]
+			lineNo := i + 1
+			if strings.Contains(line, "->") {
+				parts := strings.SplitN(line, "->", 2)
+				before := parts[0]
+				fields := strings.Fields(before)
+				if len(fields) > 0 {
+					varName := strings.Trim(fields[len(fields)-1], " \t(),.;:")
+					if varName != "" && varName != "if" && varName != "while" && varName != "return" {
+						derefs[varName] = lineNo
+					}
+				}
+			}
+			if strings.Contains(line, "if") && (strings.Contains(line, "NULL") || strings.Contains(line, "!(")) {
+				for v := range derefs {
+					if strings.Contains(line, "!"+v) || strings.Contains(line, v+" == NULL") || strings.Contains(line, v+" != NULL") {
+						nullChecks[v] = lineNo
+					}
+				}
+			}
+		}
+		for v, derefLine := range derefs {
+			checkLine, hasCheck := nullChecks[v]
+			results = append(results, PointerValidation{
+				File:           file,
+				Line:           derefLine,
+				Function:       fnName,
+				Variable:       v,
+				IsPointerParam: true,
+				HasNullCheck:   hasCheck,
+				IsDereferenced: true,
+				NullCheckLine:  checkLine,
+				DerefLine:      derefLine,
+				Category:       "param_check",
+			})
+		}
+	})
+	return results
+}
+
+func walkForPointerDerefs(node *treesitter.Node, content []byte, visitor func(fnStart, fnEnd uint, fnName string)) {
+	for i := uint(0); i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child == nil {
+			continue
+		}
+		if child.Kind() == "function_definition" {
+			fnName := extractFunctionName(child, content)
+			if fnName != "" {
+				body := child.ChildByFieldName("body")
+				if body != nil {
+					visitor(body.StartPosition().Row+1, body.EndPosition().Row+1, fnName)
+				}
+			}
+		}
+		walkForPointerDerefs(child, content, visitor)
+	}
+}
+
+func extractFunctionName(fnNode *treesitter.Node, content []byte) string {
+	decl := fnNode.ChildByFieldName("declarator")
+	if decl == nil {
+		return ""
+	}
+	for i := uint(0); i < decl.ChildCount(); i++ {
+		c := decl.Child(i)
+		if c != nil && (c.Kind() == "identifier" || c.Kind() == "field_identifier") {
+			return string(content[c.StartByte():c.EndByte()])
+		}
+		if c != nil && c.Kind() == "function_declarator" {
+			for j := uint(0); j < c.ChildCount(); j++ {
+				cc := c.Child(j)
+				if cc != nil && (cc.Kind() == "identifier" || cc.Kind() == "field_identifier") {
+					return string(content[cc.StartByte():cc.EndByte()])
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// ── S9: StructInit collector (TreeSitter C/C++) ──
+
+func collectStructInits(root *treesitter.Node, content []byte, file string, types []TypeInfo) []StructInit {
+	var results []StructInit
+	lines := strings.Split(string(content), "\n")
+	structFields := collectStructFields(root, content)
+
+	for lineIdx, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		lineNo := uint(lineIdx + 1)
+		for st, fields := range structFields {
+			if strings.Contains(trimmed, "malloc") && strings.Contains(trimmed, st) {
+				results = append(results, StructInit{
+					File:                file,
+					Line:                lineNo,
+					StructType:          st,
+					TotalFields:         len(fields),
+					UninitializedFields: fields,
+					IsHeapAlloc:         true,
+					Category:            "partial_init",
+				})
+			}
+			if strings.Contains(trimmed, st) && strings.HasSuffix(strings.TrimRight(trimmed, " "), ";") &&
+				!strings.Contains(trimmed, "=") && !strings.Contains(trimmed, "(") &&
+				!strings.Contains(trimmed, "typedef") {
+				parts := strings.Fields(trimmed)
+				for pi, p := range parts {
+					if p == st && pi+1 < len(parts) {
+						varName := strings.TrimSuffix(parts[pi+1], ";")
+						varName = strings.TrimRight(varName, "[]*")
+						if varName != "" && varName != "*" {
+							results = append(results, StructInit{
+								File:                file,
+								Line:                lineNo,
+								StructType:          st,
+								Variable:            varName,
+								TotalFields:         len(fields),
+								UninitializedFields: fields,
+								IsStackAlloc:        true,
+								Category:            "no_init",
+							})
+						}
+					}
+				}
+			}
+		}
+	}
+	return results
+}
+
+func collectStructFields(node *treesitter.Node, content []byte) map[string][]string {
+	result := make(map[string][]string)
+	var walk func(n *treesitter.Node)
+	walk = func(n *treesitter.Node) {
+		if n.Kind() == "struct_specifier" || n.Kind() == "class_specifier" || n.Kind() == "type_definition" {
+			var name string
+			for i := uint(0); i < n.ChildCount(); i++ {
+				c := n.Child(i)
+				if c != nil && c.Kind() == "type_identifier" {
+					name = string(content[c.StartByte():c.EndByte()])
+					break
+				}
+				// type_definition wraps struct_specifier — look deeper
+				if c != nil && c.Kind() == "struct_specifier" {
+					for j := uint(0); j < c.ChildCount(); j++ {
+						cc := c.Child(j)
+						if cc != nil && cc.Kind() == "type_identifier" {
+							name = string(content[cc.StartByte():cc.EndByte()])
+							break
+						}
+					}
+				}
+			}
+			if name != "" {
+				// For type_definition, body might be on the inner struct_specifier
+				body := n.ChildByFieldName("body")
+				if body == nil && n.Kind() == "type_definition" {
+					for i := uint(0); i < n.ChildCount(); i++ {
+						c := n.Child(i)
+						if c != nil && c.Kind() == "struct_specifier" {
+							body = c.ChildByFieldName("body")
+							break
+						}
+					}
+				}
+				if body != nil {
+					for i := uint(0); i < body.ChildCount(); i++ {
+						fd := body.Child(i)
+						if fd != nil && fd.Kind() == "field_declaration" {
+							for j := uint(0); j < fd.ChildCount(); j++ {
+								decl := fd.Child(j)
+								if decl != nil {
+									dk := decl.Kind()
+									if dk == "field_identifier" || dk == "identifier" {
+										result[name] = append(result[name], string(content[decl.StartByte():decl.EndByte()]))
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		for i := uint(0); i < n.ChildCount(); i++ {
+			c := n.Child(i)
+			if c != nil {
+				walk(c)
+			}
+		}
+	}
+	walk(node)
+	return result
+}
+
+// ── S10: VariableWrite collector (TreeSitter C/C++) ──
+
+func collectVariableWrites(root *treesitter.Node, content []byte, file string, functions []FunctionInfo) []VariableWrite {
+	var results []VariableWrite
+	lines := strings.Split(string(content), "\n")
+	cTypes := map[string]bool{
+		"int": true, "char": true, "float": true, "double": true, "long": true,
+		"short": true, "unsigned": true, "size_t": true, "ssize_t": true,
+		"void": true, "bool": true, "uint8_t": true, "uint16_t": true,
+		"uint32_t": true, "uint64_t": true, "int8_t": true, "int16_t": true,
+		"int32_t": true, "int64_t": true, "FILE": true,
+	}
+
+	for _, fn := range functions {
+		if fn.StartLine == 0 || fn.EndLine == 0 {
+			continue
+		}
+		startIdx := int(fn.StartLine) - 1
+		endIdx := minInt(int(fn.EndLine), len(lines))
+
+		type varState struct {
+			declLine       uint
+			typeName       string
+			firstReadLine  uint
+			firstWriteLine uint
+			hasInitializer bool
+		}
+		tracked := make(map[string]*varState)
+
+		for i := startIdx; i < endIdx; i++ {
+			line := lines[i]
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "//") || trimmed == "" {
+				continue
+			}
+			if strings.Contains(trimmed, "(") && strings.Contains(trimmed, ")") && !strings.Contains(trimmed, "=") {
+				continue
+			}
+			for ct := range cTypes {
+				if strings.HasPrefix(trimmed, ct+" ") || strings.HasPrefix(trimmed, ct+"\t") {
+					fields := strings.Fields(trimmed)
+					for fi := 1; fi < len(fields); fi++ {
+						v := strings.Trim(fields[fi], ";,*[]()")
+						if v != "" && v != "const" && v != "volatile" && len(v) > 1 {
+							hasInit := strings.Contains(trimmed, "=")
+							tracked[v] = &varState{
+								declLine:       uint(i + 1),
+								typeName:       ct,
+								hasInitializer: hasInit,
+							}
+							if hasInit {
+								tracked[v].firstWriteLine = uint(i + 1)
+							}
+						}
+					}
+				}
+			}
+		}
+
+		for i := startIdx; i < endIdx; i++ {
+			line := lines[i]
+			lineNo := uint(i + 1)
+			for varName, vs := range tracked {
+				if !strings.Contains(line, varName) || lineNo <= vs.declLine {
+					continue
+				}
+				isWrite := strings.Contains(line, varName+" =") || strings.Contains(line, varName+"=") ||
+					strings.Contains(line, "->"+varName) || strings.Contains(line, varName+"->") ||
+					strings.Contains(line, "*"+varName+" =") || strings.Contains(line, "&"+varName)
+				if isWrite && vs.firstWriteLine == 0 {
+					vs.firstWriteLine = lineNo
+				}
+				if !isWrite && vs.firstReadLine == 0 &&
+					!strings.Contains(line, "char "+varName) && !strings.Contains(line, "int "+varName) {
+					vs.firstReadLine = lineNo
+				}
+			}
+		}
+
+		for varName, vs := range tracked {
+			cat := "declared_only"
+			if vs.firstReadLine > 0 && vs.firstWriteLine == 0 {
+				cat = "read_before_write"
+			} else if vs.firstWriteLine > 0 {
+				cat = "written"
+			}
+			results = append(results, VariableWrite{
+				File:           file,
+				Line:           vs.declLine,
+				Function:       fn.Name,
+				Variable:       varName,
+				TypeName:       vs.typeName,
+				DeclLine:       vs.declLine,
+				FirstReadLine:  vs.firstReadLine,
+				FirstWriteLine: vs.firstWriteLine,
+				IsInitialized:  vs.hasInitializer,
+				Category:       cat,
+			})
+		}
+	}
+	return results
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

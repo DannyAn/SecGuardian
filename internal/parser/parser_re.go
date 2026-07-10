@@ -256,6 +256,13 @@ func ParseFile(filePath string, lang string) (*ParseResult, error) {
 	}
 
 
+	// ── Post-parse: run shared signal extractors (S4-S10) ──
+	result.ValueConstants = extractValueConstants(content, filePath)
+	result.ConfigPatterns = extractConfigPatterns(content, filePath)
+	result.PointerValidations = extractPointerValidationsRegex(content, filePath, result.Functions)
+	result.StructInits = extractStructInitsRegex(content, filePath, result.Types)
+	result.VariableWrites = extractVariableWritesRegex(content, filePath, result.Functions)
+
 	return result, nil
 }
 

@@ -19,11 +19,14 @@ type AnalysisContext struct {
 	AllocFree indexer.AllocFreeMap `json:"alloc_free"`
 	LockGraph indexer.LockGraph  `json:"lock_graph"`
 	// Signal Matrix (EPIC-007)
-	CallSites       []parser.CallSite          `json:"call_sites"`
-	StringLiterals  []parser.StringLiteral     `json:"string_literals,omitempty"`
-	Declarations    []parser.Declaration       `json:"declarations,omitempty"`
-	ValueConstants  []parser.ValueConstant     `json:"value_constants,omitempty"`
-	Imports         []parser.Import            `json:"imports,omitempty"`
-	ConfigPatterns  []parser.ConfigPattern     `json:"config_patterns,omitempty"`
-	ControlFlow     []parser.ControlFlowSignal `json:"control_flow,omitempty"`
+	CallSites         []parser.CallSite          `json:"call_sites"`
+	StringLiterals    []parser.StringLiteral     `json:"string_literals,omitempty"`
+	Declarations      []parser.Declaration       `json:"declarations,omitempty"`
+	ValueConstants    []parser.ValueConstant     `json:"value_constants,omitempty"`
+	Imports           []parser.Import            `json:"imports,omitempty"`
+	ConfigPatterns    []parser.ConfigPattern     `json:"config_patterns,omitempty"`
+	ControlFlow       []parser.ControlFlowSignal `json:"control_flow,omitempty"`
+	PointerValidations []parser.PointerValidation `json:"pointer_validations,omitempty"`
+	StructInits       []parser.StructInit        `json:"struct_inits,omitempty"`
+	VariableWrites    []parser.VariableWrite     `json:"variable_writes,omitempty"`
 }

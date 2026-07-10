@@ -103,6 +103,9 @@ func runIndex(args []string) {
 	allImports := make([]parser.Import, 0)
 	allConfigs := make([]parser.ConfigPattern, 0)
 	allFlow := make([]parser.ControlFlowSignal, 0)
+	allPtrValidations := make([]parser.PointerValidation, 0)
+	allStructInits := make([]parser.StructInit, 0)
+	allVarWrites := make([]parser.VariableWrite, 0)
 	for _, result := range parsed {
 		allCallSites = append(allCallSites, result.CallSites...)
 		allStrings = append(allStrings, result.StringLiterals...)
@@ -111,6 +114,9 @@ func runIndex(args []string) {
 		allImports = append(allImports, result.Imports...)
 		allConfigs = append(allConfigs, result.ConfigPatterns...)
 		allFlow = append(allFlow, result.ControlFlow...)
+		allPtrValidations = append(allPtrValidations, result.PointerValidations...)
+		allStructInits = append(allStructInits, result.StructInits...)
+		allVarWrites = append(allVarWrites, result.VariableWrites...)
 	}
 
 	// Phase 2.6: Run prescreener to filter deterministically-safe signals
@@ -164,26 +170,43 @@ func runIndex(args []string) {
 
 	// Phase 6: Assemble and write context
 	ctx := context.AnalysisContext{
-		Path:            *pathFlag,
-		FileCount:       len(files),
-		FunctionCount:   len(symbols.Functions),
-		CallEdgeCount:   len(cg.Edges),
-		PrimaryLanguage: primaryLang,
-		Files:           files,
-		Symbols:         symbols,
-		CallGraph:       cg,
-		AllocFree:       af,
-		LockGraph:       lg,
-		CallSites:       allCallSites,
-		StringLiterals:  allStrings,
-		Declarations:    allDecls,
-		ValueConstants:  allValues,
-		Imports:         allImports,
-		ConfigPatterns:  allConfigs,
-		ControlFlow:     allFlow,
+		Path:              *pathFlag,
+		FileCount:         len(files),
+		FunctionCount:     len(symbols.Functions),
+		CallEdgeCount:     len(cg.Edges),
+		PrimaryLanguage:   primaryLang,
+		Files:             files,
+		Symbols:           symbols,
+		CallGraph:         cg,
+		AllocFree:         af,
+		LockGraph:         lg,
+		CallSites:         allCallSites,
+		StringLiterals:    allStrings,
+		Declarations:      allDecls,
+		ValueConstants:    allValues,
+		Imports:           allImports,
+		ConfigPatterns:    allConfigs,
+		ControlFlow:       allFlow,
+		PointerValidations: allPtrValidations,
+		StructInits:       allStructInits,
+		VariableWrites:    allVarWrites,
 	}
 
-	fmt.Printf("  Signals: %d calls, %d strings, %d decls, %d values, %d imports, %d configs, %d flow\n", len(allCallSites), len(allStrings), len(allDecls), len(allValues), len(allImports), len(allConfigs), len(allFlow))
+	ptrSig := ""
+	if len(allPtrValidations) > 0 {
+		ptrSig = fmt.Sprintf(", %d ptr-valid", len(allPtrValidations))
+	}
+	structSig := ""
+	if len(allStructInits) > 0 {
+		structSig = fmt.Sprintf(", %d struct-init", len(allStructInits))
+	}
+	varSig := ""
+	if len(allVarWrites) > 0 {
+		varSig = fmt.Sprintf(", %d var-write", len(allVarWrites))
+	}
+	fmt.Printf("  Signals: %d calls, %d strings, %d decls, %d values, %d imports, %d configs, %d flow%s%s%s\n",
+		len(allCallSites), len(allStrings), len(allDecls), len(allValues), len(allImports), len(allConfigs), len(allFlow),
+		ptrSig, structSig, varSig)
 
 	if err := os.MkdirAll(filepath.Dir(*outputFlag), 0755); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

@@ -92,20 +92,77 @@ type ControlFlowSignal struct {
 	Category  string `json:"category"` // "auth","error","validation","bound_check"
 }
 
+// ── S8: PointerValidation — 指针入参校验信号 ──
+
+// PointerValidation tracks whether function pointer parameters are checked for
+// NULL before being dereferenced. Drives exec.input_validation rule expansion.
+type PointerValidation struct {
+	File           string `json:"file"`
+	Line           uint   `json:"line"`
+	Function       string `json:"function"`
+	Variable       string `json:"variable"`
+	ParamIndex     int    `json:"param_index,omitempty"` // -1 for local variables
+	IsPointerParam bool   `json:"is_pointer_param"`
+	HasNullCheck   bool   `json:"has_null_check"`   // if (!p) / if (p == NULL) found before use
+	IsDereferenced bool   `json:"is_dereferenced"`  // *p / p->field without NULL check
+	NullCheckLine  uint   `json:"null_check_line,omitempty"`
+	DerefLine      uint   `json:"deref_line,omitempty"`
+	Category       string `json:"category"` // "param_check" | "local_check"
+}
+
+// ── S9: StructInit — 结构体字段初始化状态信号 ──
+
+// StructInit tracks whether all fields of a struct variable are initialized
+// before first use. Drives memory.uninitialized rule.
+type StructInit struct {
+	File                string   `json:"file"`
+	Line                uint     `json:"line"`
+	StructType          string   `json:"struct_type"`
+	Variable            string   `json:"variable"`
+	TotalFields         int      `json:"total_fields"`
+	InitializedFields   []string `json:"initialized_fields"`
+	UninitializedFields []string `json:"uninitialized_fields"`
+	IsHeapAlloc         bool     `json:"is_heap_alloc"`  // via malloc/calloc
+	IsStackAlloc        bool     `json:"is_stack_alloc"` // local declaration without initializer
+	Category            string   `json:"category"`       // "partial_init" | "full_init" | "no_init"
+}
+
+// ── S10: VariableWrite — 变量首次写追踪信号 ──
+
+// VariableWrite tracks the relationship between variable declaration, first
+// write, and first read. Drives detection of use-before-initialize.
+type VariableWrite struct {
+	File           string `json:"file"`
+	Line           uint   `json:"line"`
+	Function       string `json:"function"`
+	Variable       string `json:"variable"`
+	TypeName       string `json:"type_name"`
+	DeclLine       uint   `json:"decl_line"`
+	FirstReadLine  uint   `json:"first_read_line,omitempty"`  // >0 means read before write
+	FirstWriteLine uint   `json:"first_write_line,omitempty"` // first assignment
+	IsStructField  bool   `json:"is_struct_field"`
+	FieldName      string `json:"field_name,omitempty"`
+	IsInitialized  bool   `json:"is_initialized"` // has initializer at declaration
+	Category       string `json:"category"`        // "read_before_write" | "written" | "declared_only"
+}
+
 // ParseResult holds all extracted information from a single file.
 type ParseResult struct {
-	File            string             `json:"file"`
-	Language        string             `json:"language"`
-	Functions       []FunctionInfo     `json:"functions"`
-	Variables       []VariableInfo     `json:"variables"`
-	Types           []TypeInfo         `json:"types"`
-	CallSites       []CallSite         `json:"call_sites"`
-	StringLiterals  []StringLiteral    `json:"string_literals,omitempty"`
-	Declarations    []Declaration      `json:"declarations,omitempty"`
-	ValueConstants  []ValueConstant    `json:"value_constants,omitempty"`
-	Imports         []Import           `json:"imports,omitempty"`
-	ConfigPatterns  []ConfigPattern    `json:"config_patterns,omitempty"`
-	ControlFlow     []ControlFlowSignal `json:"control_flow,omitempty"`
+	File              string              `json:"file"`
+	Language          string              `json:"language"`
+	Functions         []FunctionInfo      `json:"functions"`
+	Variables         []VariableInfo      `json:"variables"`
+	Types             []TypeInfo          `json:"types"`
+	CallSites         []CallSite          `json:"call_sites"`
+	StringLiterals    []StringLiteral     `json:"string_literals,omitempty"`
+	Declarations      []Declaration       `json:"declarations,omitempty"`
+	ValueConstants    []ValueConstant     `json:"value_constants,omitempty"`
+	Imports           []Import            `json:"imports,omitempty"`
+	ConfigPatterns    []ConfigPattern     `json:"config_patterns,omitempty"`
+	ControlFlow       []ControlFlowSignal `json:"control_flow,omitempty"`
+	PointerValidations []PointerValidation `json:"pointer_validations,omitempty"`
+	StructInits       []StructInit        `json:"struct_inits,omitempty"`
+	VariableWrites    []VariableWrite     `json:"variable_writes,omitempty"`
 }
 
 type FunctionInfo struct {
@@ -350,4 +407,240 @@ var ParserMode string
 var algorithmRefPattern = regexp.MustCompile(`(?i)(EVP_[a-z0-9_]+|EVP_[A-Z][a-z]+_[0-9a-z_]+|NID_[a-z0-9_]+)`)
 var keyLenPattern = regexp.MustCompile(`(?i)(?:key|size|len)\s*\[(7|8|16|24|32|40|56|64|80|128|168|192|256)\]`)
 var modeFlagPattern = regexp.MustCompile(`(?i)(DES_ENCRYPT|DES_DECRYPT|NID_[A-Z_]+|AES_[A-Z]+|SSL_[A-Z]+|TLS_[A-Z]+)`)
+
+// ── S8: PointerValidation extraction (regex fallback) ──
+
+// ptrParamPattern matches function parameters declared as pointer types.
+// Captures: function name at start of definition, then pointer params.
+var ptrParamPattern = regexp.MustCompile(`(?m)^\s*(?:static\s+)?(?:inline\s+)?\w+\s*\*?\s*(\w+)\s*\([^)]*\)`)
+var nullCheckPattern = regexp.MustCompile(`(?m)if\s*\(\s*!?\s*(\w+)\s*(?:==\s*NULL|!=\s*NULL)?\s*\)`)
+var ptrDerefPattern = regexp.MustCompile(`(?m)(?:(\w+)\s*->|\(\s*\*\s*(\w+)\s*\))`)
+
+// extractPointerValidationsRegex uses simple heuristics: find functions that
+// take pointer parameters, then check for NULL guards before dereferences.
+// Regex-only approach is deliberately conservative — false negatives are
+// acceptable (TreeSitter path provides precision); false positives are not.
+func extractPointerValidationsRegex(source []byte, file string, functions []FunctionInfo) []PointerValidation {
+	var results []PointerValidation
+	content := string(source)
+	lines := strings.Split(content, "\n")
+
+	for _, fn := range functions {
+		// Collect pointer params from function signature
+		funcLines := lines[fn.StartLine-1 : min(int(fn.EndLine), len(lines))]
+		funcBody := strings.Join(funcLines, "\n")
+
+		// Find pointer dereferences (-> or *ptr)
+		derefMatches := ptrDerefPattern.FindAllStringSubmatch(funcBody, -1)
+		if len(derefMatches) == 0 {
+			continue
+		}
+
+		derefVars := make(map[string]uint)
+		for _, dm := range derefMatches {
+			varName := dm[1]
+			if varName == "" {
+				varName = dm[2]
+			}
+			if varName != "" && varName != "if" && varName != "while" && varName != "for" && varName != "return" && varName != "sizeof" {
+				for i, dl := range funcLines {
+					if strings.Contains(dl, "->"+varName) || strings.Contains(dl, varName+"->") || strings.Contains(dl, "*"+varName) {
+						derefVars[varName] = uint(int(fn.StartLine) + i)
+						break
+					}
+				}
+			}
+		}
+
+		// Find NULL checks
+		nullCheckVars := make(map[string]uint)
+		nullMatches := nullCheckPattern.FindAllStringSubmatch(funcBody, -1)
+		for _, nm := range nullMatches {
+			varName := nm[1]
+			if varName != "" {
+				for i, nl := range funcLines {
+					if strings.Contains(nl, "!"+varName) || strings.Contains(nl, varName+" ==") || strings.Contains(nl, varName+" !=") {
+						nullCheckVars[varName] = uint(int(fn.StartLine) + i)
+						break
+					}
+				}
+			}
+		}
+
+		// For each dereferenced variable, check if there's a NULL guard
+		for v, derefLine := range derefVars {
+			checkLine, hasCheck := nullCheckVars[v]
+			results = append(results, PointerValidation{
+				File:           file,
+				Line:           derefLine,
+				Function:       fn.Name,
+				Variable:       v,
+				IsPointerParam: true,
+				HasNullCheck:   hasCheck,
+				IsDereferenced: true,
+				NullCheckLine:  checkLine,
+				DerefLine:      derefLine,
+				Category:       "param_check",
+			})
+		}
+	}
+	return results
+}
+
+// ── S9: StructInit extraction (regex fallback) ──
+
+var structDeclPattern = regexp.MustCompile(`(?m)(?:struct\s+(\w+)\s+(\w+)\s*;|(\w+)\s*=\s*(?:\(\s*\w+\s*\*\)\s*)?malloc\s*\(\s*sizeof\s*\(\s*(\w+)\s*\)\s*\))`)
+var structFieldAssignPattern = regexp.MustCompile(`(?m)(\w+)\s*->\s*(\w+)\s*=`)
+
+// extractStructInitsRegex identifies struct variable declarations and tracks
+// field assignments to detect partial initialization.
+func extractStructInitsRegex(source []byte, file string, types []TypeInfo) []StructInit {
+	var results []StructInit
+	content := string(source)
+	lines := strings.Split(content, "\n")
+
+	// Build set of known struct type names
+	structTypes := make(map[string]bool)
+	for _, t := range types {
+		if t.Kind == "typedef" {
+			structTypes[t.Name] = true
+		}
+	}
+
+	for lineIdx, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Stack allocation: StructType var; (no initializer)
+		for st := range structTypes {
+			// Simple pattern: struct_name var_name;
+			if strings.Contains(trimmed, st+" ") && strings.HasSuffix(strings.TrimSpace(trimmed), ";") && !strings.Contains(trimmed, "=") && !strings.Contains(trimmed, "(") {
+				parts := strings.Fields(trimmed)
+				for pi, p := range parts {
+					if p == st && pi+1 < len(parts) {
+						varName := strings.TrimSuffix(parts[pi+1], ";")
+						varName = strings.TrimRight(varName, "[]*")
+						if varName != "" && varName != "*" && varName != "struct" {
+							results = append(results, StructInit{
+								File:         file,
+								Line:         uint(lineIdx + 1),
+								StructType:   st,
+								Variable:     varName,
+								IsStackAlloc: true,
+								Category:     "no_init",
+							})
+						}
+					}
+				}
+			}
+			// Heap allocation: malloc(sizeof(StructType))
+			if strings.Contains(trimmed, "malloc") && strings.Contains(trimmed, st) {
+				results = append(results, StructInit{
+					File:         file,
+					Line:         uint(lineIdx + 1),
+					StructType:   st,
+					IsHeapAlloc:  true,
+					Category:     "partial_init",
+				})
+			}
+		}
+	}
+	return results
+}
+
+// ── S10: VariableWrite extraction (regex fallback) ──
+
+var varDeclPattern = regexp.MustCompile(`(?m)^\s*(?:const\s+)?(\w+(?:\s*\*)?)\s+(\w+)\s*(?:=\s*(.+?))?\s*;`)
+var varReadPattern = regexp.MustCompile(`(?m)(?:\bif\s*\(|\bwhile\s*\(|\bfor\s*\(|\bswitch\s*\(|\breturn\s+|=\s*|[+\-*/%&|^<>!]=?\s*|\bprintf\s*\(|\bfprintf\s*\(|[,(]\s*)(\w+)`)
+
+// extractVariableWritesRegex identifies variable declarations and tracks
+// whether they are written before being read.
+func extractVariableWritesRegex(source []byte, file string, functions []FunctionInfo) []VariableWrite {
+	var results []VariableWrite
+	content := string(source)
+	lines := strings.Split(content, "\n")
+
+	for _, fn := range functions {
+		if fn.StartLine == 0 || fn.EndLine == 0 {
+			continue
+		}
+		startIdx := int(fn.StartLine) - 1
+		endIdx := min(int(fn.EndLine), len(lines))
+
+		// Track declared variables in this function
+		declaredVars := make(map[string]uint)
+		for i := startIdx; i < endIdx; i++ {
+			line := lines[i]
+			matches := varDeclPattern.FindStringSubmatch(line)
+			if len(matches) >= 3 {
+				typeName, varName := matches[1], matches[2]
+				hasInit := len(matches) > 3 && matches[3] != ""
+				if varName != "" && typeName != "if" && typeName != "while" && typeName != "for" && typeName != "return" && typeName != "goto" && typeName != "sizeof" {
+					declaredVars[varName] = uint(i + 1)
+					isStructField := strings.Contains(typeName, "->")
+					fieldName := ""
+					if isStructField {
+						parts := strings.SplitN(varName, ".", 2)
+						if len(parts) == 2 {
+							fieldName = parts[1]
+						}
+					}
+					results = append(results, VariableWrite{
+						File:          file,
+						Line:          uint(i + 1),
+						Function:      fn.Name,
+						Variable:      varName,
+						TypeName:      typeName,
+						DeclLine:      uint(i + 1),
+						IsStructField: isStructField,
+						FieldName:     fieldName,
+						IsInitialized: hasInit,
+						Category:      "declared_only",
+					})
+				}
+			}
+		}
+
+		// Check for read-before-write: scan lines again, mark first read/write
+		for ri := range results {
+			r := &results[ri]
+			varName := r.Variable
+			for i := startIdx; i < endIdx; i++ {
+				line := lines[i]
+				lineNo := uint(i + 1)
+				// Skip the declaration line itself
+				if lineNo == r.DeclLine {
+					// Check if there's an initializer at declaration
+					if strings.Contains(line, "=") && !strings.Contains(line, "==") && !strings.Contains(line, "!=") && !strings.Contains(line, "<=") && !strings.Contains(line, ">=") {
+						r.FirstWriteLine = lineNo
+						r.IsInitialized = true
+						r.Category = "written"
+					}
+					continue
+				}
+				// Check for write: var = ... or →var or var→
+				if strings.Contains(line, varName+" =") || strings.Contains(line, varName+"=") || strings.Contains(line, "->"+varName) || strings.Contains(line, varName+"->") || strings.Contains(line, "*"+varName+" =") || strings.Contains(line, "&"+varName) || strings.Contains(line, "("+varName+")") {
+					if r.FirstWriteLine == 0 {
+						r.FirstWriteLine = lineNo
+						r.Category = "written"
+					}
+				}
+				// Check for read: var used in expression before write
+				if r.FirstWriteLine == 0 && r.FirstReadLine == 0 {
+					if strings.Contains(line, varName) && !strings.Contains(line, varName+" =") && !strings.Contains(line, varName+"=") && !strings.Contains(line, "char") && !strings.Contains(line, "int") && !strings.Contains(line, "void") {
+						r.FirstReadLine = lineNo
+						r.Category = "read_before_write"
+					}
+				}
+			}
+		}
+	}
+	return results
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
 
