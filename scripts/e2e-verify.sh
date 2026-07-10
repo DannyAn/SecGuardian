@@ -452,7 +452,17 @@ cat > "$TMPDIR/ci-critical.json" << 'JSONEOF'
 }
 JSONEOF
 
+# F2 fix: --ci must propagate the gate verdict as the *process* exit code.
+# Previously the renderer only wrote exit_code:1 into status.json while the
+# process stayed at 0, so `set -e` CI runners let Critical findings ship green.
+# Now the process itself must exit 1 — assert that directly.
+set +e
 python3 "$RENDERER" --ci --findings "$TMPDIR/ci-critical.json" --output "$TMPDIR/out-ci/" >/dev/null 2>&1
+RENDER_EXIT=$?
+set -e
+PROC_OK="yes"
+[ "$RENDER_EXIT" -eq 1 ] || PROC_OK="no"
+STATUS_OK="no"
 python3 -c "
 import json
 s = json.load(open('$TMPDIR/out-ci/status.json'))
@@ -460,7 +470,12 @@ assert s['gate_result'] == 'FAILED', f'Expected FAILED, got {s[\"gate_result\"]}
 assert s['exit_code'] == 1, f'Expected exit_code 1, got {s[\"exit_code\"]}'
 assert s['security_score'] == 82, f'Expected score 82 (100 × exp(-0.2)), got {s["security_score"]}'
 print('OK — CI gate FAILED correctly on Critical finding')
-" 2>/dev/null && pass "CI mode: Critical finding → FAILED + exit_code=1" || fail "CI mode exit code incorrect"
+" 2>/dev/null && STATUS_OK="yes"
+if [ "$PROC_OK" = "yes" ] && [ "$STATUS_OK" = "yes" ]; then
+    pass "CI mode: Critical → process exit 1 + status FAILED/exit_code=1 (F2 fixed)"
+else
+    fail "CI mode: process_exit=$RENDER_EXIT proc_ok=$PROC_OK status_ok=$STATUS_OK (F2)"
+fi
 
 # Also test clean scan → PASSED
 echo '{"schema_version":"1.0","scan_id":"sc-ci-clean","command":"secguard","started_at":"2026-06-06T12:00:00Z","completed_at":"2026-06-06T12:01:00Z","duration_ms":60000,"language":"go","scope":{"files":1,"lines":10,"functions":1},"detectors":{"matched":0,"executed":0},"findings":[]}' > "$TMPDIR/ci-clean.json"
@@ -796,13 +811,23 @@ bash scripts/package.sh >/dev/null 2>&1
 EXT="dist/secguard-secguardian"
 
 [ -d "$EXT" ] && pass "package.sh: dist/secguard-secguardian created" || fail "BUILD FAILED"
-for dir in audit-rules review-rules; do
-    c=$(find "$EXT/knowledge/$dir" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
-    [ "$c" -gt 0 ] && pass "knowledge/$dir: $c files" || fail "knowledge/$dir: MISSING"
+# F4 fix (pre-existing stale check): audit/review rules were restructured into
+# their own extensions (dist/{secaudit,secreview}-secguardian), so the old
+# `find knowledge/audit-rules` aborted under `set -euo pipefail` (dir missing).
+# Check the real locations instead, guarding find so a missing path cannot abort.
+for ext in secaudit-secguardian secreview-secguardian; do
+    if [ -d "dist/${ext}" ]; then
+        c=$(find "dist/${ext}" -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
+        c=${c:-0}
+        [ "$c" -gt 0 ] && pass "dist/${ext}: ${c} md files" || fail "dist/${ext}: no md files"
+    else
+        fail "dist/${ext}: extension MISSING"
+    fi
 done
-	# language-index.md retired -- rules now in skills/secguard/{lang}/rules/*/rule.md
 for cmd in secguard secaudit secreview; do
-    [ -f "dist/${cmd}-secguardian/commands/${cmd}.md" ] && pass "dist/${cmd}-secguardian/commands/${cmd}.md" || fail "dist/${cmd}-secguardian MISSING"
+    # F4 fix: commands are packaged under platform subdirs (commands/claude/<cmd>.md),
+    # not commands/<cmd>.md. Check the canonical claude platform copy.
+    [ -f "dist/${cmd}-secguardian/commands/claude/${cmd}.md" ] && pass "dist/${cmd}-secguardian/commands/claude/${cmd}.md" || fail "dist/${cmd}-secguardian command MISSING"
 done
 [ -f "$EXT/.claude-plugin/plugin.json" ] && pass "plugin.json" || fail "plugin.json MISSING"
 
@@ -841,6 +866,52 @@ if bash "$PROJECT_ROOT/scripts/verify-lang-pipeline.sh" >/dev/null 2>&1; then
     pass "All 4 languages pass full pipeline"
 else
     fail "Cross-language pipeline test FAILED"
+fi
+
+# ── 14. Recall/Precision Oracle (F4 fix: ground-truth measurement) ──
+section "14. Recall/Precision Oracle (Ground-Truth)"
+# Hard gate: the oracle's recall/precision/F1 math must be correct.
+if python3 "$PROJECT_ROOT/scripts/verify-recall.py" --self-test >/dev/null 2>&1; then
+    pass "Oracle self-test (recall/precision/F1 math correct)"
+else
+    fail "Oracle self-test FAILED"
+fi
+# Informational (NOT a gate): real recall/precision on a committed scan. LLM
+# output varies across runs and the ground truth is currently incomplete (see
+# EPIC-011 FEATURE-001 TASK-009), so the number is reported, not asserted.
+PYF=$(find "$PROJECT_ROOT/examples/python-vuln-demo" -name findings.json -path '*secguard/scans*' 2>/dev/null | head -1)
+if [ -n "$PYF" ]; then
+    echo -e "  ${YELLOW}(informational) python demo committed-scan recall/precision:${NC}"
+    python3 "$PROJECT_ROOT/scripts/verify-recall.py" \
+        --expected "$PROJECT_ROOT/examples/python-vuln-demo/expected-results.json" \
+        --findings "$PYF" 2>&1 | grep -E "Ground truth|Actual|TP=" | sed 's/^/    /'
+else
+    echo "  (informational) no committed python scan found — skipped"
+fi
+
+# ── 15. Coverage Gate (F8 structural fix: batch-suppression blocker) ──
+section "15. Coverage Gate (Batch-Suppression Blocker)"
+# Hard gate: gate math correct.
+if python3 "$PROJECT_ROOT/scripts/coverage-gate.py" --self-test >/dev/null 2>&1; then
+    pass "Coverage gate self-test (batch-suppression detection math)"
+else
+    fail "Coverage gate self-test FAILED"
+fi
+# Hard gate: a scan with signals but 0 findings + no dismissed MUST be BLOCKED
+# (exit 1). This is the exact production failure (1358 signals -> 0 findings ->
+# 100/100 PASSED) now structurally blocked.
+COV_TMP=$(mktemp -d)
+python3 -c "import json; json.dump({'call_sites':[{'x':1}]*50,'control_flow':[],'pointer_validations':[],'struct_inits':[],'variable_writes':[]}, open('$COV_TMP/idx.json','w'))"
+set +e
+python3 "$PROJECT_ROOT/scripts/coverage-gate.py" \
+    --index "$COV_TMP/idx.json" --scan-dir "$COV_TMP" >/dev/null 2>&1
+COV_EXIT=$?
+set -e
+rm -rf "$COV_TMP"
+if [ "$COV_EXIT" -eq 1 ]; then
+    pass "Coverage gate BLOCKS 0-finding scan with signals (F8 fixed)"
+else
+    fail "Coverage gate failed to block batch-suppression (exit=$COV_EXIT)"
 fi
 
 echo -e "${BOLD}╔══════════════════════════════════════════════╗${NC}"
