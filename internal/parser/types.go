@@ -163,6 +163,9 @@ type ParseResult struct {
 	PointerValidations []PointerValidation `json:"pointer_validations,omitempty"`
 	StructInits       []StructInit        `json:"struct_inits,omitempty"`
 	VariableWrites    []VariableWrite     `json:"variable_writes,omitempty"`
+	// CFG (EPIC-011 FEATURE-002): per-function control-flow graphs. Built only
+	// on the tree-sitter (cgo) path; empty on the regex fallback path.
+	CFGs []FunctionCFG `json:"cfgs,omitempty"`
 }
 
 type FunctionInfo struct {

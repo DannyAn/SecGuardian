@@ -106,6 +106,7 @@ func runIndex(args []string) {
 	allPtrValidations := make([]parser.PointerValidation, 0)
 	allStructInits := make([]parser.StructInit, 0)
 	allVarWrites := make([]parser.VariableWrite, 0)
+	allCFGs := make([]parser.FunctionCFG, 0)
 	for _, result := range parsed {
 		allCallSites = append(allCallSites, result.CallSites...)
 		allStrings = append(allStrings, result.StringLiterals...)
@@ -117,6 +118,7 @@ func runIndex(args []string) {
 		allPtrValidations = append(allPtrValidations, result.PointerValidations...)
 		allStructInits = append(allStructInits, result.StructInits...)
 		allVarWrites = append(allVarWrites, result.VariableWrites...)
+		allCFGs = append(allCFGs, result.CFGs...)
 	}
 
 	// Phase 2.6: Run prescreener to filter deterministically-safe signals
@@ -190,6 +192,7 @@ func runIndex(args []string) {
 		PointerValidations: allPtrValidations,
 		StructInits:       allStructInits,
 		VariableWrites:    allVarWrites,
+		CFGs:              allCFGs,
 	}
 
 	ptrSig := ""

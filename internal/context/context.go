@@ -29,4 +29,8 @@ type AnalysisContext struct {
 	PointerValidations []parser.PointerValidation `json:"pointer_validations,omitempty"`
 	StructInits       []parser.StructInit        `json:"struct_inits,omitempty"`
 	VariableWrites    []parser.VariableWrite     `json:"variable_writes,omitempty"`
+	// CFG (EPIC-011 FEATURE-002): per-function control-flow graphs. Provides
+	// engine-grounded reachability/dominance facts to detectors and the AI
+	// Investigator. Empty on the regex (non-cgo) fallback path.
+	CFGs []parser.FunctionCFG `json:"cfgs,omitempty"`
 }

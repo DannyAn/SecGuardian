@@ -64,6 +64,14 @@ func ParseFile(filePath string, lang string) (*ParseResult, error) {
 		result.StructInits = collectStructInits(root, content, filePath, result.Types)
 		result.VariableWrites = collectVariableWrites(root, content, filePath, result.Functions)
 	}
+	// ── S3 Declarations (F6 fix): per-function variable declarations with
+	// array size + category. Drives prescreener safe-variant filtering and the
+	// memory.uninitialized rule. C/C++ for now; other languages follow-up.
+	if lang == "c" || lang == "cpp" {
+		result.Declarations = collectDeclarations(root, content, filePath, lang)
+	}
+	// ── CFG (EPIC-011 FEATURE-002): per-function control-flow graphs ──
+	result.CFGs = extractCFGs(root, content, filePath, lang)
 	return result, nil
 }
 
@@ -78,6 +86,12 @@ func walkTopLevel(node *treesitter.Node, content []byte, file, lang string, resu
 		switch lang {
 		case "c", "cpp":
 			switch kind {
+			case "preproc_include":
+				// F6 fix: C/C++ #include was never captured (Imports stayed empty
+				// on the cgo path). Extract path + category for S5.
+				if imp := extractCInclude(child, content, file); imp.Path != "" {
+					result.Imports = append(result.Imports, imp)
+				}
 			case "function_definition":
 				if fn := extractIdent(child, content, file, "function_declarator"); fn.Name != "" {
 					fn.StartLine = child.StartPosition().Row + 1
