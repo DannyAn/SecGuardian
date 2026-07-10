@@ -99,7 +99,18 @@ SCRIPTS_DIR="$SECGUARDIAN_HOME/skills/${SKILL_DIR}/scripts"
 
 # ── Phase F: 命令特有子目录 ──────────────
 case "$COMMAND" in
-  secguard)  mkdir -p "$SCAN_DIR/workers" "$SCAN_DIR/findings" ;;
+  secguard)
+    mkdir -p "$SCAN_DIR/workers" "$SCAN_DIR/findings"
+    # 为已知 detector 预创建 workers/ 子目录，确保每个 Worker 有输出位置
+    if [ "$SCAN_LANG" = "cpp" ]; then
+      for det in buffer_overflow null_dereference memory_leak double_free \
+          use_after_free integer_overflow resource_leak command_injection \
+          input_validation hardcoded_secrets must_check ownership_transfer \
+          api_semantic_misuse lock_misuse error_propagation uninitialized; do
+        mkdir -p "$SCAN_DIR/workers/$det"
+      done
+    fi
+    ;;
   secaudit)  mkdir -p "$SCAN_DIR/findings" ;;
   secreview) mkdir -p "$SCAN_DIR/findings" ;;
 esac

@@ -237,6 +237,7 @@ JSON
     [ -d "$PROJECT_ROOT/knowledge/standards" ] && cp -r "$PROJECT_ROOT/knowledge/standards/"* "$plugin_dir/knowledge/standards/" 2>/dev/null || true
 
     # Copy wrapper scripts, renderer, and binaries into plugin
+    for wrapper in init-scan.sh secguardian-index secguardian-index.ps1 render-report.py validate-index.py record-finding.py; do
         if [ -f "$PROJECT_ROOT/scripts/$wrapper" ]; then
             cp "$PROJECT_ROOT/scripts/$wrapper" "$plugin_dir/scripts/$wrapper"
             chmod +x "$plugin_dir/scripts/$wrapper" 2>/dev/null || true
@@ -244,11 +245,22 @@ JSON
     done
     deploy_indexer_binary "$plugin_dir/scripts/bin"
 
-    # ── Create skills/*/scripts/ symlinks ──────
+    # ── Create skills/*/scripts + protocols + standards symlinks ──
+    # First clean up stale real directories from previous deployments
+    # (cp -r may have followed symlinks or left real dirs from old versions)
+    for sd in "$plugin_dir/skills"/*/; do
+        for sub in scripts protocols standards; do
+            if [ -d "$sd/$sub" ] && [ ! -L "$sd/$sub" ]; then
+                rm -rf "$sd/$sub"
+            fi
+        done
+    done
     for sd in "$plugin_dir/skills"/*/; do
         [ -d "$sd" ] && ln -sfn ../../scripts "$sd/scripts"
+        [ -d "$sd" ] && [ -d "$plugin_dir/knowledge/protocols" ] && ln -sfn ../../knowledge/protocols "$sd/protocols"
+        [ -d "$sd" ] && [ -d "$plugin_dir/knowledge/standards" ] && ln -sfn ../../knowledge/standards "$sd/standards"
     done
-    log_info "skill scripts symlinks: ${total_skills} created"
+    log_info "skill scripts+protocols+standards symlinks: ${total_skills} created"
 
     # ── Write .secguardian-env ──────────────────
     echo 'export SECGUARDIAN_HOME=$HOME/.claude/plugins/secguardian' > "$plugin_dir/.secguardian-env"
@@ -612,6 +624,7 @@ JSON
     log_done "$cmd_n commands, $skill_n skills, knowledge/ + scripts/"
 
     # ── Deploy scripts + indexer ─────────────────
+    for wrapper in init-scan.sh secguardian-index secguardian-index.ps1 render-report.py validate-index.py record-finding.py; do
         if [ -f "$PROJECT_ROOT/scripts/$wrapper" ]; then
             cp "$PROJECT_ROOT/scripts/$wrapper" "$scripts_dir/$wrapper"
             chmod +x "$scripts_dir/$wrapper" 2>/dev/null || true
@@ -703,6 +716,7 @@ JSON
     fi
 
     # Wrapper scripts and binaries
+    for wrapper in init-scan.sh secguardian-index secguardian-index.ps1 render-report.py validate-index.py record-finding.py; do
         [ -f "$PROJECT_ROOT/scripts/$wrapper" ] && cp "$PROJECT_ROOT/scripts/$wrapper" "$ext_dir/scripts/"
     done
     chmod +x "$ext_dir/scripts/"* 2>/dev/null || true

@@ -488,6 +488,73 @@ PASS=$((PASS + DS_PASS))
 FAIL=$((FAIL + DS_FAIL))
 echo ""
 
+# ── 14. Investigation Pipeline Artifact Integrity ──
+echo "14. Investigation Pipeline artifacts"
+
+# 14a: Verify all 16 C/C++ rules have Q1-Q2-Q3 fact-anchor questions
+for rule in buffer_overflow null_dereference memory_leak double_free \
+    use_after_free integer_overflow resource_leak command_injection \
+    input_validation must_check ownership_transfer api_semantic_misuse \
+    lock_misuse error_propagation hardcoded_secrets uninitialized; do
+  rf="skills/secguard/cpp/rules/$rule/rule.md"
+  if grep -qE 'Q1_|Q2_|Q3_|事实锚定' "$rf" 2>/dev/null; then
+    green "secguard-cpp/$rule: fact-anchor Q-schema present"
+  else
+    red "secguard-cpp/$rule: MISSING fact-anchor Q-schema"
+  fi
+done
+
+# 14b: Verify P2 enforcement is referenced in secguard.md
+for platform in opencode claude gemini; do
+  sf="commands/$platform/secguard.md"
+  if [ -f "$sf" ]; then
+    if grep -qE 'verification-protocol.*P2|counter_evidence.json|Counter Evidence.*mandatory|Phase 2c.*Counter' "$sf" 2>/dev/null; then
+      green "secguard.md ($platform): P2 Counter Evidence enforcement present"
+    else
+      red "secguard.md ($platform): P2 enforcement MISSING"
+    fi
+  fi
+done
+
+# 14c: Verify init-scan.sh creates workers/ directories
+if grep -q 'mkdir.*workers' scripts/init-scan.sh 2>/dev/null; then
+  green "init-scan.sh: workers/ directory creation"
+else
+  red "init-scan.sh: workers/ directory creation MISSING"
+fi
+
+# 14d: Verify Steps 4-8 exist in secguard.md (not just Step 3 → Step 9 jump)
+for platform in opencode claude gemini; do
+  sf="commands/$platform/secguard.md"
+  if [ -f "$sf" ]; then
+    if grep -q 'Step 4.*Hypothesis\|Phase 2a' "$sf" 2>/dev/null; then
+      green "secguard.md ($platform): Step 4 (Hypothesis Generator) present"
+    else
+      red "secguard.md ($platform): Step 4 MISSING — pipeline gap"
+    fi
+  fi
+done
+
+# 14e: Verify ALL skills have scripts + protocols + standards symlinks (self-contained design)
+SKILL_SYMLINK_OK=0
+for lang in cpp go java python js; do
+  for cmd_dir in skills/secguard/$lang skills/secreview/$lang; do
+    [ -d "$cmd_dir" ] || continue
+    [ -L "$cmd_dir/scripts" ] || { red "$cmd_dir: scripts symlink MISSING"; SKILL_SYMLINK_OK=1; }
+    [ -L "$cmd_dir/protocols" ] || { red "$cmd_dir: protocols symlink MISSING"; SKILL_SYMLINK_OK=1; }
+    [ -L "$cmd_dir/standards" ] || { red "$cmd_dir: standards symlink MISSING"; SKILL_SYMLINK_OK=1; }
+  done
+done
+# secaudit is flat (no language subdirs)
+for sub in scripts protocols standards; do
+  [ -L "skills/secaudit/$sub" ] || { red "skills/secaudit: $sub symlink MISSING"; SKILL_SYMLINK_OK=1; }
+done
+if [ "$SKILL_SYMLINK_OK" -eq 0 ]; then
+  green "All skill dirs (secguard + secreview + secaudit) have scripts/protocols/standards symlinks"
+fi
+
+echo ""
+
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 printf "  Passed: %d  Failed: %d\n" "$PASS" "$FAIL"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
