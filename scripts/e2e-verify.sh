@@ -914,6 +914,33 @@ else
     fail "Coverage gate failed to block batch-suppression (exit=$COV_EXIT)"
 fi
 
+# ── 16. Verification Gate (F3 structural fix: bypass blocker) ──
+section "16. Verification Gate (Bypass Blocker)"
+if python3 "$PROJECT_ROOT/scripts/verification-gate.py" --self-test >/dev/null 2>&1; then
+    pass "Verification gate self-test (anchor/severity/signature)"
+else
+    fail "Verification gate self-test FAILED"
+fi
+# Hard gate: a finding with a bad anchor (e.g. written by bypassing
+# record-finding) must be excluded from the CI gate via gate-audit.json.
+VG_TMP=$(mktemp -d); VG_OUT="$VG_TMP/out"; mkdir -p "$VG_OUT"
+python3 -c "import json; json.dump({'files':['src/app.c'],'symbols':{'functions':[{'file':'src/app.c','start_line':10,'end_line':20}]}}, open('$VG_TMP/index.json','w'))"
+python3 -c "
+import json
+def mk(i,det,file,line,cwe): return {'id':'F'+i,'severity':'Critical','cwe':cwe,'detector':det,'file':file,'line':line,'function':'f','title':'t','fix_summary':'f','location':{'file_path':file,'start_line':line,'function_name':'f','snippet':'s'},'evidence':{'code_context':'c','judgment_rationale':'r'},'impact':{'attack_scenario':'a','cvss_score':9.0},'fix':{'description':'d','before_code':'b','after_code':'a'}}
+b={'schema_version':'1.0','scan_id':'t','command':'secguard','started_at':'2026-07-10T00:00:00Z','completed_at':'2026-07-10T00:01:00Z','duration_ms':1000,'language':'c','scope':{'files':1,'lines':10,'functions':1},'detectors':{'matched':2,'executed':2},'findings':[mk('1','mem.x','src/app.c',15,'CWE-120'), mk('2','mem.y','NONEXISTENT.c',1,'CWE-1')]}
+json.dump(b, open('$VG_OUT/findings.json','w'))
+"
+python3 "$PROJECT_ROOT/scripts/verification-gate.py" --index "$VG_TMP/index.json" --scan-dir "$VG_OUT" >/dev/null 2>&1
+python3 "$PROJECT_ROOT/scripts/render-report.py" --findings "$VG_OUT/findings.json" --index "$VG_TMP/index.json" --output "$VG_OUT/" >/dev/null 2>&1
+VG_VIOL=$(python3 -c "import json; print(json.load(open('$VG_OUT/status.json'))['gate_violations'])" 2>/dev/null)
+rm -rf "$VG_TMP"
+if echo "$VG_VIOL" | grep -q "1 Critical"; then
+    pass "Verification gate excludes bad-anchor finding from CI (F3 bypass closed)"
+else
+    fail "Verification gate failed to exclude bad-anchor finding (violations: $VG_VIOL)"
+fi
+
 echo -e "${BOLD}╔══════════════════════════════════════════════╗${NC}"
 echo -e "${BOLD}║${NC}  E2E Verification Summary                   ${BOLD}║${NC}"
 echo -e "${BOLD}╚══════════════════════════════════════════════╝${NC}"

@@ -1396,6 +1396,35 @@ Examples:
         f['_seq'] = i + 1
         f['_sha'] = sha
 
+    # TASK-005: verification gate — if a gate-audit.json exists (produced by
+    # verification-gate.py), only CONFIRMED findings count toward scoring/CI.
+    # Findings that failed anchor/severity checks (e.g. written by bypassing
+    # record-finding, or bad file:line) become needs_review and are excluded
+    # from the CI gate — closing the F3 bypass. Backward compatible: no audit
+    # file means no filtering (gate not run).
+    gate_audit_path = os.path.join(args.output, "gate-audit.json")
+    if os.path.isfile(gate_audit_path):
+        try:
+            with open(gate_audit_path) as _gf:
+                audit_map = (json.load(_gf) or {}).get("findings", {})
+        except (json.JSONDecodeError, OSError):
+            audit_map = {}
+        if audit_map:
+            confirmed_findings = []
+            needs_review_findings = []
+            for f in findings:
+                info = audit_map.get(f.get("_sha")) or audit_map.get(f.get("sha", ""))
+                if info and info.get("verdict") == "confirmed":
+                    confirmed_findings.append(f)
+                else:
+                    needs_review_findings.append(f)
+            if needs_review_findings:
+                print(f"  ⚠️  Verification gate: {len(needs_review_findings)}/{len(findings)} findings "
+                      f"need_review (excluded from scoring/CI gate)")
+                findings = confirmed_findings
+                findings_data["findings"] = confirmed_findings
+                findings_data["needs_review_count"] = len(needs_review_findings)
+
     # Quality gate (for secaudit)
     gate_warnings = []
     if args.quality_gate and findings_data["command"] == "secaudit":
