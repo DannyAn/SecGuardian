@@ -941,6 +941,14 @@ else
     fail "Verification gate failed to exclude bad-anchor finding (violations: $VG_VIOL)"
 fi
 
+# ── 17. Signal Partition (M3: per-rule isolation, platform-neutral) ──
+section "17. Signal Partition (Per-Rule Isolation)"
+if python3 "$PROJECT_ROOT/scripts/partition-signals.py" --self-test >/dev/null 2>&1; then
+    pass "Partition self-test (per-rule grouping + batching + cat→category alias)"
+else
+    fail "Partition self-test FAILED"
+fi
+
 echo -e "${BOLD}╔══════════════════════════════════════════════╗${NC}"
 echo -e "${BOLD}║${NC}  E2E Verification Summary                   ${BOLD}║${NC}"
 echo -e "${BOLD}╚══════════════════════════════════════════════╝${NC}"

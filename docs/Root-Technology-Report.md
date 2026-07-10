@@ -87,16 +87,19 @@ SecGuardian **不是纯 SAST，也不是纯 LLM**。它是两层协作：
 
 ### `/secguard` — 安全加固检视（全量扫描）
 ```
-源码 → Tree-sitter CST → 符号表 + 调用图 + Alloc/Free + 锁图 + 信号矩阵 S1-S10 + CFG
+源码 → Tree-sitter CST → 符号表 + 调用图 + Alloc/Free + 锁图 + 信号矩阵 S1-S11 + CFG
     → Prescreener（确定性 safe-variant 过滤，降低噪声）
-    → Investigation Pipeline（Signal→Hypothesis→Investigator→Counter Evidence→Judge）
+    → partition-signals.py（per-rule 信号分组 + 有界 batch，平台无关产物）  ← ADR-006
+    → per (rule, batch) 一个隔离 LLM 任务（Claude=Agent 子代理 / OpenCode=串行）
         ├─ 引擎事实：CFG IsReachable/Dominates、信号上下文、源码窗口
-        └─ LLM 语义判断：在引擎事实之上判 SAST 检不到的语义
-    → 强制层（anchor 校验 + severity 规范化 + [规划] verification-gate）
-    → findings → render-report（report.md + SARIF + CI 门禁）
+        └─ LLM 语义判断：每任务只面对一条 rule + 其预过滤信号，不淹没
+    → 强制层（record-finding anchor + verification-gate 签名 + coverage-gate 覆盖下限）
+    → findings → render-report（confirmed 才计入 CI；report.md + SARIF）
     → oracle（recall/precision 度量）
 ```
-**根技术**：Tree-sitter CST + CFG + 信号矩阵 + Prescreener + LLM Investigation + 强制层 + oracle
+**根技术**：Tree-sitter CST + CFG + 信号矩阵 S1-S11 + Prescreener + **per-rule 隔离调度（ADR-006）** + LLM Investigation + 强制层（coverage/verification-gate）+ oracle
+
+> **调度架构（ADR-006，超越 SAST 的关键）**：per-rule 隔离任务 + 引擎预过滤。传统 SAST 用刚性规则全扫；纯 AI SAST 把所有 rule 一股脑喂 LLM（不逐个跑、结果漂移）。SecGuardian 引擎预过滤使每 rule 任务只收其相关信号——per-rule 隔离既给质量（LLM 聚焦一条 rule）又可负担（不重扫全库，根治旧 30-skill 慢）。这是"超越 SAST"的调度层差异化。
 
 ### `/secaudit` — 发布安全审计（深度）
 ```
