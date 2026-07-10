@@ -236,8 +236,48 @@ fi
 ```bash
 USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
 source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
+python3 "$SCRIPTS_DIR/validate-index.py" "$USER_PROJECT/.codeagent/secguardian/index.json" || { echo "FATAL: index invalid"; exit 1; }
+```
 
- 校验是强约束：finding 的 severity、CWE、evidence 必须匹配对应 SKILL.md 的 Detection Spec。跳过规则文件加载的 finding 将被拒绝。
+### Step 4: 信号分区（per-rule 隔离，引擎强制）
+
+> **依据**: `knowledge/protocols/dispatch-protocol.md`（单一真理源）。per-rule 隔离 + 引擎预过滤，三平台行为一致；Claude 平台调度原语见该协议 §5。
+
+```bash
+# 引擎产出平台无关 partition 计划：{rule: [batch1, batch2, ...]}
+python3 "$SCRIPTS_DIR/partition-signals.py" \
+    --index "$USER_PROJECT/.codeagent/secguardian/index.json" \
+    --rules-dir "$SKILL_DIR/secguard/$SCAN_LANG/rules" \
+    --batch-size 20 \
+    --json > "$SCAN_DIR/partition-plan.json"
+```
+
+### Step 5-8: per (rule, batch) Investigation Pipeline（串行内联基线）
+
+> **完整 pipeline 见 `knowledge/protocols/dispatch-protocol.md §3`**。此处为 Claude 执行要点。
+
+**对 `partition-plan.json` 中每个 (rule, batch) 串行执行**（基线：主上下文逐个处理；**可选增强**：对 batch 用 `Agent` 工具启子代理做真上下文隔离，子代理跑完 Steps 5-8 返回 findings——非必需，引擎强制已保证纪律）：
+
+1. **Step 5 Hypothesis Generator**：`Read` rule.md + batch 信号 → 对每信号生成 3-5 假设（H1最可能/H2上下文特定/H3缓解/H4替代/H5安全）→ 写 `workers/<rule>/hypotheses.json`
+2. **Step 6 Investigator**：针对每假设收集 Source→Propagation→Sink 三段式证据（每项锚定 `file:line+function+variable`；**用引擎事实** CFG `IsReachable`/`Dominates`、call_graph 邻域、源码窗口）→ 写 `evidence.json`
+3. **Step 7 Counter Evidence (P2 阻塞门)**：对每假设尝试**推翻自己**（找缓解/安全变体/不可达）→ 写 `counter_evidence.json`。**缺失则禁止 record-finding**（verification-gate 强制）
+4. **Step 7.5 Judge + Fact-Anchor**：读 evidence + counter_evidence（**不重新调查**），按 rule.md Q-matrix 判决（Q1缺陷真实/Q2可利用/Q3缓解；Q1/Q2 Yes=危险，Q3 Yes=安全）→ 写 `judge_verdict.json`
+5. **Step 8 Record**：verdict=CONFIRMED → `record-finding.py` 录入（anchor 校验 + severity 规范化 + function 自动回填）；SUPPRESS → 写 `dismissed.json`（每条带 reason）
+
+> **per-rule 纪律由引擎强制，不靠 LLM 自觉**：漏跑 rule → 该 rule 信号未 investigated → Step 8.5 coverage-gate BLOCKED。
+
+### Step 8.5: 引擎强制（验证 + 覆盖门禁）
+
+```bash
+# verification-gate: anchor/severity 校验 → gate-audit.json（confirmed 才计入 CI）
+python3 "$SCRIPTS_DIR/verification-gate.py" \
+    --index "$USER_PROJECT/.codeagent/secguardian/index.json" \
+    --scan-dir "$SCAN_DIR/"
+# coverage-gate: batch-suppression 拦截（signals>0 且 0 investigated → BLOCKED exit 1）
+python3 "$SCRIPTS_DIR/coverage-gate.py" \
+    --index "$USER_PROJECT/.codeagent/secguardian/index.json" \
+    --scan-dir "$SCAN_DIR/" || echo "WARN: coverage gate BLOCKED — signals suppressed without dismissed reasons"
+```
 
 ### Step 9: 渲染最终输出
 

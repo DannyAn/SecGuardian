@@ -357,8 +357,16 @@ fi
 ```bash
 USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
 source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
+python3 "$SCRIPTS_DIR/validate-index.py" "$USER_PROJECT/.codeagent/secguardian/index.json" || { echo "FATAL: index invalid"; exit 1; }
+# 引擎产出平台无关 partition 计划：{rule: [batch1, batch2, ...]}（per-rule 隔离，ADR-006）
+python3 "$SCRIPTS_DIR/partition-signals.py" \
+    --index "$USER_PROJECT/.codeagent/secguardian/index.json" \
+    --rules-dir "$SKILL_DIR/secguard/$SCAN_LANG/rules" \
+    --batch-size 20 \
+    --json > "$SCAN_DIR/partition-plan.json"
+```
 
- 校验是强约束：finding 的 severity、CWE、evidence 必须匹配对应 SKILL.md 的 Detection Spec。跳过规则文件加载的 finding 将被拒绝。
+> **依据**: `knowledge/protocols/dispatch-protocol.md`（单一真理源）。校验是强约束：finding 的 severity、CWE、evidence 必须匹配 rule.md 的 Detection Spec。跳过规则文件加载的 finding 将被拒绝。OpenCode 平台调度原语见该协议 §5（串行内联，无后台任务）。
 
 ---
 
@@ -593,6 +601,23 @@ source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
   "missed_patterns": ["跨函数溢出 (depth > 1)", "C++ 智能指针管理的内存操作"],
   "recommendations": ["手动审查跨函数边界的 memcpy 调用"]
 }
+```
+
+---
+
+### Step 8.5: 引擎强制（验证 + 覆盖门禁）
+
+> **依据**: `knowledge/protocols/dispatch-protocol.md §4`。per-rule 纪律由引擎强制，不靠 LLM 自觉。
+
+```bash
+# verification-gate: anchor/severity 校验 → gate-audit.json（confirmed 才计入 CI）
+python3 "$SCRIPTS_DIR/verification-gate.py" \
+    --index "$USER_PROJECT/.codeagent/secguardian/index.json" \
+    --scan-dir "$SCAN_DIR/"
+# coverage-gate: batch-suppression 拦截（signals>0 且 0 investigated → BLOCKED exit 1）
+python3 "$SCRIPTS_DIR/coverage-gate.py" \
+    --index "$USER_PROJECT/.codeagent/secguardian/index.json" \
+    --scan-dir "$SCAN_DIR/" || echo "WARN: coverage gate BLOCKED — signals suppressed without dismissed reasons"
 ```
 
 ---
