@@ -336,6 +336,50 @@ pthread_mutex_lock(&m1)
 
 ---
 
+## 事实锚定反射
+
+> **强制性。** 在输出 finding 之前必须回答所有三个问题。使用判定矩阵决定最终处理。
+
+### Q1: 锁获取 (pthread_mutex_lock/lock()) 是否缺少对应的释放 (pthread_mutex_unlock/unlock())?
+
+**Yes** = 缺陷在此上下文中真实存在，有具体代码锚点
+**No**  = 缺陷不成立——此调用点不满足缺陷触发条件
+
+### Q2: 死锁条件是否可被触发 (锁顺序不一致/信号处理中加锁)?
+
+**Yes** = 攻击者可控制触发条件或输入
+**No**  = 实际运行中不可达或不可控
+
+### Q3: 是否使用了 RAII 锁守卫 (lock_guard/scoped_lock/std::lock_guard)?
+
+**Yes** = 存在有效的缓解措施消除了风险
+**No**  = 不存在任何缓解措施
+
+### 判定矩阵
+
+| Q1 | Q2 | Q3 | 结论 |
+|----|----|----|-----------|
+| Yes | Yes | No | **CONFIRMED** — 漏洞存在且可利用，无缓解 |
+| Yes | No | No | **CONFIRMED** — 存在但不可利用（降低严重度） |
+| Yes | Yes | Yes | **SUPPRESS** — 缓解措施消除风险 |
+| Yes | No | Yes | **SUPPRESS** — 缓解措施足够 |
+| No | — | — | **SUPPRESS** — 此上下文漏洞不成立 |
+| Unknown | — | — | **保留为 Unknown** — 降级为 informational |
+
+### 输出整合
+
+在 finding 的 evidence 中附加：
+```json
+"judgment_matrix": {
+    "Q1_lock_missing_unlock": true|false,
+    "Q2_lock_deadlock_triggerable": true|false,
+    "Q3_lock_raii_guard": true|false,
+    "conclusion": "CONFIRMED|SUPPRESSED|UNKNOWN"
+}
+```
+
+---
+
 ## 取证证据收集指引
 
 ### 必须收集（MUST）

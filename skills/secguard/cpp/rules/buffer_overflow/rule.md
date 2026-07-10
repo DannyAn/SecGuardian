@@ -209,6 +209,50 @@ strncpy(dst, src, sizeof(dst));   // src >= sizeof(dst) 时不写 '\0'
 
 ---
 
+## 事实锚定反射
+
+> **强制性。** 在输出 finding 之前必须回答所有三个问题。使用判定矩阵决定最终处理。
+
+### Q1: {存在性 — dst 缓冲区是否小于最大可能的源数据 (sizeof(dst) < max_strlen(src))?}
+
+**Yes** = 缺陷在此上下文中真实存在，有具体代码锚点
+**No**  = 缺陷不成立——此调用点不满足缺陷触发条件
+
+### Q2: {可利用性 — 源数据是否来自程序外部（argv/stdin/网络/文件）?}
+
+**Yes** = 攻击者可控制触发条件或输入
+**No**  = 实际运行中不可达或不可控
+
+### Q3: {缓解 — 复制操作前是否有 sizeof 边界检查或使用了安全变体 (strcpy_s/snprintf+sizeof/strlcpy)?}
+
+**Yes** = 存在有效的缓解措施消除了风险
+**No**  = 不存在任何缓解措施
+
+### 判定矩阵
+
+| Q1 | Q2 | Q3 | 结论 |
+|----|----|----|-----------|
+| Yes | Yes | No | **CONFIRMED** — 漏洞存在且可利用，无缓解 |
+| Yes | No | No | **CONFIRMED** — 存在但不可利用（降低严重度） |
+| Yes | Yes | Yes | **SUPPRESS** — 缓解措施消除风险 |
+| Yes | No | Yes | **SUPPRESS** — 缓解措施足够 |
+| No | — | — | **SUPPRESS** — 此上下文漏洞不成立 |
+| Unknown | — | — | **保留为 Unknown** — 降级为 informational |
+
+### 输出整合
+
+在 finding 的 evidence 中附加：
+```json
+"judgment_matrix": {
+    "Q1_bof_exist": true|false,
+    "Q2_bof_exploit": true|false,
+    "Q3_bof_mitigate": true|false,
+    "conclusion": "CONFIRMED|SUPPRESSED|UNKNOWN"
+}
+```
+
+---
+
 ## 取证证据收集指引
 
 ### 必须收集（MUST）

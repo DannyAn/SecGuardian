@@ -267,6 +267,50 @@ signal(SIGTERM, handler);  // 返回值（旧 handler 地址或 SIG_ERR）未检
 
 ---
 
+## 事实锚定反射
+
+> **强制性。** 在输出 finding 之前必须回答所有三个问题。使用判定矩阵决定最终处理。
+
+### Q1: 错误码/返回值是否被静默丢弃 (未检查/未传播)?
+
+**Yes** = 缺陷在此上下文中真实存在，有具体代码锚点
+**No**  = 缺陷不成立——此调用点不满足缺陷触发条件
+
+### Q2: 隐藏的错误是否掩盖了后续安全关键操作的失败?
+
+**Yes** = 攻击者可控制触发条件或输入
+**No**  = 实际运行中不可达或不可控
+
+### Q3: 调用者是否通过返回值检查/errno/goto err 传播或记录了错误?
+
+**Yes** = 存在有效的缓解措施消除了风险
+**No**  = 不存在任何缓解措施
+
+### 判定矩阵
+
+| Q1 | Q2 | Q3 | 结论 |
+|----|----|----|-----------|
+| Yes | Yes | No | **CONFIRMED** — 漏洞存在且可利用，无缓解 |
+| Yes | No | No | **CONFIRMED** — 存在但不可利用（降低严重度） |
+| Yes | Yes | Yes | **SUPPRESS** — 缓解措施消除风险 |
+| Yes | No | Yes | **SUPPRESS** — 缓解措施足够 |
+| No | — | — | **SUPPRESS** — 此上下文漏洞不成立 |
+| Unknown | — | — | **保留为 Unknown** — 降级为 informational |
+
+### 输出整合
+
+在 finding 的 evidence 中附加：
+```json
+"judgment_matrix": {
+    "Q1_error_return_discarded": true|false,
+    "Q2_error_masks_security_failure": true|false,
+    "Q3_error_propagated_or_logged": true|false,
+    "conclusion": "CONFIRMED|SUPPRESSED|UNKNOWN"
+}
+```
+
+---
+
 ## 取证证据收集指引
 
 > 参考 guard-rule `error-exception-swallow` 的证据收集要求。

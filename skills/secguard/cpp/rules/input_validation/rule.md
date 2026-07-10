@@ -6,7 +6,7 @@ language: cpp
 topic: [memory]
 skill_id: validation.input
 signal_filter: validation.input*
-signal_source: call_sites[cat="exec"]
+signal_source: call_sites[cat="exec"] | pointer_validations[cat="param_check" AND has_null_check=false AND is_dereferenced=true]
 severity: high
 cwe: [CWE-20]
 ---
@@ -367,6 +367,52 @@ setuid(uid) → (无 if 检查) → 后续以 root 操作
       → findings.evidence.variable_state
 - [ ] **sanitizer_analysis**：realpath/openat+O_NOFOLLOW/basename 安全模式是否存在、chroot/sandbox 限制、SELinux/AppArmor MAC 策略、FORTIFY_SOURCE 启用情况
       → findings.evidence.sanitizer_analysis
+
+---
+
+---
+
+## 事实锚定反射
+
+> **强制性。** 在输出 finding 之前必须回答所有三个问题。使用判定矩阵决定最终处理。
+
+### Q1: 外部输入是否未经校验即到达安全敏感操作?
+
+**Yes** = 缺陷在此上下文中真实存在，有具体代码锚点
+**No**  = 缺陷不成立——此调用点不满足缺陷触发条件
+
+### Q2: 攻击者是否可控制输入值 (长度/类型/范围)?
+
+**Yes** = 攻击者可控制触发条件或输入
+**No**  = 实际运行中不可达或不可控
+
+### Q3: 在使用点之前是否存在输入校验 (白名单/类型检查/范围检查)?
+
+**Yes** = 存在有效的缓解措施消除了风险
+**No**  = 不存在任何缓解措施
+
+### 判定矩阵
+
+| Q1 | Q2 | Q3 | 结论 |
+|----|----|----|-----------|
+| Yes | Yes | No | **CONFIRMED** — 漏洞存在且可利用，无缓解 |
+| Yes | No | No | **CONFIRMED** — 存在但不可利用（降低严重度） |
+| Yes | Yes | Yes | **SUPPRESS** — 缓解措施消除风险 |
+| Yes | No | Yes | **SUPPRESS** — 缓解措施足够 |
+| No | — | — | **SUPPRESS** — 此上下文漏洞不成立 |
+| Unknown | — | — | **保留为 Unknown** — 降级为 informational |
+
+### 输出整合
+
+在 finding 的 evidence 中附加：
+```json
+"judgment_matrix": {
+    "Q1_unvalidated_reach": true|false,
+    "Q2_controllable": true|false,
+    "Q3_validation_present": true|false,
+    "conclusion": "CONFIRMED|SUPPRESSED|UNKNOWN"
+}
+```
 
 ---
 

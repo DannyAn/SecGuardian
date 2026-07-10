@@ -347,6 +347,50 @@ jwt\.(sign|verify)|oauth|sso                        # OAuth/SSO 外部 token
 
 ---
 
+## 事实锚定反射
+
+> **强制性。** 在输出 finding 之前必须回答所有三个问题。使用判定矩阵决定最终处理。
+
+### Q1: 代码中是否存在硬编码的密钥/密码/Token (直接作为字符串字面量)?
+
+**Yes** = 缺陷在此上下文中真实存在，有具体代码锚点
+**No**  = 缺陷不成立——此调用点不满足缺陷触发条件
+
+### Q2: 该凭据是否用于安全敏感操作 (认证/加密/签名)?
+
+**Yes** = 攻击者可控制触发条件或输入
+**No**  = 实际运行中不可达或不可控
+
+### Q3: 该值是否为测试 mock/placeholder (fake key/test token) 或编译期占位符?
+
+**Yes** = 存在有效的缓解措施消除了风险
+**No**  = 不存在任何缓解措施
+
+### 判定矩阵
+
+| Q1 | Q2 | Q3 | 结论 |
+|----|----|----|-----------|
+| Yes | Yes | No | **CONFIRMED** — 漏洞存在且可利用，无缓解 |
+| Yes | No | No | **CONFIRMED** — 存在但不可利用（降低严重度） |
+| Yes | Yes | Yes | **SUPPRESS** — 缓解措施消除风险 |
+| Yes | No | Yes | **SUPPRESS** — 缓解措施足够 |
+| No | — | — | **SUPPRESS** — 此上下文漏洞不成立 |
+| Unknown | — | — | **保留为 Unknown** — 降级为 informational |
+
+### 输出整合
+
+在 finding 的 evidence 中附加：
+```json
+"judgment_matrix": {
+    "Q1_hardcoded_secret_present": true|false,
+    "Q2_secret_security_sensitive": true|false,
+    "Q3_secret_test_placeholder": true|false,
+    "conclusion": "CONFIRMED|SUPPRESSED|UNKNOWN"
+}
+```
+
+---
+
 ## 取证证据收集指引
 
 ### 必须收集（MUST）
