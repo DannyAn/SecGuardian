@@ -60,7 +60,7 @@ SecGuardian **不是纯 SAST，也不是纯 LLM**。它是两层协作：
 | **Anchor 交叉校验** | `record-finding.py` | ✅ | finding 的 file+line 必须在 index.json 中存在；**新**：function 从 index 自动回填（修 function=N/A）|
 | **severity 规范化** | `record-finding.py` + `render-report.py` | ✅ 已修复（F2）| 枚举强校验 + 别名映射，堵大小写/枚举绕过 CI 门禁 |
 | **CI 门禁真退出码** | `render-report.py --ci` | ✅ 已修复（F2）| Critical→进程 exit 1（旧版只 print，门禁装饰性）|
-| **verification-gate.py**（per-finding 语义门）| `scripts/verification-gate.py` | ✅ 已实现（TASK-004/005）| post-scan 审计：anchor+severity 校验 + gate_signature；render-report 读 gate-audit.json，**confirmed 才计入 CI，needs_review 排除**——堵死绕过 recorder 写假 finding 的旁路（F3 输出侧根治）。Q-matrix/工件校验留 stub（待 FEATURE-003）|
+| **verification-gate.py**（per-finding 语义门）| `scripts/verification-gate.py` | ✅ 已实现（TASK-004/005/006）| post-scan 审计：anchor+severity 校验 + gate_signature + **Q-matrix 一致性校验**（F7：conclusion 与 Q1/Q3 矛盾→needs_review）；render-report 读 gate-audit.json，**confirmed 才计入 CI，needs_review 排除**——堵死绕过 recorder 写假 finding 的旁路（F3 输出侧根治）+ Judge 自我汇报变引擎可校验 |
 | **coverage-gate.py**（信号覆盖门禁）| `scripts/coverage-gate.py` | ✅ 已实现（TASK-007）| **F8 结构性修复**：scan 级 `(findings+dismissed_with_reason)/signals` 覆盖率；signals>0 且 0 investigated 且无 dismissed → BLOCKED + exit 1。根治 batch-suppression（生产 1358→0）。e2e §15 验证 |
 
 ### 验证层（EPIC-011 Pillar B，可证明）

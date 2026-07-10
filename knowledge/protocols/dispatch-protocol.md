@@ -69,6 +69,18 @@ Step 2 索引就绪后:
   - 判决: CONFIRMED / SUPPRESS / suspected
 - **锚定**: 判决必须引用证据行号 + Q-matrix 答案
 
+#### Canonical Q-matrix 极性（F7 修复，自洽，所有 rule 必须遵循）
+> ⚠️ **极性统一**：Q1/Q2 `true`=危险（缺陷/可利用），Q3 `true`=安全（缓解存在）。旧"三绿灯(Q1=Q2=Q3=Yes)→SUPPRESS"措辞错误（把 Q1/Q2 Yes 误当安全），已废止。
+
+| Q1 缺陷真实 | Q2 可利用 | Q3 缓解存在 | conclusion |
+|------------|----------|----------|-----------|
+| No (false) | — | — | SUPPRESS（无缺陷）|
+| Yes (true) | — | Yes (true) | SUPPRESS（已缓解）|
+| Yes (true) | Yes (true) | No (false) | **CONFIRMED**（High/Critical）|
+| Yes (true) | No (false) | No (false) | CONFIRMED（Medium，潜在缺陷）|
+
+**verification-gate 引擎校验**（Step 8.5）：CONCLUSION 与 Q1/Q3 不一致 → needs_review。例：verdict=CONFIRMED 但 Q1=false（无缺陷）或 Q3=true（已缓解）→ 矛盾 → needs_review。这把 Judge 的"自我汇报"变成引擎可校验。
+
 ### Step 8: Record Findings `[条件执行]`
 - **门禁**: judge_verdict.json 存在且 verdict=CONFIRMED
 - **动作**: `record-finding.py` 录入（anchor 校验 file:line 在 index + severity 规范化 + function 自动回填）

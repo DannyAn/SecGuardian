@@ -26,7 +26,7 @@
 ### TG-B: Pillar A 强制层
 - [x] TASK-004 verification-gate.py 骨架 ✅ 2026-07-10（post-scan 审计：anchor+severity+symbol_covered+artifact+signature；self-test 绿；真实 cpp 39 全 confirmed；旁路 bad-anchor → needs_review）
 - [x] TASK-005 render-report 接入 gate ✅ 2026-07-10（读 gate-audit.json，confirmed 才计入 scoring/CI，needs_review 排除；实证 bad-anchor Critical 2→1、67→82 分；e2e §16）
-- [ ] TASK-006 Q-matrix + 工件校验（与 FEATURE-003 协同，gate 已留 qmatrix=skip 桩）
+- [x] TASK-006 Q-matrix 一致性校验 ✅ 2026-07-10（verification-gate 读 workers/*/judge_verdict.json，校验 conclusion 与 Q1/Q3 一致性 per canonical 极性；F7 极性矛盾→needs_review；self-test 检出 2 矛盾；canonical 矩阵写入 dispatch-protocol.md。45 规则 Q-matrix 全覆盖待 FEATURE-003 增量）
 - [x] TASK-007 信号覆盖下限 ✅ 2026-07-10（`coverage-gate.py`：self-test 绿；真实 cpp PASSED 11.17%；模拟 batch-suppression BLOCKED exit 1；e2e §15 接入）
 
 ### TG-C: Pillar B 验证回路

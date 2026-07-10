@@ -141,12 +141,91 @@ def evaluate(index, findings, scan_dir):
             "detector": f.get("detector"), "severity": f.get("severity"),
         }
         counts[verdict] += 1
+    # Q-matrix consistency audit (F7): load workers/*/judge_verdict.json and
+    # flag verdicts whose conclusion contradicts Q1/Q3 (Q1=true defect, Q3=true
+    # mitigation). Closes the TASK-006 stub — Judge self-report becomes
+    # engine-verifiable.
+    qm = audit_qmatrix(scan_dir)
     return {
         "total": len(findings),
         "confirmed": counts["confirmed"],
         "needs_review": counts["needs_review"],
         "findings": per_finding,
+        "qmatrix_checked": qm["checked"],
+        "qmatrix_inconsistencies": qm["inconsistencies"],
     }
+
+
+def audit_qmatrix(scan_dir):
+    """Scan workers/*/judge_verdict.json for Q-matrix/conclusion inconsistencies.
+
+    Canonical polarity (dispatch-protocol.md, F7 fix):
+      CONFIRMED  requires Q1=true (defect) AND Q3=false (no mitigation)
+      SUPPRESS/SAFE requires Q1=false OR Q3=true
+    Q1 = any judgment_matrix key starting "Q1_" (defect, true=danger).
+    Q3 = any key starting "Q3_" (mitigation, true=safe). Q2 ignored (severity).
+    """
+    checked = 0
+    inconsistencies = []
+    if not scan_dir:
+        return {"checked": 0, "inconsistencies": inconsistencies}
+    workers_dir = os.path.join(scan_dir, "workers")
+    verdict_files = []
+    if os.path.isdir(workers_dir):
+        for _root, _dirs, files in os.walk(workers_dir):
+            for fn in files:
+                if fn == "judge_verdict.json":
+                    verdict_files.append(os.path.join(_root, fn))
+    # also scan-level judge_verdict.json
+    jv = os.path.join(scan_dir, "judge_verdict.json")
+    if os.path.isfile(jv):
+        verdict_files.append(jv)
+    for vf in verdict_files:
+        try:
+            with open(vf) as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            continue
+        verdicts = data.get("verdicts") if isinstance(data, dict) else data
+        if not isinstance(verdicts, list):
+            continue
+        for v in verdicts:
+            if not isinstance(v, dict):
+                continue
+            jm = v.get("judgment_matrix") or {}
+            conclusion = str(v.get("conclusion") or v.get("verdict") or "").upper()
+            q1 = _qval(jm, "Q1_")  # defect (true=danger)
+            q3 = _qval(jm, "Q3_")  # mitigation (true=safe)
+            if q1 is None or q3 is None:
+                continue  # no Q-matrix to check (rule may lack one — skip)
+            checked += 1
+            consistent = _qmatrix_consistent(conclusion, q1, q3)
+            if not consistent:
+                inconsistencies.append({
+                    "file": vf, "rule": data.get("rule") if isinstance(data, dict) else None,
+                    "hypothesis": v.get("hypothesis_id"),
+                    "conclusion": conclusion, "Q1_defect": q1, "Q3_mitigation": q3,
+                    "reason": "conclusion contradicts Q1/Q3 (F7 polarity)",
+                })
+    return {"checked": checked, "inconsistencies": inconsistencies}
+
+
+def _qval(jm, prefix):
+    """Return the bool value of the first judgment_matrix key with prefix, or None."""
+    for k, val in jm.items():
+        if str(k).startswith(prefix):
+            return bool(val)
+    return None
+
+
+def _qmatrix_consistent(conclusion, q1, q3):
+    """Q1=true defect, Q3=true mitigation. CONFIRMED needs Q1 & !Q3; SUPPRESS needs !Q1 | Q3."""
+    if conclusion == "CONFIRMED":
+        return q1 and not q3
+    if conclusion in ("SUPPRESS", "SAFE"):
+        return (not q1) or q3
+    # SUSPICIOUS / unknown — not a hard contradiction, treat as consistent
+    return True
 
 
 def self_test():
@@ -169,7 +248,30 @@ def self_test():
     assert res["findings"]["ccc"]["checks"]["severity"] == "fail", res["findings"]["ccc"]
     # signatures are stable
     assert len(res["findings"]["aaa"]["signature"]) == 16, res
-    print("OK — verification-gate self-test passed (anchor/severity/signature)")
+    # Q-matrix consistency audit (F7)
+    import tempfile, os
+    qm_dir = tempfile.mkdtemp()
+    wd = os.path.join(qm_dir, "workers", "memory_buffer_overflow")
+    os.makedirs(wd)
+    # inconsistent: CONFIRMED but Q1=false (no defect) → contradiction
+    # consistent: CONFIRMED with Q1=true,Q3=false
+    # inconsistent: SUPPRESS with Q1=true,Q3=false (should be CONFIRMED)
+    # consistent: SUPPRESS with Q1=false
+    import json as _j
+    _j.dump({"rule": "buffer_overflow", "verdicts": [
+        {"hypothesis_id": "H1", "verdict": "CONFIRMED",
+         "judgment_matrix": {"Q1_buffer_too_small": False, "Q2_external_input": True, "Q3_bounds_check_exists": False, "conclusion": "CONFIRMED"}},
+        {"hypothesis_id": "H2", "verdict": "CONFIRMED",
+         "judgment_matrix": {"Q1_buffer_too_small": True, "Q2_external_input": True, "Q3_bounds_check_exists": False, "conclusion": "CONFIRMED"}},
+        {"hypothesis_id": "H3", "verdict": "SAFE",
+         "judgment_matrix": {"Q1_buffer_too_small": True, "Q2_external_input": False, "Q3_bounds_check_exists": False, "conclusion": "SUPPRESS"}},
+        {"hypothesis_id": "H4", "verdict": "SAFE",
+         "judgment_matrix": {"Q1_buffer_too_small": False, "Q2_external_input": False, "Q3_bounds_check_exists": True, "conclusion": "SUPPRESS"}},
+    ]}, open(os.path.join(wd, "judge_verdict.json"), "w"))
+    qm = audit_qmatrix(qm_dir)
+    assert qm["checked"] == 4, qm
+    assert qm["inconsistencies"] and len(qm["inconsistencies"]) == 2, qm  # H1 + H3 inconsistent
+    print("OK — verification-gate self-test passed (anchor/severity/signature + Q-matrix)")
     return 0
 
 
