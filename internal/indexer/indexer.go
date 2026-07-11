@@ -257,3 +257,173 @@ func itoa(n uint) string {
 	}
 	return string(buf[i:])
 }
+
+// MergeCallGraphs combines two call graphs, deduplicating edges by
+// (caller, callee, file, line) — the same key used in BuildCallGraphV2.
+func MergeCallGraphs(a, b CallGraph) CallGraph {
+	seen := make(map[string]bool)
+	merged := CallGraph{}
+	for _, cg := range []CallGraph{a, b} {
+		for _, e := range cg.Edges {
+			key := e.Caller + ":" + e.Callee + ":" + e.File + ":" + itoa(e.Line)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			merged.Edges = append(merged.Edges, e)
+		}
+	}
+	return merged
+}
+
+// GroupByFunction aggregates all call_sites and variable-level signals
+// by function, producing a per-function context suitable for batch dispatch.
+func GroupByFunction(
+	parsed map[string]*parser.ParseResult,
+	callSites []parser.CallSite,
+	varWrites []parser.VariableWrite,
+	ptrValidations []parser.PointerValidation,
+	taintFlows []parser.TaintFlow,
+	allocFree AllocFreeMap,
+	callGraph CallGraph,
+) []parser.FunctionCallContext {
+	type funcMeta struct {
+		file      string
+		startLine uint
+		endLine   uint
+	}
+	funcMap := make(map[string]funcMeta)
+	for _, result := range parsed {
+		for _, fn := range result.Functions {
+			funcMap[fn.Name] = funcMeta{
+				file:      result.File,
+				startLine: fn.StartLine,
+				endLine:   fn.EndLine,
+			}
+		}
+	}
+
+	type agg struct {
+		callSites      []parser.CallSite
+		varWrites      []parser.VariableWrite
+		ptrValidations []parser.PointerValidation
+		taintFlows     []parser.TaintFlow
+		allocPairs     []AllocFreePair
+		callers        map[string]bool
+		callees        map[string]bool
+	}
+	aggs := make(map[string]*agg)
+
+	for _, cs := range callSites {
+		fn := cs.CallerFunction
+		a := aggs[fn]
+		if a == nil {
+			a = &agg{callers: make(map[string]bool), callees: make(map[string]bool)}
+			aggs[fn] = a
+		}
+		a.callSites = append(a.callSites, cs)
+		a.callees[cs.CalleeName] = true
+	}
+
+	for _, vw := range varWrites {
+		if vw.Function == "" {
+			continue
+		}
+		a := aggs[vw.Function]
+		if a == nil {
+			a = &agg{callers: make(map[string]bool), callees: make(map[string]bool)}
+			aggs[vw.Function] = a
+		}
+		a.varWrites = append(a.varWrites, vw)
+	}
+
+	for _, pv := range ptrValidations {
+		if pv.Function == "" {
+			continue
+		}
+		a := aggs[pv.Function]
+		if a == nil {
+			a = &agg{callers: make(map[string]bool), callees: make(map[string]bool)}
+			aggs[pv.Function] = a
+		}
+		a.ptrValidations = append(a.ptrValidations, pv)
+	}
+
+	for _, tf := range taintFlows {
+		if tf.Function == "" {
+			continue
+		}
+		a := aggs[tf.Function]
+		if a == nil {
+			a = &agg{callers: make(map[string]bool), callees: make(map[string]bool)}
+			aggs[tf.Function] = a
+		}
+		a.taintFlows = append(a.taintFlows, tf)
+	}
+
+	for _, pair := range allocFree.Pairs {
+		for fnName, meta := range funcMap {
+			if pair.AllocFile == meta.file &&
+				pair.AllocLine >= meta.startLine &&
+				pair.AllocLine <= meta.endLine {
+				a := aggs[fnName]
+				if a == nil {
+					a = &agg{callers: make(map[string]bool), callees: make(map[string]bool)}
+					aggs[fnName] = a
+				}
+				a.allocPairs = append(a.allocPairs, pair)
+				break
+			}
+		}
+	}
+
+	for _, e := range callGraph.Edges {
+		a := aggs[e.Callee]
+		if a != nil {
+			a.callers[e.Caller] = true
+		}
+	}
+
+	result := make([]parser.FunctionCallContext, 0, len(aggs))
+	for fnName, a := range aggs {
+		meta, ok := funcMap[fnName]
+		if !ok {
+			continue
+		}
+		callerList := make([]string, 0, len(a.callers))
+		for c := range a.callers {
+			callerList = append(callerList, c)
+		}
+		calleeList := make([]string, 0, len(a.callees))
+		for c := range a.callees {
+			calleeList = append(calleeList, c)
+		}
+		// Convert AllocFreePair to parser.AllocFreeRef (avoid circular import)
+		afRefs := make([]parser.AllocFreeRef, 0, len(a.allocPairs))
+		for _, pair := range a.allocPairs {
+			freeSites := make([]parser.FreeSite, 0, len(pair.FreeSites))
+			for _, fs := range pair.FreeSites {
+				freeSites = append(freeSites, parser.FreeSite{Line: fs.Line})
+			}
+			afRefs = append(afRefs, parser.AllocFreeRef{
+				AllocFunc: pair.AllocFunc,
+				AllocLine: pair.AllocLine,
+				FreeSites: freeSites,
+			})
+		}
+		result = append(result, parser.FunctionCallContext{
+			Function:       fnName,
+			File:           meta.file,
+			StartLine:      meta.startLine,
+			EndLine:        meta.endLine,
+			Callers:        callerList,
+			Callees:        calleeList,
+			CallSites:      a.callSites,
+			VariableWrites: a.varWrites,
+			PointerChecks:  a.ptrValidations,
+			TaintFlows:     a.taintFlows,
+			AllocFreePairs: afRefs,
+		})
+	}
+	return result
+}

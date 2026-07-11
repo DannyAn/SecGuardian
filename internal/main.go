@@ -138,14 +138,15 @@ func runIndex(args []string) {
 			pa.SafeCount, pct, len(allCallSites))
 	}
 
-	// Phase 3: Build call graph (V2 if call_sites available, else V1 fallback)
+	// Phase 3: Build call graph (V1 user→user + V2 user→lib, merged)
 	var cg indexer.CallGraph
-	if len(allCallSites) > 0 {
-		cg = indexer.BuildCallGraphV2(allCallSites, symbols)
-	} else {
-		cg = indexer.BuildCallGraph(parsed, symbols)
-	}
-	fmt.Printf("  Call graph: %d edges\n", len(cg.Edges))
+	cgV1 := indexer.BuildCallGraph(parsed, symbols)
+	cgV2 := indexer.BuildCallGraphV2(allCallSites, symbols)
+	cg = indexer.MergeCallGraphs(cgV1, cgV2)
+	userEdges := len(cgV1.Edges)
+	libEdges := len(cgV2.Edges)
+	fmt.Printf("  Call graph: %d edges (%d user→user + %d user→lib, merged=%d)\n",
+		len(cg.Edges), userEdges, libEdges, len(cg.Edges))
 
 	// Phase 4: Match alloc/free pairs
 	af := indexer.MatchAllocFree(parsed)
@@ -154,6 +155,10 @@ func runIndex(args []string) {
 	// Phase 5: Build lock usage graph
 	lg := indexer.BuildLockGraph(parsed)
 	fmt.Printf("  Lock usage: %d mutexes\n", len(lg.Mutexes))
+
+	// Phase 5.5: Build per-function call contexts (FEATURE-007 P4)
+	funcCtxs := indexer.GroupByFunction(parsed, allCallSites, allVarWrites, allPtrValidations, allTaint, af, cg)
+	fmt.Printf("  Function contexts: %d functions with call data\n", len(funcCtxs))
 
 	// Determine primary language
 	primaryLang := *langFlag
@@ -199,6 +204,7 @@ func runIndex(args []string) {
 		CFGs:              allCFGs,
 		SuspiciousExpressions: allSusp,
 		TaintFlows:            allTaint,
+		FunctionCallContexts:   funcCtxs,
 	}
 
 	ptrSig := ""

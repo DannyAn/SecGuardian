@@ -696,3 +696,34 @@ func min(a, b int) int {
 	return b
 }
 
+// ── Function-Level Context (FEATURE-007 P4) ──────────────────
+
+// AllocFreeRef is a lightweight reference to an alloc/free pair
+// used inside FunctionCallContext (avoids circular indexer import).
+type AllocFreeRef struct {
+	AllocFunc string     `json:"alloc_func"`
+	AllocLine uint       `json:"alloc_line"`
+	FreeSites []FreeSite `json:"free_sites"`
+}
+
+// FreeSite is a single deallocation site within a pair.
+type FreeSite struct {
+	Line uint `json:"line"`
+}
+
+// FunctionCallContext aggregates all indexer signals for a single function,
+// providing a complete context for LLM per-function batch investigation.
+type FunctionCallContext struct {
+	Function       string              `json:"function"`
+	File           string              `json:"file"`
+	StartLine      uint                `json:"start_line"`
+	EndLine        uint                `json:"end_line"`
+	Callers        []string            `json:"callers"`
+	Callees        []string            `json:"callees"`
+	CallSites      []CallSite          `json:"call_sites,omitempty"`
+	VariableWrites []VariableWrite     `json:"variable_writes,omitempty"`
+	PointerChecks  []PointerValidation `json:"pointer_checks,omitempty"`
+	TaintFlows     []TaintFlow         `json:"taint_flows,omitempty"`
+	AllocFreePairs []AllocFreeRef      `json:"alloc_free_pairs,omitempty"`
+}
+

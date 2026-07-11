@@ -37,4 +37,8 @@ type AnalysisContext struct {
 	SuspiciousExpressions []parser.SuspiciousExpression `json:"suspicious_expressions,omitempty"`
 	// S12 TaintFlow (EPIC-011 M2): engine-detected Source→Sink taint.
 	TaintFlows []parser.TaintFlow `json:"taint_flows,omitempty"`
+	// FunctionCallContexts (FEATURE-007 P4): per-function aggregated signals
+	// with callers/callees/alloc-free/variable-write/pointer-check context.
+	// Primary driver for per-function batch dispatch.
+	FunctionCallContexts []parser.FunctionCallContext `json:"function_call_contexts,omitempty"`
 }
