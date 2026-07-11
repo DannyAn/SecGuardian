@@ -578,19 +578,28 @@ python3 "$RENDERER" \
 
 ### Step 9: 输出摘要（遵循统一 CLI 输出协议）
 
-读取 `manifest.json` 获取扫描统计，按 `knowledge/protocols/scan-output.md §CLI 输出摘要` 的统一格式输出。
+读取 `manifest.json` 获取扫描统计。**第一步**：从 `.scan_state.secguard` 提取项目信息——`SCAN_PATH` 是被扫描的源码目录，`USER_PROJECT` 是项目根目录。**禁止输出占位符** `<path>`/`<project>`——必须填入实际值。
+
+```bash
+USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
+source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
+echo "SCAN_PATH=$SCAN_PATH"
+echo "USER_PROJECT=$USER_PROJECT"
+```
 
 **secguard 特有规则：**
+- **首行必含**：`Scan ID | Project: <项目目录名> | Path: <扫描路径> | Language: <语言>`
+- **Project** = `$USER_PROJECT` 的最后一级目录名（如 `cpp-vuln-demo-no-answers`）
+- **Path** = `$SCAN_PATH` 相对于 `$USER_PROJECT` 的路径（如 `src`）
 - **统计表**：按 Worker 展开（`信号数 | 检出 | 抑制 | 误报` 列），这是 secguard 独有的信号级明细
 - **0 finding 附加注释**：在统计表下方说明未映射信号（如 "X 个 io close() 调用当前 Skill 范围未覆盖"）
-- **类别列**：填充 detector ID（如 `memory.buffer_overflow`）
 
 **0 finding 示例：**
 
 ```markdown
 ## secguard 扫描完成
 
-Scan ID: sc-YYYYMMDD-HHMMSS-xxxx | Project: <project> | Path: <path> | Language: <lang> | Mode: <mode>
+Scan ID: sc-20260711-212108-63ac | Project: cpp-vuln-demo-no-answers | Path: src | Language: cpp
 
 ### 扫描统计
 
@@ -614,7 +623,7 @@ Scan ID: sc-YYYYMMDD-HHMMSS-xxxx | Project: <project> | Path: <path> | Language:
 ```markdown
 ## secguard 扫描完成
 
-Scan ID: sc-YYYYMMDD-HHMMSS-xxxx | Project: <project> | Path: <path> | Language: <lang> | Mode: <mode>
+Scan ID: sc-20260711-212108-63ac | Project: cpp-vuln-demo-no-answers | Path: src | Language: cpp
 
 ### 扫描统计
 
