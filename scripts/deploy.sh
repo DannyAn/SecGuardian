@@ -237,7 +237,7 @@ JSON
     [ -d "$PROJECT_ROOT/knowledge/standards" ] && cp -r "$PROJECT_ROOT/knowledge/standards/"* "$plugin_dir/knowledge/standards/" 2>/dev/null || true
 
     # Copy wrapper scripts, renderer, and binaries into plugin
-    for wrapper in init-scan.sh secguardian-index secguardian-index.ps1 render-report.py validate-index.py record-finding.py partition-signals.py verification-gate.py coverage-gate.py; do
+    for wrapper in init-scan.sh secguardian-index secguardian-index.ps1 render-report.py validate-index.py record-finding.py partition-signals.py verification-gate.py coverage-gate.py compact-schedule.py gen-task-prompts.py scan-verdicts.py show-findings.py prefilter.py; do
         if [ -f "$PROJECT_ROOT/scripts/$wrapper" ]; then
             cp "$PROJECT_ROOT/scripts/$wrapper" "$plugin_dir/scripts/$wrapper"
             chmod +x "$plugin_dir/scripts/$wrapper" 2>/dev/null || true
@@ -622,7 +622,7 @@ JSON
     log_done "$cmd_n commands, $skill_n skills, knowledge/ + scripts/"
 
     # ── Deploy scripts + indexer ─────────────────
-    for wrapper in init-scan.sh secguardian-index secguardian-index.ps1 render-report.py validate-index.py record-finding.py partition-signals.py verification-gate.py coverage-gate.py; do
+    for wrapper in init-scan.sh secguardian-index secguardian-index.ps1 render-report.py validate-index.py record-finding.py partition-signals.py verification-gate.py coverage-gate.py compact-schedule.py gen-task-prompts.py scan-verdicts.py show-findings.py prefilter.py; do
         if [ -f "$PROJECT_ROOT/scripts/$wrapper" ]; then
             cp "$PROJECT_ROOT/scripts/$wrapper" "$scripts_dir/$wrapper"
             chmod +x "$scripts_dir/$wrapper" 2>/dev/null || true
@@ -678,7 +678,7 @@ deploy_gemini() {
   "description": "SecGuardian XuanWu — 企业级白盒安全 AI Agent 辅助解决方案",
   "author": "SecGuardian",
   "homepage": "https://github.com/DannyAn/SecGuardian",
-  "commands": ["commands/secaudit.toml", "commands/secguard.toml", "commands/secreview.toml"]
+  "commands": ["commands/secaudit.toml", "commands/secguard.toml", "commands/secreview.toml", "commands/secfix.toml"]
 }
 JSON
 
@@ -714,7 +714,7 @@ JSON
     fi
 
     # Wrapper scripts and binaries
-    for wrapper in init-scan.sh secguardian-index secguardian-index.ps1 render-report.py validate-index.py record-finding.py partition-signals.py verification-gate.py coverage-gate.py; do
+    for wrapper in init-scan.sh secguardian-index secguardian-index.ps1 render-report.py validate-index.py record-finding.py partition-signals.py verification-gate.py coverage-gate.py compact-schedule.py gen-task-prompts.py scan-verdicts.py show-findings.py prefilter.py; do
         [ -f "$PROJECT_ROOT/scripts/$wrapper" ] && cp "$PROJECT_ROOT/scripts/$wrapper" "$ext_dir/scripts/"
     done
     chmod +x "$ext_dir/scripts/"* 2>/dev/null || true

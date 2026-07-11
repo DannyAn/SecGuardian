@@ -177,7 +177,7 @@ Scan ID: sec-YYYYMMDD-HHMMSS-xxxx | Project: <project> | Path: <path> | Language
 > **唯一一次预初始化 bash 调用**。通过 `scripts/init-scan.sh` 完成 SECGUARDIAN_HOME 自动发现、健康检查、路径确认、建目录、写 `.scan_state.secaudit`。
 
 ```bash
-source "$HOME/.claude/plugins/secguardian/scripts/init-scan.sh" secaudit "<path>"
+source "$HOME/.claude/plugins/secguardian/scripts/init-scan.sh" secaudit "<path>" "<language>"
 ```
 
 - 记录审计开始时间戳，用于 Step 4 计算 `duration_ms`。

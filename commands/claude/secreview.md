@@ -156,7 +156,7 @@ You (the AI Agent) must follow these steps when executing `/secreview` to perfor
 > **唯一一次预初始化 bash 调用**。通过 `scripts/init-scan.sh` 完成 SECGUARDIAN_HOME 自动发现、健康检查、路径确认、建目录、写 `.scan_state.secreview`。
 
 ```bash
-source "$HOME/.claude/plugins/secguardian/scripts/init-scan.sh" secreview "<path>"
+source "$HOME/.claude/plugins/secguardian/scripts/init-scan.sh" secreview "<path>" "<language>"
 ```
 
 - Record review start timestamp for Step 4 `duration_ms` calculation.

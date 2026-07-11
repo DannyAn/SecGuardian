@@ -61,9 +61,17 @@ mkdir -p "$TOML_OUT"
 echo "==> 生成 Gemini TOML 命令文件..."
 
 gen_count=0
+skip_count=0
 for md_file in "$CMD_SRC"/*.md; do
     name=$(basename "$md_file" .md)
     toml_file="$TOML_OUT/${name}.toml"
+
+    # Preserve manually-maintained Gemini TOML files (marked @secguardian:gemini-native-source in first 5 lines)
+    if [ -f "$toml_file" ] && head -5 "$toml_file" 2>/dev/null | grep -q '@secguardian:gemini-native-source'; then
+        echo "  [SKIP] ${name}.toml — manual Gemini-native source preserved"
+        skip_count=$((skip_count + 1))
+        continue
+    fi
 
     # 提取 description: 从 YAML frontmatter 的 description 字段
     # 格式: description: "文本" 或 description:"文本"
@@ -108,5 +116,8 @@ for md_file in "$CMD_SRC"/*.md; do
     gen_count=$((gen_count + 1))
 done
 
+if [ "$skip_count" -gt 0 ]; then
+    echo "  跳过 $skip_count 个手动维护的 Gemini native TOML（标记 @secguardian:gemini-native-source）"
+fi
 echo "  生成 $gen_count 个 TOML 文件 → $TOML_OUT/"
 echo "  提示: 如果修改了 commands/claude/*.md，重新运行本脚本即可同步 TOML。"

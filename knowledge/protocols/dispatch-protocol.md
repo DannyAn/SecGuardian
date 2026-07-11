@@ -107,7 +107,9 @@ Step 2 索引就绪后:
 
 ## 5. 平台调度原语（差异隔离于此）
 
-三平台**基线相同**（§2 串行内联）。仅以下原语差异，各平台命令模板声明：
+三平台共享的是**逻辑契约**（§2 分区、§3 pipeline、§4 强制链），不是同一段自然语言话术。每个平台必须声明自己的隔离能力，并用该平台的最强隔离原语实现 `one nonempty (rule_id,batch_id) = one bounded investigation context`。
+
+禁止把“相同 prompt 文案”当成跨平台一致性保证。跨平台一致性只由以下机器可验证产物定义：`partition-plan.json`、`workers/<rule_id>/<batch_id>/` 四类工件、`verification-gate.py`、`coverage-gate.py`、`render-report.py --ci`。
 
 ### Dispatcher context budget
 - Dispatcher 只读取 compact partition schedule、任务完成状态和 gate/manifest 摘要。
@@ -122,15 +124,16 @@ Step 2 索引就绪后:
 - **工具**: `Read`（rule.md/知识/信号坐标源码窗口）、`Bash`（引擎脚本）。禁止 `bash cat` 读取知识文本。禁止不带 offset/limit 的完整源文件 Read。
 
 ### OpenCode
-- **基线**: 串行 Agent 隔离（CHANGE-004）。每个 (rule, batch) 一个内联 Agent 子代理——Agent 启动时上下文干净，不累积其他 rule 的调查内容。禁止在主上下文直接串行内联完整 Steps 5-8（CHANGE-004：纯串行内联被测试证伪——LLM 处理 3 条 rule 后自行丢弃剩余 12 条）。
-- **调度**: pilot batch 内联验证 gate 后，剩余 batch 逐个启动 Agent 子代理（串行但每个 Agent 上下文独立）。
+- **基线**: 串行 Task/Agent 隔离（CHANGE-004/005）。每个 nonempty (rule, batch) 一个 `Task` 子代理，串行启动但上下文独立。禁止在主上下文直接串行内联完整 Steps 4-8，禁止一个 Task 处理多个 batch。
+- **调度**: pilot batch 一个 Task；pilot gate 通过后，剩余 batch 逐个启动 Task。不得使用 “complete remaining batches” 类合并式委派。
 - 工具: `read`/`bash`（平台等价物）。禁止不带 offset/limit 的完整源文件 Read。
 
 ### Gemini CLI
-- **基线**: 串行内联（同 §2）。
-- 格式: TOML 命令模板，逻辑同 §2-§3。
+- **能力状态**: 当前未验证有可靠的子代理/独立上下文原语。不得声称与 Claude/OpenCode 等价。
+- **安全基线**: 只允许 `total_nonempty_batches <= 1` 的单 batch 扫描内联执行；若分区计划产生多个 nonempty batch，必须 fail-closed，输出 BLOCKED 诊断并提示使用 Claude/OpenCode 或后续 Gemini 隔离执行器。
+- **后续落地**: 若 Gemini 后续接入独立上下文原语或外部 batch runner，可升级为 `one batch = one isolated execution`，但必须先通过 CHANGE-004 的 V1-V5 验收。
 
-> **一致性保证**: 三平台都跑 §2 契约 + §3 pipeline + §4 强制链。差异仅 §5 调度原语。命令模板只声明原语 + 引用本协议，不复制 pipeline。
+> **一致性保证**: 三平台只共享 §2 契约 + §3 pipeline + §4 强制链。平台差异必须收敛在 §5 的执行原语和能力限制里。命令模板只声明原语 + 引用本协议，不复制 pipeline。
 
 ---
 
@@ -138,7 +141,7 @@ Step 2 索引就绪后:
 
 | 维度 | 旧版 | 本协议 |
 |------|------|--------|
-| 调度 | 全 rule 一锅端 / 平台各异踩坑 | 统一串行内联 per-rule + 引擎强制 |
+| 调度 | 全 rule 一锅端 / 平台各异踩坑 | per-batch 隔离上下文 + 引擎强制；无隔离能力的平台 fail-closed |
 | 信号 | LLM 自行从源码找 | 引擎预过滤 partition 计划 |
 | 纪律 | Markdown "不可跳过"（LLM 可忽略）| 引擎强制（coverage/verification-gate）|
 | 平台 | 各拷一份 pipeline（漂移）| 单一真理源（本文件）+ 薄平台适配 |

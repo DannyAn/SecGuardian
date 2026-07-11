@@ -354,7 +354,6 @@ if [ "$TS_FAIL" -eq 0 ]; then
     TS_PASS=$((TS_PASS + 1))  # bonus: all-passed summary line
     green "  All 3 commands pass template static analysis"
 else
-    TS_FAIL=0
     echo "  ⚠️  Template static analysis: ${TS_FAIL} command(s) have issues"
 fi
 PASS=$((PASS + TS_PASS))
@@ -425,6 +424,8 @@ for cmd in secguard secaudit secreview; do
         else
             green "  ${cmd}: all 4 security gate checks passed"
         fi
+    else
+        SG_FAIL=$((SG_FAIL + 1))
     fi
 done
 if [ "$SG_FAIL" -eq 0 ]; then

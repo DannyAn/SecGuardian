@@ -89,7 +89,7 @@ platform: claude
 > 🚫 **不要硬编码 `RECORDER` 路径。** 必须使用 `$SCRIPTS_DIR/record-finding.py`。
 > 🚫 **禁止用 `read` 工具读取 `$SCRIPTS_DIR/` 下的脚本文件。** 所有脚本通过 `Bash` 工具执行。
 
-Claude 基线是主上下文串行处理每个 `(rule_id, batch_id)`；Agent 仅是可选隔离增强，不能改变共享协议或跳过强制链。
+Claude 调度原语见 `knowledge/protocols/dispatch-protocol.md §5`。每个 (rule, batch) 必须由独立 Agent 子代理执行（真上下文隔离，CHANGE-004：串行内联被测试证伪）。禁止在主上下文串行内联完整 Steps 5-8。
 
 ## Phase 0: 关键警告（Claude Code 通用）
 
