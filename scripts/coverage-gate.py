@@ -1,201 +1,135 @@
 #!/usr/bin/env python3
-"""coverage-gate.py — Signal-coverage floor gate (EPIC-011 FEATURE-001 TASK-007).
-
-This is the STRUCTURAL fix for F8 (batch-suppression): the production failure
-where the indexer found 1358 signals and the LLM suppressed all of them to
-"safe sampling", producing 0 findings and a 100/100 PASSED score that let
-Critical issues ship.
-
-The Markdown protocol said "don't suppress everything" — but Markdown is
-LLM-ignoreable. This gate is COMPILED and runs at scan level:
-
-  coverage = (findings + dismissed_with_reason) / signals_count
-  if signals_count > 0 and investigated == 0 and no dismissed reasons:
-      -> BLOCKED (batch-suppression detected) -> CI exit 1
-  elif floor > 0 and coverage < floor:
-      -> BLOCKED -> CI exit 1
-  else:
-      -> PASSED
-
-A 0-finding scan is only legitimate if (a) there were 0 signals to investigate,
-or (b) every suppressed signal is accounted for in dismissed.json with a reason.
-
-Usage:
-  python3 coverage-gate.py --index <index.json> --scan-dir <scan_dir> [--floor 0]
-  python3 coverage-gate.py --self-test
-"""
+"""Reconcile every partition assignment with a finding or dismissal."""
 import argparse
 import json
 import os
 import sys
 
 
-def count_signals(index):
-    """Count investigation-worthy signals the LLM should have looked at.
-
-    Uses the POST-prescreener signal counts stored in index.json (the indexer
-    runs the prescreener before writing the context, so call_sites etc. are
-    already the filtered set the LLM received).
-    """
-    if not isinstance(index, dict):
-        return 0
-    fields = (
-        "call_sites",          # S1 — memory/injection/resource drivers
-        "control_flow",        # S7 — guard/return/error-check signals
-        "pointer_validations", # S8 — unchecked dereferences
-        "struct_inits",        # S9 — uninitialized fields
-        "variable_writes",     # S10 — tainted writes
-    )
-    n = 0
-    for f in fields:
-        v = index.get(f)
-        if isinstance(v, list):
-            n += len(v)
-    return n
+def expected_assignments(plan):
+    expected = set()
+    for rule in plan.get("rules") or []:
+        for batch in rule.get("batches") or []:
+            expected.update(batch.get("assignment_ids") or [])
+    return expected
 
 
-def count_findings(scan_dir):
-    """Count recorded findings in a v5.0 scan dir (findings/ tree or findings.json index)."""
-    if not scan_dir or not os.path.isdir(scan_dir):
-        return 0
-    # v5.0 findings.json index
-    fj = os.path.join(scan_dir, "findings.json")
-    if os.path.isfile(fj):
-        try:
-            with open(fj) as f:
-                data = json.load(f)
-            if isinstance(data, dict) and isinstance(data.get("findings_index"), list):
-                return len(data["findings_index"])
-            if isinstance(data, dict) and isinstance(data.get("findings"), list):
-                return len(data["findings"])
-        except (json.JSONDecodeError, OSError):
-            pass
-    # fallback: walk findings/ tree
-    findings_dir = os.path.join(scan_dir, "findings")
-    n = 0
-    if os.path.isdir(findings_dir):
-        for _root, _dirs, files in os.walk(findings_dir):
-            n += sum(1 for fn in files if fn.endswith(".json"))
-    return n
-
-
-def count_dismissed_with_reason(scan_dir):
-    """Count dismissed signals that carry a reason (legitimate suppression).
-
-    dismissed.json is the protocol artifact where the LLM must explain EACH
-    suppressed signal. Entries without a reason don't count — a blanket
-    "all safe" with no per-signal justification is exactly batch-suppression.
-    """
-    if not scan_dir:
-        return 0
-    dj = os.path.join(scan_dir, "dismissed.json")
-    if not os.path.isfile(dj):
-        return 0
+def _load_json(path):
     try:
-        with open(dj) as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return 0
-    entries = data
-    if isinstance(data, dict):
-        entries = data.get("dismissed") or data.get("entries") or data.get("items") or []
-    if not isinstance(entries, list):
-        return 0
-    return sum(1 for e in entries if isinstance(e, dict) and e.get("reason"))
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
 
 
-def evaluate(signals_count, findings_count, dismissed_count, floor=0.0):
-    """Decide the coverage gate verdict. Returns (verdict, coverage, detail)."""
-    investigated = findings_count + dismissed_count
-    coverage = (investigated / signals_count) if signals_count > 0 else 1.0
-    if signals_count == 0:
-        return "PASSED", coverage, "no signals to investigate"
-    if investigated == 0:
-        return ("BLOCKED", coverage,
-                "batch-suppression: %d signals, 0 findings, 0 dismissed-with-reason" % signals_count)
-    if floor > 0 and coverage < floor:
-        return ("BLOCKED", coverage,
-                "coverage %.2f%% below floor %.2f%% (%d/%d investigated)" %
-                (coverage * 100, floor * 100, investigated, signals_count))
-    return ("PASSED", coverage,
-            "%d/%d signals investigated (%.2f%%)" % (investigated, signals_count, coverage * 100))
+def finding_assignments(scan_dir):
+    assignments = set()
+    root = os.path.join(scan_dir, "findings")
+    if not os.path.isdir(root):
+        return assignments
+    for current, _dirs, files in os.walk(root):
+        for name in files:
+            data = _load_json(os.path.join(current, name)) if name.endswith(".json") else None
+            finding = data.get("finding", data) if isinstance(data, dict) else {}
+            rule_id, signal_id = finding.get("rule_id"), finding.get("signal_id")
+            if rule_id and signal_id:
+                assignments.add("%s:%s" % (rule_id, signal_id))
+    return assignments
+
+
+def dismissed_assignments(scan_dir):
+    data = _load_json(os.path.join(scan_dir, "dismissed.json"))
+    entries = data.get("dismissed", []) if isinstance(data, dict) else data
+    assignments = set()
+    for entry in entries or []:
+        if not isinstance(entry, dict) or not entry.get("reason"):
+            continue
+        if entry.get("rule_id") and entry.get("signal_id"):
+            assignments.add("%s:%s" % (entry["rule_id"], entry["signal_id"]))
+    return assignments
+
+
+def judged_suppressions(scan_dir):
+    """Derive audited suppressions from canonical per-batch artifacts."""
+    assignments = set()
+    workers = os.path.join(scan_dir, "workers")
+    if not os.path.isdir(workers):
+        return assignments
+    required = ("hypotheses.json", "evidence.json", "counter_evidence.json", "judge_verdict.json")
+    for rule_id in os.listdir(workers):
+        rule_dir = os.path.join(workers, rule_id)
+        if not os.path.isdir(rule_dir):
+            continue
+        for batch_id in os.listdir(rule_dir):
+            batch_dir = os.path.join(rule_dir, batch_id)
+            if not os.path.isdir(batch_dir):
+                continue
+            artifacts = {name: _load_json(os.path.join(batch_dir, name)) for name in required}
+            if not all(data is not None for data in artifacts.values()):
+                continue
+            judge = artifacts["judge_verdict.json"]
+            verdicts = judge.get("verdicts", []) if isinstance(judge, dict) else []
+            for verdict in verdicts:
+                if not isinstance(verdict, dict) or not verdict.get("signal_id"):
+                    continue
+                conclusion = str(verdict.get("verdict") or verdict.get("conclusion") or "").upper()
+                if conclusion in ("SUPPRESS", "SUPPRESSED", "SAFE"):
+                    assignments.add("%s:%s" % (rule_id, verdict["signal_id"]))
+    return assignments
+
+
+def evaluate(plan, scan_dir):
+    expected = expected_assignments(plan)
+    findings = finding_assignments(scan_dir)
+    dismissed = dismissed_assignments(scan_dir) | judged_suppressions(scan_dir)
+    accounted = (findings | dismissed) & expected
+    missing = sorted(expected - accounted)
+    unknown = sorted((findings | dismissed) - expected)
+    coverage = len(accounted) / len(expected) if expected else 1.0
+    verdict = "PASSED" if not missing and not unknown else "BLOCKED"
+    return {"expected_assignments": len(expected), "accounted_assignments": len(accounted),
+            "coverage": round(coverage, 4), "missing": missing, "unknown": unknown,
+            "verdict": verdict}
 
 
 def self_test():
-    """Deterministic assertions (TDD)."""
-    # batch-suppression: signals>0, 0 findings, 0 dismissed -> BLOCKED
-    v, c, _ = evaluate(100, 0, 0)
-    assert v == "BLOCKED", v
-    assert c == 0.0, c
-    # some findings -> PASSED (floor=0)
-    v, _, _ = evaluate(100, 5, 0)
-    assert v == "PASSED", v
-    # all dismissed WITH reason -> PASSED (legitimate suppression)
-    v, _, _ = evaluate(100, 0, 100)
-    assert v == "PASSED", v
-    # dismissed WITHOUT reason don't count -> still BLOCKED
-    # (count_dismissed_with_reason filters; here evaluate sees dismissed_count=0)
-    v, _, _ = evaluate(100, 0, 0)
-    assert v == "BLOCKED", v
-    # no signals -> PASSED
-    v, _, _ = evaluate(0, 0, 0)
-    assert v == "PASSED", v
-    # floor enforced
-    v, _, _ = evaluate(100, 1, 0, floor=0.1)
-    assert v == "BLOCKED", v  # 1% < 10%
-    v, _, _ = evaluate(100, 20, 0, floor=0.1)
-    assert v == "PASSED", v  # 20% >= 10%
-    print("OK — coverage-gate self-test passed (batch-suppression detection correct)")
+    import tempfile
+    plan = {"rules": [{"batches": [{"assignment_ids": ["r:s1", "r:s2"]}]}]}
+    scan = tempfile.mkdtemp()
+    os.makedirs(os.path.join(scan, "findings", "r"))
+    with open(os.path.join(scan, "findings", "r", "one.json"), "w") as f:
+        json.dump({"finding": {"rule_id": "r", "signal_id": "s1"}}, f)
+    assert evaluate(plan, scan)["verdict"] == "BLOCKED"
+    with open(os.path.join(scan, "dismissed.json"), "w") as f:
+        json.dump({"dismissed": [{"rule_id": "r", "signal_id": "s2", "reason": "guarded"}]}, f)
+    result = evaluate(plan, scan)
+    assert result["verdict"] == "PASSED" and result["coverage"] == 1.0
+    print("OK - coverage-gate self-test passed")
     return 0
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Signal-coverage floor gate (F8 structural fix)")
-    ap.add_argument("--index", help="index.json from the indexer")
-    ap.add_argument("--scan-dir", help="scan output directory (findings + dismissed.json)")
-    ap.add_argument("--floor", type=float, default=0.0,
-                    help="coverage floor 0..1 (default 0 = only block 0-investigated)")
-    ap.add_argument("--self-test", action="store_true")
-    ap.add_argument("--json", action="store_true")
-    args = ap.parse_args()
-
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--plan")
+    parser.add_argument("--scan-dir")
+    parser.add_argument("--self-test", action="store_true")
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args()
     if args.self_test:
         return self_test()
-
-    if not args.index or not args.scan_dir:
-        ap.error("--index and --scan-dir are required (or use --self-test)")
-
-    try:
-        with open(args.index) as f:
-            index = json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
-        print("FATAL: cannot read index.json: %s" % e, file=sys.stderr)
+    if not args.plan or not args.scan_dir:
+        parser.error("--plan and --scan-dir are required")
+    plan = _load_json(args.plan)
+    if not isinstance(plan, dict):
+        print("FATAL: cannot read partition plan", file=sys.stderr)
         return 2
-
-    signals = count_signals(index)
-    findings = count_findings(args.scan_dir)
-    dismissed = count_dismissed_with_reason(args.scan_dir)
-    verdict, coverage, detail = evaluate(signals, findings, dismissed, args.floor)
-
-    result = {
-        "signals_count": signals,
-        "findings_count": findings,
-        "dismissed_with_reason": dismissed,
-        "investigated": findings + dismissed,
-        "coverage": round(coverage, 4),
-        "floor": args.floor,
-        "verdict": verdict,
-        "detail": detail,
-    }
+    result = evaluate(plan, args.scan_dir)
     if args.json:
         print(json.dumps(result, indent=2))
     else:
-        print("Coverage gate: %s" % verdict)
-        print("  signals=%d  findings=%d  dismissed(reason)=%d  coverage=%.2f%%" %
-              (signals, findings, dismissed, coverage * 100))
-        print("  %s" % detail)
-    # BLOCKED -> exit 1 (CI fails); PASSED -> exit 0
-    return 1 if verdict == "BLOCKED" else 0
+        print("Coverage gate: %s (%d/%d assignments)" %
+              (result["verdict"], result["accounted_assignments"], result["expected_assignments"]))
+    return 1 if result["verdict"] == "BLOCKED" else 0
 
 
 if __name__ == "__main__":

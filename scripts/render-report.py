@@ -294,6 +294,28 @@ def _ensure_fields(f):
 def severity_emoji(severity):
     return {"Critical": "🔴", "High": "🟠", "Medium": "🟡", "Low": "🔵", "Info": "⚪"}.get(severity, "⚪")
 
+
+def generate_cli_summary(findings):
+    """Render the deterministic engineer-facing terminal findings table."""
+    normalized = [_ensure_fields(dict(f)) for f in findings]
+    rank = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "Info": 4}
+    normalized.sort(key=lambda f: (rank.get(f["severity"], 5),
+                                   f.get("rule_id") or f.get("detector", ""),
+                                   f.get("file", ""), int(f.get("line", 0)),
+                                   f.get("id", "")))
+    if not normalized:
+        return "No reportable findings."
+    lines = ["| Severity | Rule | Location | Summary |",
+             "|----------|------|----------|---------|"]
+    for finding in normalized:
+        rule = finding.get("rule_id") or finding.get("detector", "unknown")
+        summary = str(finding.get("title") or finding.get("fix_summary") or "Security Finding")
+        summary = summary.replace("|", "\\|").replace("\n", " ")
+        lines.append("| %s %s | %s | %s:%s | %s |" %
+                     (severity_emoji(finding["severity"]), finding["severity"], rule,
+                      finding["file"], finding["line"], summary))
+    return "\n".join(lines)
+
 def fingerprint(finding):
     """Generate SARIF partialFingerprints.primary."""
     raw = f"{finding['file']}:{finding['line']}:{finding['detector']}"
@@ -1315,6 +1337,22 @@ Examples:
         print("ERROR: Either --findings (v4.0) or --findings-dir (v5.0) must be provided", file=sys.stderr)
         sys.exit(1)
 
+    coverage_path = os.path.join(args.output, "coverage-audit.json")
+    if os.path.isfile(coverage_path):
+        coverage = load_json(coverage_path)
+        if coverage.get("verdict") != "PASSED":
+            print("FATAL: coverage gate is %s; refusing authoritative rendering" %
+                  coverage.get("verdict", "UNKNOWN"), file=sys.stderr)
+            return 2
+
+    gate_path = os.path.join(args.output, "gate-audit.json")
+    if os.path.isfile(gate_path):
+        gate = load_json(gate_path)
+        if int(gate.get("needs_review", 0)) > 0:
+            print("FATAL: %s findings need review; refusing authoritative rendering" %
+                  gate.get("needs_review"), file=sys.stderr)
+            return 2
+
     # Load findings — support v5.0 directory tree or v4.0 monolithic JSON
     if args.findings_dir:
         # v5.0: load from directory tree
@@ -1433,6 +1471,15 @@ Examples:
             print(f"⚠️  Quality Gate: {len([w for w in gate_warnings if w.startswith('  ❌')])} findings incomplete")
 
     files_generated = []
+    fmt = args.format
+
+    if fmt in ("all", "report"):
+        cli_summary = generate_cli_summary(findings)
+        path = os.path.join(args.output, "cli-summary.md")
+        with open(path, "w") as f:
+            f.write(cli_summary + "\n")
+        files_generated.append("cli-summary.md")
+        print(f"  ✓ cli-summary.md ({len(cli_summary)} bytes)")
 
     def write_json(filename, data):
         path = os.path.join(args.output, filename)
@@ -1442,7 +1489,6 @@ Examples:
         print(f"  ✓ {filename}")
 
     # Generate requested files
-    fmt = args.format
 
     if fmt in ("all", "report"):
         report = generate_report_md(findings_data)
@@ -1553,4 +1599,6 @@ Examples:
         sys.exit(ci_exit_code)
 
 if __name__ == "__main__":
-    main()
+    result = main()
+    if isinstance(result, int) and result != 0:
+        sys.exit(result)
