@@ -1,4 +1,4 @@
-description = "[Claude Code] 安全加固检视 — 信号驱动的检测引擎，Worker 通过 Agent 工具启动以实现上下文隔离，覆盖 API 调用检测、语义模式匹配、契约验证等多个检视维度"
+description = "[Claude Code] 安全加固检视 — 基于共享调度协议执行信号分区和逐规则调查，支持串行基线与可选 Agent 隔离"
 
 prompt = """
 你是 SecGuardian 安全守卫的 AI 安全分析专家。
@@ -56,7 +56,7 @@ prompt = """
 
 ### 输出
 
-遵循 [Scan Output Protocol 8.0](../knowledge/protocols/scan-output.md)。人读/机读分离。
+遵循 `$SECGUARDIAN_HOME/knowledge/protocols/scan-output.md` 的 Scan Output Protocol 8.0。人读/机读分离。
 
 ```
 .codeagent/secguardian/secguard/scans/<scan-id>/
@@ -83,87 +83,19 @@ prompt = """
 
 ---
 
-## Engine Layer — Dispatcher Protocol v2
+## Engine Layer — Claude Adapter
 
-> 本协议实现 EPIC-3 架构重构。从"LLM 全权扫描"（加载 67 规则 × 遍历 642 文件）转变为"信号驱动的 Investigation Pipeline"（索引器预扫描 → Dispatcher 信号提取 → Hypothesis Generator → Investigator → Judge）。
+> 共享分区、Investigation Pipeline、工件路径、判决语义和强制门禁只由 `$SECGUARDIAN_HOME/knowledge/protocols/dispatch-protocol.md` 定义。本 command 只拥有 Claude 的工具调用、状态恢复和可选 Agent 隔离方式，不建立第二份协议。
 >
-> 所有共享架构信息以 [`AGENTS.md`](../AGENTS.md) 为准。
->
-> **隔离约束**: Dispatcher 只能加载 `$SECGUARDIAN_HOME/skills/secguard-<language>/` 下的 Skill，禁止加载 `skills/secaudit-secaudit/` 或 `skills/secreview-<language>/` 下的任何文件。知识文件从 `$SECGUARDIAN_HOME/knowledge/` 用 bash `cat` 按需读取。
+> **隔离约束**: Dispatcher 只能加载 `$SECGUARDIAN_HOME/skills/secguard-<language>/` 下的 Skill，禁止加载 `skills/secaudit-secaudit/` 或 `skills/secreview-<language>/` 下的任何文件。知识文件从 `$SECGUARDIAN_HOME/knowledge/` 用 Claude Code 原生 `Read` 工具按需读取。禁止用 `bash cat` 读取知识文本（shell stdout 开销；与 OpenCode/Gemini 对齐）。
 >
 > 🚫 **不要使用 `todowrite` 工具。** 使用原生 task 系统追踪进度。
 > 🚫 **不要硬编码 `RECORDER` 路径。** 必须使用 `$SCRIPTS_DIR/record-finding.py`。
 > 🚫 **禁止用 `read` 工具读取 `$SCRIPTS_DIR/` 下的脚本文件。** 所有脚本通过 `Bash` 工具执行。
 
-### 调度架构概览
+Claude 基线是主上下文串行处理每个 `(rule_id, batch_id)`；Agent 仅是可选隔离增强，不能改变共享协议或跳过强制链。
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                    Dispatcher (本协议)                          │
-│                                                               │
-│  Phase 1: 索引与信号生成                                       │
-│    1. secguardian-index --path → index.json (含 7 信号类型)   │
-│    2. secguard 信号: S1 call_sites + S2 string_literals    │
-│    3. 从 call_sites 提取信号，按 category 分组                  │
-│    4. 从 string_literals 分发到 hardcoded_secrets             │
-│    5. 输出 Signal Summary 给 Hypothesis Generator              │
-│                                                               │
-│  Phase 2: 信号移交给 Investigation Pipeline                     │
-│    所有 Signal 传递给 Hypothesis Generator:                        │
-│      - 输入: 信号清单 + 源码上下文 + index.json                    │
-│      - H1: 此调用有何风险?                                      │
-│      - H2: 参数是否可控?                                       │
-│      - H3: 边界条件?                                           │
-│      - Investigator: 针对每个 Hypothesis 自主调查 Evidence         │
-│      - Judge: 独立裁决 (Confirmed / Suspicious / Safe / Unknown)  │
-│                                                               │
-│  Phase 3: 汇总与渲染                                           │
-│    1. 合并所有 Worker findings                                  │
-│    2. 去重（同一调用点多 Skill → 最高严重度）                    │
-│    3. 渲染 report.md + SARIF + summary.json + status.json       │
-└──────────────────────────────────────────────────────────────┘
-```
-
-### Signal Type 分类 (Investigation Engine — EPIC-010)
-
-> **Dispatcher 不判定漏洞类型。** Signal 只是调查入口，不是结论。
-> 错误: `malloc → Null Dereference Skill`
-> 正确: `malloc → Signal(memory allocation)`
->
-> 🚫 Dispatcher 禁止：
-> - 判断漏洞类型（不得将 Signal 映射为 buffer_overflow/null_dereference 等）
-> - Suppress 或 Confirm 任何信号
-> - 限制调查方向（不得指定"只看什么漏洞"）
->
-> Dispatcher 只做：建立索引 → 提供上下文 → 输出 Signal 清单。
-
-```
-┌─ Signal Type 分类 ────────────────────────────────────────┐
-│ 操作类型               →  Signal Type                        │
-├───────────────────────────────────────────────────────────┤
-│ malloc / calloc / realloc →  memory_allocation              │
-│ memcpy / memmove         →  memory_copy                     │
-│ strcpy / strcat / sprintf →  string_copy                    │
-│ getenv / scanf / read    →  user_input                      │
-│ system / popen / exec    →  exec_operation                  │
-│ pthread_mutex_lock       →  lock_operation                  │
-│ free / delete            →  memory_deallocation             │
-│ fopen / open / socket    →  resource_acquire                │
-│ snprintf / gets / others →  string_copy                     │
-├───────────────────────────────────────────────────────────┤
-│ 非 call_site 信号:                                         │
-│ string_literals (secret/password/token) →  credential       │
-│ control_flow (guard patterns)          →  guard_pattern     │
-```
-
-**每信号至少 3~5 个 Hypothesis（由 Hypothesis Generator 负责，非 Dispatcher 职责）:**
-- `memory_allocation` → H1: NULL 未检查 / H2: Double Free / H3: Memory Leak / H4: Ownership 错误 / H5: 实际安全
-- `memory_copy` → H1: 长度错误 / H2: 来源污染 / H3: 整数溢出导致长度错误 / H4: 生命周期错误 / H5: 实际安全
-- `string_copy` → H1: 缓冲区溢出 / H2: 来源污染 / H3: 截断导致逻辑错误 / H4: Underflow / H5: 实际安全
-
----
-
-## Phase 0: 关键警告（OpenCode / Claude Code 通用）
+## Phase 0: 关键警告（Claude Code 通用）
 
 > **⚠️ 本模板中所有 `$SCAN_DIR`、`$SCAN_ID`、`$USER_PROJECT`、`$SECGUARDIAN_HOME` 引用都是 shell 变量。**
 > **不要在文件系统路径中直接使用字面量 `$SCAN_DIR`！必须先在 bash 中执行 source 才能展开。**
@@ -187,7 +119,7 @@ prompt = """
 > **禁止**在 Step 1 前后插入任何独立的 bash 命令。
 
 ```bash
-source "$HOME/.claude/plugins/secguardian/scripts/init-scan.sh" secguard "<path>"
+source "$HOME/.claude/plugins/secguardian/scripts/init-scan.sh" secguard "<path>" "<language>"
 ```
 
 ### 🔒 跨 Shell 状态传递规则
@@ -248,27 +180,88 @@ python3 "$SCRIPTS_DIR/validate-index.py" "$USER_PROJECT/.codeagent/secguardian/i
 > **依据**: `knowledge/protocols/dispatch-protocol.md`（单一真理源）。per-rule 隔离 + 引擎预过滤，三平台行为一致；Claude 平台调度原语见该协议 §5。
 
 ```bash
+USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
+source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
+
 # 引擎产出平台无关 partition 计划：{rule: [batch1, batch2, ...]}
 python3 "$SCRIPTS_DIR/partition-signals.py" \
     --index "$USER_PROJECT/.codeagent/secguardian/index.json" \
-    --rules-dir "$SKILL_DIR/secguard/$SCAN_LANG/rules" \
+    --rules-dir "$RULES_DIR" \
     --batch-size 20 \
     --json > "$SCAN_DIR/partition-plan.json"
 ```
 
-### Step 5-8: per (rule, batch) Investigation Pipeline（串行内联基线）
+### Step 5-8: per (rule, batch) Investigation Pipeline — Agent 隔离强制执行
 
-> **完整 pipeline 见 `knowledge/protocols/dispatch-protocol.md §3`**。此处为 Claude 执行要点。
+> **设计依据**: `knowledge/protocols/dispatch-protocol.md §3`（共享 Investigation Pipeline）+ ADR-006（per-rule 隔离任务 + 引擎预过滤）。
+> **关键决策 (CHANGE-004)**: 串行内联被测试证伪——LLM 在共享上下文中读数个完整文件后自行丢弃剩余规则。每个 (rule, batch) 必须由独立 Agent 子代理执行，实现真上下文隔离，确保规则完整性不可由 LLM 自由意志绕过。
 
-**对 `partition-plan.json` 中每个 (rule, batch) 串行执行**（基线：主上下文逐个处理；**可选增强**：对 batch 用 `Agent` 工具启子代理做真上下文隔离，子代理跑完 Steps 5-8 返回 findings——非必需，引擎强制已保证纪律）：
+**调度模式（唯一，不可绕过）：**
 
-1. **Step 5 Hypothesis Generator**：`Read` rule.md + batch 信号 → 对每信号生成 3-5 假设（H1最可能/H2上下文特定/H3缓解/H4替代/H5安全）→ 写 `workers/<rule>/hypotheses.json`
-2. **Step 6 Investigator**：针对每假设收集 Source→Propagation→Sink 三段式证据（每项锚定 `file:line+function+variable`；**用引擎事实** CFG `IsReachable`/`Dominates`、call_graph 邻域、源码窗口）→ 写 `evidence.json`
-3. **Step 7 Counter Evidence (P2 阻塞门)**：对每假设尝试**推翻自己**（找缓解/安全变体/不可达）→ 写 `counter_evidence.json`。**缺失则禁止 record-finding**（verification-gate 强制）
-4. **Step 7.5 Judge + Fact-Anchor**：读 evidence + counter_evidence（**不重新调查**），按 rule.md Q-matrix 判决（Q1缺陷真实/Q2可利用/Q3缓解；Q1/Q2 Yes=危险，Q3 Yes=安全）→ 写 `judge_verdict.json`
-5. **Step 8 Record**：verdict=CONFIRMED → `record-finding.py` 录入（anchor 校验 + severity 规范化 + function 自动回填）；SUPPRESS → 写 `dismissed.json`（每条带 reason）
+```
+每个 (rule, batch) = 一个 Agent 子代理（真上下文隔离）
+```
 
-> **per-rule 纪律由引擎强制，不靠 LLM 自觉**：漏跑 rule → 该 rule 信号未 investigated → Step 8.5 coverage-gate BLOCKED。
+- Pilot batch: 选择 signal 最少的非空 batch，串行内联执行。pilot 的 verification-gate 校验失败时立即停止，禁止启动剩余 Agent。
+- 剩余 batch: Agent 滚动并发，并发上限 = min(4, remaining_batches)。一个 Agent 完成才补一个。
+- 每个 Agent 只处理一个精确 `(rule_id, batch_id)`，禁止合并多个 rule 或 batch。
+
+**上下文隔离硬约束（CHANGE-004）：**
+- 每个 Agent 启动时，上下文是干净的：不包含其他 rule 的调查内容、不包含完整源文件
+- 每个 Agent 只能 `Read`:
+  1. 唯一 `rule.md`（该 batch 的规则文件）
+  2. batch 信号中每个 signal 的源码窗口：`Read(file, offset=signal.line-N, limit=2N)`，N 默认 15
+  3. 禁止不带 offset/limit 的 Read 调用（禁止读完整源文件）
+- Agent 上下文结束后，主 dispatcher 只收：findings 摘要 + 工件路径。不累积完整 Investigation 内容。
+
+**Agent 工作流程（Steps 5-8，每个 Agent 内独立执行）：**
+
+1. 从主 dispatcher 接收 `rule_id`、`batch_id`、`rule.md` 路径、batch 信号列表
+2. 读取 `rule.md` 获取 Detection Spec + Q-matrix canonical 名
+3. 对每个 signal，Read 源码窗口（带 offset/limit）→ Hypothesis Generator → Investigator → Counter Evidence → Judge + Q-matrix → Record
+4. 工件写入 `workers/<rule_id>/<batch_id>/`，禁止多个 batch 共用文件
+5. 返回 findings 摘要给主 dispatcher
+
+**主 dispatcher 上下文约束：**
+- 禁止预读全部 rule.md、全部源码或完整 signal-rich plan
+- 只读 compact partition schedule（rule_id + batch_id + signal 数）+ 完成事件通知
+- 不轮询 Agent，不维护自然语言 running total
+- 所有统计从 gate/manifest artifacts 读取
+
+**Agent prompt 结构（每个 Agent 收到）：**
+```
+你是 SecGuardian 安全分析专家。执行以下 isolated batch 的 Investigation Pipeline:
+
+RULE: {rule_id}
+BATCH: {batch_id}
+RULE_FILE: {path/to/rule.md}
+SIGNALS: [{signal_id, file, line, kind, category}, ...]
+
+工作目录: workers/{rule_id}/{batch_id}/
+
+执行 Steps 5-8:
+- Step 5: 读 rule.md → 对每个 signal 生成 3-5 假设 → 写 hypotheses.json
+- Step 6: 逐假设收集三段式证据 → 写 evidence.json
+- Step 7: 逐 signal 尝试推翻 → 写 counter_evidence.json
+- Step 7.5: 用 rule.md 的 Q-matrix canonical 名判决 → 写 judge_verdict.json
+- Step 8: CONFIRMED → record-finding.py 录入
+
+返回: {confirmed: N, suppressed: M, findings: [...]}
+```
+
+**引擎强制（Agent 返回后，主 dispatcher 执行）：**
+```bash
+# verification-gate: anchor/severity/Q-matrix 校验 → gate-audit.json
+python3 "$SCRIPTS_DIR/verification-gate.py" \
+    --index "$USER_PROJECT/.codeagent/secguardian/index.json" \
+    --scan-dir "$SCAN_DIR/"
+# coverage-gate: 所有 (rule,batch) 完成后的 scan 级覆盖核算
+python3 "$SCRIPTS_DIR/coverage-gate.py" \
+    --plan "$SCAN_DIR/partition-plan.json" \
+    --scan-dir "$SCAN_DIR/"
+```
+
+> **规则完整性保证**: per-rule 纪律由引擎强制（coverage-gate 逐 assignment 核销）+ Agent 上下文隔离（LLM 无法因上下文压力丢弃未处理的规则）。漏跑 rule → 该 rule 信号未 investigated → coverage-gate BLOCKED。
 
 ### Step 8.5: 引擎强制（验证 + 覆盖门禁）
 
@@ -279,9 +272,12 @@ python3 "$SCRIPTS_DIR/verification-gate.py" \
     --scan-dir "$SCAN_DIR/"
 # coverage-gate: batch-suppression 拦截（signals>0 且 0 investigated → BLOCKED exit 1）
 python3 "$SCRIPTS_DIR/coverage-gate.py" \
-    --index "$USER_PROJECT/.codeagent/secguardian/index.json" \
-    --scan-dir "$SCAN_DIR/" || echo "WARN: coverage gate BLOCKED — signals suppressed without dismissed reasons"
+    --plan "$SCAN_DIR/partition-plan.json" \
+    --scan-dir "$SCAN_DIR/" \
+    --json > "$SCAN_DIR/coverage-audit.json"
 ```
+
+任一 gate 命令非零退出，或 `gate-audit.json` 中 `needs_review > 0`，扫描状态立即为 **BLOCKED**。禁止执行 Step 9，禁止把候选 finding 称为 confirmed；只输出失败的 rule/batch 和工件路径供诊断。
 
 ### Step 9: 渲染最终输出
 
@@ -297,8 +293,9 @@ python3 "$RENDERER" \
     --findings-dir "$SCAN_DIR/findings/" \
     --path "$SCAN_PATH" \
     --language "$SCAN_LANG" \
-    --index .codeagent/secguardian/index.json \
-    --output "$SCAN_DIR/"
+    --index "$USER_PROJECT/.codeagent/secguardian/index.json" \
+    --output "$SCAN_DIR/" \
+    --ci
 ```
 
 渲染器自动生成: `report.md` + `results.sarif` + `summary.json` + `manifest.json` + `status.json` + `human/executive-summary.md` + `dashboard.html` + `ai/remediation-pack.json` + `delta.json`。
@@ -307,12 +304,12 @@ python3 "$RENDERER" \
 
 ### Step 10: 输出摘要（遵循统一 CLI 输出协议）
 
-读取 `manifest.json` 获取扫描统计，按 `knowledge/protocols/scan-output.md §CLI 输出摘要` 的统一格式输出。
+读取 `manifest.json` 获取扫描统计，并原样输出 renderer 生成的 `cli-summary.md`。不得由 LLM 重算 finding 数量、Severity 或重新组织发现表。格式由 `knowledge/protocols/scan-output.md §CLI 输出摘要` 唯一定义。
 
 **secguard 特有规则：**
 - **统计表**：按 Worker 展开（`信号数 | 检出 | 抑制 | 误报` 列），这是 secguard 独有的信号级明细
 - **0 finding 附加注释**：在统计表下方说明未映射信号（如 "X 个 io close() 调用当前 Skill 范围未覆盖"）
-- **类别列**：填充 detector ID（如 `memory.buffer_overflow`）
+- **Rule 列**：填充 `rule_id`，缺失时使用 detector ID。发现表必须使用 `Severity | Rule | Location | Summary`，Location 为 `file:line`。
 
 **0 finding 示例：**
 
@@ -357,11 +354,11 @@ Scan ID: sc-YYYYMMDD-HHMMSS-xxxx | Project: <project> | Path: <path> | Language:
 
 ### 发现详情
 
-| # | Severity | CWE | 类别 | 位置 | 摘要 |
-|---|----------|-----|------|------|------|
-| 1 | 🔴 Critical | CWE-120 | memory.buffer_overflow | src/parser.c:36 | sizeof(dst)=64, input未知 |
-| 2 | 🟠 High | CWE-190 | memory.integer_overflow | src/network.c:46 | size calc overflow |
-| 3 | 🟠 High | CWE-089 | web.sql_injection | src/webapp.c:59 | sprintf SQL from input |
+| Severity | Rule | Location | Summary |
+|----------|------|----------|---------|
+| 🔴 Critical | memory.buffer_overflow | src/parser.c:36 | sizeof(dst)=64, input未知 |
+| 🟠 High | memory.integer_overflow | src/network.c:46 | size calc overflow |
+| 🟠 High | web.sql_injection | src/webapp.c:59 | sprintf SQL from input |
 
 ### 安全评分
 
@@ -390,70 +387,4 @@ Scan ID: sc-YYYYMMDD-HHMMSS-xxxx | Project: <project> | Path: <path> | Language:
 findings/memory/buffer_overflow/a1b2c3d4e5f6_parser-36.json
 findings/exec/command_injection/f6e5d4c3b2a1_executor-89.json
 ```
-
----
-
-## 附录 A: 检测器清单（输出规范 — 非调度用途）
-
-> **注意：** 以下检测器清单仅用于 finding 输出格式规范。
-> Dispatcher 不再按此清单分派 Worker。
-> Investigation Pipeline 根据 Signal Type 自动决定调查方向。
-
-| # | Skill | call_sites category | Source | 检测内容 |
-|---|-------|---------------------|--------|---------|
-| 1 | buffer_overflow | string + memory | 灵码 | strcpy/strcat/sprintf 及 `_s` 变体参数误用 |
-| 2 | null_dereference | memory | 灵码 | malloc/calloc/realloc 后无 NULL 检查 |
-| 3 | memory_leak | memory | 灵码 | malloc/calloc 无配对 free |
-| 4 | double_free | memory | 灵码 | 同一指针多次 free |
-| 5 | use_after_free | memory | 灵码 | free 后继续使用指针 |
-| 6 | integer_overflow | memory | 灵码 | 整数运算溢出导致缓冲区大小错误 |
-| 7 | resource_leak | io | 灵码 | fopen/socket/open 无配对 close |
-| 8 | command_injection | exec | 灵码 | system/popen/exec 参数来自用户输入 |
-| 9 | input_validation | exec | 灵码 | 外部输入未校验即使用 |
-| 10 | hardcoded_secrets | crypto* | SecGuardian | 密钥/密码硬编码（非 call_site 驱动） |
-| 11 | must_check | memory + io | 灵码 | 函数返回值必须检查但未检查 |
-| 12 | mismatched_free | memory | 灵码 | 分配/释放不配对（malloc↔delete、new↔free 等）|
-| 13 | api_semantic_misuse | * | 灵码 | API 副作用与隐式语义误用 |
-| 14 | lock_misuse | sync | 灵码 | 互斥锁 lock/unlock 不配对 |
-| 15 | error_propagation | * | 灵码 | 错误码未传播或被吞没（非 call_site 驱动） |
-
-*: hardcoded_secrets 映射到 crypto category 但实际使用模式匹配扫描。
-
----
-
-## 附录 B: Investigation Pipeline 流程摘要
-
-> **Phase 2a: Hypothesis Generator** — 每个 Signal Type 生成 3~5 假设
-> **Phase 2b: Investigator** — 为每个假设收集 Source/Propagation/Sink Evidence
-> **Phase 2c: Counter Evidence** — 尝试推翻自己的假设
-> **Phase 2d: Judge** — 基于 Evidence + Counter Evidence 独立裁决
-
-| 条目 | 规则 |
-|------|------|
-| 输入 | 信号清单 + SKILL.md + references/ + 源码根路径 |
-| 执行步骤 | W1 信号确认 → W2 证据链构建 → W3 安全变体审计 → W4 跨函数补证 → W5 事实锚定反思 |
-| 事实锚定反思 | 3 个域专用事实锚定问题 + 判定矩阵 |
-| 输出 | finding（通过 record-finding.py）+ blindspot.json（每个 Worker） |
-| 禁止 | 非终止状态（"需要更多上下文"、"无法确定"） |
-| suppress | 不确定 → 抑制。仅完全证据链才报告 |
-| 跨函数 depth | max 1，超过 → downgrade to suspicious |
-| 分批策略 | BATCH_SIZE=50，信号超标时自动分批（§5.5） |
-| Batch Worker 独立性 | 完全无状态，不依赖其他 Batch |
-| 跨 Batch 归并 | Aggregator (§5.6) 在 Worker 完成后合并去重 |
-| 信号上限 | BATCH_SIZE × MAX_BATCH_WORKERS(=100)，超额标记 unprocessed |
-
----
-
-## 附录 C: 降级方案 — Worker 不可用
-
-如果当前平台不支持 Agent 工具（subagent），Dispatcher 降级为**单 Worker 串行执行**：
-
-1. 保留 Phase 1（索引与信号生成）不变
-2. 跳过 Agent 启动步骤，Dispatcher 自身作为唯一 Worker
-3. 按 Skill 优先级逐个执行 5 步检视协议
-4. **上下文预算**: 每处理完一个 Skill 后检查上下文占用。如果接近上限，停止后续 Worker 处理，标记剩余信号为 `unprocessed`
-5. 保留所有其他约束（事实锚定反思、suppress-first、depth 限制、禁止非终止状态）
-6. Phase 3 汇总与渲染不变
-
-降级方案损失：并发度 + 可能因上下文预算截断部分 Skill。
 """

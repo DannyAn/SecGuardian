@@ -70,7 +70,7 @@ platform: claude
 
 ## 输出
 
-遵循 [Scan Output Protocol 3.0](../knowledge/protocols/scan-output.md)。人读/机读分离。
+遵循 `$SECGUARDIAN_HOME/knowledge/protocols/scan-output.md` 的 Scan Output Protocol 8.0。人读/机读分离。
 
 ```
 .codeagent/secguardian/secaudit/scans/<scan-id>/
@@ -297,4 +297,3 @@ Mode: full | Language: python | Filters: all
 - **📄 安全工程师** → 打开 `report.md`
 - **🤖 AI Agent 修复** → `/secfix <scan-id>` 自动修复
 - **📊 CI/CD 集成** → 消费 `results.sarif`
-

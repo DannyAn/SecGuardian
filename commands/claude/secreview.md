@@ -42,7 +42,7 @@ Unlike traditional linters, SecReview reasons about code behavior, business logi
 
 ## Output
 
-Follows [Scan Output Protocol 5.0](../knowledge/protocols/scan-output.md). Human-readable and machine-readable separation.
+Follows Scan Output Protocol 8.0 at `$SECGUARDIAN_HOME/knowledge/protocols/scan-output.md`. Human-readable and machine-readable output remain separate.
 
 ```
 <user-project>/.codeagent/secguardian/secreview/scans/<scan-id>/
@@ -272,4 +272,3 @@ Scan ID: pr-YYYYMMDD-HHMMSS-xxxx | Project: <project> | Path: <path> | Language:
 
 **70/100 🟡 Grade B — 建议修复 High 后合并。**
 ```
-

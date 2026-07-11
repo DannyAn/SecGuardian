@@ -271,7 +271,7 @@ platform: opencode
 
 ---
 
-## Phase 0: 关键警告（OpenCode / Claude Code 通用）
+## Phase 0: 关键警告（OpenCode 通用）
 
 > **⚠️ 本模板中所有 `$SCAN_DIR`、`$SCAN_ID`、`$USER_PROJECT`、`$SECGUARDIAN_HOME` 引用都是 shell 变量。**
 > **不要在文件系统路径中直接使用字面量 `$SCAN_DIR`！必须先在 bash 中执行 source 才能展开。**
@@ -281,7 +281,6 @@ platform: opencode
 >
 > **输出路径规则:**
 > - `.codeagent/` 目录放在**用户项目根目录**下（由 `<path>` 参数推断父目录）
-> - session 文件（`session-*.md`）是 Claude Code 专有产物，OpenCode 中不需要创建
 > - 所有扫描输出写入 `.codeagent/secguardian/secguard/scans/<scan-id>/` 下
 
 ## Phase 1: 索引与信号生成
@@ -361,36 +360,85 @@ python3 "$SCRIPTS_DIR/validate-index.py" "$USER_PROJECT/.codeagent/secguardian/i
 # 引擎产出平台无关 partition 计划：{rule: [batch1, batch2, ...]}（per-rule 隔离，ADR-006）
 python3 "$SCRIPTS_DIR/partition-signals.py" \
     --index "$USER_PROJECT/.codeagent/secguardian/index.json" \
-    --rules-dir "$SKILL_DIR/secguard/$SCAN_LANG/rules" \
+    --rules-dir "$RULES_DIR" \
     --batch-size 20 \
     --json > "$SCAN_DIR/partition-plan.json"
 ```
 
-> **依据**: `knowledge/protocols/dispatch-protocol.md`（单一真理源）。校验是强约束：finding 的 severity、CWE、evidence 必须匹配 rule.md 的 Detection Spec。跳过规则文件加载的 finding 将被拒绝。OpenCode 平台调度原语见该协议 §5（串行内联，无后台任务）。
+> **依据**: `knowledge/protocols/dispatch-protocol.md`（单一真理源）。校验是强约束：finding 的 severity、CWE、evidence 必须匹配 rule.md 的 Detection Spec。跳过规则文件加载的 finding 将被拒绝。OpenCode 平台调度原语见该协议 §5（串行 Agent 隔离，每个 (rule, batch) 独立上下文）。
 
 ---
 
-## Phase 2: Investigation Pipeline（Steps 4-8）
+## Phase 2: per (rule, batch) 调度 — 串行 Agent 隔离
 
-> ⚠️ **本 Phase 是 Investigation Engine 核心，每一步不可跳过。**
-> 每个 Step 产出指定工件到 `$SCAN_DIR/workers/<rule_name>/`。
+> **设计依据**: `knowledge/protocols/dispatch-protocol.md §3` + ADR-006 (per-rule 隔离)。
+> **关键决策 (CHANGE-004)**: 串行内联被测试证伪——LLM 在主上下文处理 3 条 rule 后自行丢弃 12/15 规则。每个 (rule, batch) 必须获得干净的上下文，禁止累积其他 rule 的调查内容。
+
+**调度模式（唯一，不可绕过）：**
+
+```
+每个 (rule, batch) = 独立上下文（无 Agent 子代理的平台隔离模拟）
+```
+
+- Pilot batch: 选择 signal 最少的非空 batch，先执行。pilot 的 verification-gate 校验失败时立即停止，禁止继续。
+- 剩余 batch: **串行逐个**，但每个 batch 处理前必须显式重置上下文——禁止携带前一个 rule 的调查内容进入下一个 batch。
+- 每个 batch 只处理一个精确 `(rule_id, batch_id)`，禁止合并多个 rule 或 batch。
+
+**上下文隔离硬约束（CHANGE-004）：**
+- 每个 batch 开始前，必须清空对该 batch 源码的预读缓存——禁止在 batch 开始前预读 rule.md 或源文件
+- 每个 batch 只能 Read:
+  1. 当前 batch 的唯一 `rule.md`（规则文件）
+  2. batch 信号中每个 signal 的源码窗口：`Read(file, offset=signal.line-N, limit=2N)`，N 默认 15
+  3. 禁止不带 offset/limit 的完整源文件 Read
+  4. 禁止一次性读取所有 rule.md（必须在各自的 batch 内读取）
+- 处理完一个 batch 后：只保留 findings 摘要 + 工件路径。完整源文件内容、完整 rule.md 内容必须从当前上下文中丢弃。
+- 处理下一个 batch 前：上下文只包含 rule_id、batch_id、信号列表（不含源码）。开始新 batch 时重新从 rule.md 读取。
+
+**每个 batch 内工作流程（Steps 4-8，独立执行）：**
+
+1. Read 当前 batch 的 `rule.md` 获取 Detection Spec + Q-matrix canonical 名
+2. 对每个 signal，Read 源码窗口（带 offset/limit）→ Hypothesis Generator → Investigator → Counter Evidence → Judge + Q-matrix → Record
+3. 工件写入 `workers/<rule_id>/<batch_id>/`，禁止多个 batch 共用文件
+4. 只保留 findings 摘要给下一个 batch，丢弃完整上下文
+
+**引擎强制（所有 batch 完成后执行）：**
+```bash
+# verification-gate: anchor/severity/Q-matrix 校验 → gate-audit.json
+python3 "$SCRIPTS_DIR/verification-gate.py" \
+    --index "$USER_PROJECT/.codeagent/secguardian/index.json" \
+    --scan-dir "$SCAN_DIR/"
+# coverage-gate: 所有 (rule,batch) 完成后的 scan 级覆盖核算
+python3 "$SCRIPTS_DIR/coverage-gate.py" \
+    --plan "$SCAN_DIR/partition-plan.json" \
+    --scan-dir "$SCAN_DIR/" || echo "WARN: coverage gate BLOCKED — signals suppressed without dismissed reasons"
+```
+
+> **规则完整性保证**: per-rule 纪律由引擎强制（coverage-gate 逐 assignment 核销）+ 上下文隔离（LLM 无法因上下文压力丢弃未处理的规则）。漏跑 rule → 该 rule 信号未 investigated → coverage-gate BLOCKED。
+
+---
+### Investigation Pipeline（Steps 4-8，每个 batch 内执行）
+	
+> ⚠️ **本 Pipeline 是 Investigation Engine 核心，每一步不可跳过。**
+> 每个 Step 产出指定工件到 `$SCAN_DIR/workers/<rule_id>/<batch_id>/`。
 > 下一步骤必须检查上一步骤的工件存在后才能继续。
 > 🚫 **禁止**：跳过任何 Step、不产出工件直接记录 finding、不使用 index.json 结构化数据。
+> 🚫 **禁止**：跨 rule 上下文中预读其他 rule.md 或完整源文件。
 
 ### Step 4: Phase 2a — Hypothesis Generator [不可跳过]
 
-> **[MANDATORY ARTIFACT]** 产出: `workers/<rule_name>/hypotheses.json`
+> **[MANDATORY ARTIFACT]** 产出: `workers/<rule_id>/<batch_id>/hypotheses.json`
 > **[GATE CHECK]** Step 3 索引完整性已验证 → 继续
-> **[INPUT]** 该 rule 触发的信号清单 + index.json call_sites + 源码上下文
+> **[INPUT]** 该 rule 的 batch 信号清单 + index.json call_sites + 源码片段（Read + offset/limit）
 >
 > **禁止直接判定漏洞类型。** Dispatcher 的唯一输出是 Signal+上下文。Hypothesis Generator 从 Signal 生成 3~5 个调查假设。
 
 **执行流程：**
 
-1. 使用 `Read` 工具读取规则文件（rule.md）获取领域知识
-2. 从 index.json 提取该规则的信号清单（call_sites + string_literals + alloc_free/lock_graph 补充）
-3. 对每个信号类型，生成 3~5 个假设（H1=最可能漏洞 / H2=特定上下文漏洞 / H3=缓解存在 / H4=替代漏洞类型 / H5=实际安全）
-4. 使用 bash 写 `workers/<rule_name>/hypotheses.json`
+1. 使用 `Read` 工具读取当前 batch 的规则文件（rule.md，**仅此一条规则**）获取领域知识
+2. 从 partition-plan.json 获取该 batch 的信号清单
+3. 对每个信号，使用 `Read(file, offset=signal.line-N, limit=2N)` 读取源码片段（N=15），禁止读整文件
+4. 对每个信号类型，生成 3~5 个假设（H1=最可能漏洞 / H2=特定上下文漏洞 / H3=缓解存在 / H4=替代漏洞类型 / H5=实际安全）
+5. 使用 bash 写 `workers/<rule_id>/<batch_id>/hypotheses.json`
 
 **hypotheses.json 格式：**
 ```json
@@ -410,21 +458,21 @@ python3 "$SCRIPTS_DIR/partition-signals.py" \
 
 ### Step 5: Phase 2b — Investigator [不可跳过]
 
-> **[MANDATORY ARTIFACT]** 产出: `workers/<rule_name>/evidence.json`
+> **[MANDATORY ARTIFACT]** 产出: `workers/<rule_id>/<batch_id>/evidence.json`
 > **[GATE CHECK]** hypotheses.json 存在且包含 >=3 个假设 → 继续
-> **[GATE CHECK]** 通过 `Read` 工具加载 rule.md + index.json 信号上下文
+> **[GATE CHECK]** 通过 `Read` 工具加载 rule.md + 信号坐标源码片段
 >
 > **Investigator 针对每个假设自主收集证据，不按固定规则执行。**
 
 **执行流程：**
 
 1. 验证 hypotheses.json 存在且假设数量 >=3（bash: `python3 -c "import json; d=json.load(open('...')); assert len(d['hypotheses'])>=3"`）
-2. 对每个假设，从 index.json 提取对应信号、阅读源码上下文，构建三段式证据链：
+2. 对每个假设，从 partition-plan.json 获取对应 signal，Read 源码窗口验证（`Read(file, offset=line-N, limit=2N)`），构建三段式证据链：
    - **Source**: 数据/操作起源于哪里？（锚定 file:line + function + variable）
    - **Propagation**: 数据如何流经系统？（锚定数据流路径上的每个节点）
    - **Sink**: 危害发生在哪里？（锚定最终危险操作点）
 3. 每个证据项必须包含：`file`、`line`、`function`、`variable`、`description`
-4. 使用 bash 写 `workers/<rule_name>/evidence.json`
+4. 使用 bash 写 `workers/<rule_id>/<batch_id>/evidence.json`
 
 **evidence.json 格式：**
 ```json
@@ -446,9 +494,9 @@ python3 "$SCRIPTS_DIR/partition-signals.py" \
 
 ### Step 6: Phase 2c — Counter Evidence (P2) [强制性阻塞门]
 
-> **[MANDATORY ARTIFACT]** 产出: `workers/<rule_name>/counter_evidence.json`
+> **[MANDATORY ARTIFACT]** 产出: `workers/<rule_id>/<batch_id>/counter_evidence.json`
 > **[GATE CHECK]** evidence.json 存在 → 继续
-> **[PROTOCOL]** 使用 `Read` 工具加载 `$SECGUARDIAN_HOME/skills/secguard-${SCAN_LANG}/protocols/verification-protocol.md`（通过 symlink → knowledge/protocols/），严格应用 P2 反证搜寻清单
+> **[PROTOCOL]** 使用 `Read` 工具加载 `$SECGUARDIAN_HOME/knowledge/protocols/verification-protocol.md`（直接路径，避免 symlink 解析问题），严格应用 P2 反证搜寻清单
 > **[PROTOCOL]** 使用 `Read` 工具加载 rule 的 `references/false-positive.md`，应用抑制决策树
 >
 > ⚠️ **这是阻塞门。** counter_evidence.json 不存在或 P2 未通过 → **禁止**进入 Step 7。
@@ -457,7 +505,7 @@ python3 "$SCRIPTS_DIR/partition-signals.py" \
 **执行流程：**
 
 1. bash 验证 evidence.json 存在
-2. 使用 `Read` 工具加载 verification-protocol.md 的 P2 部分 + false-positive.md
+2. 使用 `Read` 工具加载 `$SECGUARDIAN_HOME/knowledge/protocols/verification-protocol.md` 的 P2 部分 + rule 的 `references/false-positive.md`
 3. 对 evidence.json 中的每个假设，按 CWE 类型搜索反证：
    - **内存安全 (CWE-120/476/415/416/787/190)**: RAII 包装器、智能指针、sizeof 边界检查、安全变体 (strcpy_s/snprintf/strlcpy)、FORTIFY_SOURCE/-fstack-protector
    - **注入 (CWE-78/89)**: 参数化 API、白名单验证、输入清理
@@ -465,7 +513,7 @@ python3 "$SCRIPTS_DIR/partition-signals.py" \
    - **加密 (CWE-327/798)**: 高层加密库 (libsodium)、KMS、环境变量密钥
 4. 每个反证必须包含具体的代码位置+机制说明
 5. P2 通行裁决: `counter_evidence_found` | `counter_evidence_not_found`
-6. 使用 bash 写 `workers/<rule_name>/counter_evidence.json`
+6. 使用 bash 写 `workers/<rule_id>/<batch_id>/counter_evidence.json`
 
 **counter_evidence.json 格式：**
 ```json
@@ -508,25 +556,23 @@ python3 "$SCRIPTS_DIR/partition-signals.py" \
 
 ### Step 7: Phase 2d — Judge + Fact-Anchor Reflection [不可跳过]
 
-> **[MANDATORY ARTIFACT]** 产出: `workers/<rule_name>/judge_verdict.json`
+> **[MANDATORY ARTIFACT]** 产出: `workers/<rule_id>/<batch_id>/judge_verdict.json`
 > **[GATE CHECK]** evidence.json + counter_evidence.json 都存在 → 继续
-> **[PROTOCOL]** 应用 rule.md 中的 Q1-Q2-Q3 判定矩阵
+> **[PROTOCOL]** 应用 rule.md 中的 Q-matrix 判定矩阵（canonical 字段名）
 >
 > **Judge 独立裁决。** 基于 Evidence + Counter Evidence，不重新扫描源码。
 
 **执行流程：**
 
 1. bash 验证 evidence.json + counter_evidence.json 都存在
-2. 从 rule.md 读取该规则的 Q1-Q2-Q3 问题（事实锚定反射）
-3. 对每个假设，回答 Q1-Q2-Q3 三个事实问题：
-   - **三绿灯**（Q1=Yes, Q2=Yes, Q3=Yes 且全安全）→ `SUPPRESS`
-   - **两绿灯+单黄灯**（大概率安全）→ `downgrade to informational`
-   - **两红灯+单绿灯**（大概率确认）→ `CONFIRMED`
-   - **三红灯**（全否定）→ `CONFIRMED`
-   - **混合模式**（Yes/No 不一致）→ 强制详细分析
-4. 裁决: `CONFIRMED` / `SUSPICIOUS` / `SAFE` / `UNKNOWN`
-5. Unknown 永远不降级为 Safe。不确定 → 抑制。
-6. 使用 bash 写 `workers/<rule_name>/judge_verdict.json`
+2. 从 rule.md Detection Spec 读取该规则的 canonical Q-matrix 问题名（如 `Q1_<descriptor>`、`Q3_<descriptor>`），**禁止自创字段名**
+3. 对每个假设，回答 Q-matrix 三个事实问题（极性见 dispatch-protocol.md §3 F7 修复）：
+   - Q1=true (缺陷真实), Q2=true (可利用), Q3=false (无缓解) → **CONFIRMED** (High/Critical)
+   - Q1=true, Q2=false, Q3=false → **CONFIRMED** (Medium)
+   - Q1=false (无缺陷) 或 Q3=true (有缓解) → **SUPPRESS**
+4. 裁决: `CONFIRMED` / `SUPPRESS` / `NEEDS_REVIEW`
+5. 不确定 → SUPPRESS，不降级为 Safe
+6. 使用 bash 写 `workers/<rule_id>/<batch_id>/judge_verdict.json`
 
 **judge_verdict.json 格式：**
 ```json
@@ -537,9 +583,9 @@ python3 "$SCRIPTS_DIR/partition-signals.py" \
       "hypothesis_id": "H1",
       "verdict": "CONFIRMED",
       "judgment_matrix": {
-        "Q1_buffer_too_small": true,
-        "Q2_external_input": true,
-        "Q3_bounds_check_exists": false,
+        "Q1_buffer_overflow_defect": true,
+        "Q2_external_input_control": true,
+        "Q3_bounds_check_mitigation": false,
         "conclusion": "CONFIRMED"
       },
       "severity": "Critical",
@@ -550,9 +596,9 @@ python3 "$SCRIPTS_DIR/partition-signals.py" \
       "hypothesis_id": "H3",
       "verdict": "SAFE",
       "judgment_matrix": {
-        "Q1_buffer_too_small": false,
-        "Q2_external_input": false,
-        "Q3_bounds_check_exists": true,
+        "Q1_buffer_overflow_defect": false,
+        "Q2_external_input_control": false,
+        "Q3_bounds_check_mitigation": true,
         "conclusion": "SUPPRESS"
       },
       "severity": null,
@@ -569,24 +615,51 @@ python3 "$SCRIPTS_DIR/partition-signals.py" \
 }
 ```
 
+> ⚠️ **Q-matrix canonical 名约束**：`judgment_matrix` 中的字段名必须从 rule.md Detection Spec 中提取，不得自创。使用 `Q1_`、`Q2_`、`Q3_` 前缀 + 描述性后缀。verification-gate 通过 `_qval()` 前缀匹配 (`Q1_`/`Q3_`) 校验，即使名称不完全精确也能通过，但 canonical 名保证 auditability。
+
 ### Step 8: 记录 Findings [条件执行]
 
-> **[CONDITIONAL]** 仅当 judge_verdict.json 包含 CONFIRMED 或 SUSPICIOUS 时运行
+> **[CONDITIONAL]** 仅当 judge_verdict.json 包含 CONFIRMED 时运行
 > **[GATE CHECK]** judge_verdict.json 存在 → 继续
 > **[TOOL]** 使用 `$SCRIPTS_DIR/record-finding.py` 持久化
 >
-> **SAFE/UNKNOWN 裁决不产生 finding。** 仅 CONFIRMED 和 SUSPICIOUS 推进到 record-finding.py。
+> **SUPPRESS/NEEDS_REVIEW 裁决不产生 finding。** 仅 CONFIRMED 推进到 record-finding.py。
 
 **执行流程：**
 
 1. bash 验证 judge_verdict.json 存在
-2. 提取所有 CONFIRMED 和 SUSPICIOUS 裁决
-3. 对每个确认/可疑发现，构造 finding JSON → 通过 `record-finding.py --from-file` 记录
-4. 为该 rule 生成 blindspot.json：
+2. 提取所有 CONFIRMED 裁决
+3. 对每个确认发现，构造 finding JSON → 通过 `record-finding.py --from-file` 记录
+   **secguard 的 finding 必须包含**: `rule_id`、`batch_id`、`signal_id`、`index_json`
+   （与 partition-plan.json 中的 partition provenance 一致，缺失任一将被引擎拒收）
+
+   **`--from-file` JSON 格式（必含 provenance 字段）**：
+   ```json
+   {
+     "detector": "memory.buffer_overflow",
+     "severity": "Critical",
+     "cwe": "CWE-120",
+     "title": "...",
+     "file": "src/parser.c",
+     "line": 31,
+     "function": "format_task_desc",
+     "snippet": "sprintf(task->command, ...);",
+     "code_context": "...",
+     "rationale": "...",
+     "attack_scenario": "...",
+     "rule_id": "memory.buffer_overflow",
+     "batch_id": "batch-001",
+     "signal_id": "<signal_id from partition-plan.json or evidence.json>",
+     "index_json": "$USER_PROJECT/.codeagent/secguardian/index.json",
+     "scan_dir": "$SCAN_DIR"
+   }
+   ```
+   > ⚠️ **`signal_id` 是强制字段（CHANGE-004 修复）**。必须从 partition-plan.json 或 evidence.json 的信号中提取真实 signal_id。缺失 → record-finding.py FATAL exit 2。
+4. 为该 batch 生成 blindspot.json：
    - 记录哪些信号被抑制及原因
    - 记录哪些检测模式未覆盖（跨函数 depth>1 等）
    - 记录统计：信号数 / 调查数 / 确认 / 抑制
-5. 使用 bash 写 `workers/<rule_name>/blindspot.json`
+5. 使用 bash 写 `workers/<rule_id>/<batch_id>/blindspot.json`
 
 **blindspot.json 格式：**
 ```json
@@ -610,13 +683,13 @@ python3 "$SCRIPTS_DIR/partition-signals.py" \
 > **依据**: `knowledge/protocols/dispatch-protocol.md §4`。per-rule 纪律由引擎强制，不靠 LLM 自觉。
 
 ```bash
-# verification-gate: anchor/severity 校验 → gate-audit.json（confirmed 才计入 CI）
+# verification-gate: anchor/severity/Q-matrix 校验 → gate-audit.json（confirmed 才计入 CI）
 python3 "$SCRIPTS_DIR/verification-gate.py" \
     --index "$USER_PROJECT/.codeagent/secguardian/index.json" \
     --scan-dir "$SCAN_DIR/"
-# coverage-gate: batch-suppression 拦截（signals>0 且 0 investigated → BLOCKED exit 1）
+# coverage-gate: 逐 (rule_id, signal_id) assignment 核销（BLOCKED → exit 1）
 python3 "$SCRIPTS_DIR/coverage-gate.py" \
-    --index "$USER_PROJECT/.codeagent/secguardian/index.json" \
+    --plan "$SCAN_DIR/partition-plan.json" \
     --scan-dir "$SCAN_DIR/" || echo "WARN: coverage gate BLOCKED — signals suppressed without dismissed reasons"
 ```
 
@@ -714,7 +787,7 @@ Scan ID: sc-YYYYMMDD-HHMMSS-xxxx | Project: <project> | Path: <path> | Language:
 
 ### Phase 3: 管道工件验证与聚合 [不可跳过，在最终输出之前]
 
-> ⚠️ **必须验证所有 Worker 的 blindspot.json 存在后才能输出最终摘要。**
+> ⚠️ **必须验证所有 (rule, batch) 的 blindspot.json 存在后才能输出最终摘要。**
 > 这是管道完整性的最后检查点。
 
 **Step 1: 验证 blindspot.json 完整性**
@@ -723,20 +796,19 @@ Scan ID: sc-YYYYMMDD-HHMMSS-xxxx | Project: <project> | Path: <path> | Language:
 USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
 source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
 
-# 验证所有触发的规则都有 blindspot.json
+# workers/ 下现在是 <rule_id>/<batch_id>/ 结构
 MISSING=0
-for rule_dir in $(ls -d "$SCAN_DIR/workers/"*/ 2>/dev/null); do
-  rule_name=$(basename "$rule_dir")
-  if [ ! -f "$rule_dir/blindspot.json" ]; then
-    echo "ERROR: Missing blindspot.json in workers/$rule_name/"
+for batch_dir in $(find "$SCAN_DIR/workers" -type d -name "batch-*" 2>/dev/null); do
+  if [ ! -f "$batch_dir/blindspot.json" ]; then
+    echo "ERROR: Missing blindspot.json in $batch_dir"
     MISSING=$((MISSING + 1))
   fi
 done
 if [ "$MISSING" -gt 0 ]; then
-  echo "FATAL: $MISSING rule(s) missing blindspot.json — Investigation Pipeline incomplete"
+  echo "FATAL: $MISSING batch(es) missing blindspot.json — Investigation Pipeline incomplete"
   exit 1
 fi
-echo "✓ All worker rules have blindspot.json"
+echo "✓ All batches have blindspot.json"
 ```
 
 **Step 2: 生成 worker_manifest.json**
@@ -746,25 +818,32 @@ USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
 source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
 
 python3 -c "
-import json, glob, os
-rules = glob.glob('$SCAN_DIR/workers/*/')
-manifest = {'scan_id': '$SCAN_ID', 'rules': []}
-for r in sorted(rules):
-    name = os.path.basename(r.rstrip('/'))
-    evidence = os.path.join(r, 'evidence.json')
-    blindspot = os.path.join(r, 'blindspot.json')
-    judge = os.path.join(r, 'judge_verdict.json')
-    counter = os.path.join(r, 'counter_evidence.json')
-    manifest['rules'].append({
-        'rule': name,
-        'has_evidence': os.path.exists(evidence),
-        'has_counter_evidence': os.path.exists(counter),
-        'has_judge_verdict': os.path.exists(judge),
-        'has_blindspot': os.path.exists(blindspot)
-    })
+import json, os
+manifest = {'scan_id': '$SCAN_ID', 'batches': []}
+workers_dir = '$SCAN_DIR/workers/'
+if os.path.isdir(workers_dir):
+    for rule in os.listdir(workers_dir):
+        rule_dir = os.path.join(workers_dir, rule)
+        if not os.path.isdir(rule_dir):
+            continue
+        for batch in os.listdir(rule_dir):
+            batch_dir = os.path.join(rule_dir, batch)
+            if not os.path.isdir(batch_dir):
+                continue
+            evidence = os.path.join(batch_dir, 'evidence.json')
+            blindspot = os.path.join(batch_dir, 'blindspot.json')
+            judge = os.path.join(batch_dir, 'judge_verdict.json')
+            counter = os.path.join(batch_dir, 'counter_evidence.json')
+            manifest['batches'].append({
+                'rule': rule, 'batch': batch,
+                'has_evidence': os.path.exists(evidence),
+                'has_counter_evidence': os.path.exists(counter),
+                'has_judge_verdict': os.path.exists(judge),
+                'has_blindspot': os.path.exists(blindspot)
+            })
 with open('$SCAN_DIR/worker_manifest.json', 'w') as f:
     json.dump(manifest, f, indent=2)
-print(f'worker_manifest.json written ({len(manifest[\"rules\"])} rules)')
+print(f'worker_manifest.json written ({len(manifest[\"batches\"])} batches)')
 "
 ```
 
@@ -775,27 +854,36 @@ USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
 source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
 
 python3 -c "
-import json, glob, os
-rules = glob.glob('$SCAN_DIR/workers/*/')
+import json, os
+workers_dir = '$SCAN_DIR/workers/'
 total_confirmed = 0
 total_suppressed = 0
 pipeline_complete = 0
-for r in sorted(rules):
-    name = os.path.basename(r.rstrip('/'))
-    verdict_file = os.path.join(r, 'judge_verdict.json')
-    blindspot_file = os.path.join(r, 'blindspot.json')
-    has_verdict = os.path.exists(verdict_file)
-    has_blindspot = os.path.exists(blindspot_file)
-    if has_verdict and has_blindspot:
-        pipeline_complete += 1
-        with open(verdict_file) as f:
-            v = json.load(f)
-        s = v.get('summary', {})
-        total_confirmed += s.get('confirmed', 0) + s.get('suspicious', 0)
-        total_suppressed += s.get('safe', 0) + s.get('unknown', 0)
-print(f'Pipeline Status: {pipeline_complete}/{len(rules)} rules complete')
-print(f'Total Confirmed/Suspicious: {total_confirmed}')
-print(f'Total Suppressed (Safe/Unknown): {total_suppressed}')
+batch_count = 0
+if os.path.isdir(workers_dir):
+    for rule in os.listdir(workers_dir):
+        rule_dir = os.path.join(workers_dir, rule)
+        if not os.path.isdir(rule_dir):
+            continue
+        for batch in os.listdir(rule_dir):
+            batch_dir = os.path.join(rule_dir, batch)
+            if not os.path.isdir(batch_dir):
+                continue
+            batch_count += 1
+            verdict_file = os.path.join(batch_dir, 'judge_verdict.json')
+            blindspot_file = os.path.join(batch_dir, 'blindspot.json')
+            has_verdict = os.path.exists(verdict_file)
+            has_blindspot = os.path.exists(blindspot_file)
+            if has_verdict and has_blindspot:
+                pipeline_complete += 1
+                with open(verdict_file) as f:
+                    v = json.load(f)
+                s = v.get('summary', {})
+                total_confirmed += s.get('confirmed', 0)
+                total_suppressed += s.get('safe', 0)
+print(f'Pipeline Status: {pipeline_complete}/{batch_count} batches complete')
+print(f'Total Confirmed: {total_confirmed}')
+print(f'Total Suppressed: {total_suppressed}')
 "
 ```
 
@@ -871,17 +959,19 @@ findings/exec/command_injection/f6e5d4c3b2a1_executor-89.json
 
 ---
 
-## 附录 C: OpenCode 内联执行须知
+## 附录 C: OpenCode 平台上下文隔离执行须知
 
-> OpenCode 没有后台任务工具。Phase 2 Steps 4-8（上述）定义的串行内联执行是本平台的唯一 Worker 模式，不是"降级方案"。
+> **CHANGE-004 (2026-07-11)**: 纯串行内联模式被测试证伪——LLM 在共享上下文中处理 3 条 rule 后自行丢弃剩余 12 条。本附录描述 OpenCode 无 Agent 子代理的原语下的**上下文隔离模拟**策略。
 
-串行内联执行的已知限制：
+串行上下文隔离执行的要求：
 
-1. **上下文预算截断**：如果扫描项目大、信号多，达到上下文预算后未处理的 Skill 将被标记为 `unprocessed`。这是安全机制，不是故障
-2. **无上下文隔离**：所有 Worker 在 Dispatcher 主会话中运行，残留上下文可能影响下一个 Worker 的判断
-3. **抑制倾向**：如果上下文已满，后续 Worker 的判定质量下降。Ambiguous 信号应该优先抑制而非确认
+1. **每个 batch 独享上下文**: 每个 (rule_id, batch_id) 处理前必须显式重置上下文——禁止携带前一个 batch 的完整源文件或 rule.md 内容进入下一个 batch。
+2. **信号坐标只读片段**: 每个 signal 只通过 `Read(file, offset=line-N, limit=2N)` 读源码窗口（N=15），**禁止不带 offset/limit 的完整源文件 Read**。
+3. **rule.md 按需加载**: 每个 batch 开始前读当前 rule.md，处理完后从上下文丢弃。
+4. **无上下文累积**: 处理完一个 batch 后只保留 findings 摘要。新 batch 开始时上下文仅含 `rule_id`、`batch_id`、信号列表。
 
-**避免截断的策略：**
-- 信号 > 50 的 Skill 按优先级分批处理，但不要在 Phase 2 一次加载所有规则文件
-- 如果扫描包含大量字符串/IO 信号，**默认只运行 buffer_overflow、command_injection、memory 类高风险 Skill**，将 error_propagation、hardcoded_secrets 等低风险 Skill 延后或有选择地执行
-- 如果上下文接近预算，优先运行信号量最少的 Skill（快速产出），跳过信号量大的 Skill（长时间占用上下文）
+**避免上下文压力的策略：**
+- 信号 > 50 的 rule 按 batch 逐个处理，每个 batch 最多 20 信号
+- 每个 batch 只读一个 rule.md + 该 batch 的源码片段（< 200 行总量）
+- 处理完一个 batch 时主动输出摘要，帮助从上下文缓存中清除旧上下文
+- 如果上下文仍达到极限，剩余未处理 batch 交由 coverage-gate 标记为 `unprocessed`，下次扫描继续
