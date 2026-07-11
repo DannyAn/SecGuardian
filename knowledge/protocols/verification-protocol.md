@@ -20,7 +20,7 @@ Detector 产出 Finding 后，三轮独立验证管道对每个 Finding 进行�
 > counter_evidence.json 不存在或 P2 未通过 → **禁止**记录任何 finding。
 
 1. P2 必须在记录任何 finding 之前完成。不得在以下情况下记录/提交 finding：
-   - `workers/<rule>/counter_evidence.json` 不存在
+   - `workers/<rule_id>/<batch_id>/counter_evidence.json` 不存在
    - P2 对某个假设的裁决不是 `counter_evidence_not_found`
 2. 每个通过 P1 的假设必须经过 P2 检查
 3. P2 必须检查以下 C/C++ 反证：

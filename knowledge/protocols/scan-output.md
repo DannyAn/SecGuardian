@@ -27,7 +27,7 @@ version: "8.0"
 
 > **v8.0 变更 (2026-07-03)**: 共享索引重构。index.json 从 per-scan 目录移至 `.codeagent/` 根级别，所有命令复用同一索引。输出目录从 `.codeagent/<ext>/scans/<scan-id>/` 简化为 `.codeagent/<command>/<scan-id>/`。
 > **v7.0 变更 (2026-06-26)**: 消费者导向设计重构。新增 `human/executive-summary.md`（统一入口 + 发现分布交叉表）。新增 `ai/remediation-pack.json`（AI 修复包 + 关联发现）。新增 `dashboard.html`（自动生成 HTML）。`report.md` 精简到 5 节（移除管理层摘要/验证漏斗/合规表）。移除 developer/by-file/ 和 ai/attack-graph.json（概念验证后确认无真实消费者）。findings/<ns>/<detector>/ 目录树保持为工程师核心工作流，不变。
-> **v5.0 变更 (2026-06-07)**: 单体 findings.json 重构为按 detector 组织的目录树。参见: [2026-06-07-findings-directory-tree-design.md](../../docs/superpowers/specs/2026-06-07-findings-directory-tree-design.md)
+> **v5.0 变更 (2026-06-07)**: 单体 findings.json 重构为按 detector 组织的目录树。历史设计记录不属于运行时部署包，本协议包含当前完整契约。
 > **v4.0 变更 (2026-06-06)**: 引入 AI/Renderer 分离架构。
 > **v3.0 变更 (2026-06-05)**: report.md §4 强制四段式结构。增加输出前质量门禁。
 
@@ -82,7 +82,7 @@ Step 2: dashboard.html                 → 浏览器打开精美报告
         ├── human/executive-summary.md
         ├── findings/<ns>/<det>/<sha12>_<file>-<line>.json
         ├── ai/remediation-pack.json
-        ├── report.md, dashboard.html, findings.json, results.sarif
+        ├── report.md, cli-summary.md, dashboard.html, findings.json, results.sarif
         ├── summary.json, manifest.json, status.json, delta.json
         ├── dismissed.json, verification-audit.json
         └── latest → <scan-id>/
@@ -557,21 +557,21 @@ Scan ID: <id> | Project: <project> | Path: <path> | Language: <lang> | Mode: <mo
 
 ### 发现详情
 
-| # | Severity | CWE | 类别 | 位置 | 摘要 |
-|---|----------|-----|------|------|------|
-| 1 | 🔴 Critical | CWE-120 | buffer_overflow | src/parser.c:36 | sizeof(dst)=64, input未知 |
-| 2 | 🟠 High | CWE-089 | sql-injection | src/handler.java:42 | SQL via string concat |
+| Severity | Rule | Location | Summary |
+|----------|------|----------|---------|
+| 🔴 Critical | memory.buffer_overflow | src/parser.c:36 | sizeof(dst)=64, input未知 |
+| 🟠 High | web.sql-injection | src/handler.java:42 | SQL via string concat |
 
 ### 安全评分
 
 **<N>/100 🟢🟡🔴 <Grade>**
 ```
 
-### 类别列填充规则
+### Rule 列填充规则
 
-| 命令 | 类别列内容 | 示例 |
-|------|-----------|------|
-| secguard | detector ID | `memory.buffer_overflow` |
+| 命令 | Rule 列内容 | 示例 |
+|------|-------------|------|
+| secguard | `rule_id`，缺失时使用 detector ID | `memory.buffer_overflow` |
 | secaudit | 数据流路径简写 | `HTTP param → SQL` |
 | secreview | 审阅维度 | `injection-prevention` |
 
