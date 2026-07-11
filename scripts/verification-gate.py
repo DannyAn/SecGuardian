@@ -139,12 +139,23 @@ def audit_provenance(finding, scan_dir):
     if not all(data is not None for data in artifacts.values()):
         return False, False
     judge = artifacts["judge_verdict.json"]
-    verdicts = judge.get("verdicts", []) if isinstance(judge, dict) else []
+    verdicts = judge.get("verdicts", judge.get("judgments", [])) if isinstance(judge, dict) else (judge if isinstance(judge, list) else [])
     for item in verdicts:
         if not isinstance(item, dict) or item.get("signal_id") != signal_id:
             continue
-        if item.get("file") != finding.get("file") or int(item.get("line", 0)) != int(finding.get("line", 0)):
-            continue
+        # Match by file+line when both sides have them; fall back to signal_id-only
+        # when verdict entries lack file/line (pre-CHANGE-006 artifacts).
+        has_location = bool(item.get("file") and item.get("line"))
+        if has_location:
+            item_file = os.path.normpath(item.get("file", ""))
+            finding_file = os.path.normpath(finding.get("file", ""))
+            if item_file != finding_file:
+                # Normalize: same basename + same line → accept despite path differences
+                if not (os.path.basename(item_file) == os.path.basename(finding_file) and
+                        int(item.get("line", 0)) == int(finding.get("line", 0))):
+                    continue
+            elif int(item.get("line", 0)) != int(finding.get("line", 0)):
+                continue
         conclusion = str(item.get("verdict") or item.get("conclusion") or "").upper()
         matrix = item.get("judgment_matrix") or {}
         q1, q3 = _qval(matrix, "Q1_"), _qval(matrix, "Q3_")
@@ -184,7 +195,7 @@ def audit_batch(scan_dir, rule_id, batch_id, plan_path=None):
     artifacts = {name: _load_json(os.path.join(batch_dir, name)) for name in required}
     missing = [name for name, data in artifacts.items() if data is None]
     judge = artifacts["judge_verdict.json"]
-    verdicts = judge.get("verdicts", []) if isinstance(judge, dict) else []
+    verdicts = judge.get("verdicts", judge.get("judgments", [])) if isinstance(judge, dict) else (judge if isinstance(judge, list) else [])
     invalid = []
     expected_ids = _planned_signal_ids(plan_path, rule_id, batch_id) if plan_path else set()
     gaps = {}

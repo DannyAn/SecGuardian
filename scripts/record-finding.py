@@ -41,13 +41,13 @@ def main():
   secreview: --command secreview --detector memory.buffer-overflow --severity High --cwe CWE-120 --file src/buf.c --line 88 --review-pass vulnerability_detection
 
   == --from-file mode ==
-  Write the finding JSON to a file, then pass the path with --from-file:
-    cat > /tmp/finding.json << 'FEOF'
+  Write the finding JSON to a file in the scan directory, then pass the path with --from-file:
+    cat > "$SCAN_DIR/.tmp/finding.json" << 'FEOF'
     {"detector": "web.sql-injection", "severity": "Critical", "cwe": "CWE-89",
      "file": "src/app.py", "line": 42,
      "snippet": "...", "code_context": "...", "rationale": "...", "attack_scenario": "..."}
     FEOF
-    python3 record-finding.py --from-file /tmp/finding.json --scan-dir .codeagent/scans/x/
+    python3 record-finding.py --from-file "$SCAN_DIR/.tmp/finding.json" --scan-dir "$SCAN_DIR/"
         ''')
 
     # --from-file mode: make all args optional so standalone JSON works
