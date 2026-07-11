@@ -55,9 +55,9 @@ def main():
     required_mode = not from_file_mode
 
     # Core required fields
-    p.add_argument('--command', default='',
+    p.add_argument('--command', default='' if not from_file_mode else None,
                    choices=['secguard', 'secaudit', 'secreview'],
-                   help='[logging only] Command type identifier')
+                   help='Command type identifier — REQUIRED for provenance gating')
     p.add_argument('--scan-dir', required=required_mode,
                    help='Scan output directory (parent of findings/)')
     p.add_argument('--detector', required=required_mode,
@@ -110,6 +110,9 @@ def main():
 
     p.add_argument('--index-json', default='',
                    help='[anchor validation] Path to index.json for file+line cross-reference')
+    p.add_argument('--rule-id', default='', help='Partition rule provenance')
+    p.add_argument('--batch-id', default='', help='Partition batch provenance')
+    p.add_argument('--signal-id', default='', help='Partition signal provenance')
     
     p.add_argument('--from-file', nargs='?', default='', const='',
                    help='Read finding JSON from a file path (avoids CLI long-text overhead)')
@@ -145,8 +148,8 @@ def main():
     # ── Reject --from-file without a file path argument ──
     if '--from-file' in sys.argv and not args.from_file:
         print("Deprecated: --from-file must be followed by a file path", file=sys.stderr)
-        print("  Correct: --from-file=\"\$SCAN_DIR/findings/finding-{id}.json\"", file=sys.stderr)
-        print("  Or:      --from-file \"\$SCAN_DIR/findings/finding-{id}.json\"", file=sys.stderr)
+        print(r"  Correct: --from-file=\"$SCAN_DIR/findings/finding-{id}.json\"", file=sys.stderr)
+        print(r"  Or:      --from-file \"$SCAN_DIR/findings/finding-{id}.json\"", file=sys.stderr)
         print("  Wrong:   --from-file (alone)  --from-file is an argument, not a flag.", file=sys.stderr)
         sys.exit(2)
 
@@ -168,7 +171,7 @@ def main():
                        'title', 'snippet', 'code_context', 'rationale', 'attack_scenario',
                        'fix_before', 'fix_after', 'review_pass', 'review_focus',
                        'data_flow_path', 'skill_name', 'skill_category',
-                       'scan_dir', 'index_json']:
+                       'scan_dir', 'index_json', 'rule_id', 'batch_id', 'signal_id']:
             if field in file_json:
                 setattr(args, field, file_json[field])
         if 'line' in file_json:
@@ -216,6 +219,42 @@ def main():
     if missing:
         print("Missing fields: {}".format(', '.join(missing)), file=sys.stderr)
         sys.exit(2)
+    # Provenance gate: any finding with rule_id must carry full investigation provenance.
+    # Previously gated on --command == 'secguard', but --from-file JSONs never
+    # include "command", so the gate was silently skipped for ALL 19 round-2 findings.
+    # Now: rule_id presence alone triggers the check. No rule_id → secaudit/secreview
+    # or legacy finding → skip. Rule_id present → batch_id + signal_id + index_json
+    # are all required. Missing any → FATAL exit 2.
+    if args.rule_id:
+        provenance = [args.rule_id, args.batch_id, args.signal_id, args.index_json]
+        if not all(provenance):
+            print("FATAL: secguard findings require rule_id, batch_id, signal_id, and index_json", file=sys.stderr)
+            sys.exit(2)
+
+        # Pipeline artifact gate (CHANGE-004 FIX): a finding MUST have completed
+        # the full Investigation Pipeline (H→E→CE→J) before it can be recorded.
+        # Without this gate, LLM can directly call record-finding.py --from-file
+        # with self-authored JSON and bypass Steps 4-7 entirely.
+        scan_dir = args.scan_dir
+        workers_dir = os.path.join(scan_dir, 'workers', args.rule_id, args.batch_id)
+        required_artifacts = [
+            ('hypotheses.json', 'Step 4 (Hypothesis Generator)'),
+            ('evidence.json', 'Step 5 (Investigator)'),
+            ('counter_evidence.json', 'Step 6 (Counter Evidence)'),
+            ('judge_verdict.json', 'Step 7 (Judge)'),
+        ]
+        missing_artifacts = []
+        for fname, step_label in required_artifacts:
+            if not os.path.isfile(os.path.join(workers_dir, fname)):
+                missing_artifacts.append(f'{fname} ({step_label})')
+        if missing_artifacts:
+            print(f"FATAL: Investigation Pipeline incomplete for {args.rule_id}/{args.batch_id}.",
+                  file=sys.stderr)
+            print(f"  Missing artifacts: {', '.join(missing_artifacts)}", file=sys.stderr)
+            print(f"  Expected at: {workers_dir}/", file=sys.stderr)
+            print(f"  All four Steps (4-7) must produce artifacts before record-finding.",
+                  file=sys.stderr)
+            sys.exit(2)
 
     # Read fix from files if specified (avoids shell quoting issues with inline args)
     if args.fix_before_file and os.path.isfile(args.fix_before_file):
@@ -315,6 +354,9 @@ def main():
             "severity": _sev_out,
             "cwe": args.cwe,
             "detector": args.detector,
+            "rule_id": args.rule_id or None,
+            "batch_id": args.batch_id or None,
+            "signal_id": args.signal_id or None,
             "file": args.file,
             "line": args.line,
             "function": args.function or None,
@@ -336,8 +378,8 @@ def main():
             },
             "fix": {
                 "description": args.title,
-                "before_code": args.fix_before_file or args.fix_before,
-                "after_code": args.fix_after_file or args.fix_after
+                "before_code": args.fix_before,
+                "after_code": args.fix_after
             }
         }
     }
