@@ -46,15 +46,21 @@ def detect_lang(filepath):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--index', required=True)
+    parser.add_argument('index_path', nargs='?', default=None, help=argparse.SUPPRESS)
+    parser.add_argument('--index', default=None, help='Index file path')
     parser.add_argument('--scan-id', default='')
     args = parser.parse_args()
 
-    if not os.path.isfile(args.index):
-        print(f"FATAL: index file not found: {args.index}", file=sys.stderr)
+    # Accept both --index and positional arg (backwards compat with old templates)
+    index_path = args.index or args.index_path
+    if not index_path:
+        print("FATAL: missing --index <path> or positional index path", file=sys.stderr)
+        sys.exit(1)
+    if not os.path.isfile(index_path):
+        print(f"FATAL: index file not found: {index_path}", file=sys.stderr)
         sys.exit(1)
 
-    with open(args.index) as f:
+    with open(index_path) as f:
         d = json.load(f)
 
     # ── 校验（null-safe） ──
@@ -93,7 +99,7 @@ def main():
         'call_edge_count': safe_len(call_edges),
         'primary_language': primary_lang,
         'language_distribution': dict(langs.most_common()),
-        'index_path': os.path.abspath(args.index),
+        'index_path': os.path.abspath(index_path),
     }
     json.dump(summary, sys.stdout, indent=2, ensure_ascii=False)
     print()  # trailing newline

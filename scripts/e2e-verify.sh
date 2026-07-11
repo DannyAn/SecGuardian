@@ -901,10 +901,10 @@ fi
 # (exit 1). This is the exact production failure (1358 signals -> 0 findings ->
 # 100/100 PASSED) now structurally blocked.
 COV_TMP=$(mktemp -d)
-python3 -c "import json; json.dump({'call_sites':[{'x':1}]*50,'control_flow':[],'pointer_validations':[],'struct_inits':[],'variable_writes':[]}, open('$COV_TMP/idx.json','w'))"
+python3 -c "import json; json.dump({'rules':[{'batches':[{'assignment_ids':['r:s1']}]}]}, open('$COV_TMP/plan.json','w'))"
 set +e
 python3 "$PROJECT_ROOT/scripts/coverage-gate.py" \
-    --index "$COV_TMP/idx.json" --scan-dir "$COV_TMP" >/dev/null 2>&1
+    --plan "$COV_TMP/plan.json" --scan-dir "$COV_TMP" >/dev/null 2>&1
 COV_EXIT=$?
 set -e
 rm -rf "$COV_TMP"
@@ -921,24 +921,62 @@ if python3 "$PROJECT_ROOT/scripts/verification-gate.py" --self-test >/dev/null 2
 else
     fail "Verification gate self-test FAILED"
 fi
+# Pilot gate must fail before fan-out when canonical artifacts are absent.
+PILOT_TMP=$(mktemp -d); mkdir -p "$PILOT_TMP/workers/r/batch-001"
+python3 -c "import json; json.dump({'files':[]}, open('$PILOT_TMP/index.json','w'))"
+set +e
+python3 "$PROJECT_ROOT/scripts/verification-gate.py" --index "$PILOT_TMP/index.json" \
+    --scan-dir "$PILOT_TMP" --rule-id r --batch-id batch-001 >/dev/null 2>&1
+PILOT_EXIT=$?
+set -e
+rm -rf "$PILOT_TMP"
+if [ "$PILOT_EXIT" -eq 1 ]; then
+    pass "Pilot gate blocks malformed first batch before fan-out"
+else
+    fail "Pilot gate failed to block malformed first batch (exit=$PILOT_EXIT)"
+fi
 # Hard gate: a finding with a bad anchor (e.g. written by bypassing
 # record-finding) must be excluded from the CI gate via gate-audit.json.
-VG_TMP=$(mktemp -d); VG_OUT="$VG_TMP/out"; mkdir -p "$VG_OUT"
+VG_TMP=$(mktemp -d); VG_OUT="$VG_TMP/out"; VG_BATCH="$VG_OUT/workers/r/batch-001"; mkdir -p "$VG_BATCH"
 python3 -c "import json; json.dump({'files':['src/app.c'],'symbols':{'functions':[{'file':'src/app.c','start_line':10,'end_line':20}]}}, open('$VG_TMP/index.json','w'))"
 python3 -c "
 import json
-def mk(i,det,file,line,cwe): return {'id':'F'+i,'severity':'Critical','cwe':cwe,'detector':det,'file':file,'line':line,'function':'f','title':'t','fix_summary':'f','location':{'file_path':file,'start_line':line,'function_name':'f','snippet':'s'},'evidence':{'code_context':'c','judgment_rationale':'r'},'impact':{'attack_scenario':'a','cvss_score':9.0},'fix':{'description':'d','before_code':'b','after_code':'a'}}
+def mk(i,det,file,line,cwe): return {'id':'F'+i,'severity':'Critical','cwe':cwe,'detector':det,'rule_id':'r','batch_id':'batch-001','signal_id':'s1','file':file,'line':line,'function':'f','title':'t','fix_summary':'f','location':{'file_path':file,'start_line':line,'function_name':'f','snippet':'s'},'evidence':{'code_context':'c','judgment_rationale':'r'},'impact':{'attack_scenario':'a','cvss_score':9.0},'fix':{'description':'d','before_code':'b','after_code':'a'}}
 b={'schema_version':'1.0','scan_id':'t','command':'secguard','started_at':'2026-07-10T00:00:00Z','completed_at':'2026-07-10T00:01:00Z','duration_ms':1000,'language':'c','scope':{'files':1,'lines':10,'functions':1},'detectors':{'matched':2,'executed':2},'findings':[mk('1','mem.x','src/app.c',15,'CWE-120'), mk('2','mem.y','NONEXISTENT.c',1,'CWE-1')]}
 json.dump(b, open('$VG_OUT/findings.json','w'))
 "
+python3 -c "import json; [json.dump({'signal_id':'s1'}, open('$VG_BATCH/'+n,'w')) for n in ['hypotheses.json','evidence.json','counter_evidence.json']]"
+python3 -c "import json; json.dump({'verdicts':[{'signal_id':'s1','file':'src/app.c','line':15,'verdict':'CONFIRMED','judgment_matrix':{'Q1_defect':True,'Q3_mitigated':False}}]}, open('$VG_BATCH/judge_verdict.json','w'))"
+set +e
 python3 "$PROJECT_ROOT/scripts/verification-gate.py" --index "$VG_TMP/index.json" --scan-dir "$VG_OUT" >/dev/null 2>&1
+VG_GATE_EXIT=$?
 python3 "$PROJECT_ROOT/scripts/render-report.py" --findings "$VG_OUT/findings.json" --index "$VG_TMP/index.json" --output "$VG_OUT/" >/dev/null 2>&1
-VG_VIOL=$(python3 -c "import json; print(json.load(open('$VG_OUT/status.json'))['gate_violations'])" 2>/dev/null)
+VG_RENDER_EXIT=$?
+set -e
 rm -rf "$VG_TMP"
-if echo "$VG_VIOL" | grep -q "1 Critical"; then
-    pass "Verification gate excludes bad-anchor finding from CI (F3 bypass closed)"
+if [ "$VG_GATE_EXIT" -eq 1 ]; then
+    pass "Verification gate blocks any needs-review finding"
 else
-    fail "Verification gate failed to exclude bad-anchor finding (violations: $VG_VIOL)"
+    fail "Verification gate failed open on needs-review finding (exit=$VG_GATE_EXIT)"
+fi
+if [ "$VG_RENDER_EXIT" -eq 2 ]; then
+    pass "Renderer refuses authoritative output after verification failure"
+else
+    fail "Renderer failed open after verification failure (exit=$VG_RENDER_EXIT)"
+fi
+
+# Coverage BLOCKED must independently prevent rendering.
+COV_RENDER_TMP=$(mktemp -d)
+python3 -c "import json; json.dump({'schema_version':'1.0','findings':[]},open('$COV_RENDER_TMP/findings.json','w')); json.dump({'verdict':'BLOCKED'},open('$COV_RENDER_TMP/coverage-audit.json','w'))"
+set +e
+python3 "$PROJECT_ROOT/scripts/render-report.py" --findings "$COV_RENDER_TMP/findings.json" --output "$COV_RENDER_TMP" >/dev/null 2>&1
+COV_RENDER_EXIT=$?
+set -e
+rm -rf "$COV_RENDER_TMP"
+if [ "$COV_RENDER_EXIT" -eq 2 ]; then
+    pass "Renderer refuses authoritative output after coverage BLOCKED"
+else
+    fail "Renderer failed open after coverage BLOCKED (exit=$COV_RENDER_EXIT)"
 fi
 
 # ── 17. Signal Partition (M3: per-rule isolation, platform-neutral) ──
@@ -947,6 +985,41 @@ if python3 "$PROJECT_ROOT/scripts/partition-signals.py" --self-test >/dev/null 2
     pass "Partition self-test (per-rule grouping + batching + cat→category alias)"
 else
     fail "Partition self-test FAILED"
+fi
+# Real comment-free source -> index -> actual C++ rule routing.
+ROUTE_TMP=$(mktemp -d)
+"$PROJECT_ROOT/scripts/secguardian-index" --lang cpp \
+    --path "$PROJECT_ROOT/examples/cpp-vuln-demo-no-answers/src" \
+    --output "$ROUTE_TMP/index.json" >/dev/null 2>&1
+if python3 "$PROJECT_ROOT/scripts/partition-signals.py" --integration-test \
+    --index "$ROUTE_TMP/index.json" --rules-dir "$PROJECT_ROOT/skills/secguard/cpp/rules" >/dev/null 2>&1; then
+    pass "Real C++ index routes anchored unsafe memcpy to buffer-overflow rule"
+else
+    fail "Real C++ source-to-rule routing regression"
+fi
+rm -rf "$ROUTE_TMP"
+
+# Engineer-facing CLI output is deterministic and uses file:line locations.
+CLI_SUMMARY=$(python3 -c "import importlib.util; s=importlib.util.spec_from_file_location('r','$PROJECT_ROOT/scripts/render-report.py'); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); print(m.generate_cli_summary([{'severity':'critical ','rule_id':'memory.buffer_overflow','detector':'fallback','location':{'file_path':'src/a.c','start_line':47},'title':'Unsafe copy'}]))")
+if echo "$CLI_SUMMARY" | grep -q '| Severity | Rule | Location | Summary |' && \
+   echo "$CLI_SUMMARY" | grep -q '| 🔴 Critical | memory.buffer_overflow | src/a.c:47 | Unsafe copy |'; then
+    pass "CLI summary uses engineer-facing Severity/Rule/file:line/Summary contract"
+else
+    fail "CLI engineer-facing summary contract regression"
+fi
+
+# A stale or unsupported ground truth must be rejected before recall scoring.
+set +e
+python3 "$PROJECT_ROOT/scripts/validate-benchmark.py" \
+    --expected "$PROJECT_ROOT/examples/cpp-vuln-demo-no-answers/expected-results.json" \
+    --source-root "$PROJECT_ROOT/examples/cpp-vuln-demo-no-answers/src" \
+    --rules-dir "$PROJECT_ROOT/skills/secguard/cpp/rules" >/dev/null 2>&1
+BENCH_EXIT=$?
+set -e
+if [ "$BENCH_EXIT" -eq 1 ]; then
+    pass "Benchmark validator rejects stale anchors/unsupported detector ownership"
+else
+    fail "Benchmark validator accepted known-invalid no-answers ground truth"
 fi
 
 echo -e "${BOLD}╔══════════════════════════════════════════════╗${NC}"

@@ -60,6 +60,10 @@ echo "USER_PROJECT=$USER_PROJECT"
 # ── Phase C: 语言检测 ─────────────────────
 # 优先使用调用者传入的语言；未传入时从文件扩展名自动检测
 SCAN_LANG="$SCAN_LANG_IN"
+case "$SCAN_LANG" in
+  c|cc|cxx) SCAN_LANG="cpp" ;;
+  javascript|typescript|ts) SCAN_LANG="js" ;;
+esac
 if [ -z "$SCAN_LANG" ]; then
   if find "$SCAN_PATH" -maxdepth 4 -name '*.java' 2>/dev/null | grep -q .; then
     SCAN_LANG="java"
@@ -96,6 +100,11 @@ case "$COMMAND" in
   secreview) SKILL_DIR="secreview-${SCAN_LANG}" ;;
 esac
 SCRIPTS_DIR="$SECGUARDIAN_HOME/skills/${SKILL_DIR}/scripts"
+RULES_DIR="$SECGUARDIAN_HOME/skills/${SKILL_DIR}/rules"
+if [ "$COMMAND" = "secguard" ] && [ ! -d "$RULES_DIR" ]; then
+  echo "FATAL: rules directory not found: $RULES_DIR"
+  exit 1
+fi
 
 # ── Phase F: 命令特有子目录 ──────────────
 case "$COMMAND" in
@@ -125,6 +134,8 @@ SCAN_ID="$SCAN_ID"
 SCAN_DIR="$SCAN_DIR"
 SECGUARDIAN_HOME="$SECGUARDIAN_HOME"
 SCRIPTS_DIR="$SCRIPTS_DIR"
+SKILL_DIR="$SKILL_DIR"
+RULES_DIR="$RULES_DIR"
 RECORDER="$RECORDER"
 STATEEOF
 echo "  init complete: $SCAN_DIR"

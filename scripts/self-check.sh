@@ -523,34 +523,35 @@ else
   red "init-scan.sh: workers/ directory creation MISSING"
 fi
 
-# 14d: Verify Steps 4-8 exist in secguard.md (not just Step 3 → Step 9 jump)
+# 14d: Thin adapters must reference the deployed protocol; the protocol owns Steps 4-8.
 for platform in opencode claude gemini; do
   sf="commands/$platform/secguard.md"
   if [ -f "$sf" ]; then
-    if grep -q 'Step 4.*Hypothesis\|Phase 2a' "$sf" 2>/dev/null; then
-      green "secguard.md ($platform): Step 4 (Hypothesis Generator) present"
+    if grep -q 'knowledge/protocols/dispatch-protocol.md' "$sf" 2>/dev/null && \
+       grep -q 'Step 4.*Hypothesis' knowledge/protocols/dispatch-protocol.md 2>/dev/null; then
+      green "secguard.md ($platform): thin adapter references canonical pipeline"
     else
-      red "secguard.md ($platform): Step 4 MISSING — pipeline gap"
+      red "secguard.md ($platform): canonical dispatch protocol reference MISSING"
     fi
   fi
 done
 
-# 14e: Verify ALL skills have scripts + protocols + standards symlinks (self-contained design)
+# 14e: Skills use one canonical knowledge namespace; only scripts need a local alias.
 SKILL_SYMLINK_OK=0
 for lang in cpp go java python js; do
   for cmd_dir in skills/secguard/$lang skills/secreview/$lang; do
     [ -d "$cmd_dir" ] || continue
     [ -L "$cmd_dir/scripts" ] || { red "$cmd_dir: scripts symlink MISSING"; SKILL_SYMLINK_OK=1; }
-    [ -L "$cmd_dir/protocols" ] || { red "$cmd_dir: protocols symlink MISSING"; SKILL_SYMLINK_OK=1; }
-    [ -L "$cmd_dir/standards" ] || { red "$cmd_dir: standards symlink MISSING"; SKILL_SYMLINK_OK=1; }
+    [ ! -e "$cmd_dir/protocols" ] || { red "$cmd_dir: deprecated protocols alias PRESENT"; SKILL_SYMLINK_OK=1; }
+    [ ! -e "$cmd_dir/standards" ] || { red "$cmd_dir: deprecated standards alias PRESENT"; SKILL_SYMLINK_OK=1; }
   done
 done
 # secaudit is flat (no language subdirs)
-for sub in scripts protocols standards; do
-  [ -L "skills/secaudit/$sub" ] || { red "skills/secaudit: $sub symlink MISSING"; SKILL_SYMLINK_OK=1; }
-done
+[ -L "skills/secaudit/scripts" ] || { red "skills/secaudit: scripts symlink MISSING"; SKILL_SYMLINK_OK=1; }
+[ ! -e "skills/secaudit/protocols" ] || { red "skills/secaudit: deprecated protocols alias PRESENT"; SKILL_SYMLINK_OK=1; }
+[ ! -e "skills/secaudit/standards" ] || { red "skills/secaudit: deprecated standards alias PRESENT"; SKILL_SYMLINK_OK=1; }
 if [ "$SKILL_SYMLINK_OK" -eq 0 ]; then
-  green "All skill dirs (secguard + secreview + secaudit) have scripts/protocols/standards symlinks"
+  green "All skill dirs use scripts alias + canonical knowledge namespace"
 fi
 
 echo ""

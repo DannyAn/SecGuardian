@@ -159,11 +159,21 @@ echo -e "${BOLD}[6/6] 跨命令一致性验证${NC}"
 
 XC_ERR=0
 for cmd in secguard secaudit secreview; do
-    f="commands/${cmd}.md"
-    if [ ! -f "$f" ]; then
-        echo -e "  ${RED}✗${NC} ${cmd}: commands/${cmd}.md MISSING"
-        XC_ERR=$((XC_ERR + 1)); continue
+    f="commands/claude/${cmd}.md"
+    missing=0
+    for platform in claude opencode; do
+        pf="commands/${platform}/${cmd}.md"
+        if [ ! -f "$pf" ]; then
+            echo -e "  ${RED}✗${NC} ${cmd}: ${pf} MISSING"
+            XC_ERR=$((XC_ERR + 1)); missing=1
+        fi
+    done
+    gf="commands/gemini/${cmd}.toml"
+    if [ ! -f "$gf" ]; then
+        echo -e "  ${RED}✗${NC} ${cmd}: ${gf} MISSING"
+        XC_ERR=$((XC_ERR + 1)); missing=1
     fi
+    [ "$missing" -eq 0 ] || continue
     
     # 1) --command <cmd> present
     if grep -q -- "--command ${cmd}" "$f"; then
@@ -190,7 +200,8 @@ for cmd in secguard secaudit secreview; do
     fi
     
     # 4) No stale references
-    stale=$(grep -cE "16 阶段|Isolation constraint|Routing rules" "$f" 2>/dev/null || echo 0)
+    stale=$(grep -cE "16 阶段|Isolation constraint|Routing rules" "$f" 2>/dev/null || true)
+    stale=${stale:-0}
     if [ "$stale" -eq 0 ]; then
         echo -e "  ${GREEN}✓${NC} ${cmd}: no stale refs"
     else

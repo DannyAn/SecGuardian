@@ -205,6 +205,7 @@ for entry in "${TARGETS[@]}"; do
     [ -d "$PROJECT_ROOT/knowledge/standards" ] && find "$PROJECT_ROOT/knowledge/standards" -name '*.md' -exec cp {} "$staging/knowledge/standards/" \; 2>/dev/null || true
 
     # Scripts + wrappers
+    for wrapper in init-scan.sh secguardian-index secguardian-index.ps1 render-report.py validate-index.py record-finding.py; do
         if [ -f "$PROJECT_ROOT/scripts/$wrapper" ]; then
             cp "$PROJECT_ROOT/scripts/$wrapper" "$staging/scripts/$wrapper"
             chmod +x "$staging/scripts/$wrapper" 2>/dev/null || true
