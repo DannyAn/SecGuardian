@@ -99,4 +99,4 @@ rand.Read(token)
 
 ## 输出格式
 
-遵循 `commands/claude/secguard.md` 定义的四段式输出。
+遵循 `$SECGUARDIAN_HOME/knowledge/protocols/scan-output.md` 定义的输出契约。

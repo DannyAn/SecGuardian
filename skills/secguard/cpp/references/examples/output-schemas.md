@@ -1,6 +1,6 @@
 # Output Schemas — Protocol v2.0
 
-SecGuardian 输出协议 2.0 人读/机读分离。详见 `knowledge/protocols/scan-output.md`。
+本文件仅提供历史示例。当前输出格式以 `$SECGUARDIAN_HOME/knowledge/protocols/scan-output.md` 的 Scan Output Protocol 8.0 为准。
 
 ## report.md — 人读（Markdown 报告）
 

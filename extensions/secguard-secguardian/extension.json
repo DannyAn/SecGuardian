@@ -31,7 +31,8 @@
     "protocols": [
       "scan-output",
       "sarif-output",
-      "verification-protocol"
+      "verification-protocol",
+      "dispatch-protocol"
     ],
     "threat_catalog": "knowledge/threat-catalog.md",
     "languages": [

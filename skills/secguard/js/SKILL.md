@@ -11,7 +11,7 @@ topic: [web, crypto, system]
 本文件是 `skills/secguard/js/` 下 13 个检视算子 skill 的主索引 / 派发表。
 每个算子对应 `rules/` 下的一个规则目录，包含自己的 `rule.md`。
 
-> **执行流程由 `commands/claude/secguard.md` 的 Dispatcher 协议调度。**
+> **执行流程由 `$SECGUARDIAN_HOME/knowledge/protocols/dispatch-protocol.md` 统一调度。**
 
 ---
 

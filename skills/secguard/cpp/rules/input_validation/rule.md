@@ -19,7 +19,7 @@ cwe: [CWE-20]
 |------|-----|
 | skill_id | `validation.input` |
 | signal_filter | `validation.input*`（供 `secguard ./src c validation.input` 过滤匹配） |
-| signal_source | `call_sites[cat="exec"]` |
+| signal_source | `call_sites[cat="exec"] | pointer_validations[...]` |
 | 默认严重度 | High |
 
 ---

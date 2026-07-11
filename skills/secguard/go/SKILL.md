@@ -11,7 +11,7 @@ topic: [web, concurrency, crypto, system]
 本文件是 `skills/secguard/go/` 下 10 个检视算子 skill 的主索引 / 派发表。
 每个算子对应 `rules/` 下的一个规则目录，包含自己的 `rule.md`。
 
-> **执行流程由 `commands/claude/secguard.md` 的 Dispatcher 协议调度。**
+> **执行流程由 `$SECGUARDIAN_HOME/knowledge/protocols/dispatch-protocol.md` 统一调度。**
 > 本文件只做三件事：(1) 查表选 skill；(2) 按信号分类；(3) 引用 Dispatcher。
 
 ---
@@ -80,7 +80,7 @@ Go 使用**全量加载 → 符号表裁剪**策略：
 
 ## 4. 执行流程（引用 Dispatcher 协议）
 
-> **完整执行流水线见 [`commands/claude/secguard.md`](../../../commands/claude/secguard.md)。**
+> **完整执行流水线见 `$SECGUARDIAN_HOME/knowledge/protocols/dispatch-protocol.md`。**
 > 此处仅摘要与 skill 派发相关的步骤：
 
 | Step | 职责 | 归属层 |
