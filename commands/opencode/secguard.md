@@ -382,13 +382,14 @@ python3 "$SCRIPTS_DIR/gen-task-prompts.py" \
     --json > "$SCAN_DIR/task-prompts.json"
 ```
 
-> **禁止**用 `Read` 读取 `partition-plan.json` 或 `task-prompts.json` 全文。compact schedule 的 text 输出已足够 dispatcher 做调度决策。
-> **禁止**手写 Task prompt——所有 batch 的 prompt 由 `gen-task-prompts.py` 预生成，包含 canonical JSON schema。
+> **禁止**用 `Read` 读取 `partition-plan.json`（用 compact-schedule.py 代替）。
+> **禁止**手写 Task prompt（用 gen-task-prompts.py 预生成）。
+> **禁止**用 `Read` 读取 `$SCRIPTS_DIR/` 下的脚本文件。
 
 ```bash
 USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
 source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
-# 引擎产出平台无关 partition 计划：{rule: [batch1, batch2, ...]}（per-rule 隔离，ADR-006）
+# 引擎产出平台无关 partition 计划
 python3 "$SCRIPTS_DIR/partition-signals.py" \
     --index "$USER_PROJECT/.codeagent/secguardian/index.json" \
     --rules-dir "$RULES_DIR" \
@@ -396,54 +397,46 @@ python3 "$SCRIPTS_DIR/partition-signals.py" \
     --json > "$SCAN_DIR/partition-plan.json"
 ```
 
-> **依据**: `knowledge/protocols/dispatch-protocol.md`（单一真理源）。校验是强约束：finding 的 severity、CWE、evidence 必须匹配 rule.md 的 Detection Spec。跳过规则文件加载的 finding 将被拒绝。OpenCode 平台调度原语见该协议 §5（串行 Agent 隔离，每个 (rule, batch) 独立上下文）。
-
 ---
 
-## Phase 2: per (rule, batch) 调度 — 串行 Agent 隔离
-
-> **设计依据**: `knowledge/protocols/dispatch-protocol.md §3` + ADR-006 (per-rule 隔离)。
-> **关键决策 (CHANGE-004)**: 串行内联被测试证伪——LLM 在主上下文处理 3 条 rule 后自行丢弃 12/15 规则。每个 (rule, batch) 必须获得干净的上下文，禁止累积其他 rule 的调查内容。
-> **CHANGE-005**: OpenCode 必须用 `Task` 子代理执行每个 nonempty `(rule_id,batch_id)`。主 dispatcher 禁止直接内联 Steps 4-8，禁止把多个 batch 合并到一个 Task。
-
-**NON-NEGOTIABLE: OpenCode Phase 2 执行原语**
-
-Phase 2 只能按以下方式执行：
-
-1. 主 dispatcher 只生成 compact schedule：`rule_id | batch_id | signal_count | rule_path`。禁止用 `Read` 读取完整 `partition-plan.json`，禁止把完整 signal-rich plan 放入父上下文。
-2. 每个 nonempty `(rule_id,batch_id)` 必须启动一个独立 `Task` 子代理，`subagent_type=general`。一个 Task 只处理一个 batch。
-3. 禁止使用 “complete remaining batches”、“process all remaining rules”、“处理剩余所有批次” 这类合并式 Task prompt。
-4. 禁止主 dispatcher 自己读取 `rule.md`、源码窗口、`hypotheses.json`、`evidence.json`、`counter_evidence.json`、`judge_verdict.json` 后手工补判。
-5. Task 返回后，主 dispatcher 只记录该 batch 的完成状态和工件路径。统计必须来自 `verification-gate.py`、`coverage-gate.py` 和 renderer artifacts。
-6. 所有临时文件写入 `$SCAN_DIR/.tmp/`（由 `gen-task-prompts.py` 自动创建）。不使用系统 `/tmp/`。
-
-**调度模式（唯一，不可绕过）：**
-
-```
-每个 nonempty (rule, batch) = 一个独立 Task 子代理（串行启动，但上下文隔离）
-```
-
-- Pilot batch: 选择 signal 最少的非空 batch，启动一个 Task 子代理执行。pilot 的 verification-gate 校验失败时立即停止，禁止继续。
-- 剩余 batch: **串行逐个 Task**。每个 batch 一个新的 Task 子代理，禁止任何 Task 处理多个 batch。
-- 每个 batch 只处理一个精确 `(rule_id, batch_id)`，禁止合并多个 rule 或 batch。
-
-**上下文隔离硬约束（CHANGE-004）：**
-- 每个 batch 开始前，必须清空对该 batch 源码的预读缓存——禁止在 batch 开始前预读 rule.md 或源文件
-- 每个 batch 只能 Read:
-  1. 当前 batch 的唯一 `rule.md`（规则文件）
-  2. batch 信号中每个 signal 的源码窗口：`Read(file, offset=signal.line-N, limit=2N)`，N 默认 15
-  3. 禁止不带 offset/limit 的完整源文件 Read
-  4. 禁止一次性读取所有 rule.md（必须在各自的 batch 内读取）
-- 处理完一个 batch 后：只保留 findings 摘要 + 工件路径。完整源文件内容、完整 rule.md 内容必须从当前上下文中丢弃。
-- 处理下一个 batch 前：上下文只包含 rule_id、batch_id、信号列表（不含源码）。开始新 batch 时重新从 rule.md 读取。
+## Phase 2: per-batch Task dispatch [NON-SKIPPABLE] [NON-NEGOTIABLE]
 
 <!-- @secguardian:non-skippable step=rule-loading -->
-**每个 Task 内工作流程（Steps 4-8，独立执行）：**
+**以下 bash 块是 Phase 2 的唯一入口。禁止跳过，禁止替换为内联 python3 -c。**
 
-1. Read 当前 batch 的唯一 `rule.md` 获取 Detection Spec + Q-matrix canonical 名
-2. 对每个 signal，Read 源码窗口（带 offset/limit）→ Hypothesis Generator → Investigator → Counter Evidence → Judge + Q-matrix → Record
-3. 工件写入 `workers/<rule_id>/<batch_id>/`，禁止多个 batch 共用文件
-4. 只保留 findings 摘要给下一个 batch，丢弃完整上下文
+```bash
+USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
+source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
+
+# 1. compact schedule（LLM 只读 stdout，不读 plan 文件）
+python3 "$SCRIPTS_DIR/compact-schedule.py" --plan "$SCAN_DIR/partition-plan.json"
+
+# 2. 预生成标准化 Task prompts
+python3 "$SCRIPTS_DIR/gen-task-prompts.py" \
+    --plan "$SCAN_DIR/partition-plan.json" \
+    --project "$USER_PROJECT" \
+    --scan-dir "$SCAN_DIR" \
+    --index-json "$USER_PROJECT/.codeagent/secguardian/index.json" \
+    --json > "$SCAN_DIR/task-prompts.json"
+```
+
+**此 bash 块执行完毕后，LLM 的行为约束：**
+
+| 步骤 | 操作 | 工具 |
+|------|------|------|
+| A | 读 `task-prompts.json`，选 signal 最少的 batch 作 pilot | `Read`（仅读该文件） |
+| B | 对 pilot batch，取其 `prompt` 字段**原文**，启动 `Task` 子代理 | `Task`，`subagent_type=general` |
+| C | 等待 pilot 完成，检查工件存在（`hypotheses.json`等） | `Bash` |
+| D | 对剩余 batch，逐个取其 `prompt` 字段原文，启动独立 `Task` | `Task` |
+
+**禁止清单**：
+- 禁止合并多个 batch 到一个 Task（`complete remaining` 等）
+- 禁止父 dispatcher 读取 rule.md、源码、judge_verdict.json
+- 禁止手写 Task prompt（全部来自 `task-prompts.json`）
+- 禁止 todowrite、禁止探索目录、禁止 Read 二进制文件
+- 临时文件写入 `$SCAN_DIR/.tmp/`（已由 gen-task-prompts.py 创建）
+
+**每个 Task 子代理的标准 prompt 已由 gen-task-prompts.py 预生成，包含完整的 canonical JSON Schema（judge_verdict、blindspot、record-finding 格式）。**
 
 **Task prompt 最小模板（每个 batch 单独生成，禁止复用为多 batch prompt）。必须包含完整的 JSON Schema，确保 20 个独立 Task 产出的 artifact 格式 100% 一致。**
 
@@ -677,16 +670,16 @@ fi
 echo "✓ All batches have blindspot.json"
 ```
 
-**Step 2: 汇总 verdict 统计 + 查询 findings**
+**Phase 3 入口（在 Step 7 引擎强制后执行，禁止用内联 python3 -c）**
 
 ```bash
 USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
 source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
 
-# 扫描所有 judge_verdict.json，输出 confirmed/suppressed/unknown 统计
+# 1. verdict 汇总
 python3 "$SCRIPTS_DIR/scan-verdicts.py" --scan-dir "$SCAN_DIR/"
 
-# 查询 findings（替代内联 python3 -c + find loops）
+# 2. findings 查询
 python3 "$SCRIPTS_DIR/show-findings.py" --scan-dir "$SCAN_DIR/" --summary
 ```
 
