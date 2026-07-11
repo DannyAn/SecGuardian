@@ -1,7 +1,7 @@
 # Progress — FEATURE-001: Structural Enforcement Layer + Verification Oracle
 
 > **隶属**: EPIC-011 / FEATURE-001
-> **状态**: 🔄 进行中（设计四环就绪，实现待启动）
+> **状态**: 🔄 进行中（强制链已闭合，真实 Claude oracle 待执行）
 
 ## 状态总览
 
@@ -13,7 +13,7 @@
 | 📐 Plan | ✅ 就绪（TG-A~D，13 Task）|
 | 🔨 Task | 🔄 TG-A 启动中 |
 | 📊 Progress | 🔄 本文件 |
-| 🔄 Change | ⬜ 无 |
+| 🔄 Change | ✅ CHANGE-001 |
 
 ## Task 进度
 
@@ -28,6 +28,10 @@
 - [x] TASK-005 render-report 接入 gate ✅ 2026-07-10（读 gate-audit.json，confirmed 才计入 scoring/CI，needs_review 排除；实证 bad-anchor Critical 2→1、67→82 分；e2e §16）
 - [x] TASK-006 Q-matrix 一致性校验 ✅ 2026-07-10（verification-gate 读 workers/*/judge_verdict.json，校验 conclusion 与 Q1/Q3 一致性 per canonical 极性；F7 极性矛盾→needs_review；self-test 检出 2 矛盾；canonical 矩阵写入 dispatch-protocol.md。45 规则 Q-matrix 全覆盖待 FEATURE-003 增量）
 - [x] TASK-007 信号覆盖下限 ✅ 2026-07-10（`coverage-gate.py`：self-test 绿；真实 cpp PASSED 11.17%；模拟 batch-suppression BLOCKED exit 1；e2e §15 接入）
+- [x] TASK-014a secguard 端到端强制链 ✅ 2026-07-11（显式语言/规则路径/打包修复；20 C++ rules 全量解析；稳定 assignment ID；per-batch artifact + Judge 硬门；coverage 逐 assignment 核销；L4/L5 56/56）
+- [ ] TASK-014b no-answers 真实 Claude oracle（补全独立 ground truth 后运行，不以 session 手工 finding 作为验收）
+- [x] TASK-015a 生产扫描调度优化 ✅ 2026-07-11（真实慢扫描日志回放；pilot-first rolling dispatch；禁止父上下文全量预读/多 rule Agent/轮询/手工计数；gate fail-closed。曾尝试的 callee/kind 硬过滤和单假设因违反 recall-first 架构且无 oracle 证明，已在验收前撤销）
+- [ ] TASK-015b 重新运行真实 Claude no-answers 扫描，记录 wall-clock 与 gate-confirmed 结果
 
 ### TG-C: Pillar B 验证回路
 - [x] TASK-008 verify-recall.py ✅ 2026-07-10（ground-truth oracle：normalize_verdict + case_matches_finding + evaluate；self-test 确定性数学绿；python/cpp 真实基线产出 recall/precision）
@@ -43,7 +47,7 @@
 3. **cpp 行号对齐**：cpp ground truth 用 line 定位且 function 缺失，与 finding 行号 ±2 未对齐 → recall 虚低（0.0）。需 expected-results 补 function 或对齐行号。
 
 ### TG-D: 死代码与协议
-- [ ] TASK-011 恢复 claude Steps 4-8
+- [ ] TASK-011 恢复 claude Steps 4-8（F1 已完成基础恢复；CHANGE-003 进一步：知识加载 Read 工具 + 调度模式选择）
 - [ ] TASK-012 diff_parser 接入
 - [ ] TASK-013 协议字段
 

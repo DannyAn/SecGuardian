@@ -60,6 +60,7 @@ Investigation Pipeline（Hypothesis → Investigator → Counter Evidence →
 | S11 语义模式（4 类） | 4 单测 | `go test -tags cgo -run TestS11 ./parser/` |
 | per-rule 隔离调度 | partition self-test + 16 rules/21 batches | `partition-signals.py --self-test` |
 | 三平台 pipeline 一致 | Step4/partition/协议引用/coverage-gate 各 1 | self-check §14 |
+| 调度模式自适应 | ≤8 batch 串行内联，>8 Agent 可选 | CHANGE-003 |
 | CI 门禁真退出 | e2e §6 断言进程 exit 1 | `bash scripts/e2e-verify.sh` |
 | coverage-gate 反 batch-suppression | e2e §15 BLOCKED | `coverage-gate.py --self-test` |
 | verification-gate 反旁路 | e2e §16 bad-anchor 排除 | `verification-gate.py --self-test` |

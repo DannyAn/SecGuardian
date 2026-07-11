@@ -2,6 +2,7 @@
 
 > 验证 FEATURE-003 三轮验证管道的精度和召回率。
 > Ground truth 定义在 [expected-results.json](expected-results.json) 中。
+> **当前状态: INVALID / 不可作为发布门禁。** 源码演进后行号锚点已漂移。已修复 detector ID 引用（web.sql-injection → injection.command_injection; concurrency.race-condition → concurrency.lock; memory.buffer-overflow → memory.buffer_overflow; memory.memory_leak → memory.leak）。P2-03 对未知 `void *dst` 容量也不能证明安全。先运行 `scripts/validate-benchmark.py` 修复基线，再计算 precision/recall。
 
 ## 测试规模
 
@@ -53,9 +54,9 @@
 
 | # | 文件 | 行 | 触发 Detector | 安全机制 | P1 期望 |
 |---|------|----|-------------|---------|--------|
-| P1-01 | p1_safecopy_wrapper.c | 24 | memory.buffer-overflow | SafeCopy_copy 保证 bounds_checked | **exempted** |
-| P1-02 | p1_safecopy_wrapper.c | 31 | memory.buffer-overflow | SafeCopy_strcpy 保证 bounds_checked | **exempted** |
-| P1-03 | p1_safequery_wrapper.c | 38 | web.sql-injection | SafeQuery 保证 prepared_statement | **exempted** |
+| P1-01 | p1_safecopy_wrapper.c | 24 | memory.buffer_overflow | SafeCopy_copy 保证 bounds_checked | **exempted** |
+| P1-02 | p1_safecopy_wrapper.c | 31 | memory.buffer_overflow | SafeCopy_strcpy 保证 bounds_checked | **exempted** |
+| P1-03 | p1_safequery_wrapper.c | 38 | injection.command_injection | SafeQuery 保证 prepared_statement | **exempted** |
 
 **期望**: 3/3 Finding → P1 exempted → dismissed.
 
@@ -67,10 +68,10 @@
 
 | # | 文件 | 行 | 触发 Detector | 反证 | P2 期望 |
 |---|------|----|-------------|------|--------|
-| P2-01 | p2_raii_memory.c | 29 | memory.memory-leak | ResourceHandle RAII (构造分配+析构释放) | **counter_evidence_found** |
-| P2-02 | p2_lock_guard.c | 40 | concurrency.race-condition | LockGuard mutex 守卫 | **counter_evidence_found** |
-| P2-03 | p2_bounds_checked.c | 28 | memory.buffer-overflow | `if (user_len > MAX_MSG_SIZE) return` bounds check | **counter_evidence_found** |
-| P2-04 | p2_bounds_checked.c | 41 | memory.buffer-overflow | `if (user_len >= sizeof(dst)) return` sizeof guard | **counter_evidence_found** |
+| P2-01 | p2_raii_memory.c | 29 | memory.memory_leak | ResourceHandle RAII (构造分配+析构释放) | **counter_evidence_found** |
+| P2-02 | p2_lock_guard.c | 40 | concurrency.lock | LockGuard mutex 守卫 | **counter_evidence_found** |
+| P2-03 | p2_bounds_checked.c | 28 | memory.buffer_overflow | `if (user_len > MAX_MSG_SIZE) return` bounds check | **counter_evidence_found** |
+| P2-04 | p2_bounds_checked.c | 41 | memory.buffer_overflow | `if (user_len >= sizeof(dst)) return` sizeof guard | **counter_evidence_found** |
 
 **期望**: 4/4 Finding → P2 counter_evidence_found → dismissed.
 
@@ -82,8 +83,8 @@
 
 | # | 文件 | 行 | 触发 Detector | 有保护但不充分 | P3 期望 |
 |---|------|----|-------------|--------------|--------|
-| P3-01 | p3_edge_case.c | 40 | system.command-injection | is_safe_input 过滤分号但不防御 &&, \|\|, \$() | **suspected** |
-| P3-02 | p3_edge_case.c | 60 | concurrency.race-condition | pthread_mutex_lock 保护了读取但 lock-unlock 间有 TOCTOU 窗口 | **suspected** |
+| P3-01 | p3_edge_case.c | 40 | injection.command_injection | is_safe_input 过滤分号但不防御 &&, \|\|, \$() | **suspected** |
+| P3-02 | p3_edge_case.c | 60 | concurrency.lock | pthread_mutex_lock 保护了读取但 lock-unlock 间有 TOCTOU 窗口 | **suspected** |
 
 **期望**: 2/2 Finding → P3 suspected → 保留在 Certified Finding 中标记需人工确认。
 
@@ -95,8 +96,8 @@
 
 | # | 文件 | 行 | 触发 Detector | 漏洞 | 期望 |
 |---|------|----|-------------|------|------|
-| TP-01 | p1_safecopy_wrapper.c | 62 | memory.buffer-overflow | `memcpy(buf, user_input, strlen(user_input))` 无 bounds check | P3 **confirmed** |
-| TP-02 | p1_safequery_wrapper.c | 53 | web.sql-injection | `sprintf(query, "SELECT ... '%s'", username)` 字符串拼接 SQL | P3 **confirmed** |
+| TP-01 | p1_safecopy_wrapper.c | 62 | memory.buffer_overflow | `memcpy(buf, user_input, strlen(user_input))` 无 bounds check | P3 **confirmed** |
+| TP-02 | p1_safequery_wrapper.c | 53 | injection.command_injection | `sprintf(query, "SELECT ... '%s'", username)` 字符串拼接 SQL | P3 **confirmed** |
 
 **期望**: 2/2 Finding → P3 confirmed → Certified Finding.
 
@@ -154,11 +155,11 @@ Scenario B — 三轮验证后 (目标):
 
 ```bash
 # 1. 索引
-secguardian-index --path examples/fp-verification-demo/src \
+secguardian-index --path examples/cpp-vuln-demo-no-answers/src \
   --output .codeagent/fp-test/index.json
 
 # 2. 扫描 (AI Agent 执行 Detector)
-/secguard examples/fp-verification-demo/src
+/secguard examples/cpp-vuln-demo-no-answers/src
 
 # 3. 验证管道 (AI Agent 执行 Step 3.5)
 #    → 产出 dismissed.json + verification-audit.json
@@ -166,7 +167,7 @@ secguardian-index --path examples/fp-verification-demo/src \
 # 4. 对比 ground truth
 diff <(python3 -c "
 import json
-with open('examples/fp-verification-demo/expected-results.json') as f:
+with open('examples/cpp-vuln-demo-no-answers/expected-results.json') as f:
     expected = json.load(f)
 # 提取期望的 dismissed/certified 数量
 ") <(python3 -c "
