@@ -6,7 +6,7 @@ language: cpp
 topic: [memory]
 skill_id: memory.must
 signal_filter: memory.must*
-signal_source: call_sites[cat="memory|io"]
+signal_source: call_sites[callee="malloc|realloc|calloc|fopen|fread|fgets|scanf|gets"]
 severity: high
 cwe: [CWE-252]
 ---

@@ -6,7 +6,7 @@ language: cpp
 topic: [memory]
 skill_id: memory.mismatched_free
 signal_filter: memory.mismatched_free*
-signal_source: call_sites[cat="memory"]
+signal_source: call_sites[callee="free|delete|malloc|calloc|realloc"]
 severity: high
 cwe: [CWE-762]
 ---

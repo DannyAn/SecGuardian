@@ -6,7 +6,7 @@ language: cpp
 topic: [memory]
 skill_id: memory.buffer_overflow
 signal_filter: memory.buffer*
-signal_source: call_sites[cat="string", cat="memory"]
+signal_source: call_sites[callee="strcpy|strcat|sprintf|gets|scanf|fgets|memcpy|memmove|strncpy|snprintf|vsprintf|strcpy_s|sprintf_s|memcpy_s|strcat_s"]
 severity: critical
 cwe: [CWE-120, CWE-122, CWE-193, CWE-787]
 ---

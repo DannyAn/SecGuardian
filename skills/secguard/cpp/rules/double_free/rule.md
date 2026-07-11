@@ -6,7 +6,7 @@ language: cpp
 topic: [memory]
 skill_id: memory.double
 signal_filter: memory.double*
-signal_source: call_sites[cat="memory"]
+signal_source: call_sites[callee="free|delete"]
 severity: critical
 cwe: [CWE-415]
 ---

@@ -6,7 +6,7 @@ language: cpp
 topic: [memory]
 skill_id: semantics.api
 signal_filter: semantics.api*
-signal_source: call_sites[cat="*"]
+signal_source: call_sites[callee="realloc|memset|snprintf|strncpy|memcpy|memmove|strcpy_s|memcpy_s|scanf_s|sprintf|strcat|strcpy"]
 severity: high
 cwe: [CWE-628]
 ---

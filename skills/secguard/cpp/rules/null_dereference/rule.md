@@ -6,7 +6,7 @@ language: cpp
 topic: [memory]
 skill_id: memory.null
 signal_filter: memory.null*
-signal_source: call_sites[cat="memory"]
+signal_source: call_sites[callee="malloc|calloc|realloc"]
 severity: critical
 cwe: [CWE-476]
 ---

@@ -6,7 +6,7 @@ language: cpp
 topic: [memory]
 skill_id: memory.leak
 signal_filter: memory.leak*
-signal_source: call_sites[cat="memory"]
+signal_source: call_sites[callee="malloc|calloc|realloc"]
 severity: high
 cwe: [CWE-401]
 ---
