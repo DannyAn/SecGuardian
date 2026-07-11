@@ -87,7 +87,8 @@ Findings → Verification Oracle（Pillar B：ground-truth recall/precision）
 |---|---------|------------|------|---------|
 | 1 | **Structural Enforcement Layer + Verification Oracle**（Pillar A+B）| F1,F2,F3,F4,F8,F11,F12,F13 | P0 | ✅ 四环就绪 |
 | 2 | **Tree-sitter Primary + CFG Construction**（Pillar 0）| F5,F6 + 架构升级 | P0 | ✅ 四环 + 实现启动 |
-| 6 | **Context-Budget Partitioning**（F8 结构性修复）| F8 根因 + 规模约束 | P0 | Spec 纲要（本文 §7）|
+| 6 | **Context-Budget Partitioning**（F8 结构性修复）| F8 根因 + 规模约束 | P0 | ✅ 四环就绪，CHANGE-003/004/005 持续修复 |
+| 7 | **Signal Precision & Function-Level Context Assembly** | 信号路由精准化 + 确定性预筛 + 调用图修复 + 函数级上下文 | P0 | ✅ 四环就绪（2026-07-11）|
 | 3 | Rule Q-Matrix Normalization | F7,F14 | P1 | Spec 纲要（本文 §7）|
 | 4 | Finding Identity v2 | F9 | P1 | Spec 纲要（本文 §7）|
 | 5 | Protocol Single-Source & Drift Elimination | F10 | P1 | Spec 纲要（本文 §7）|

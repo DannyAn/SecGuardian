@@ -16,8 +16,9 @@ secguard 调度模型：**每条 rule（每有界 batch）一个隔离 LLM 任�
 引擎（一次）: 索引 → 信号 S1-S11 + CFG + symbols（全打 rule 相关标签）
 引擎（M3）  : partition-signals.py → {rule: [batch1, batch2, ...]}  ← 平台无关产物
 调度（适配）: per (rule, batch) 一个隔离任务
-              Claude Code: Agent 子代理 / batch
-              OpenCode   : 串行内联（无后台任务，TUI 约束）
+              Claude Code: Agent 子代理 / batch（可滚动并发）
+              OpenCode   : Task 子代理 / batch（串行启动，上下文隔离）
+              Gemini CLI : 未验证隔离原语；多 batch fail-closed
 强制（引擎）: record-finding → verification-gate → render-report → coverage-gate
 ```
 
@@ -25,7 +26,7 @@ secguard 调度模型：**每条 rule（每有界 batch）一个隔离 LLM 任�
 1. **per-rule 隔离 = 质量**（关切 #1）：LLM 聚焦一条 rule 的 danger/safe/FP 模式，判断一致、可复现、低干扰。全 rule 批量喂会让 LLM 注意力分散、不逐个跑、结果漂移——正是旧版不可信之源。
 2. **引擎预过滤 = 可负担**（关切 #3）：旧 30-skill 慢在"每 skill 从头重扫全代码库" O(N×库)。现在引擎只解析一次 O(库)，每 rule 任务只处理其 `signal_source` 相关信号 O(相关信号)。N rule × O(相关信号) ≪ N × O(库)。叠加 prescreener 降噪 + oracle 可调 batch，per-rule 隔离变可负担。
 3. **有界 batch = 不淹没**（关切 #1）：一条 rule 有 50 信号时，按 `BATCH_SIZE`（如 20）分批，每批有界上下文，防 LLM 面对海量信息失真；coverage-gate 强制按批核算，堵 batch-suppression。
-4. **平台无关 partition + 平台适配调度**（关切 #1 跨平台痛）：partition 计划是引擎 JSON 产物，平台无关；仅调度机制随平台。命令模板只读 partition 计划 + 按平台调度，不在模板里硬编码调度细节。
+4. **平台无关 partition + 平台能力适配调度**（关切 #1 跨平台痛）：partition 计划是引擎 JSON 产物，平台无关；调度机制随平台能力适配。跨平台一致性来自机器产物和 gate，不来自相同自然语言 prompt。无可靠隔离原语的平台不得声称等价，必须 fail-closed 或降级到单 batch。
 
 ### Rejected Alternatives
 | 方案 | 否决原因 |
@@ -48,7 +49,7 @@ secaudit 的扁平 rule（一个 .md 捆一域多 rule）无法 per-rule 隔离�
 ```
 dispatch(rule_md_path, signal_batch, context_bundle) → findings[]
 ```
-- Claude Code: `Agent` 工具，每个 (rule, batch) 启子代理，上下文隔离
-- OpenCode: 串行内联，逐 (rule, batch) 执行（TUI 无后台任务）
-- Gemini: 同 OpenCode 串行
-命令模板只负责"读 partition 计划 → 按平台 dispatch → 收 findings → 走强制层"。
+- Claude Code: `Agent` 工具，每个 (rule, batch) 启子代理，上下文隔离，可滚动并发
+- OpenCode: `Task` 子代理，每个 (rule, batch) 一个任务，串行启动但上下文隔离
+- Gemini: 当前未验证隔离原语；多 batch 必须 BLOCKED，直到实现独立上下文 runner
+命令模板只负责"生成 partition 计划 → 按平台能力 dispatch → 收工件摘要 → 走强制层"。模板不得复制完整 pipeline，不得让父上下文执行调查。

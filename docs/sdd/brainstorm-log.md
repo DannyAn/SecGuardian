@@ -5,6 +5,134 @@
 
 ---
 
+## 2026-07-11 — 信号精度与函数级上下文：从 OpenCode 崩溃回溯架构缺陷
+
+### 背景
+
+用户执行 `/secguard examples/cpp-vuln-demo-no-answers/src cpp` 后，OpenCode session 崩溃。
+初步诊断发现不是"完全没用索引器"，而是 Phase 1 正确运行（索引器 15 文件、partition-signals 产出 20 rules / 32 batches / 571 assignments），
+但 Phase 2 执行过程中出现致命问题。
+
+深入剖析发现 5 个层级的架构缺陷：
+
+| 层级 | 缺陷 | 影响 |
+|------|------|------|
+| 信号路由 | 8 个 memory 规则全部用 `cat="memory"`，同一信号被重复分派到不相关规则 | double_free 收到 malloc/memcpy 信号，573 个 assignment 大部分是噪音 |
+| 预筛缺失 | prescreener 只认识 6 个安全函数名，不做 rule 级语义过滤 | 噪音信号全部进入 LLM，32 个 batch 中很多是纯 suppression batch |
+| 调用图断裂 | V1（user→user 边）因 V2 永远优先而成为死代码 | 调用链/被调用链信息为零，跨文件检测不可能 |
+| 上下文碎裂 | 信号按扁平列表分 batch，同一函数的不同调用被拆到不同 batch | LLM 看不到 free(entry->buffer) 和 free(entry) 在同一函数且操作同一对象 |
+| 平台漂移 | Gemini TOML 从 Claude 模板生成，携带 Agent 假设；OpenCode 模板允许多 batch 合并 | 跨平台行为不可预测，batch-suppression 在各平台不同程度复发 |
+
+### 讨论要点
+
+#### 1. 信号路由精度
+
+当前 `partition-signals.py` 完全有能力按 `callee` 名匹配——语法 `call_sites[callee="free|delete"]` 已支持。
+问题在于 `rule.md` frontmatter 的 `signal_source` 全部写成了粗粒度的 `cat="memory"`。
+
+**纠错**：并非索引器的能力问题，而是知识文件（rule.md）的配置问题。这解释了为什么 demo 项目（15 文件）能跑但吃力，而生产项目（684 文件）必然崩溃——噪音信号随文件数线性增长，但 batch 资源固定。
+
+#### 2. 索引器到底有多少可用的变量级数据
+
+检查 `index.json` 实际产出发现：
+
+| 数据 | 数量（demo） | 可用于什么预筛 |
+|------|------------|--------------|
+| `variable_writes` | 128 条 | use_after_free（first_read_line vs free_line） |
+| `pointer_validations` | 38 条 | null_dereference（has_null_check + is_dereferenced） |
+| `declarations` | 130 条（42 指针） | 变量类型 + 作用域判断 |
+| `cfgs` | 103 个函数 | 支配关系、exit 可达性 |
+| `taint_flows` | 10 条 | command_injection 污点源→sink |
+| `alloc_free` | 19 pairs | double_free（同 alloc 多次 free）、memory_leak（无配对 free） |
+
+**核心发现**：数据已经存在，但没有任何组件消费这些数据做预筛。prescreener 只消费了 `call_sites + declarations`，
+`partition-signals.py` 只做 category 匹配。`variable_writes`/`pointer_validations`/`cfgs`/`taint_flows` 全部闲置。
+
+#### 3. 业界对照
+
+用户质疑架构是否杜撰。审查了 Coverity/Infer/Clang Static Analyzer/CodeQL 的四层结构：
+**IR 构建 → Checker 注册 → Checker 消费 IR → 产出 finding + 证据链**。
+
+SecGuardian 的四层对应：**CST 符号提取 → rule.md frontmatter → 确定性预筛器 → LLM 语义判断**。
+差异在于 LLM 替代了传统 Checker 的规则引擎，但这要求预筛器把噪音降到可管理规模。
+
+业界成熟工具（Coverity 等）的 alloc/free 配对也走的文本模式匹配，不是完整数据流——Coverity 的 `ALLOC_FREE_MISMATCH` checker 同样依赖函数名匹配。
+所以我们用 callee 文本 + 变量名近似匹配做预筛，在业界是成立的。
+
+#### 4. `llm_malloc`/`llm_free` 等自定义配对
+
+用户指出企业中 `llm_malloc`/`llm_free`、`nat_alloc`/`nat_release` 等自定义配对无法穷举。
+**不需要穷举**——这不是索引器的职责。LLM 完全有能力从语义上识别 `*_malloc`/`*_free`/`*_alloc`/`*_release`/`*_create`/`*_destroy` 的配对关系，
+但前提是 LLM 能**同时看到配对双方在同一个函数的上下文里**。
+这意味着问题从"如何配置配对规则"变成了"如何让 LLM 看到完整上下文"。
+
+#### 5. 跨语言兼容性
+
+各语言的索引器数据丰富度不同：
+
+| 语言 | parser | CFG | taint | alloc_free | lock_graph | pointer_valid |
+|------|--------|-----|-------|------------|------------|--------------|
+| C/C++ | tree-sitter | ✅ 103 函数 | ✅ 10 条 | ✅ 19 pairs | ✅ 12 mutexes | ✅ 38 条 |
+| Python | tree-sitter | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Java | tree-sitter | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Go | tree-sitter | ❌ | ❌ | ❌ | ❌ | ❌ |
+| JS | regex fallback | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+**结论**：预筛不能做全语言统一假设。C/C++ 可以做深度预筛，其他语言只能做 callee 级路由 + 函数级分组。
+架构必须设计为**能力分层**——每层预筛可选，语言能力不够时自动降级。
+
+#### 6. TDD 要求
+
+用户强调测试驱动开发。每个改动必须先写测试、先定义验收标准、先确认失败的测试场景。
+本 Feature 的每个 Task 必须包含：验收测试用例、失败场景、可复现的验证命令。
+
+#### 7. buffer_overflow 检测设计纠偏（2026-07-11 用户纠正）
+
+用户在审阅 spec 初稿时指出："遇到 `strcpy_s(dst, sizeof(dst), src)` 直接标记安全"是架构上的设计缺陷——
+会导致 Index Out of Bounds、sizeof(ptr) 误用、memcpy 越界等场景全部漏检。
+
+**对标业界三层模型**：
+对照 Coverity/SAL/Clang Static Analyzer 的最佳实践，修正 buffer_overflow 检测模型为三层：
+
+1. **容量追踪**：从声明/分配推导每个缓冲区的实际字节容量。栈数组有 declarations.array_size，堆分配需要变量级追踪（M2），参数需要注解或推断（M2+）。
+2. **写入校验**：在每次写入操作点验证写入量 ≤ 缓冲区容量。strcpy 的写入量 = strlen(src)+1，memcpy 的写入量 = 第三个参数值。
+3. **安全变体验证**：`_s` 函数不等于安全——它的 size 参数必须与实际缓冲区容量一致。`sizeof(ptr)` 返回指针大小（8 字节），不是缓冲区容量。
+
+**关键场景**：
+```
+✅ strcpy_s(buf, sizeof(buf), src)         // buf 是 char[64]，sizeof=64=capacity
+❌ strcpy_s(ptr, sizeof(ptr), src)         // ptr 是 char*，sizeof(ptr)=8 ≠ capacity
+⚠️ memcpy(dst, src, user_len)              // user_len 需验证 ≤ dst_capacity
+⚠️ dst[idx] = val                          // Index Out of Bounds，需验证 idx < array_size
+```
+
+**与 prescreener 的关系**：当前 prescreener 已经保守处理——只过滤"栈数组 + sizeof 匹配 + 源非动态分配"的三重条件满足的信号。本 Feature 不推翻当前逻辑，而是在此基础上增加"写入量-容量对比"和"sizeof(ptr) 误用检测"。
+
+### 最终方案
+
+创建 **FEATURE-007: Signal Precision & Function-Level Context Assembly**，隶属 EPIC-011。
+包含 4 个 Phase + 1 个 Cross-language Adapter：
+
+- **P1: 精确路由** — 8 个 C++ rule 的 `signal_source` 从 `cat="*"` 改为 callee 名匹配
+- **P2: 确定性预筛** — 新增 `prefilter.py`，消费 variable_writes/pointer_validations/cfgs/taint_flows/alloc_free，做 6 个 rule 的保守预筛
+- **P3: 调用图修复** — main.go 同时跑 V1+V2，合并 user→user + user→lib 边
+- **P4: 函数级上下文** — partition-signals 新增 per-function 分组模式，LLM 接收同函数的全部信号 + 调用链 + 变量流转 + CFG 切片
+- **Cross-language**: 所有语言共享 P4（函数分组），P1/P2/P3 按语言能力分层
+
+### 影响范围
+
+- `internal/main.go` — V1+V2 合并
+- `internal/indexer/indexer.go` — 新增 `GroupByFunction` 导出
+- `internal/parser/types.go` — 新增 `FunctionCallContext` 类型
+- `internal/context/context.go` — AnalysisContext 新增字段
+- `scripts/prefilter.py` — 新增确定性预筛器
+- `scripts/partition-signals.py` — 新增 per-function 分组模式
+- `skills/secguard/cpp/rules/*/rule.md` — 8 个 rule 的 signal_source 精确化
+- `commands/{claude,opencode,gemini}/secguard.md` — 适配函数级上下文 prompt
+- `skills/secguard/{python,java,go,js}/rules/*/rule.md` — 对齐 callee 路由
+
+---
+
 ## 2026-07-06 — 会话质量增强：从 OpenCode 实测日志提炼 9 项系统性改进
 
 ### 背景
