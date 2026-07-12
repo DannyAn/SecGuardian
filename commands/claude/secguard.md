@@ -179,7 +179,6 @@ python3 "$SCRIPTS_DIR/validate-index.py" "$USER_PROJECT/.codeagent/secguardian/i
 USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
 source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
 
-# 引擎产出平台无关 partition 计划：{rule: [batch1, batch2, ...]}
 python3 "$SCRIPTS_DIR/partition-signals.py" \
     --index "$USER_PROJECT/.codeagent/secguardian/index.json" \
     --rules-dir "$RULES_DIR" \
@@ -187,90 +186,97 @@ python3 "$SCRIPTS_DIR/partition-signals.py" \
     --json > "$SCAN_DIR/partition-plan.json"
 ```
 
-### Step 5-8: per (rule, batch) Investigation Pipeline — Agent 隔离强制执行
+### Step 5: 生成 compact schedule + Agent prompts [NON-SKIPPABLE]
 
-> **设计依据**: `knowledge/protocols/dispatch-protocol.md §3`（共享 Investigation Pipeline）+ ADR-006（per-rule 隔离任务 + 引擎预过滤）。
-> **关键决策 (CHANGE-004)**: 串行内联被测试证伪——LLM 在共享上下文中读数个完整文件后自行丢弃剩余规则。每个 (rule, batch) 必须由独立 Agent 子代理执行，实现真上下文隔离，确保规则完整性不可由 LLM 自由意志绕过。
-
-**调度模式（唯一，不可绕过）：**
-
-```
-每个 (rule, batch) = 一个 Agent 子代理（真上下文隔离）
-```
-
-- Pilot batch: 选择 signal 最少的非空 batch，串行内联执行。pilot 的 verification-gate 校验失败时立即停止，禁止启动剩余 Agent。
-- 剩余 batch: Agent 滚动并发，并发上限 = min(4, remaining_batches)。一个 Agent 完成才补一个。
-- 每个 Agent 只处理一个精确 `(rule_id, batch_id)`，禁止合并多个 rule 或 batch。
-
-**上下文隔离硬约束（CHANGE-004）：**
-- 每个 Agent 启动时，上下文是干净的：不包含其他 rule 的调查内容、不包含完整源文件
-- 每个 Agent 只能 `Read`:
-  1. 唯一 `rule.md`（该 batch 的规则文件）
-  2. batch 信号中每个 signal 的源码窗口：`Read(file, offset=signal.line-N, limit=2N)`，N 默认 15
-  3. 禁止不带 offset/limit 的 Read 调用（禁止读完整源文件）
-- Agent 上下文结束后，主 dispatcher 只收：findings 摘要 + 工件路径。不累积完整 Investigation 内容。
-
-**Agent 工作流程（Steps 5-8，每个 Agent 内独立执行）：**
-
-1. 从主 dispatcher 接收 `rule_id`、`batch_id`、`rule.md` 路径、batch 信号列表
-2. 读取 `rule.md` 获取 Detection Spec + Q-matrix canonical 名
-3. 对每个 signal，Read 源码窗口（带 offset/limit）→ Hypothesis Generator → Investigator → Counter Evidence → Judge + Q-matrix → Record
-4. 工件写入 `workers/<rule_id>/<batch_id>/`，禁止多个 batch 共用文件
-5. 返回 findings 摘要给主 dispatcher
-
-**主 dispatcher 上下文约束：**
-- 禁止预读全部 rule.md、全部源码或完整 signal-rich plan
-- 只读 compact partition schedule（rule_id + batch_id + signal 数）+ 完成事件通知
-- 不轮询 Agent，不维护自然语言 running total
-- 所有统计从 gate/manifest artifacts 读取
-
-**Agent prompt 结构（每个 Agent 收到）：**
-```
-你是 SecGuardian 安全分析专家。执行以下 isolated batch 的 Investigation Pipeline:
-
-RULE: {rule_id}
-BATCH: {batch_id}
-RULE_FILE: {path/to/rule.md}
-SIGNALS: [{signal_id, file, line, kind, category}, ...]
-
-工作目录: workers/{rule_id}/{batch_id}/
-
-执行 Steps 5-8:
-- Step 5: 读 rule.md → 对每个 signal 生成 3-5 假设 → 写 hypotheses.json
-- Step 6: 逐假设收集三段式证据 → 写 evidence.json
-- Step 7: 逐 signal 尝试推翻 → 写 counter_evidence.json
-- Step 7.5: 用 rule.md 的 Q-matrix canonical 名判决 → 写 judge_verdict.json
-- Step 8: CONFIRMED → record-finding.py 录入
-
-返回: {confirmed: N, suppressed: M, findings: [...]}
-```
-
-**引擎强制（Agent 返回后，主 dispatcher 执行）：**
 ```bash
-# verification-gate: anchor/severity/Q-matrix 校验 → gate-audit.json
+USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
+source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
+
+# compact schedule（LLM 只读 stdout）
+python3 "$SCRIPTS_DIR/compact-schedule.py" --plan "$SCAN_DIR/partition-plan.json"
+
+# 标准化 Agent prompts（含 canonical JSON schema）
+python3 "$SCRIPTS_DIR/gen-task-prompts.py" \
+    --plan "$SCAN_DIR/partition-plan.json" \
+    --project "$USER_PROJECT" \
+    --scan-dir "$SCAN_DIR" \
+    --index-json "$USER_PROJECT/.codeagent/secguardian/index.json" \
+    --json > "$SCAN_DIR/task-prompts.json"
+```
+
+### Step 6-9: per-batch Agent dispatch [NON-NEGOTIABLE]
+
+> Claude Code 用 `Agent` 工具实现真上下文隔离。每个 Agent 的 prompt 来自 `task-prompts.json` 的 `prompt` 字段原文。
+
+| 阶段 | 操作 | 工具 |
+|------|------|------|
+| Pilot | 选 signal 最少的 batch，内联执行 | `Bash` + `Read`（仅该 batch 的 rule.md + 源码窗口） |
+| 剩余 | 每个 batch 一个 Agent，滚动并发（上限 4），prompt 取自 `task-prompts.json` | `Agent` |
+| 验证 | 每个 Agent 返回后检查 canonical 工件存在 | `Bash` |
+
+**禁止**：
+- 读完整 `partition-plan.json`（用 compact-schedule.py 代替）
+- 手写 Agent prompt（全部来自 `task-prompts.json`）
+- 合并多个 batch 到一个 Agent
+- 父 dispatcher 读 rule.md / 源码 / judge_verdict.json
+- `todowrite`、探索目录、Read 二进制文件
+- 临时文件用 `/tmp/`（`gen-task-prompts.py` 已创建 `$SCAN_DIR/.tmp/`）
+
+### Step 10: 引擎强制 + Phase 3 验证 [NON-SKIPPABLE]
+
+```bash
+USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
+source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
+
+# verification + coverage gate
 python3 "$SCRIPTS_DIR/verification-gate.py" \
     --index "$USER_PROJECT/.codeagent/secguardian/index.json" \
     --scan-dir "$SCAN_DIR/"
-# coverage-gate: 所有 (rule,batch) 完成后的 scan 级覆盖核算
 python3 "$SCRIPTS_DIR/coverage-gate.py" \
     --plan "$SCAN_DIR/partition-plan.json" \
     --scan-dir "$SCAN_DIR/"
+
+# verdict 汇总
+python3 "$SCRIPTS_DIR/scan-verdicts.py" --scan-dir "$SCAN_DIR/"
+
+# findings 查询
+python3 "$SCRIPTS_DIR/show-findings.py" --scan-dir "$SCAN_DIR/" --summary
 ```
 
-> **规则完整性保证**: per-rule 纪律由引擎强制（coverage-gate 逐 assignment 核销）+ Agent 上下文隔离（LLM 无法因上下文压力丢弃未处理的规则）。漏跑 rule → 该 rule 信号未 investigated → coverage-gate BLOCKED。
+gate 非零退出 → 禁止渲染。`gate-audit.json` 中 `needs_review > 0` → 不渲染。
 
-### Step 8.5: 引擎强制（验证 + 覆盖门禁）
+### Step 11: 渲染最终输出
 
 ```bash
-# verification-gate: anchor/severity 校验 → gate-audit.json（confirmed 才计入 CI）
-python3 "$SCRIPTS_DIR/verification-gate.py" \
+USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
+source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
+
+RENDERER="$SCRIPTS_DIR/render-report.py"
+python3 "$RENDERER" \
+    --command secguard \
+    --scan-id "$SCAN_ID" \
+    --findings-dir "$SCAN_DIR/findings/" \
+    --path "$SCAN_PATH" \
+    --language "$SCAN_LANG" \
     --index "$USER_PROJECT/.codeagent/secguardian/index.json" \
-    --scan-dir "$SCAN_DIR/"
-# coverage-gate: batch-suppression 拦截（signals>0 且 0 investigated → BLOCKED exit 1）
-python3 "$SCRIPTS_DIR/coverage-gate.py" \
-    --plan "$SCAN_DIR/partition-plan.json" \
-    --scan-dir "$SCAN_DIR/" \
-    --json > "$SCAN_DIR/coverage-audit.json"
+    --output "$SCAN_DIR/" \
+    --ci
+```
+
+### Step 12: 输出摘要（Project/Path 信息来源）
+
+```bash
+USER_PROJECT="$(cd "$(dirname "<path>")" && pwd)"
+source "$USER_PROJECT/.codeagent/secguardian/.scan_state.secguard"
+echo "SCAN_PATH=$SCAN_PATH"
+echo "USER_PROJECT=$USER_PROJECT"
+```
+
+**输出格式（禁止占位符）**：
+```
+## secguard 扫描完成
+
+Scan ID: <实际scan_id> | Project: <USER_PROJECT最后一级> | Path: <SCAN_PATH相对路径> | Language: cpp
 ```
 
 任一 gate 命令非零退出，或 `gate-audit.json` 中 `needs_review > 0`，扫描状态立即为 **BLOCKED**。禁止执行 Step 9，禁止把候选 finding 称为 confirmed；只输出失败的 rule/batch 和工件路径供诊断。
