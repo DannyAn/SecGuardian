@@ -5,7 +5,7 @@ language: go
 topic: [system, filesystem]
 skill_id: go.system.path-traversal
 signal_filter: go.system.path-traversal*
-signal_source: call_sites[category="*"]
+signal_source: call_sites[callee="Open|Create|OpenFile|ReadFile|WriteFile|ServeFile|ReadAll"]
 severity: high
 cwe: [CWE-22]
 trigger_functions: [os.Open, os.Create, os.OpenFile, ioutil.ReadFile, ioutil.WriteFile, filepath.Join, filepath.Clean, os.ReadFile, os.WriteFile, archive/zip.NewReader]

@@ -5,7 +5,7 @@ language: go
 topic: [error, web]
 skill_id: go.error.info-leak
 signal_filter: go.error.info-leak*
-signal_source: call_sites[category="*"]
+signal_source: call_sites[callee="Error|Fprintf|Sprintf|Println|Printf|Fatalf|Panicf|Write|WriteString"]
 severity: medium
 cwe: [CWE-248, CWE-209, CWE-532]
 trigger_functions: [recover, debug.Stack, debug.PrintStack, pprof, http.ListenAndServe]

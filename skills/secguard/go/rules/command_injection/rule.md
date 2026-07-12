@@ -5,7 +5,7 @@ language: go
 topic: [web, exec]
 skill_id: go.injection.command
 signal_filter: go.injection.command*
-signal_source: call_sites[category="*"]
+signal_source: call_sites[callee="Command|Start|Run|Output|CombinedOutput"]
 severity: critical
 cwe: [CWE-78]
 trigger_functions: [exec.Command, exec.CommandContext, os.StartProcess]

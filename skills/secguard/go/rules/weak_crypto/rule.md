@@ -5,7 +5,7 @@ language: go
 topic: [crypto]
 skill_id: go.crypto.weak
 signal_filter: go.crypto.weak*
-signal_source: call_sites[category="*"]
+signal_source: call_sites[callee="Sum|New|Sign|Verify|Read|Intn|Float64"]
 severity: high
 cwe: [CWE-327]
 trigger_functions: [crypto/md5.New, crypto/sha1.New, crypto/des.NewCipher, math/rand.Read, math/rand.Intn, crypto/rand.Read]

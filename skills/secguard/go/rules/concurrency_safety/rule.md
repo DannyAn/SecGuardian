@@ -5,7 +5,7 @@ language: go
 topic: [concurrency]
 skill_id: go.concurrency.safety
 signal_filter: go.concurrency.safety*
-signal_source: call_sites[category="*"]
+signal_source: call_sites[callee="Lock|Unlock|RLock|RUnlock|Go|Wait|Add|Done|Send|Close"]
 severity: medium
 cwe: [CWE-366, CWE-833]
 trigger_functions: [go, sync.Mutex, sync.RWMutex, sync.WaitGroup, sync.Map, sync.Once, make(chan), close]

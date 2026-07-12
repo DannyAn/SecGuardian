@@ -5,7 +5,7 @@ language: go
 topic: [web, database]
 skill_id: go.injection.sql
 signal_filter: go.injection.sql*
-signal_source: call_sites[category="*"]
+signal_source: call_sites[callee="Query|QueryRow|Exec|Prepare|Sprintf|Fprintf"]
 severity: critical
 cwe: [CWE-89]
 trigger_functions: [db.Query, db.Exec, db.QueryRow, sqlx.In, GORM.Raw, GORM.Exec]

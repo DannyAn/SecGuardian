@@ -5,7 +5,7 @@ language: go
 topic: [web, template]
 skill_id: go.injection.ssti
 signal_filter: go.injection.ssti*
-signal_source: call_sites[category="*"]
+signal_source: call_sites[callee="Execute|ExecuteTemplate|Parse|ParseFiles|ParseGlob|New|Must"]
 severity: critical
 cwe: [CWE-1336]
 trigger_functions: [template.New, template.Must, template.Parse, template.ParseFiles, template.ParseGlob]

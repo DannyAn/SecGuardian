@@ -5,7 +5,7 @@ language: go
 topic: [memory, cgo]
 skill_id: go.memory.cgo
 signal_filter: go.memory.cgo*
-signal_source: call_sites[category="*"]
+signal_source: call_sites[callee="C.malloc|C.free|C.calloc|C.realloc|UnsafePointer|Pointer"]
 severity: critical
 cwe: [CWE-120, CWE-415, CWE-416]
 trigger_functions: [C.CString, C.free, C.malloc, C.CBytes, C.GoBytes, C.GoString, cgo.Incomplete, cgo.Handle]

@@ -5,7 +5,7 @@ language: go
 topic: [web, network]
 skill_id: go.web.ssrf
 signal_filter: go.web.ssrf*
-signal_source: call_sites[category="*"]
+signal_source: call_sites[callee="Get|Post|Do|NewRequest|Dial|Listen"]
 severity: high
 cwe: [CWE-918]
 trigger_functions: [http.Get, http.Post, http.NewRequest, http.Client.Do, httputil.NewSingleHostReverseProxy, url.Parse]

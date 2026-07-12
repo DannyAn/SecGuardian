@@ -5,7 +5,7 @@ language: go
 topic: [crypto, secrets]
 skill_id: go.crypto.secrets
 signal_filter: go.crypto.secrets*
-signal_source: call_sites[category="*"]
+signal_source: call_sites[callee="Sum|New|Sign|Verify|GenerateKey"]+string_literals
 severity: high
 cwe: [CWE-798]
 trigger_functions: [os.Getenv, os.LookupEnv, flag]
