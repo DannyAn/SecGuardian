@@ -3,7 +3,7 @@ name: secguard-java-hardcoded-secrets
 description: "检测 Java 硬编码密钥/密码/Token — API Key / Password / Secret 字面量赋值"
 language: java
 topic: [crypto, secrets, credentials]
-skill_id: crypto.hardcoded-secrets
+skill_id: java.crypto.hardcoded-secrets
 signal_source: call_sites[callee="getConnection|getPassword|getSecret|getKey|getToken"]
 severity: high
 cwe: CWE-798

@@ -189,7 +189,7 @@ platform: opencode
 | `exec.input_validation` | input_validation | exec |
 | `io.resource_leak` | resource_leak | io |
 | `sync.lock_misuse` | lock_misuse | sync |
-| `crypto.hardcoded_secrets` | hardcoded_secrets | crypto |
+| `cpp.crypto.hardcoded_secrets` | hardcoded_secrets | crypto |
 | `error.error_propagation` | error_propagation | error |
 
 #### Python（`$SCAN_LANG=python`）
@@ -222,7 +222,7 @@ platform: opencode
 | `java.toctou.race` | toctou | sync |
 | `java.weak-crypto.algorithm` | weak_crypto | crypto |
 | `java.xxe.insecure-xml` | xxe | io |
-| `crypto.hardcoded-secrets` | hardcoded_secrets | crypto |
+| `java.crypto.hardcoded-secrets` | hardcoded_secrets | crypto |
 
 #### Go（`$SCAN_LANG=go`）
 

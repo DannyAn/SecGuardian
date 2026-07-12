@@ -1,12 +1,12 @@
 ---
 name: secguard-cpp-hardcoded_secrets
-description: "Detects hardcoded cryptographic keys, passwords, API tokens, and other secrets in C/C++ source code"
-category: language-specific
+description: "检测硬编码的密钥/密码/令牌（C/C++）"
+category: crypto
 language: cpp
 topic: [crypto]
-skill_id: crypto.hardcoded
-signal_filter: crypto.hardcoded*
-signal_source: call_sites[cat="crypto"]+string_literals
+skill_id: cpp.crypto.hardcoded_secrets
+signal_filter: cpp.crypto.hardcoded*
+signal_source: call_sites[callee="RAND_bytes|DES_set_key"]+string_literals
 severity: high
 cwe: [CWE-798]
 ---
