@@ -5,7 +5,7 @@ language: python
 topic: [web, injection, xss]
 skill_id: python.xss.template
 signal_filter: python.xss.template*
-signal_source: call_sites[category="template"]
+signal_source: call_sites[callee="render|render_template|mark_safe|Markup|escape"]
 severity: medium
 cwe: CWE-79
 trigger_functions: [mark_safe, render_template_string, HttpResponse, JsonResponse, format_html, format_html_join, safer, escape]

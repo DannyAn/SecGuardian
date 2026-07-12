@@ -5,7 +5,7 @@ language: python
 topic: [web, database, injection]
 skill_id: python.sql-injection.execute
 signal_filter: python.sql-injection.execute*
-signal_source: call_sites[category="database"]
+signal_source: call_sites[callee="execute|executemany|raw|cursor|executeQuery"]
 severity: high
 cwe: CWE-89
 trigger_functions: [cursor.execute, execute_many, sqlalchemy.text, session.execute, django.db.connection.execute, raw, extra]

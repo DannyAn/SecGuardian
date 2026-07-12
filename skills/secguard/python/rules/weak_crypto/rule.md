@@ -5,7 +5,7 @@ language: python
 topic: [crypto, algorithm, deprecated]
 skill_id: python.weak-crypto.md5
 signal_filter: python.weak-crypto.md5*
-signal_source: call_sites[category="crypto"]
+signal_source: call_sites[callee="md5|sha1|DES|hashlib|random|randint"]
 severity: high
 cwe: CWE-327
 trigger_functions: [hashlib.md5, hashlib.sha1, Crypto.Cipher.DES, Crypto.Cipher.ARC4, Crypto.Cipher.Blowfish, Cryptodome.Cipher.DES, Cryptodome.Cipher.ARC4, os.urandom, secrets.token_bytes, random.random, random.randint, random.choice]

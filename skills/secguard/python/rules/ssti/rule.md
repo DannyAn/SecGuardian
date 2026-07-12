@@ -5,7 +5,7 @@ language: python
 topic: [web, template, injection, ssti]
 skill_id: python.ssti.jinja2
 signal_filter: python.ssti.jinja2*
-signal_source: call_sites[category="template"]
+signal_source: call_sites[callee="render|render_template|Template|jinja2|mark_safe"]
 severity: critical
 cwe: CWE-1336
 trigger_functions: [render_template_string, jinja2.Template, mako.template.Template, django.template.Template, string.Template]

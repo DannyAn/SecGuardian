@@ -5,7 +5,7 @@ language: python
 topic: [deserialization, injection]
 skill_id: python.deserialization.pickle
 signal_filter: python.deserialization.pickle*
-signal_source: call_sites[category="deserialization"]
+signal_source: call_sites[callee="loads|load|Unpickler|yaml"]
 severity: critical
 cwe: CWE-502
 trigger_functions: [pickle.load, pickle.loads, yaml.load, dill.load, dill.loads, marshal.load, marshal.loads, shelve.open, jsonpickle.decode]

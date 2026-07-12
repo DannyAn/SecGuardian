@@ -5,7 +5,7 @@ language: python
 topic: [injection, code_execution]
 skill_id: python.code-injection.eval
 signal_filter: python.code-injection.eval*
-signal_source: call_sites[category="code_exec"]
+signal_source: call_sites[callee="eval|exec|compile|__import__|literal_eval"]
 severity: critical
 cwe: CWE-94
 trigger_functions: [eval, exec, compile, __import__, importlib.import_module, execfile, runpy.run_path, ast.literal_eval]

@@ -5,7 +5,7 @@ language: python
 topic: [web, ssrf, network]
 skill_id: python.ssrf.requests
 signal_filter: python.ssrf.requests*
-signal_source: call_sites[category="network"]
+signal_source: call_sites[callee="get|post|request|urlopen|Request|url"]
 severity: high
 cwe: CWE-918
 trigger_functions: [requests.get, requests.post, requests.put, requests.request, urllib.request.urlopen, urllib.urlopen, httpx.get, httpx.post, httpx.AsyncClient, aiohttp.ClientSession.get]

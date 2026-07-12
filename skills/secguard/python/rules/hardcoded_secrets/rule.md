@@ -5,7 +5,7 @@ language: python
 topic: [crypto, secrets, credentials]
 skill_id: python.hardcoded-secrets.key
 signal_filter: python.hardcoded-secrets.key*
-signal_source: call_sites[category="crypto"]
+signal_source: call_sites[callee="token_hex|token_bytes|urandom"]+string_literals
 severity: high
 cwe: CWE-798
 trigger_functions: [api_key, api_secret, SECRET_KEY, password, secret_key, encryption_key, jwt_secret, access_key, auth_token, db_password, token]

@@ -5,7 +5,7 @@ language: python
 topic: [io, filesystem, injection]
 skill_id: python.path-traversal.open
 signal_filter: python.path-traversal.open*
-signal_source: call_sites[category="io"]
+signal_source: call_sites[callee="open|Path|join|os.path"]
 severity: high
 cwe: CWE-22
 trigger_functions: [open, pathlib.Path, tarfile.extractall, tarfile.extract, shutil.unpack_archive, shutil.copy, shutil.move, os.remove, os.unlink, os.rename, tempfile.mkstemp]

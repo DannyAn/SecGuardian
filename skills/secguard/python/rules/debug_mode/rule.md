@@ -5,7 +5,7 @@ language: python
 topic: [web, configuration, security]
 skill_id: python.debug-mode.django
 signal_filter: python.debug-mode.django*
-signal_source: call_sites[category="config"]
+signal_source: call_sites[callee="DEBUG|run|debug"]
 severity: medium
 cwe: CWE-489
 trigger_functions: [DEBUG, debug, app.run]

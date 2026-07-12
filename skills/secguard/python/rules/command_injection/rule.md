@@ -5,7 +5,7 @@ language: python
 topic: [system, injection, shell]
 skill_id: python.command-injection.shell
 signal_filter: python.command-injection.shell*
-signal_source: call_sites[category="exec"]
+signal_source: call_sites[callee="system|popen|exec|eval|subprocess"]
 severity: critical
 cwe: CWE-78
 trigger_functions: [os.system, os.popen, subprocess.Popen, subprocess.call, subprocess.run, subprocess.getoutput, subprocess.getstatusoutput, os.exec*, os.posix_spawn, shutil.which]
