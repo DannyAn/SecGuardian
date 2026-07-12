@@ -3,8 +3,8 @@ name: secguard-js-hardcoded_secrets
 description: "Detects hardcoded API keys, passwords, JWT secrets, and other credentials in source code"
 language: javascript
 topic: [crypto, secrets, credentials]
-skill_id: js.hardcoded_secrets
-signal_filter: js.hardcoded_secrets*
+skill_id: js.crypto.hardcoded_secrets
+signal_filter: js.crypto.hardcoded*
 signal_source: call_sites[category="crypto"]
 severity: high
 cwe: [CWE-798]

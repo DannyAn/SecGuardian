@@ -3,8 +3,8 @@ name: secguard-python-hardcoded-secrets
 description: "检测硬编码密钥 — API Key / SECRET_KEY / Password 硬编码"
 language: python
 topic: [crypto, secrets, credentials]
-skill_id: python.hardcoded-secrets.key
-signal_filter: python.hardcoded-secrets.key*
+skill_id: python.crypto.hardcoded-secrets
+signal_filter: python.crypto.hardcoded*
 signal_source: call_sites[callee="token_hex|token_bytes|urandom"]+string_literals
 severity: high
 cwe: CWE-798

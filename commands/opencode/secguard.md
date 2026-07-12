@@ -200,7 +200,7 @@ platform: opencode
 | `python.command-injection.shell` | command_injection | exec |
 | `python.debug-mode.django` | debug_mode | config |
 | `python.deserialization.pickle` | deserialization | deserialization |
-| `python.hardcoded-secrets.key` | hardcoded_secrets | string |
+| `python.crypto.hardcoded-secrets` | hardcoded_secrets | string |
 | `python.path-traversal.open` | path_traversal | io |
 | `python.sql-injection.execute` | sql_injection | exec |
 | `python.ssrf.requests` | ssrf | io |
@@ -249,7 +249,7 @@ platform: opencode
 | `js.path_traversal` | path_traversal | io |
 | `js.ssrf` | ssrf | io |
 | `js.ssti` | ssti | io |
-| `js.hardcoded_secrets` | hardcoded_secrets | crypto |
+| `js.crypto.hardcoded_secrets` | hardcoded_secrets | crypto |
 | `js.weak_crypto` | weak_crypto | crypto |
 | `js.prototype_pollution` | prototype_pollution | memory |
 | `js.log_injection` | log_injection | io |
@@ -259,7 +259,7 @@ platform: opencode
 
 > ⚠️ **最常见错误 detector 名**（LLM 训练数据常混淆）→ **必须修正**：
 > - 扫描 Python 时：~~`exec.command_injection`~~ → `python.command-injection.shell`
-> - 扫描 Python 时：~~`crypto.hardcoded_secrets`~~ → `python.hardcoded-secrets.key`
+> - 扫描 Python 时：~~`crypto.hardcoded_secrets`~~ → `python.crypto.hardcoded-secrets`
 > - 扫描 Python 时：~~`io.path_traversal`~~ → `python.path-traversal.open`
 > - 扫描 Python 时：~~`web.xss`~~、~~`python.xss.reflected`~~ → `python.xss.template`
 > - 扫描 Python 时：~~`web.ssrf`~~ → `python.ssrf.requests`
