@@ -4,7 +4,7 @@ description: "检测 Java 日志注入 — 用户输入直接写入日志导致�
 language: java
 topic: [web, logging]
 skill_id: java.log-injection.crlf
-signal_source: call_sites[cat="logging"]
+signal_source: call_sites[callee="info|warn|error|debug|trace|log|fatal|severe|warning|config|fine|finer|finest"]
 severity: medium
 cwe: CWE-117
 trigger_functions: [info, warn, error, debug, trace, log, LoggerFactory, LogManager, getLogger]

@@ -4,7 +4,7 @@ description: "检测 Java 命令注入漏洞 — Runtime.exec 单字符串 / Pro
 language: java
 topic: [system, injection, shell]
 skill_id: java.command-injection.exec
-signal_source: call_sites[cat="exec"]
+signal_source: call_sites[callee="exec|getRuntime|ProcessBuilder|start"]
 severity: critical
 cwe: CWE-78
 trigger_functions: [exec, ProcessBuilder, getRuntime]

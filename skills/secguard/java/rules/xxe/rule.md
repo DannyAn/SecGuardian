@@ -4,7 +4,7 @@ description: "检测 Java XML 外部实体（XXE）注入 — DocumentBuilder / 
 language: java
 topic: [web, xml, injection]
 skill_id: java.xxe.insecure-xml
-signal_source: call_sites[cat="xml"]
+signal_source: call_sites[callee="newDocumentBuilder|parse|DocumentBuilderFactory|SAXParser|XMLReader|TransformerFactory|SchemaFactory"]
 severity: high
 cwe: CWE-611
 trigger_functions: [newDocumentBuilder, newInstance, newSAXParser, parse, setFeature, newXMLReader]

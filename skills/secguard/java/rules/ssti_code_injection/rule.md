@@ -4,7 +4,7 @@ description: "检测 Java 服务端模板注入 / 代码注入 — Freemarker / 
 language: java
 topic: [web, template, injection, ssti]
 skill_id: java.ssti-code-injection.dynamic
-signal_source: call_sites[cat="template"]
+signal_source: call_sites[callee="render|evaluate|processTemplate|Velocity|FreeMarker|Thymeleaf|GroovyShell|ScriptEngine"]
 severity: critical
 cwe: CWE-1336
 trigger_functions: [evaluate, parseExpression, getValue, process, newStringReader, eval, ScriptEngine]

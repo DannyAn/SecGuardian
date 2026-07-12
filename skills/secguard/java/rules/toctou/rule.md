@@ -4,7 +4,7 @@ description: "检测 Java TOCTOU 竞态条件 — 文件检查与使用非原子
 language: java
 topic: [file_io, concurrency]
 skill_id: java.toctou.race
-signal_source: call_sites[cat="file_io"]
+signal_source: call_sites[callee="exists|canRead|canWrite|isFile|isDirectory|lastModified|length|transferTo|getCanonicalPath"]
 severity: medium
 cwe: CWE-367
 trigger_functions: [exists, isFile, isDirectory, delete, renameTo, createTempFile, canRead, canWrite]

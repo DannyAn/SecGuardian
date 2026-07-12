@@ -4,7 +4,7 @@ description: "检测 Java SSRF — HttpURLConnection / RestTemplate / WebClient 
 language: java
 topic: [web, ssrf, network]
 skill_id: java.ssrf.open-redirect
-signal_source: call_sites[cat="http"]
+signal_source: call_sites[callee="openStream|openConnection|URL|HttpURLConnection|HttpClient|RestTemplate|WebClient"]
 severity: high
 cwe: CWE-918
 trigger_functions: [openConnection, getForObject, exchange, uri, RestTemplate, WebClient, HttpURLConnection]

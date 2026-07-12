@@ -4,7 +4,7 @@ description: "检测 Java SQL 注入漏洞 — Statement.execute / MyBatis ${} /
 language: java
 topic: [web, injection, database]
 skill_id: java.sql-injection.dynamic
-signal_source: call_sites[cat="sql"]
+signal_source: call_sites[callee="executeQuery|executeUpdate|execute|createStatement|prepareStatement|getConnection"]
 severity: critical
 cwe: CWE-89
 trigger_functions: [executeQuery, executeUpdate, createStatement, prepareStatement, createNativeQuery, Select, setString]

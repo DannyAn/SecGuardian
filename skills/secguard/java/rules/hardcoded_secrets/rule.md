@@ -4,7 +4,7 @@ description: "检测 Java 硬编码密钥/密码/Token — API Key / Password / 
 language: java
 topic: [crypto, secrets, credentials]
 skill_id: crypto.hardcoded-secrets
-signal_source: call_sites[cat="crypto"]
+signal_source: call_sites[callee="getConnection|getPassword|getSecret|getKey|getToken"]
 severity: high
 cwe: CWE-798
 trigger_functions: [password, api_key, secret_key, encryption_key, jwt_secret, private_key, master_key]

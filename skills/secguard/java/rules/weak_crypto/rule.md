@@ -4,7 +4,7 @@ description: "检测 Java 弱加密算法 — MD5/SHA-1/DES/RC4/ECB/非安全 Ra
 language: java
 topic: [crypto, algorithm]
 skill_id: java.weak-crypto.algorithm
-signal_source: call_sites[cat="crypto"]
+signal_source: call_sites[callee="getInstance|Cipher|MessageDigest|KeyGenerator|Mac|Signature|SecureRandom"]
 severity: high
 cwe: CWE-327
 trigger_functions: [getInstance, MessageDigest, Cipher, SecureRandom, Random, KeyGenerator]

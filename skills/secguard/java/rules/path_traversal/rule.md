@@ -4,7 +4,7 @@ description: "检测 Java 路径穿越漏洞 — 文件路径未 canonicalize �
 language: java
 topic: [web, file_io, injection]
 skill_id: java.path-traversal.sanitize
-signal_source: call_sites[cat="file_io"]
+signal_source: call_sites[callee="transferTo|getCanonicalPath|File|FileInputStream|FileOutputStream|Paths|createFile|newFile"]
 severity: high
 cwe: CWE-22
 trigger_functions: [Paths.get, new File, getCanonicalPath, getAbsolutePath, isFile, exists, createTempFile, ZipInputStream]

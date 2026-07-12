@@ -4,7 +4,7 @@ description: "检测 Java 反序列化漏洞 — ObjectInputStream / FastJson @t
 language: java
 topic: [web, deserialization, rce]
 skill_id: java.deserialization.insecure
-signal_source: call_sites[cat="deserialization"]
+signal_source: call_sites[callee="readObject|readUnshared|readResolve|ObjectInputStream"]
 severity: critical
 cwe: CWE-502
 trigger_functions: [readObject, parseObject, enableDefaultTyping, fromXML, load, addAccept, setAutoTypeSupport, setObjectInputFilter]
